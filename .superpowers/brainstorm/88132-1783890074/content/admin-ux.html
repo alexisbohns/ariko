@@ -1,0 +1,83 @@
+<h2>The admin — capture, triage, publish</h2>
+<p class="subtitle">Two things must be frictionless: throwing something in (2 seconds), and clearing the inbox (batch, keyboard-driven). Here's the workhorse layout.</p>
+
+<div class="mockup">
+  <div class="mockup-header">Always-present quick-capture bar</div>
+  <div class="mockup-body">
+    <div style="display:flex;gap:8px;align-items:center;font-size:13px">
+      <input class="mock-input" style="flex:2" placeholder="Throw something in…  (title or note)">
+      <input class="mock-input" style="flex:2" placeholder="Paste a link — embed provider auto-detected (SoundCloud / Figma / YouTube…)">
+      <button class="mock-button">📎 image</button>
+      <button class="mock-button" style="background:#4a8;color:#fff">Add to inbox ⏎</button>
+    </div>
+    <div style="font-size:11.5px;color:#888;margin-top:6px">Paste a Figma/SoundCloud/YouTube URL → stored as an embed. Drop an image → uploaded to object storage. No classification needed yet — that's what triage is for.</div>
+  </div>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">Inbox workspace — list (left) + triage panel (right)</div>
+  <div class="mockup-body">
+    <div style="display:flex;gap:12px;font-size:12.5px">
+
+      <div style="flex:1;border:1px solid #bbb;border-radius:8px;overflow:hidden">
+        <div style="padding:6px 10px;background:rgba(120,120,120,0.08);font-weight:600">Inbox · 4</div>
+        <div style="padding:8px 10px;border-bottom:1px solid #eee;background:rgba(70,120,180,0.06)">
+          <div><span style="background:#333;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px">github</span> &nbsp;<strong>Emotion Pearl v2</strong></div>
+          <div style="color:#888;margin-top:3px">pbbls PR #482 · FR + EN notes · 2h ago</div>
+        </div>
+        <div style="padding:8px 10px;border-bottom:1px solid #eee">
+          <div><span style="background:#c96;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px">manual</span> &nbsp;<strong>song idea — chorus hook</strong></div>
+          <div style="color:#888;margin-top:3px">🎧 SoundCloud embed · 5h ago</div>
+        </div>
+        <div style="padding:8px 10px;border-bottom:1px solid #eee">
+          <div><span style="background:#639;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px">arkaik</span> &nbsp;<strong>Pebbles bundle 0.9.4</strong></div>
+          <div style="color:#888;margin-top:3px">auto · product map · 1d ago</div>
+        </div>
+        <div style="padding:8px 10px">
+          <div><span style="background:#c96;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px">manual</span> &nbsp;<strong>CASA ep. 3 recorded</strong></div>
+          <div style="color:#888;margin-top:3px">📎 2 images · 1d ago</div>
+        </div>
+      </div>
+
+      <div style="flex:1.3;border:1px solid #48a;border-radius:8px;padding:10px;background:rgba(70,120,180,0.04)">
+        <div class="label" style="color:#48a">Triage → promote to a version</div>
+        <div style="margin-top:8px;line-height:2.1">
+          <div><span style="color:#888">Molecule</span> &nbsp;<span style="border:1px solid #48a;border-radius:5px;padding:2px 8px">Pebbles ▾</span> &nbsp;<span style="color:#888;font-size:11px">search or + new</span></div>
+          <div><span style="color:#888">Atom</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="border:1px solid #48a;border-radius:5px;padding:2px 8px">Pebbles iOS ▾</span></div>
+          <div><span style="color:#888">Version</span> &nbsp;<input class="mock-input" style="width:180px" value="Emotion Pearl"> <span style="border:1px solid #999;border-radius:5px;padding:2px 8px">feature ▾</span> <span style="border:1px solid #999;border-radius:5px;padding:2px 8px">📅 2026-04-16</span></div>
+          <div style="margin-top:4px">
+            <span style="color:#888">Description</span> &nbsp;<span style="border:1px solid #4a8;border-radius:4px;padding:1px 6px;font-size:11px">EN ✓</span> <span style="border:1px solid #4a8;border-radius:4px;padding:1px 6px;font-size:11px">FR ✓</span> <span style="color:#888;font-size:11px">(both pulled from the PR)</span>
+          </div>
+          <div><span style="color:#888">Media</span> &nbsp;&nbsp;&nbsp;&nbsp;🎬 figma embed &nbsp; 📎 screenshot.png</div>
+          <div><span style="color:#888">Tags</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="border:1px solid #999;border-radius:10px;padding:1px 8px;font-size:11px">ios</span> <span style="border:1px solid #999;border-radius:10px;padding:1px 8px;font-size:11px">+ add</span></div>
+          <div style="margin-top:6px"><span style="color:#888">Visibility</span> &nbsp;<span style="border:1px solid #c96;border-radius:5px;padding:2px 8px">● private</span> <span style="border:1px solid #ddd;color:#aaa;border-radius:5px;padding:2px 8px">○ public</span></div>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <button class="mock-button" style="background:#48a;color:#fff">Promote → keep private</button>
+          <button class="mock-button" style="background:#4a8;color:#fff">Promote → publish</button>
+          <button class="mock-button">Discard</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<h3>Does this interaction model fit your daily rhythm?</h3>
+<p class="subtitle">Pick the primary triage mode (the capture bar exists either way).</p>
+<div class="options">
+  <div class="option" data-choice="two-pane" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Two-pane workspace ★ recommended</h3>
+      <p>See the whole inbox, triage in place, blow through a backlog with the keyboard. Best when you sit down once a day/week to clear it. Batch-friendly.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="wizard" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>One-at-a-time wizard</h3>
+      <p>Full-screen, one capture at a time, guided steps. Calmer and more focused, but slower to clear a pile and more clicking.</p>
+    </div>
+  </div>
+</div>

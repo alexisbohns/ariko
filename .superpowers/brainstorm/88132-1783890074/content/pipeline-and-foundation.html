@@ -1,0 +1,96 @@
+<h2>The "central node" shape</h2>
+<p class="subtitle">Everything converges into one private vault, then a curated subset is published. This backbone is the same no matter which foundation we pick.</p>
+
+<div class="mockup">
+  <div class="mockup-header">The pipeline — capture → classify → vault → publish</div>
+  <div class="mockup-body">
+    <div style="display:flex;align-items:stretch;gap:8px;flex-wrap:wrap;font-size:13px">
+
+      <div style="flex:1;min-width:120px;border:1px solid #bbb;border-radius:8px;padding:10px;background:rgba(120,120,120,0.06)">
+        <div class="label">Sources</div>
+        <div style="margin-top:6px;line-height:1.7">
+          GitHub PRs (FR/EN notes)<br>
+          Pebbles changelog<br>
+          Arkaik bundles<br>
+          Figma / live apps<br>
+          SoundCloud · podcast host<br>
+          📱 phone quick-capture
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;color:#999;font-size:20px">→</div>
+
+      <div style="flex:1;min-width:120px;border:1px solid #bbb;border-radius:8px;padding:10px;background:rgba(120,120,120,0.06)">
+        <div class="label">Inbox</div>
+        <div style="margin-top:6px;line-height:1.7">
+          Raw, unclassified captures land here.<br><br>
+          Auto (connectors) + manual (capture) both dump into the same tray.
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;color:#999;font-size:20px">→</div>
+
+      <div style="flex:1;min-width:120px;border:1px solid #bbb;border-radius:8px;padding:10px;background:rgba(120,120,120,0.06)">
+        <div class="label">Triage / classify</div>
+        <div style="margin-top:6px;line-height:1.7">
+          Assign to molecule → atom → version.<br>
+          Tag, add media, decide: keep private or publish.<br>
+          <em>Claude can pre-draft this.</em>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;color:#999;font-size:20px">→</div>
+
+      <div style="flex:1;min-width:120px;border:1px solid #4a8;border-radius:8px;padding:10px;background:rgba(70,160,140,0.10)">
+        <div class="label">Vault (private)</div>
+        <div style="margin-top:6px;line-height:1.7">
+          Your full archive. All items + media, published or not.
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;color:#999;font-size:20px">→</div>
+
+      <div style="flex:1;min-width:120px;border:1px solid #48a;border-radius:8px;padding:10px;background:rgba(70,120,180,0.10)">
+        <div class="label">Portfolio (public)</div>
+        <div style="margin-top:6px;line-height:1.7">
+          The current atome exhibition — only the published subset.
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<h3>Which foundation runs it? (media is the deciding factor)</h3>
+<p class="subtitle">Click the one that feels right — or tell me it's wrong and why.</p>
+
+<div class="options">
+
+  <div class="option" data-choice="git" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Git-as-database + references</h3>
+      <p><strong>Metadata</strong> = YAML/JSON in a repo. <strong>Media</strong> = mostly URLs to where it already lives (SoundCloud, Figma, apps); orphan files go in Git LFS or a cheap bucket. Agents & Actions commit entries; site rebuilds from files. Version history is your audit trail — very on-theme.</p>
+      <p style="color:#a66"><strong>Cost:</strong> cheapest to run, no server. <strong>Pain:</strong> phone/2am capture is clunky; LFS for real media gets ugly; no live querying.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="backend" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Real backend + DB + object storage</h3>
+      <p>atome becomes an app you log into. <strong>Metadata</strong> in a DB (Mongo/Postgres), <strong>media</strong> in an object store (S3 / R2 / Supabase). Capture from anywhere, query anything, real admin UI.</p>
+      <p style="color:#a66"><strong>Cost:</strong> biggest build, something to host & maintain. <strong>Win:</strong> no ceilings — most future-proof for a "massive portfolio".</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="hybrid" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Hybrid — DB vault + object storage, static public site ★ recommended</h3>
+      <p>A lightweight DB + object store hold the <strong>private vault</strong> and power a small <strong>admin</strong> (triage, capture, upload media). Publishing <strong>exports</strong> the chosen subset to the static portfolio you already built. Messy private side and clean public side stay separate.</p>
+      <p style="color:#6a6"><strong>Why this:</strong> handles media properly, gives you capture-anywhere, keeps the public site fast & simple, and each source can be wired in one at a time.</p>
+    </div>
+  </div>
+
+</div>

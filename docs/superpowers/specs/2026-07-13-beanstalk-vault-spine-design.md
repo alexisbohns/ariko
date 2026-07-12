@@ -1,4 +1,4 @@
-# atome — Vault Spine (Slice 1) — Design Spec
+# Beanstalk — Vault Spine (Slice 1) — Design Spec
 
 **Date:** 2026-07-13
 **Status:** Approved for planning
@@ -8,9 +8,9 @@
 
 ## 1. Context & vision
 
-atome today is a zero-CSS Next.js POC that reads a static `data/seed.yml` and exhibits an atomic content model (Molecule → Atom → Version) as a public portfolio.
+Beanstalk today is a zero-CSS Next.js POC that reads a static `data/seed.yml` and exhibits an atomic content model (Molecule → Atom → Version) as a public portfolio.
 
-The larger goal: make atome the **central node** where everything the user creates converges — music, product/design work, podcasts, writing — to be **stored, classified, and exhibited** as a lifelong portfolio. Crucially, atome is a **personal archive first, portfolio second**: most things live privately; a curated subset is published.
+The larger goal: make Beanstalk the **central node** where everything the user creates converges — music, product/design work, podcasts, writing — to be **stored, classified, and exhibited** as a lifelong portfolio. Crucially, Beanstalk is a **personal archive first, portfolio second**: most things live privately; a curated subset is published.
 
 The user works across many repositories and systems (pbbls, paulopus, arkaik, melogram, symmetry, …). Much content *already exists on the web* (GitHub PR release notes in FR/EN, the Pebbles changelog, Arkaik bundles, music on streaming platforms, podcasts on hosts). The design principle is **fewest extra-cost**: never re-author what already exists — reference or ingest it.
 

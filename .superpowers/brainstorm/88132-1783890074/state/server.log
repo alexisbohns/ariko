@@ -1,0 +1,8 @@
+{"type":"server-started","port":55989,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:55989","screen_dir":"/Users/alexis/code/atome/.superpowers/brainstorm/88132-1783890074/content","state_dir":"/Users/alexis/code/atome/.superpowers/brainstorm/88132-1783890074/state"}
+{"type":"screen-added","file":"/Users/alexis/code/atome/.superpowers/brainstorm/88132-1783890074/content/pipeline-and-foundation.html"}
+{"type":"screen-added","file":"/Users/alexis/code/atome/.superpowers/brainstorm/88132-1783890074/content/waiting.html"}
+{"type":"screen-added","file":"/Users/alexis/code/atome/.superpowers/brainstorm/88132-1783890074/content/data-model.html"}
+{"source":"user-event","type":"click","text":"A\n    \n      Capture is its own entity ★ recommended\n      Raw inbox junk stays out of the clean atomic model until you triage it. One capture can become several versions (a PR touching two features), or be discarded. Your molecule/atom/version data never gets polluted with half-baked drafts.","choice":"capture-first-class","id":null,"timestamp":1783893537648}
+{"type":"screen-added","file":"/Users/alexis/code/atome/.superpowers/brainstorm/88132-1783890074/content/admin-ux.html"}
+{"type":"screen-added","file":"/Users/alexis/code/atome/.superpowers/brainstorm/88132-1783890074/content/waiting-2.html"}
+{"type":"server-stopped","reason":"idle timeout"}

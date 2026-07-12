@@ -1,0 +1,94 @@
+<h2>Data model — the vault</h2>
+<p class="subtitle">Your existing molecule → atom → version stays intact. We add a raw <strong>Capture</strong> in front of it, plus shared building blocks for media, bilingual text, and provenance.</p>
+
+<div class="mockup">
+  <div class="mockup-header">Shared building blocks (used by everything below)</div>
+  <div class="mockup-body">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:12.5px">
+      <div style="flex:1;min-width:150px;border:1px dashed #999;border-radius:8px;padding:10px">
+        <div class="label">LocalizedText</div>
+        <div style="margin-top:6px;line-height:1.6"><code>{ en?, fr? }</code><br>For names & descriptions. Lets pbbls store <strong>FR + EN</strong> release notes side by side; plain string is fine for a song.</div>
+      </div>
+      <div style="flex:1;min-width:150px;border:1px dashed #999;border-radius:8px;padding:10px">
+        <div class="label">Media[]</div>
+        <div style="margin-top:6px;line-height:1.6"><strong>embed</strong> → <code>{ provider, url }</code> (SoundCloud, Spotify, Deezer, Ausha, YouTube, Vimeo, Figma)<br><strong>image</strong> → <code>{ storageKey, url, alt, w, h }</code> (your uploads, in object storage — never the repo)</div>
+      </div>
+      <div style="flex:1;min-width:150px;border:1px dashed #999;border-radius:8px;padding:10px">
+        <div class="label">Source (provenance)</div>
+        <div style="margin-top:6px;line-height:1.6"><code>{ kind, url?, externalId?, capturedAt }</code><br>kind = manual · github · changelog · arkaik · … So you always know where a thing came from + can dedupe.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">The flow of an item through the model</div>
+  <div class="mockup-body">
+    <div style="display:flex;align-items:stretch;gap:8px;flex-wrap:wrap;font-size:12.5px">
+
+      <div style="flex:1.1;min-width:170px;border:2px solid #c96;border-radius:8px;padding:10px;background:rgba(200,150,90,0.08)">
+        <div class="label">Capture &nbsp;<span style="color:#c96">(inbox)</span></div>
+        <div style="margin-top:6px;line-height:1.65">
+          Raw incoming content — from a connector or the capture form.<br><br>
+          <code>title</code> · <code>body</code> (LocalizedText)<br>
+          <code>media[]</code> · <code>source</code><br>
+          <code>suggested</code> (Claude can pre-fill molecule/atom/type later)<br>
+          <code>status</code>: inbox · promoted · discarded<br>
+          <code>promotedTo[]</code> → versions
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;color:#c96;min-width:80px">
+        <div style="font-size:20px">→</div>
+        <div style="font-size:11px;text-align:center">triage /<br>promote</div>
+      </div>
+
+      <div style="flex:1.4;min-width:220px;border:2px solid #48a;border-radius:8px;padding:10px;background:rgba(70,120,180,0.06)">
+        <div class="label" style="color:#48a">The atomic model &nbsp;(unchanged shape, new fields)</div>
+        <div style="margin-top:8px;line-height:1.6">
+          <div style="border:1px solid #48a;border-radius:6px;padding:6px 8px;margin-bottom:6px">
+            <strong>Molecule</strong> — name*, domain, description*, <span style="color:#48a">visibility</span>, tags[]
+          </div>
+          <div style="border:1px solid #48a;border-radius:6px;padding:6px 8px;margin-bottom:6px;margin-left:14px">
+            <strong>Atom</strong> — name*, parents[], <span style="color:#48a">visibility</span>, tags[]
+          </div>
+          <div style="border:1px solid #48a;border-radius:6px;padding:6px 8px;margin-left:28px">
+            <strong>Version</strong> <em>(the unit of work)</em> — name*, type, date, description*, parents[],<br>
+            <span style="color:#4a8">media[]</span> · <span style="color:#48a">visibility</span> · source · tags[] · …flexible props
+          </div>
+          <div style="margin-top:8px;font-size:11.5px;color:#888">* = LocalizedText &nbsp;·&nbsp; new fields in <span style="color:#48a">blue</span>/<span style="color:#4a8">green</span></div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;color:#4a8;min-width:80px">
+        <div style="font-size:20px">→</div>
+        <div style="font-size:11px;text-align:center">publish<br>(visibility<br>→ public)</div>
+      </div>
+
+      <div style="flex:0.8;min-width:120px;border:2px solid #4a8;border-radius:8px;padding:10px;background:rgba(70,160,140,0.08)">
+        <div class="label" style="color:#4a8">Portfolio</div>
+        <div style="margin-top:6px;line-height:1.65">Public zone shows only items where <code>visibility = public</code>. Publishing a version auto-promotes its atom + molecule to public.</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<h3>One real fork for you</h3>
+<p class="subtitle">Should a raw Capture be its own thing, or just an early-stage Version?</p>
+<div class="options">
+  <div class="option" data-choice="capture-first-class" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Capture is its own entity ★ recommended</h3>
+      <p>Raw inbox junk stays out of the clean atomic model until you triage it. One capture can become several versions (a PR touching two features), or be discarded. Your molecule/atom/version data never gets polluted with half-baked drafts.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="capture-is-draft-version" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Captures are just draft Versions</h3>
+      <p>Simpler — one fewer entity. An inbox item is a Version with <code>status: inbox</code> and no parent yet. But drafts and real work share a table, and the 1-capture-→-many-versions case gets awkward.</p>
+    </div>
+  </div>
+</div>
