@@ -1,0 +1,404 @@
+molecules:
+  - slug: wait-for-the-sun
+    name: Wait for the Sun
+    domain: music
+    description: A folk album
+  - slug: celesta
+    name: Celesta
+    domain: music
+    description: An ethereal instrumental piano album
+  - slug: republic-of-masquerade
+    name: Republic of Masquerade
+    domain: music
+    description: A dark and political alternative rock album
+  - slug: enerfip
+    name: Enerfip
+    domain: design
+    description: A platform for investing in renewable energy projects
+  - slug: teale
+    name: Teale
+    domain: design
+    description: A mental health and wellness app that provides personalized support and resources
+  - slug: femfolk
+    name: Femfolk
+    domain: podcast
+    description: A platform that celebrates and promotes the work of female folk musicians, featuring interviews, live performances, and curated playlists
+  - slug: pebblestones
+    name: Pebblestones
+    domain: design
+    description: A blog that explores the intersection of design, psychology and philosophy, featuring articles, interviews, and case studies on topics such as user experience, visual design, and cognitive science
+  - slug: pbbls
+    name: Pebbles
+    domain: design
+    description: A daily routine app to collect memories and moments, allowing users to create a digital scrapbook of their lives
+  - slug: casa
+    name: CASA Podcast
+    domain: podcast
+    description: A podcast about life questions and debates with 3 friends
+atoms:
+  - slug: rom-act-of-war
+    name: Act of War
+    parents:
+      - molecule:republic-of-masquerade
+  - slug: rom-alpha-boy
+    name: Alpha Boy
+    parents:
+      - molecule:republic-of-masquerade
+  - slug: rom-win
+    name: Win
+    parents:
+      - molecule:republic-of-masquerade
+  - slug: wfts-wait-for-the-sun
+    name: Wait for the Sun
+    parents:
+      - molecule:wait-for-the-sun
+  - slug: felina
+    name: Felina
+    parents:
+      - molecule:celesta
+  - slug: ef-rebranding
+    name: Rebranding
+    parents:
+      - molecule:enerfip
+  - slug: teale-mindfulness
+    name: Mindfulness
+    parents:
+      - molecule:teale
+  - slug: teale-therapists
+    name: Therapists
+    parents:
+      - molecule:teale
+  - slug: teale-ios
+    name: iOS App
+    parents:
+      - molecule:teale
+  - slug: teale-android
+    name: Android App
+    parents:
+      - molecule:teale
+  - slug: teale-library
+    name: Library
+    parents:
+      - molecule:teale
+  - slug: ff-paris-paloma
+    name: Paris Paloma
+    parents:
+      - molecule:femfolk
+  - slug: casa-dating
+    name: CASA Episode 1
+    parents:
+      - molecule:casa
+  - slug: casa-tolerance
+    name: CASA Episode 2
+    parents:
+      - molecule:casa
+  - slug: celesta-uunngaelig
+    name: Uunngåelig
+    parents:
+      - molecule:celesta
+  - slug: celesta-stjernedugg
+    name: Stjernedugg
+    parents:
+      - molecule:celesta
+  - slug: wfts-through-the-night
+    name: Through the Night
+    parents:
+      - molecule:wait-for-the-sun
+  - slug: wfts-alive
+    name: Alive
+    parents:
+      - molecule:wait-for-the-sun
+  - slug: rom-damned-thoughts
+    name: Damned Thoughts
+    parents:
+      - molecule:republic-of-masquerade
+  - slug: pbbls-webapp
+    name: Pebbles Webapp
+    parents:
+      - molecule:pbbls
+  - slug: pbbls-ios
+    name: Pebbles iOS
+    parents:
+      - molecule:pbbls
+  - slug: pbbls-path
+    name: Pebbles Path
+    parents:
+      - molecule:pbbls
+  - slug: pbbls-recorder
+    name: Pebbles Recorder
+    parents:
+      - molecule:pbbls
+versions:
+  - slug: wait-for-the-sun-0
+    name: Wait for the Sun
+    type: song
+    date: 2025-09-28
+    description: A positive vibes folk song about waiting for the sun to rise and finding hope in difficult times
+    parents:
+      - atom:wfts-wait-for-the-sun
+  - slug: felina-0
+    name: Felina
+    type: song
+    date: 2025-11-16
+    description: An ethereal instrumental piano song that evokes a sense of wonder and magic
+    parents:
+      - atom:felina
+  - slug: rebranding-0
+    name: Rebranding
+    type: feature
+    date: 2023-09-23
+    description: Rebranding the Enerfip platform to better reflect its mission and values, including a new logo, color scheme, and user interface design
+    parents:
+      - atom:ef-rebranding
+  - slug: paris-paloma-0
+    name: Paris Paloma
+    type: episode
+    date: 2025-10-05
+    description: A reportage about Paris Paloma, a rising star in the folk music scene, discussing her musical influences, creative process, and upcoming projects
+    parents:
+      - atom:ff-paris-paloma
+  - slug: casa-dating-0
+    name: CASA Episode 1
+    type: episode
+    date: 2026-02-18
+    description: The first episode of the CASA podcast about dating experiences and relationships, featuring personal stories and advice from the hosts
+    parents:
+      - atom:casa-dating
+  - slug: casa-tolerance-0
+    name: CASA Episode 2
+    type: episode
+    date: 2026-02-19
+    description: The second episode of the CASA podcast about tolerance and acceptance of the partener in a relationship, featuring personal stories and advice from the hosts
+    parents:
+      - atom:casa-tolerance
+  - slug: celesta-uunngaelig-0
+    name: Uunngåelig
+    type: song
+    date: 2025-11-30
+    description: À mesure que l'espace s'étire et que le temps se déverse, que la gravité nous attire et que le chaos nous disperse, les souvenirs s'estompent et ma mémoire s'estompe, comme les mots dans le sable que les vagues effacent, ou, polis par la rivière les galets que je ramasse
+    parents:
+      - atom:celesta-uunngaelig
+  - slug: celesta-stjernedugg-0
+    name: Stjernedugg
+    type: song
+    date: 2025-11-23
+    description: À l'aurore scintillent de concert la rosée naissante sur la Terre et les étoiles qui s'estompent tendrement dans le Ciel. Et si cet instant, suspendu dans un théâtre polaire, s'appelait la Rosée Stellaire ? Stjernedugg.
+    parents:
+      - atom:celesta-stjernedugg
+  - slug: wfts-through-the-night-0
+    name: Through the Night
+    type: song
+    date: 2025-09-14
+    description: A delicate acoustic lullaby
+    parents:
+      - atom:wfts-through-the-night
+  - slug: wfts-alive-0
+    name: Alive
+    type: song
+    date: 2024-04-24
+    description: A folk song about embracing life and finding joy in the present moment
+    parents:
+      - atom:wfts-alive
+  - slug: rom-damned-thoughts-0
+    name: Damned Thoughts
+    type: song
+    date: 2012-12-27
+    description: A dark and introspective alternative rock song about struggling with inner demons and finding a way to move forward
+    parents:
+      - atom:rom-damned-thoughts
+  - slug: rom-damned-thoughts-1
+    name: Damned Thoughts
+    type: song
+    date: 2023-10-27
+    description: A dark and introspective alternative rock song about struggling with inner demons and finding a way to move forward
+    parents:
+      - atom:rom-damned-thoughts
+  - slug: rom-damned-thoughts-2
+    name: Damned Thoughts
+    type: song
+    date: 2026-05-20
+    description: A dark and introspective alternative rock song about struggling with inner demons and finding a way to move forward
+    parents:
+      - atom:rom-damned-thoughts
+  - slug: pbbls-webapp-core
+    name: Path, Collections & Pebble Detail
+    type: feature
+    date: 2026-03-27
+    description: "The core app is alive: a path timeline, full collections and a detailed view of each pebble, with the ability to add new pebbles and edit existing ones"
+    parents:
+      - atom:pbbls-webapp
+  - slug: pbbls-webapp-color
+    name: Color World Themes
+    type: feature
+    date: 2026-03-28
+    description: "Chose from 5 color themes to set the emotional tone of your Pebbles experience. Blush Quartz by default."
+    parents:
+      - atom:pbbls-webapp
+  - slug: pbbls-webapp-record-flow
+    name: Multi step recording flow
+    type: feature
+    date: 2026-03-28
+    description: "A multi-step recording flow that guides users through the process of capturing and organizing their Pebbles."
+    parents:
+      - atom:pbbls-webapp
+  - slug: pbbls-webapp-emotion-pearl
+    name: Emotion Pearl
+    type: feature
+    date: 2026-03-29
+    description: "See your emotion pearl take shape in real time as you record a pebble, a visual that captures how you felt."
+    parents:
+      - atom:pbbls-webapp
+  - slug: pbbls-webapp-pwa
+    name: PWA Support
+    type: feature
+    date: 2026-03-30
+    description: "Progressive Web App support for a seamless Pebbles experience across devices."
+    parents:
+      - atom:pbbls-webapp
+  - slug: pbbls-webapp-karma
+    name: Karma and Bounce system
+    type: feature
+    date: 2026-04-01
+    description: "A system that tracks karma and bounce within the Pebbles app, enhancing user engagement and interaction."
+    parents:
+      - atom:pbbls-webapp
+  - slug: pbbls-ios-core
+    name: Core iOS App
+    type: feature
+    date: 2026-04-12
+    description: "The core iOS app is now available, allowing users to access their Pebbles on the go with a native experience."
+    parents:
+      - atom:pbbls-ios
+  - slug: pbbls-ios-record-flow
+    name: Multi step recording flow
+    type: feature
+    date: 2026-04-13
+    description: "A multi-step recording flow that guides users through the process of capturing and organizing their Pebbles."
+    parents:
+      - atom:pbbls-ios
+  - slug: pbbls-ios-profile
+    name: Profile and Settings
+    type: feature
+    date: 2026-04-13
+    description: "Profile and settings management for the iOS app, allowing users to customize their experience and manage their account."
+    parents:
+      - atom:pbbls-ios
+  - slug: pbbls-ios-pebble-detail
+    name: Pebble Detail View
+    type: feature
+    date: 2026-04-14
+    description: "A detailed view of each pebble in the iOS app, providing users with an in-depth look at their memories and moments."
+    parents:
+      - atom:pbbls-ios
+  - slug: pbbls-ios-pebble-render
+    name: Pebble Render Engine
+    type: feature
+    date: 2026-04-15
+    description: "The Pebble Render Engine powers the visual representation of pebbles in the iOS app, providing a rich and immersive experience."
+    parents:
+      - atom:pbbls-ios
+  - slug: pbbls-ios-emotion-colored-pebbles
+    name: Emotion Colored Pebbles
+    type: feature
+    date: 2026-04-16
+    description: "Emotion Colored Pebbles feature allows users to see their pebbles in different colors based on their emotions, enhancing the visual experience."
+    parents:
+      - atom:pbbls-ios
+  - slug: rom-act-of-war-0
+    name: Act of War
+    type: song
+    date: 2025-12-26
+    description: "As in The Diplomat, from which the lyrics are explicitly inspired, this song explores the emotional divide endured within a relationship of control, suspended between attachment and suffocation, dependence and alienation. This intimate violence appears not as an exception, but as a mirror of the structures of domination that shape society as a whole, extending even to the relations between nations and empires."
+    parents:
+      - atom:rom-act-of-war
+  - slug: rom-win-0
+    name: Win
+    type: song
+    date: 2025-09-21
+    description: "A dystopian song from my high school years, humbly inspired by Led Zeppelin, Pink Floyd and Guns N' Roses. There is still no definitive vocal track because this song is very technical."
+    parents:
+      - atom:rom-win
+  - slug: rom-alpha-boy-0
+    name: Alpha Boy
+    type: song
+    date: 2025-09-26
+    description: "Un morceau over-trafiqué et satirique sur le masculinisme, où le rapcore de Rage Against The Machine rencontrerait le big beat des Chemical Brothers pour un résultat humblement inspiré de Shaka Ponk."
+    parents:
+      - atom:rom-alpha-boy
+  - slug: teale-mindfulness-0
+    name: Mindfulness POC
+    type: feature
+    date: 2025-09-20
+    description: "A proof of concept for the Mindfulness feature in the Teale app, demonstrating the potential benefits of guided meditation and mindfulness exercises for users"
+    parents:
+      - atom:teale-mindfulness
+  - slug: teale-mindfulness-1
+    name: Mindfulness MVP
+    type: feature
+    date: 2025-11-20
+    description: "A minimum viable product for the Mindfulness feature in the Teale app, demonstrating the potential benefits of guided meditation and mindfulness exercises for users"
+    parents:
+      - atom:teale-mindfulness
+  - slug: teale-mindfulness-2
+    name: Mindfulness V2
+    type: feature
+    date: 2026-02-20
+    description: "A second version of the Mindfulness feature in the Teale app, demonstrating the potential benefits of guided meditation and mindfulness exercises for users"
+    parents:
+      - atom:teale-mindfulness
+  - slug: teale-therapists-0
+    name: Meetings Directory
+    type: feature
+    date: 2024-12-15
+    description: "A directory of therapists available for meetings through the Teale app, providing users with access to professional mental health support"
+    parents:
+      - atom:teale-therapists
+  - slug: teale-therapists-1
+    name: Meetings Agenda
+    type: feature
+    date: 2025-03-15
+    description: "An updated version of the Meetings Agenda feature in the Teale app, providing users with access to professional mental health support"
+    parents:
+      - atom:teale-therapists
+  - slug: teale-ios-0
+    name: iOS App Launch
+    type: feature
+    date: 2025-06-01
+    description: "The launch of the Teale iOS app, providing users with access to mental health and wellness resources on their mobile devices"
+    parents:
+      - atom:teale-ios
+  - slug: teale-ios-1
+    name: iOS App Update
+    type: feature
+    date: 2025-07-01
+    description: "Second version of several improvements and bug fixes for the Teale iOS app, enhancing the user experience and providing additional features"
+    parents:
+      - atom:teale-ios
+  - slug: teale-android-0
+    name: Android App Launch
+    type: feature
+    date: 2025-12-15
+    description: "The launch of the Teale android app, providing users with access to mental health and wellness resources on their mobile devices"
+    parents:
+      - atom:teale-android
+  - slug: teale-android-1
+    name: Android App Update
+    type: feature
+    date: 2026-02-20
+    description: "Second version of several improvements and bug fixes for the Teale android app, enhancing the user experience and providing additional features"
+    parents:
+      - atom:teale-android
+  - slug: teale-library-0
+    name: Library V2
+    type: feature
+    date: 2025-03-10
+    description: "The launch of the Teale Library V2, providing users with access to an updated collection of mental health and wellness resources"
+    parents:
+      - atom:teale-library
+  - slug: teale-library-1
+    name: Library Update
+    type: feature
+    date: 2025-07-01
+    description: "Second version of several improvements and bug fixes for the Teale Library, enhancing the user experience and providing additional resources"
+    parents:
+      - atom:teale-library
