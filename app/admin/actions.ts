@@ -71,14 +71,30 @@ export async function promoteCaptureAction(formData: FormData): Promise<void> {
     redirect(`/admin/triage/${captureId}?error=${encodeURIComponent(precheck.error)}`);
   }
 
-  // Resolve/create parents, then the version. Only slug collisions are recoverable;
+  // Resolve parent choices up front (pure) so we can guard invalid combinations
+  // BEFORE any write. A newly created molecule is only ever linked from a newly
+  // created atom in this flow, so "new molecule + (existing/no) atom" would leave
+  // the molecule orphaned — reject it rather than silently drop the intent.
+  const molChoice = resolveParentChoice(
+    String(formData.get("newMoleculeSlug") ?? ""),
+    String(formData.get("moleculeSlug") ?? ""),
+  );
+  const atomChoice = resolveParentChoice(
+    String(formData.get("newAtomSlug") ?? ""),
+    String(formData.get("atomSlug") ?? ""),
+  );
+  if (molChoice.mode === "create" && atomChoice.mode !== "create") {
+    redirect(
+      `/admin/triage/${captureId}?error=${encodeURIComponent(
+        "a new molecule must be paired with a new atom under it",
+      )}`,
+    );
+  }
+
+  // Create parents, then the version. Only slug collisions are recoverable;
   // anything else propagates. redirect() stays OUT of the try (it throws to control flow).
   let slugError: string | null = null;
   try {
-    const molChoice = resolveParentChoice(
-      String(formData.get("newMoleculeSlug") ?? ""),
-      String(formData.get("moleculeSlug") ?? ""),
-    );
     let moleculeSlug: string | null = null;
     if (molChoice.mode === "create") {
       const domainRaw = String(formData.get("newMoleculeDomain") ?? "");
@@ -94,10 +110,6 @@ export async function promoteCaptureAction(formData: FormData): Promise<void> {
       moleculeSlug = molChoice.slug;
     }
 
-    const atomChoice = resolveParentChoice(
-      String(formData.get("newAtomSlug") ?? ""),
-      String(formData.get("atomSlug") ?? ""),
-    );
     let atomSlug: string | null = null;
     if (atomChoice.mode === "create") {
       await createAtom({
