@@ -1,0 +1,108 @@
+import type { LocalizedText, Media, MediaImage, Source, CaptureSuggestion } from "./data";
+import { detectEmbed } from "./embeds";
+
+// Media as it arrives in a raw JSON payload: an embed may omit `provider`
+// (we detect it), while the stored `Media` type always has one.
+export type InputMedia =
+  | { kind: "embed"; url: string; provider?: string; embedId?: string }
+  | MediaImage;
+
+export interface InboxInput {
+  title: string;
+  body?: LocalizedText;
+  content?: LocalizedText;
+  media: Media[];
+  source: Source;
+  suggested?: CaptureSuggestion;
+}
+
+export type ValidationResult =
+  | { ok: true; value: InboxInput }
+  | { ok: false; error: string };
+
+function isObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function nonEmptyString(v: unknown): v is string {
+  return typeof v === "string" && v.trim().length > 0;
+}
+
+// Fill provider for bare embeds; pass images and already-typed embeds through.
+export function normalizeMedia(media: InputMedia[]): Media[] {
+  return media.map((m) => {
+    if (m.kind === "image") return m;
+    if (!m.provider) return detectEmbed(m.url);
+    return {
+      kind: "embed",
+      provider: m.provider,
+      url: m.url,
+      ...(m.embedId ? { embedId: m.embedId } : {}),
+    };
+  });
+}
+
+// Pure guard. Never touches the DB. Returns a normalized InboxInput or a clear
+// error string (spec §7: malformed payloads are rejected, never silently dropped).
+export function validateInboxPayload(body: unknown): ValidationResult {
+  if (!isObject(body)) return { ok: false, error: "body must be a JSON object" };
+  if (!nonEmptyString(body.title)) return { ok: false, error: "title is required" };
+  if (!isObject(body.source) || !nonEmptyString(body.source.kind)) {
+    return { ok: false, error: "source.kind is required" };
+  }
+  if (body.media !== undefined && !Array.isArray(body.media)) {
+    return { ok: false, error: "media must be an array" };
+  }
+
+  const rawMedia = Array.isArray(body.media) ? (body.media as unknown[]) : [];
+  const inputMedia: InputMedia[] = [];
+  for (const m of rawMedia) {
+    if (!isObject(m)) return { ok: false, error: "each media entry must be an object" };
+    if (m.kind === "embed") {
+      if (!nonEmptyString(m.url)) return { ok: false, error: "embed media requires a url" };
+      inputMedia.push({
+        kind: "embed",
+        url: m.url,
+        ...(nonEmptyString(m.provider) ? { provider: m.provider } : {}),
+        ...(nonEmptyString(m.embedId) ? { embedId: m.embedId } : {}),
+      });
+    } else if (m.kind === "image") {
+      if (!nonEmptyString(m.storageKey) || !nonEmptyString(m.url)) {
+        return { ok: false, error: "image media requires storageKey and url" };
+      }
+      inputMedia.push({
+        kind: "image",
+        storageKey: m.storageKey,
+        url: m.url,
+        ...(nonEmptyString(m.alt) ? { alt: m.alt } : {}),
+        ...(typeof m.width === "number" ? { width: m.width } : {}),
+        ...(typeof m.height === "number" ? { height: m.height } : {}),
+      });
+    } else {
+      return { ok: false, error: "media entry kind must be 'embed' or 'image'" };
+    }
+  }
+
+  const src = body.source as Record<string, unknown>;
+  if (src.url !== undefined && !nonEmptyString(src.url)) {
+    return { ok: false, error: "source.url must be a non-empty string" };
+  }
+  if (src.externalId !== undefined && !nonEmptyString(src.externalId)) {
+    return { ok: false, error: "source.externalId must be a non-empty string" };
+  }
+  const source: Source = {
+    kind: src.kind as string,
+    ...(nonEmptyString(src.url) ? { url: src.url } : {}),
+    ...(nonEmptyString(src.externalId) ? { externalId: src.externalId } : {}),
+  };
+
+  const value: InboxInput = {
+    title: (body.title as string).trim(),
+    media: normalizeMedia(inputMedia),
+    source,
+    ...(isObject(body.body) ? { body: body.body as LocalizedText } : {}),
+    ...(isObject(body.content) ? { content: body.content as LocalizedText } : {}),
+    ...(isObject(body.suggested) ? { suggested: body.suggested as CaptureSuggestion } : {}),
+  };
+  return { ok: true, value };
+}
