@@ -38,7 +38,7 @@ As of the Vault Spine slice, content lives in **MongoDB** (not the static seed).
 
 * Set `MONGODB_URI` and `MONGODB_DB` in `.env.local` (gitignored).
 * `npm run migrate` — one-time import of `data/seed.yml` into Mongo (idempotent).
-* `npm run dev` / `npm run build` — **require DB reachability**: the public pages query Mongo at build/request time, so a clean-checkout or CI build needs `MONGODB_URI` set and the cluster reachable.
+* `npm run dev` — needs `MONGODB_URI` set and the cluster reachable (pages query Mongo at request time). The public pages (`/`, `/timeline`, `/atom/[id]`) are `force-dynamic`, so they read published-only from Mongo on every request and reflect a publish immediately — and `npm run build` no longer needs DB reachability to prerender them.
 * `npm test` — pure unit tests; DB-backed integration tests auto-skip unless `MONGODB_URI` is set (run them with `node --env-file=.env.local --import tsx --test "lib/**/*.test.ts"`).
 
 ## Ingestion spine
@@ -92,6 +92,14 @@ Turns a captured item into a first-class `Version` in the atomic model (or disca
 * **Promote** — choose an existing molecule and atom from the dropdowns, or type a new slug/name (a blank "new slug" falls back to the selection; new-fields win when filled). Fill the version fields (slug, name, type, date, description) and pick a state: `draft` / `private` / `published`. The capture's media and provenance are carried onto the version.
 * **Private by default** — newly created molecules/atoms are `visibility:"private"`. Publishing a version runs the pure `publishCascade` (the write-time mirror of `filterPublic`) which flips that version's parent atom and molecule to `public`, so a published version never dangles under a private parent. Promoting as draft/private leaves the parents untouched.
 * **Discard** — drops the capture from the inbox (`status:"discarded"`).
-* Run `npm run validators` after pulling this change to ensure the atomic-model slug indexes. The public zone does **not** yet reflect a publish (its caching/revalidation arrives in slice 2b-iii); the admin, which reads the full dataset per request, sees changes immediately.
+* Run `npm run validators` after pulling this change to ensure the atomic-model slug indexes. Publishing is reflected on the public site immediately (the public pages are `force-dynamic`).
+
+### `/admin/vault`
+
+A read-only browser of the **whole** archive — every molecule/atom/version regardless of state or visibility (the counterpart to the inbox; linked from `/admin`).
+
+* Version-centric table (name, state, domain, atom, date, tags), newest first.
+* Filter by `state` / `domain` / `tag` via query-param links (zero-JS, like `/timeline`); an unrecognized filter value falls back to "all".
+* Read-only — editing / re-publishing an existing version is a later slice.
 
 See `docs/superpowers/specs/` and `docs/superpowers/plans/` for the design and implementation plans.

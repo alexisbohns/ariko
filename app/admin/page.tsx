@@ -50,6 +50,10 @@ export default async function AdminPage({
         <button type="submit">Log out</button>
       </form>
 
+      <p>
+        <a href="/admin/vault">vault →</a>
+      </p>
+
       <h1>Capture</h1>
       {error ? <p role="alert">Could not save: {error}</p> : null}
       <form action={createCaptureAction}>

@@ -1,6 +1,8 @@
 import { type Domain } from "@/lib/data";
 import { getPublicDataset } from "@/lib/store";
 
+export const dynamic = "force-dynamic";
+
 const DOMAINS: Domain[] = ["music", "design", "podcast"];
 const FILTERS: (Domain | "all")[] = ["all", ...DOMAINS];
 
