@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildDataset, getDataset, type RawSeed } from "./data";
+import { buildDataset, getDataset, publishCascade, type RawSeed } from "./data";
 
 // Synthetic seed exercising every edge case the directory/timeline must handle:
 // multi-parent atoms, standalone atoms, dangling molecule refs, and a version
@@ -79,4 +79,53 @@ test("getDataset keeps version dates as plain YYYY-MM-DD strings", () => {
   const version = getDataset().timelineVersions()[0].version;
   assert.equal(typeof version.date, "string");
   assert.match(version.date, /^\d{4}-\d{2}-\d{2}$/);
+});
+
+const RAW = {
+  molecules: [{ slug: "m1", name: "M1", domain: "music" as const, description: "" }],
+  atoms: [
+    { slug: "a1", name: "A1", parents: ["molecule:m1"] },
+    { slug: "a2", name: "A2", parents: ["molecule:m1", "molecule:mX"] }, // mX dangling
+  ],
+  versions: [
+    { slug: "v1", name: "V1", type: "t", date: "2025-01-01", description: "", parents: ["atom:a1"] },
+    { slug: "v2", name: "V2", type: "t", date: "2025-01-01", description: "", parents: ["atom:a1", "atom:a2"] },
+    { slug: "v3", name: "V3", type: "t", date: "2025-01-01", description: "", parents: [] },
+    { slug: "v4", name: "V4", type: "t", date: "2025-01-01", description: "", parents: ["atom:ghost"] },
+  ],
+};
+
+test("publishCascade returns the atom parent and its molecule parent", () => {
+  const r = publishCascade(RAW, "v1");
+  assert.deepEqual(r.atomSlugs, ["a1"]);
+  assert.deepEqual(r.moleculeSlugs, ["m1"]);
+});
+
+test("publishCascade unions multiple atom parents and their molecules, ignoring dangling molecule refs", () => {
+  const r = publishCascade(RAW, "v2");
+  assert.deepEqual([...r.atomSlugs].sort(), ["a1", "a2"]);
+  assert.deepEqual(r.moleculeSlugs, ["m1"]); // mX is dangling → excluded
+});
+
+test("a parentless version cascades nothing", () => {
+  assert.deepEqual(publishCascade(RAW, "v3"), { moleculeSlugs: [], atomSlugs: [] });
+});
+
+test("a dangling atom parent is ignored", () => {
+  assert.deepEqual(publishCascade(RAW, "v4"), { moleculeSlugs: [], atomSlugs: [] });
+});
+
+test("an unknown version slug cascades nothing", () => {
+  assert.deepEqual(publishCascade(RAW, "nope"), { moleculeSlugs: [], atomSlugs: [] });
+});
+
+test("parents are returned regardless of current visibility (idempotent flip)", () => {
+  const raw = {
+    molecules: [{ slug: "m1", name: "M1", domain: "music" as const, description: "", visibility: "public" as const }],
+    atoms: [{ slug: "a1", name: "A1", parents: ["molecule:m1"], visibility: "public" as const }],
+    versions: [{ slug: "v1", name: "V1", type: "t", date: "2025-01-01", description: "", parents: ["atom:a1"] }],
+  };
+  const r = publishCascade(raw, "v1");
+  assert.deepEqual(r.atomSlugs, ["a1"]);
+  assert.deepEqual(r.moleculeSlugs, ["m1"]);
 });

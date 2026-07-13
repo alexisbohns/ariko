@@ -249,6 +249,40 @@ function allExistingParentsFiltered(
   return existingParents.length > 0 && existingParents.every((s) => !kept.has(s));
 }
 
+// Upward publish cascade — the write-time mirror of filterPublic's downward
+// projection (spec §6.2). For the given version, returns the EXISTING atom parents
+// and their EXISTING molecule parents that must be made public so a published
+// version never dangles under a private parent. Dangling refs are ignored, exactly
+// as filterPublic ignores them. Pure; visibility is not consulted (idempotent flip).
+export function publishCascade(
+  raw: RawSeed,
+  versionSlug: string,
+): { moleculeSlugs: string[]; atomSlugs: string[] } {
+  const molecules = raw.molecules ?? [];
+  const atoms = raw.atoms ?? [];
+  const versions = raw.versions ?? [];
+
+  const version = versions.find((v) => v.slug === versionSlug);
+  if (!version) return { moleculeSlugs: [], atomSlugs: [] };
+
+  const atomBySlug = new Map(atoms.map((a) => [a.slug, a]));
+  const moleculeExists = new Set(molecules.map((m) => m.slug));
+
+  const atomSlugs = [
+    ...new Set(parentsWithPrefix(version.parents, ATOM_PREFIX).filter((s) => atomBySlug.has(s))),
+  ];
+
+  const moleculeSlugs = new Set<string>();
+  for (const atomSlug of atomSlugs) {
+    const atom = atomBySlug.get(atomSlug)!;
+    for (const m of parentsWithPrefix(atom.parents, MOLECULE_PREFIX)) {
+      if (moleculeExists.has(m)) moleculeSlugs.add(m);
+    }
+  }
+
+  return { moleculeSlugs: [...moleculeSlugs], atomSlugs };
+}
+
 let cached: Dataset | null = null;
 
 // Reads data/seed.yml once at first call (build time), then caches.
