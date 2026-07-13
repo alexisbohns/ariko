@@ -4,17 +4,53 @@ import yaml from "js-yaml";
 
 export type Domain = "music" | "design" | "podcast";
 
+export type Visibility = "private" | "public";
+export type VersionState = "draft" | "private" | "published";
+
+export interface LocalizedText {
+  en?: string;
+  fr?: string;
+}
+export type Text = string | LocalizedText;
+
+export interface MediaEmbed {
+  kind: "embed";
+  provider: string; // soundcloud | spotify | deezer | ausha | youtube | vimeo | figma | ...
+  url: string;
+  embedId?: string;
+}
+export interface MediaImage {
+  kind: "image";
+  storageKey: string;
+  url: string;
+  alt?: string;
+  width?: number;
+  height?: number;
+}
+export type Media = MediaEmbed | MediaImage;
+
+export interface Source {
+  kind: string; // manual | github | changelog | arkaik | ...
+  url?: string;
+  externalId?: string;
+  capturedAt?: string;
+}
+
 export interface Molecule {
   slug: string;
   name: string;
   domain: Domain;
   description: string;
+  visibility?: Visibility; // default treated as "public"
+  tags?: string[];
 }
 
 export interface Atom {
   slug: string;
   name: string;
   parents: string[]; // e.g. ["molecule:republic-of-masquerade"]
+  visibility?: Visibility; // default treated as "public"
+  tags?: string[];
 }
 
 export interface Version {
@@ -24,6 +60,11 @@ export interface Version {
   date: string;
   description: string;
   parents: string[]; // e.g. ["atom:rom-win"]
+  state?: VersionState; // absent => NOT published (safe default)
+  content?: Text; // optional rich markdown, localizable
+  media?: Media[];
+  source?: Source;
+  tags?: string[];
   [key: string]: unknown; // flexible per-type properties
 }
 
@@ -131,6 +172,57 @@ export function buildDataset(raw: RawSeed): Dataset {
     timelineVersions: () => timeline,
     domainForAtom,
   };
+}
+
+export function resolveText(value: Text | undefined, lang: "en" | "fr" = "en"): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  return value[lang] ?? value.en ?? value.fr ?? "";
+}
+
+// Public projection of the vault. The security-sensitive rules live here:
+//  - a Version is public ONLY when state === "published" (missing state hides it);
+//  - a Molecule/Atom is visible unless explicitly visibility === "private";
+//  - privacy cascades DOWNWARD, fail-closed: an Atom whose every EXISTING molecule
+//    parent was filtered out is dropped, and a Version whose every EXISTING atom
+//    parent was filtered out is dropped. Dangling (nonexistent) parent refs are
+//    ignored, so standalone-by-dangling items are preserved (matches buildDataset).
+export function filterPublic(raw: RawSeed): RawSeed {
+  const rawMolecules = raw.molecules ?? [];
+  const rawAtoms = raw.atoms ?? [];
+  const rawVersions = raw.versions ?? [];
+
+  const molecules = rawMolecules.filter((m) => m.visibility !== "private");
+  const moleculeExists = new Set(rawMolecules.map((m) => m.slug));
+  const moleculeKept = new Set(molecules.map((m) => m.slug));
+
+  const atoms = rawAtoms.filter(
+    (a) =>
+      a.visibility !== "private" &&
+      !allExistingParentsFiltered(a.parents, MOLECULE_PREFIX, moleculeExists, moleculeKept),
+  );
+  const atomExists = new Set(rawAtoms.map((a) => a.slug));
+  const atomKept = new Set(atoms.map((a) => a.slug));
+
+  const versions = rawVersions.filter(
+    (v) =>
+      v.state === "published" &&
+      !allExistingParentsFiltered(v.parents, ATOM_PREFIX, atomExists, atomKept),
+  );
+
+  return { molecules, atoms, versions };
+}
+
+// True when the item has parent refs that EXIST in the dataset and ALL such
+// existing parents were filtered out. Dangling/nonexistent refs are ignored.
+function allExistingParentsFiltered(
+  parents: string[] | undefined,
+  prefix: string,
+  exists: Set<string>,
+  kept: Set<string>,
+): boolean {
+  const existingParents = parentsWithPrefix(parents, prefix).filter((s) => exists.has(s));
+  return existingParents.length > 0 && existingParents.every((s) => !kept.has(s));
 }
 
 let cached: Dataset | null = null;

@@ -281,17 +281,53 @@ export function resolveText(value: Text | undefined, lang: "en" | "fr" = "en"): 
   return value[lang] ?? value.en ?? value.fr ?? "";
 }
 
-// Public projection of the vault. The security-sensitive rule lives here:
-// a Version is public ONLY when state === "published" (missing state hides it).
-// Molecules/Atoms are structural: visible unless explicitly "private".
+// Public projection of the vault. The security-sensitive rules live here:
+//  - a Version is public ONLY when state === "published" (missing state hides it);
+//  - a Molecule/Atom is visible unless explicitly visibility === "private";
+//  - privacy cascades DOWNWARD, fail-closed: an Atom whose every EXISTING molecule
+//    parent was filtered out is dropped, and a Version whose every EXISTING atom
+//    parent was filtered out is dropped. Dangling (nonexistent) parent refs are
+//    ignored, so standalone-by-dangling items are preserved (matches buildDataset).
 export function filterPublic(raw: RawSeed): RawSeed {
-  return {
-    molecules: (raw.molecules ?? []).filter((m) => m.visibility !== "private"),
-    atoms: (raw.atoms ?? []).filter((a) => a.visibility !== "private"),
-    versions: (raw.versions ?? []).filter((v) => v.state === "published"),
-  };
+  const rawMolecules = raw.molecules ?? [];
+  const rawAtoms = raw.atoms ?? [];
+  const rawVersions = raw.versions ?? [];
+
+  const molecules = rawMolecules.filter((m) => m.visibility !== "private");
+  const moleculeExists = new Set(rawMolecules.map((m) => m.slug));
+  const moleculeKept = new Set(molecules.map((m) => m.slug));
+
+  const atoms = rawAtoms.filter(
+    (a) =>
+      a.visibility !== "private" &&
+      !allExistingParentsFiltered(a.parents, MOLECULE_PREFIX, moleculeExists, moleculeKept),
+  );
+  const atomExists = new Set(rawAtoms.map((a) => a.slug));
+  const atomKept = new Set(atoms.map((a) => a.slug));
+
+  const versions = rawVersions.filter(
+    (v) =>
+      v.state === "published" &&
+      !allExistingParentsFiltered(v.parents, ATOM_PREFIX, atomExists, atomKept),
+  );
+
+  return { molecules, atoms, versions };
+}
+
+// True when the item has parent refs that EXIST in the dataset and ALL such
+// existing parents were filtered out. Dangling/nonexistent refs are ignored.
+function allExistingParentsFiltered(
+  parents: string[] | undefined,
+  prefix: string,
+  exists: Set<string>,
+  kept: Set<string>,
+): boolean {
+  const existingParents = parentsWithPrefix(parents, prefix).filter((s) => exists.has(s));
+  return existingParents.length > 0 && existingParents.every((s) => !kept.has(s));
 }
 ```
+
+> **Note (added during execution):** `filterPublic` was hardened beyond the original block above to cascade privacy downward (fail-closed) after code review found that independent per-collection filtering leaked published children of private parents. Five regression tests covering the cascade, transitive drop, multi-parent survival, and dangling-ref preservation were added to `lib/visibility.test.ts`.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
@@ -462,7 +498,9 @@ main().catch((err) => {
 });
 ```
 
-- [ ] **Step 2: Add the `migrate` script to `package.json`**
+- [ ] > **Note (added during execution):** the shipped script defaults `visibility`/`state` only when the seed entry does not already specify them (`m.visibility ?? "public"`, `v.state ?? "published"`) rather than force-overwriting, so a future seed-authored `state: draft` is respected on re-run. A header comment marks it as a one-time baseline migration to retire once content is authored via the admin.
+
+**Step 2: Add the `migrate` script to `package.json`**
 
 In `package.json` `scripts`, add (note `--env-file` so the standalone script picks up `.env.local`, which Next loads automatically for the app but a bare `tsx` run does not):
 ```json
@@ -641,5 +679,14 @@ git commit -m "test: prove drafts never leak into the public dataset"
 - The atomic model carries `visibility`, `state`, `media`, `source`, `content`, `tags`.
 - The public site serves **published-only**, with the no-leak invariant covered by pure unit tests and a DB-backed end-to-end test.
 - The pure `buildDataset` core and its original tests are untouched.
+
+## Deferred follow-ups (surfaced during execution, tracked for Plan 2)
+
+- **Public rendering-mode consistency / revalidation.** `/` currently prerenders statically at build (baking a DB snapshot) while `/timeline` and `/atom/[id]` render dynamically — an emergent inconsistency. Once Plan 2/3 introduces admin publishing (making staleness observable), give all three public routes one story via `export const revalidate = <n>` (or `force-dynamic`), per spec §6.2 ("with revalidation"). Not a correctness bug today: Plan 1's only content-change path is re-running the migration, which implies a redeploy.
+- **`next build` requires DB reachability.** Since the public pages query Mongo at build/request time, clean-checkout/CI builds need `MONGODB_URI` set. Documented in the README.
+- **Version-layer cascade tests.** `filterPublic`'s cascade is proven at the atom→molecule layer and shares one helper with the version→atom layer; add mirrored version-layer multi-parent/dangling tests for full symmetry.
+- **DB-side value validation (do before Plan 2's write path).** `visibility`/`state` are enforced only by compile-time TypeScript. A malformed value written directly to Mongo (e.g. `visibility: "Private"`) fails *open* on molecules/atoms (blocklist). Add a MongoDB JSON-Schema validator or a runtime guard in `loadRawSeed` before admin writes land, so bad documents are rejected rather than silently exposed.
+- **`lib/db.ts` dev-HMR connection reuse.** The module-level client singleton isn't stashed on `global`, so Next.js dev hot-reloads can accumulate Atlas connections. Apply the standard `global`-cache pattern before/with Plan 2's admin zone (heavier live-reload workflow).
+- **Dataset caching.** `getPublicDataset`/`getFullDataset` re-query Mongo per call (the old `getDataset` cached). Fold into the revalidation story in Plan 2/3.
 
 **Next:** Plan 2 (Ingestion & Capture) adds the `Capture` collection, `POST /api/inbox`, embed detection, image upload, and the quick-capture bar — all writing into the same Mongo store this plan established.

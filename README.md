@@ -30,5 +30,15 @@
 * No UI library.
 * Plain semantic HTML only.
 * TypeScript.
-* Static data only from seed.json — no DB, no API calls.
-* All data loading via standard Next.js file reads.
+* Public zone is zero-CSS, plain semantic HTML.
+
+## Database & development
+
+As of the Vault Spine slice, content lives in **MongoDB** (not the static seed). `data/seed.yml` is retained only as migration input.
+
+* Set `MONGODB_URI` and `MONGODB_DB` in `.env.local` (gitignored).
+* `npm run migrate` — one-time import of `data/seed.yml` into Mongo (idempotent).
+* `npm run dev` / `npm run build` — **require DB reachability**: the public pages query Mongo at build/request time, so a clean-checkout or CI build needs `MONGODB_URI` set and the cluster reachable.
+* `npm test` — pure unit tests; DB-backed integration tests auto-skip unless `MONGODB_URI` is set (run them with `node --env-file=.env.local --import tsx --test "lib/**/*.test.ts"`).
+
+See `docs/superpowers/specs/` and `docs/superpowers/plans/` for the design and implementation plans.

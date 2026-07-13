@@ -6,10 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --import tsx --test \"lib/**/*.test.ts\""
+    "test": "node --import tsx --test \"lib/**/*.test.ts\"",
+    "migrate": "node --env-file=.env.local --import tsx scripts/migrate-seed.ts"
   },
   "dependencies": {
     "js-yaml": "^4.1.0",
+    "mongodb": "^6.21.0",
     "next": "^15.3.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
