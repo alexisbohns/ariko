@@ -174,6 +174,23 @@ export function buildDataset(raw: RawSeed): Dataset {
   };
 }
 
+export function resolveText(value: Text | undefined, lang: "en" | "fr" = "en"): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  return value[lang] ?? value.en ?? value.fr ?? "";
+}
+
+// Public projection of the vault. The security-sensitive rule lives here:
+// a Version is public ONLY when state === "published" (missing state hides it).
+// Molecules/Atoms are structural: visible unless explicitly "private".
+export function filterPublic(raw: RawSeed): RawSeed {
+  return {
+    molecules: (raw.molecules ?? []).filter((m) => m.visibility !== "private"),
+    atoms: (raw.atoms ?? []).filter((a) => a.visibility !== "private"),
+    versions: (raw.versions ?? []).filter((v) => v.state === "published"),
+  };
+}
+
 let cached: Dataset | null = null;
 
 // Reads data/seed.yml once at first call (build time), then caches.
