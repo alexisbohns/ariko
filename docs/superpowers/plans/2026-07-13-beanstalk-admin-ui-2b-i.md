@@ -897,3 +897,21 @@ git commit -m "docs: document the admin zone, auth env, and capture flow"
 - **Node version / Web Crypto:** `lib/session.ts` relies on the global `crypto.subtle` and `TextEncoder`, and the tests use a global `FormData`. All are stable globals in Node 20+. If `npm test` errors with `crypto is not defined`, the runner is on an older Node — upgrade to Node ≥ 20.
 - **`cookies()` is async in Next 15** — every call is `await cookies()`. The helpers already do this; keep it if editing.
 - **Middleware import hygiene:** never import `app/admin/session.ts` (or anything pulling `next/headers`/`node:*`) into `middleware.ts` — it must stay edge-safe on `lib/session.ts` only.
+
+## Execution notes (added during subagent-driven execution)
+
+All 8 tasks implemented verbatim to plan and passed a two-stage (spec + code-quality) review each, plus a final whole-branch review (**ready to merge**, no Critical/Important findings). Automated gates green throughout: `npm test` (70 pass / 8 pre-existing DB skips) and `npx tsc --noEmit`.
+
+- **Task 6 fix applied inline (commit `ec5deaf`):** `noteSnippet` used `??`, which only falls through on `null`/`undefined` — a capture with `body:{ en:"", fr:"…" }` (reachable via a connector `POST /api/inbox`, not via the capture form) would have hidden the `fr` note behind `"—"`. Changed to `||`; plan doc kept in sync.
+- **Smoke test:** the interactive browser walkthrough (Task 8 checklist) could not run — the Claude-in-Chrome extension was not connected. Substituted a live verification: minted a valid session cookie via `lib/session`, exercised the exact capture write-chain the action uses (`buildCaptureBody`→`validateInboxPayload`→`createOrUpdateCapture`, confirming YouTube provider auto-detection + blank-link dropping), then `curl`ed `/admin` with the cookie to confirm middleware acceptance (200) and live inbox-row render, and with a bogus cookie to confirm gating (307). The one seam not exercised over real HTTP is Next's server-action POST plumbing itself (framework glue over already-tested functions).
+
+## Deferred follow-ups (surfaced during review, tracked for later slices)
+
+Non-blocking hygiene/hardening raised across the per-task and final reviews; none blocks 2b-i:
+
+- **HMAC domain separation** (Task 1): `hmacHex(secret, data)` is reused for both session signing (`data` = numeric `issuedAt`) and password verification (`data` = the password). No exploit today (`issuedAt` is server-generated, `verifyPassword` returns no oracle), but if future code ever lets user input flow into session-value creation, a context prefix (`"session:"`/`"pw:"`) would prevent cross-protocol confusion.
+- **`LOGIN_PATH` constant** (Tasks 3/7 + final): `"/admin/login"` is a literal repeated across `middleware.ts`, `app/admin/session.ts`, and `app/admin/actions.ts`. Extract a shared export (next to `COOKIE_NAME`) when the admin zone grows more routes in 2b-ii.
+- **Explicit cookie `path` on delete** (Task 3): `clearSessionCookie` deletes without an explicit `path`, relying on Next's default matching the `path:"/"` used on set. Make the path explicit on both (or share a cookie-options constant) if the cookie is ever re-scoped.
+- **Capture DB-error UX** (Task 4): if `createOrUpdateCapture` throws (Mongo down), `createCaptureAction` propagates to Next's default error boundary rather than redirecting to `/admin?error=…` like the validation path does. Consider symmetric friendly handling in 2b-ii.
+- **Read-path second line of defense** (final): `AdminPage` relies solely on middleware for gating (read-only, by design). If the middleware matcher is ever narrowed or an admin page is added outside `/admin/:path*`, the read path has no `requireSession()` backstop the way mutating actions do — keep deliberate.
+- **Middleware login-exemption exact match** (Task 7): `pathname === "/admin/login"` is an exact-string exemption; safe today thanks to Next's trailing-slash normalization, but would need revisiting if `trailingSlash: true` is ever set.
