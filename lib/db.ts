@@ -16,7 +16,12 @@ export async function getDb(): Promise<Db> {
     const client = new MongoClient(uri);
     globalForMongo.__mongoConn = client
       .connect()
-      .then((c) => ({ client: c, db: c.db(process.env.MONGODB_DB ?? "beanstalk") }));
+      .then((c) => ({ client: c, db: c.db(process.env.MONGODB_DB ?? "beanstalk") }))
+      .catch((err) => {
+        // Never cache a failed connection — let the next caller retry fresh.
+        globalForMongo.__mongoConn = undefined;
+        throw err;
+      });
   }
   return (await globalForMongo.__mongoConn).db;
 }
