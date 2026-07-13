@@ -1,5 +1,6 @@
 import { getDb, closeDb } from "../lib/db";
 import { ensureCaptureIndexes } from "../lib/captures";
+import { ensureAtomicIndexes } from "../lib/atomic";
 
 // Applies a $jsonSchema validator to a collection, creating it if absent.
 // Idempotent: safe to re-run. validationLevel "moderate" only validates inserts
@@ -55,6 +56,9 @@ async function main() {
 
   await ensureCaptureIndexes();
   console.log("capture indexes ensured");
+
+  await ensureAtomicIndexes();
+  console.log("atomic indexes ensured");
 
   await closeDb();
   process.exit(0);
