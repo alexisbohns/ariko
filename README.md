@@ -67,6 +67,22 @@ Bearer-authenticated Cloudinary image upload: `Authorization: Bearer <token>`, b
 * Returns a `MediaImage` descriptor (`{ kind: "image", storageKey, url, width?, height? }`) on success (`201`).
 * `401` when the bearer token is missing/unknown, `400` when the `file` field is absent, `502` if the upload to Cloudinary itself fails (e.g. a placeholder/invalid `CLOUDINARY_URL`).
 
-The admin UI (quick-capture bar, triage, publish) arrives in Plan 2b — for now these endpoints are exercised via API only.
+The admin UI builds on these endpoints. Connectors post to `/api/inbox` with a bearer token; the browser capture bar (below) reaches the same capture path through a session-authenticated server action.
+
+## Admin zone
+
+As of Plan 2b-i, a password-gated admin zone lets you capture into the inbox from the browser and review it — no curl needed. It is intentionally **bare functional HTML** (no CSS, no client JavaScript) until the project's artistic direction is set; triage/promote/publish (2b-ii) and the vault browser (2b-iii) come next.
+
+* Set `ADMIN_PASSWORD` in `.env.local` — the login password.
+* Set `ADMIN_SESSION_SECRET` in `.env.local` — a long random value (e.g. `openssl rand -hex 32`) used to HMAC-sign the session cookie. Rotating it invalidates existing sessions.
+
+### `/admin/login`
+
+The login gate. Submitting the correct `ADMIN_PASSWORD` sets an httpOnly, `SameSite=Lax` (Secure in production) signed session cookie and redirects to `/admin`; a wrong password re-renders with an error. `middleware.ts` protects every `/admin/*` route (except the login page) and redirects unauthenticated requests here; each mutating server action re-checks the session as well.
+
+### `/admin`
+
+* **Quick-capture bar** — title (required), an optional note with an en/fr toggle, and one or more paste-a-link fields. Submitting creates a `Capture` in the inbox via the same `validateInboxPayload` → `createOrUpdateCapture` path as `/api/inbox`; embed providers are auto-detected. Image attach is deferred to 2b-ii.
+* **Inbox** — a read-only table of `status:"inbox"` captures (source, title, note, media, age), newest first.
 
 See `docs/superpowers/specs/` and `docs/superpowers/plans/` for the design and implementation plans.
