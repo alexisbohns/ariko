@@ -5,3 +5,6 @@
 next-env.d.ts
 .DS_Store
 .env.local
+
+# Visual brainstorming companion (local mockups, not source)
+.superpowers/
