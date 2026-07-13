@@ -180,15 +180,49 @@ export function resolveText(value: Text | undefined, lang: "en" | "fr" = "en"): 
   return value[lang] ?? value.en ?? value.fr ?? "";
 }
 
-// Public projection of the vault. The security-sensitive rule lives here:
-// a Version is public ONLY when state === "published" (missing state hides it).
-// Molecules/Atoms are structural: visible unless explicitly "private".
+// Public projection of the vault. The security-sensitive rules live here:
+//  - a Version is public ONLY when state === "published" (missing state hides it);
+//  - a Molecule/Atom is visible unless explicitly visibility === "private";
+//  - privacy cascades DOWNWARD, fail-closed: an Atom whose every EXISTING molecule
+//    parent was filtered out is dropped, and a Version whose every EXISTING atom
+//    parent was filtered out is dropped. Dangling (nonexistent) parent refs are
+//    ignored, so standalone-by-dangling items are preserved (matches buildDataset).
 export function filterPublic(raw: RawSeed): RawSeed {
-  return {
-    molecules: (raw.molecules ?? []).filter((m) => m.visibility !== "private"),
-    atoms: (raw.atoms ?? []).filter((a) => a.visibility !== "private"),
-    versions: (raw.versions ?? []).filter((v) => v.state === "published"),
-  };
+  const rawMolecules = raw.molecules ?? [];
+  const rawAtoms = raw.atoms ?? [];
+  const rawVersions = raw.versions ?? [];
+
+  const molecules = rawMolecules.filter((m) => m.visibility !== "private");
+  const moleculeExists = new Set(rawMolecules.map((m) => m.slug));
+  const moleculeKept = new Set(molecules.map((m) => m.slug));
+
+  const atoms = rawAtoms.filter(
+    (a) =>
+      a.visibility !== "private" &&
+      !allExistingParentsFiltered(a.parents, MOLECULE_PREFIX, moleculeExists, moleculeKept),
+  );
+  const atomExists = new Set(rawAtoms.map((a) => a.slug));
+  const atomKept = new Set(atoms.map((a) => a.slug));
+
+  const versions = rawVersions.filter(
+    (v) =>
+      v.state === "published" &&
+      !allExistingParentsFiltered(v.parents, ATOM_PREFIX, atomExists, atomKept),
+  );
+
+  return { molecules, atoms, versions };
+}
+
+// True when the item has parent refs that EXIST in the dataset and ALL such
+// existing parents were filtered out. Dangling/nonexistent refs are ignored.
+function allExistingParentsFiltered(
+  parents: string[] | undefined,
+  prefix: string,
+  exists: Set<string>,
+  kept: Set<string>,
+): boolean {
+  const existingParents = parentsWithPrefix(parents, prefix).filter((s) => exists.has(s));
+  return existingParents.length > 0 && existingParents.every((s) => !kept.has(s));
 }
 
 let cached: Dataset | null = null;
