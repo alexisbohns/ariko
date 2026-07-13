@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { getPublicDataset } from "@/lib/store";
 
+export const dynamic = "force-dynamic";
+
 function isScalar(value: unknown): value is string | number | boolean {
   return typeof value === "string" || typeof value === "number" || typeof value === "boolean";
 }

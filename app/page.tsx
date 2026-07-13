@@ -1,5 +1,7 @@
 import { getPublicDataset } from "@/lib/store";
 
+export const dynamic = "force-dynamic";
+
 export default async function DirectoryPage() {
   const data = await getPublicDataset();
   const molecules = data.getMolecules();
