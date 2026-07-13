@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createOrUpdateCapture, getCapture, ensureCaptureIndexes } from "./captures";
+import { createOrUpdateCapture, getCapture, ensureCaptureIndexes, markCapturePromoted, discardCapture } from "./captures";
 import { closeDb, getDb } from "./db";
 
 const hasDb = Boolean(process.env.MONGODB_URI);
@@ -72,6 +72,25 @@ test("re-post preserves capturedAt from the first capture", { skip: !hasDb }, as
   });
   assert.equal(second.capture.source.capturedAt, firstCapturedAt);
   assert.notEqual(second.capture.updatedAt, firstCapturedAt);
+});
+
+test("markCapturePromoted sets status and appends the version slug", { skip: !hasDb }, async (t) => {
+  t.after(cleanup);
+  const { capture } = await createOrUpdateCapture({ title: "__test__ promote", media: [], source: { kind: "manual" } });
+  await markCapturePromoted(capture.id, "ver-1");
+  await markCapturePromoted(capture.id, "ver-1"); // idempotent add
+  await markCapturePromoted(capture.id, "ver-2");
+  const reread = await getCapture(capture.id);
+  assert.equal(reread?.status, "promoted");
+  assert.deepEqual([...(reread?.promotedTo ?? [])].sort(), ["ver-1", "ver-2"]);
+});
+
+test("discardCapture sets status discarded", { skip: !hasDb }, async (t) => {
+  t.after(cleanup);
+  const { capture } = await createOrUpdateCapture({ title: "__test__ discard", media: [], source: { kind: "manual" } });
+  await discardCapture(capture.id);
+  const reread = await getCapture(capture.id);
+  assert.equal(reread?.status, "discarded");
 });
 
 test.after(async () => {

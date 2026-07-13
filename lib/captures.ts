@@ -94,3 +94,19 @@ export async function getCapture(id: string): Promise<Capture | null> {
   const col = await captures();
   return col.findOne({ id }, { projection: { _id: 0 } });
 }
+
+// Triage: a capture becomes a Version. Status flips to "promoted" and the version
+// slug is appended ($addToSet keeps it idempotent across re-promotes of the same slug).
+export async function markCapturePromoted(id: string, versionSlug: string): Promise<void> {
+  const col = await captures();
+  await col.updateOne(
+    { id },
+    { $set: { status: "promoted", updatedAt: nowIso() }, $addToSet: { promotedTo: versionSlug } },
+  );
+}
+
+// Triage: explicitly drop a capture from the inbox.
+export async function discardCapture(id: string): Promise<void> {
+  const col = await captures();
+  await col.updateOne({ id }, { $set: { status: "discarded", updatedAt: nowIso() } });
+}
