@@ -678,4 +678,10 @@ git commit -m "test: prove drafts never leak into the public dataset"
 - The public site serves **published-only**, with the no-leak invariant covered by pure unit tests and a DB-backed end-to-end test.
 - The pure `buildDataset` core and its original tests are untouched.
 
+## Deferred follow-ups (surfaced during execution, tracked for Plan 2)
+
+- **Public rendering-mode consistency / revalidation.** `/` currently prerenders statically at build (baking a DB snapshot) while `/timeline` and `/atom/[id]` render dynamically — an emergent inconsistency. Once Plan 2/3 introduces admin publishing (making staleness observable), give all three public routes one story via `export const revalidate = <n>` (or `force-dynamic`), per spec §6.2 ("with revalidation"). Not a correctness bug today: Plan 1's only content-change path is re-running the migration, which implies a redeploy.
+- **`next build` requires DB reachability.** Since the public pages query Mongo at build/request time, clean-checkout/CI builds need `MONGODB_URI` set. Documented in the README.
+- **Version-layer cascade tests.** `filterPublic`'s cascade is proven at the atom→molecule layer and shares one helper with the version→atom layer; add mirrored version-layer multi-parent/dangling tests for full symmetry.
+
 **Next:** Plan 2 (Ingestion & Capture) adds the `Capture` collection, `POST /api/inbox`, embed detection, image upload, and the quick-capture bar — all writing into the same Mongo store this plan established.
