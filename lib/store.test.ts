@@ -1,6 +1,6 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { loadRawSeed } from "./store";
+import { loadRawSeed, getPublicDataset } from "./store";
 import { closeDb, getDb } from "./db";
 
 const hasDb = Boolean(process.env.MONGODB_URI);
@@ -29,5 +29,26 @@ test("loadRawSeed returns documents without Mongo _id", { skip: !hasDb }, async 
     assert.equal("_id" in (found as object), false);
   } finally {
     await db.collection("molecules").deleteOne({ slug: probe.slug });
+  }
+});
+
+test("public dataset excludes a manually-drafted version", { skip: !hasDb }, async () => {
+  const db = await getDb();
+  const probe = {
+    slug: "__leak_probe__",
+    name: "Leak Probe",
+    type: "note",
+    date: "2099-01-01",
+    description: "should never be public",
+    parents: [],
+    state: "draft" as const,
+  };
+  await db.collection("versions").updateOne({ slug: probe.slug }, { $set: probe }, { upsert: true });
+  try {
+    const data = await getPublicDataset();
+    const found = data.timelineVersions().some((e) => e.version.slug === probe.slug);
+    assert.equal(found, false, "draft version leaked into the public dataset");
+  } finally {
+    await db.collection("versions").deleteOne({ slug: probe.slug });
   }
 });
