@@ -157,8 +157,12 @@ logic is duplicated.
 
 - **Wrong password** → redirect back to `/admin/login` with an error flag; render "Incorrect
   password." No lockout (single-user personal tool); constant-time compare.
-- **Invalid capture** (e.g. empty title) → `required` stops most; server-side `validateInboxPayload`
-  is the real guard. On failure, re-render the capture bar with the error and preserve typed input.
+- **Invalid capture** (e.g. empty title) → the `title` field is client-`required`, so an empty
+  submit never leaves the browser; server-side `validateInboxPayload` is the real guard for anything
+  else. On failure the action redirects to `/admin?error=<message>` and the page renders the message.
+  Typed input is *not* repopulated — under the zero-JS post/redirect/get pattern that would mean
+  round-tripping every field through the query string, and a server-side rejection here is a rare
+  fallback. (Input-preservation can land with the richer 2b-ii triage forms if it proves desirable.)
 - **Missing auth env** → fail closed (§4), clear server-log line.
 - **DB unreachable when listing the inbox** → the page catches and renders a plain "couldn't load
   inbox" line instead of crashing; the capture bar still renders so capture is not blocked.
