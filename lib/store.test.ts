@@ -32,23 +32,21 @@ test("loadRawSeed returns documents without Mongo _id", { skip: !hasDb }, async 
   }
 });
 
-test("public dataset excludes a manually-drafted version", { skip: !hasDb }, async () => {
+// Inserts BOTH a published and a draft probe: asserting the published one is
+// present proves the public dataset isn't degenerately empty, so the "draft is
+// absent" assertion can't pass vacuously.
+test("public dataset includes published but excludes drafted versions", { skip: !hasDb }, async () => {
   const db = await getDb();
-  const probe = {
-    slug: "__leak_probe__",
-    name: "Leak Probe",
-    type: "note",
-    date: "2099-01-01",
-    description: "should never be public",
-    parents: [],
-    state: "draft" as const,
-  };
-  await db.collection("versions").updateOne({ slug: probe.slug }, { $set: probe }, { upsert: true });
+  const base = { type: "note", date: "2099-01-01", description: "leak probe", parents: [] };
+  const published = { ...base, slug: "__leak_probe_published__", name: "Published Probe", state: "published" as const };
+  const draft = { ...base, slug: "__leak_probe_draft__", name: "Draft Probe", state: "draft" as const };
+  await db.collection("versions").updateOne({ slug: published.slug }, { $set: published }, { upsert: true });
+  await db.collection("versions").updateOne({ slug: draft.slug }, { $set: draft }, { upsert: true });
   try {
-    const data = await getPublicDataset();
-    const found = data.timelineVersions().some((e) => e.version.slug === probe.slug);
-    assert.equal(found, false, "draft version leaked into the public dataset");
+    const slugs = new Set((await getPublicDataset()).timelineVersions().map((e) => e.version.slug));
+    assert.equal(slugs.has(published.slug), true, "published version missing — dataset is degenerate, test would pass vacuously");
+    assert.equal(slugs.has(draft.slug), false, "draft version leaked into the public dataset");
   } finally {
-    await db.collection("versions").deleteOne({ slug: probe.slug });
+    await db.collection("versions").deleteMany({ slug: { $in: [published.slug, draft.slug] } });
   }
 });
