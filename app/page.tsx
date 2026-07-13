@@ -1,7 +1,7 @@
-import { getDataset } from "@/lib/data";
+import { getPublicDataset } from "@/lib/store";
 
-export default function DirectoryPage() {
-  const data = getDataset();
+export default async function DirectoryPage() {
+  const data = await getPublicDataset();
   const molecules = data.getMolecules();
   const standalone = data.standaloneAtoms();
 

@@ -1,15 +1,5 @@
 import { notFound } from "next/navigation";
-import { getDataset } from "@/lib/data";
-
-export function generateStaticParams() {
-  const data = getDataset();
-  const slugs = new Set<string>();
-  for (const molecule of data.getMolecules()) {
-    for (const atom of data.atomsForMolecule(molecule.slug)) slugs.add(atom.slug);
-  }
-  for (const atom of data.standaloneAtoms()) slugs.add(atom.slug);
-  return [...slugs].map((id) => ({ id }));
-}
+import { getPublicDataset } from "@/lib/store";
 
 function isScalar(value: unknown): value is string | number | boolean {
   return typeof value === "string" || typeof value === "number" || typeof value === "boolean";
@@ -17,7 +7,7 @@ function isScalar(value: unknown): value is string | number | boolean {
 
 export default async function AtomPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const data = getDataset();
+  const data = await getPublicDataset();
   const atom = data.getAtom(id);
   if (!atom) notFound();
 

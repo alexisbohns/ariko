@@ -1,4 +1,5 @@
-import { getDataset, type Domain } from "@/lib/data";
+import { type Domain } from "@/lib/data";
+import { getPublicDataset } from "@/lib/store";
 
 const DOMAINS: Domain[] = ["music", "design", "podcast"];
 const FILTERS: (Domain | "all")[] = ["all", ...DOMAINS];
@@ -12,7 +13,7 @@ export default async function TimelinePage({
   const active: Domain | "all" =
     domain && (DOMAINS as string[]).includes(domain) ? (domain as Domain) : "all";
 
-  const entries = getDataset()
+  const entries = (await getPublicDataset())
     .timelineVersions()
     .filter((entry) => active === "all" || entry.domain === active);
 
