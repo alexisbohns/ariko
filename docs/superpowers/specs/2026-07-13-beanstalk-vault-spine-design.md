@@ -163,7 +163,8 @@ This endpoint is the plug point: each connector becomes a small, independent fol
 ### 6.2 Publish flow & visibility cascade
 - Public zone queries **published-only**, with revalidation (no build step; images from object-store CDN).
 - **Cascade rule:** publishing a Version auto-promotes its parent Atom and Molecule to `public` so nothing dangles. Unpublishing never cascades *down* (parents stay public if other published children exist).
-- **Invariant:** the public zone must never expose a `draft` or `private` Version, nor a private Molecule/Atom. This is the one security-sensitive rule (see tests, §8).
+- **Projection cascade (fail-closed):** the published-only projection (`filterPublic`) also cascades privacy *downward* — a published Version whose every existing parent Atom is private/filtered is dropped, and an Atom whose every existing parent Molecule is private is dropped. Dangling (nonexistent) parent refs are preserved as standalone (matching `buildDataset`).
+- **Invariant:** the public zone must never expose a `draft` or `private` Version, nor a private Molecule/Atom, nor a published child of a private parent. This is the one security-sensitive rule (see tests, §8).
 
 ### 6.3 Migration
 One-time import of `data/seed.yml` into the DB, all items as `published` (they are the current live portfolio). `seed.yml` is retired as the runtime source after migration.
