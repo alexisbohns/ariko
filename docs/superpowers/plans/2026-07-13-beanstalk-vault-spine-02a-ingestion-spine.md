@@ -1404,3 +1404,19 @@ git commit -m "docs: document ingestion endpoints, tokens, and validators script
 - Dataset caching + public rendering-mode revalidation (tied to the publish action).
 - Widening atomic-model `name`/`description` from `string` to `Text` at promotion time.
 - Media-pending capture-bar UX (capture survives an image-upload failure).
+
+## Execution notes — deviations & hardening (added during subagent-driven execution)
+
+Each was surfaced by the two-stage review after its task and fixed inline before the task was marked complete:
+
+- **Task 0 — `lib/db.ts` singleton hardened.** The plan's version cached the resolved `Db`; two racing cold-start callers could each `connect()` a client and orphan the loser. Shipped version caches the in-flight **connect promise** on `globalThis`, so concurrent callers await one promise. The `"MONGODB_URI is not set"` throw stays synchronous (never caches a rejected promise).
+- **Task 3 — auth regression tests added.** Two extra `lib/auth.test.ts` cases pin fail-closed behavior on a wrong/lowercase scheme and on a bare `"Bearer "` (empty token).
+- **Task 4 — `validateInboxPayload` no-throw contract enforced (was a real bug).** The plan cast `body.media as InputMedia[]` unvalidated; `media:[null]` (a plausible client payload) **threw** → would have been a 500 instead of the spec-mandated 400. Shipped version validates each media element and rejects malformed entries with a clear error, and rejects a present-but-non-string `source.externalId`/`source.url` (the dedup key must not be silently dropped). Tests added for `media:[null]`, `[{}]`, `[{kind:"embed"}]`, `[42]`, and non-string `externalId`.
+- **Task 5 — `capturedAt` preserved on re-post.** The plan's `$set` overwrote `source.capturedAt` on every upsert. Shipped version routes `capturedAt` through `$setOnInsert` (set once at first capture, like `createdAt`) and writes other source fields via dot-paths (so a re-post that omits a field doesn't wipe it). Test added asserting `capturedAt` survives a re-post.
+- **Task 9 — validator `validationLevel` made consistent.** The `createCollection` branch now also passes `validationLevel: "moderate"`, matching the `collMod` branch and the function's comment (inert today; matters for a fresh DB).
+
+## Deferred follow-ups (surfaced during execution, tracked for later slices)
+
+- **Embed host matching is a substring match** (`host.includes("vimeo.com")`), so a lookalike host like `vimeo.com.evil.io` would be misclassified. Inert in 2a (embeds are stored as URL/ID metadata, not rendered). Harden to `host === h || host.endsWith("." + h)` **when embed rendering / iframes land** (exhibition slice) — the point at which provider becomes a trust signal.
+- **Concurrent double-upsert race on `POST /api/inbox`.** The partial unique index prevents duplicate documents, but two *simultaneous* posts with the same `(source.kind, source.externalId)` can surface an `E11000` as an unhandled error rather than gracefully updating. The only concurrent caller is connectors (out of 2a scope). Add a `catch(11000) → retry as updateOne` **when connectors go live**.
+- **`POST /api/inbox` hardening for untrusted exposure.** If the endpoint is ever exposed beyond trusted connectors: use a constant-time token comparison, and add a max-body-size guard **ahead of** `request.json()` to bound unauthenticated parse cost.
