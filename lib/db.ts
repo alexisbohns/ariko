@@ -13,3 +13,13 @@ export async function getDb(): Promise<Db> {
   db = client.db(process.env.MONGODB_DB ?? "beanstalk");
   return db;
 }
+
+// Closes the cached connection so long-lived clients (e.g. test runners) can
+// exit cleanly. No-op when nothing is connected.
+export async function closeDb(): Promise<void> {
+  if (client) {
+    await client.close();
+    client = null;
+    db = null;
+  }
+}
