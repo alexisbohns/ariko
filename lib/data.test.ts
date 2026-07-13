@@ -129,3 +129,19 @@ test("parents are returned regardless of current visibility (idempotent flip)", 
   assert.deepEqual(r.atomSlugs, ["a1"]);
   assert.deepEqual(r.moleculeSlugs, ["m1"]);
 });
+
+test("an atom with two real molecule parents cascades both molecules", () => {
+  const raw = {
+    molecules: [
+      { slug: "m1", name: "M1", domain: "music" as const, description: "" },
+      { slug: "m2", name: "M2", domain: "design" as const, description: "" },
+    ],
+    atoms: [{ slug: "a1", name: "A1", parents: ["molecule:m1", "molecule:m2"] }],
+    versions: [
+      { slug: "v1", name: "V1", type: "t", date: "2025-01-01", description: "", parents: ["atom:a1"] },
+    ],
+  };
+  const r = publishCascade(raw, "v1");
+  assert.deepEqual(r.atomSlugs, ["a1"]);
+  assert.deepEqual([...r.moleculeSlugs].sort(), ["m1", "m2"]);
+});
