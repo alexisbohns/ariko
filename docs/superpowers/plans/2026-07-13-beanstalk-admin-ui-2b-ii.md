@@ -1107,3 +1107,23 @@ git commit -m "docs: document the triage/promote/publish flow"
 - **`publishCascade` reads `loadRawSeed()` AFTER `createVersion`**, so the new version + its just-created parents are present for the closure — keep that ordering in the action.
 - **DB validators** (`versions.state`, `molecules/atoms.visibility` enums) must be satisfied by writes: `state ∈ {draft,private,published}` and `visibility ∈ {private,public}` — the write layer and `buildVersionInput` already conform.
 - **`app/admin/triage/[id]/page.tsx` imports actions via `../../actions`** (up from `[id]` → `triage` → `admin`). Keep that path if editing.
+
+## Execution notes (added during subagent-driven execution)
+
+All 9 tasks implemented and passed a two-stage (spec + code-quality) review each, plus a final whole-slice review. Automated gates green: `npm test` (86 pass / 16 pre-existing DB skips), the full DB-backed suite (`node --env-file=.env.local --import tsx --test "lib/**/*.test.ts"`) **102 pass / 0 skip / 0 fail**, and `npx tsc --noEmit` clean throughout.
+
+- **Task 1 test added inline** (`4f7bf96`): a code-review coverage note — the plan's fixture paired one real + one dangling molecule parent, so an atom with *two real* molecule parents wasn't exercised. Added that test (spec §4 had listed the case).
+- **Task 6 orphan-guard fix** (`efb2552`, final-review finding): filling *new-molecule* fields while selecting an *existing* atom (or no atom) created a private molecule nothing links to — a *successful* promote that silently dropped intent (distinct from the accepted mid-promote-failure orphan). Fixed by resolving both parent choices up front and rejecting `new molecule + (existing|no) atom` with a friendly error before any write. Plan Task 6 code kept in sync.
+- **Live smoke** (Chrome extension unavailable, as in 2b-i): exercised the exact promote chain via a minted session cookie + the real lib functions, and `curl`. Confirmed: promoting as **draft** into a new molecule+atom leaves both `private`; promoting as **published** into that atom cascades **both** the atom and its molecule to `public`; the version states persist (`draft`/`published`); the capture flips to `promoted`; the `/admin/triage/[id]` page renders (200) with the form for a valid cookie and redirects (307) without one; the inbox links to it. The Next server-action POST plumbing itself was not driven over HTTP (framework glue over already-tested functions).
+
+## Deferred follow-ups (surfaced during review, tracked for later slices)
+
+Non-blocking; none blocks 2b-ii:
+
+- **Re-validate "existing" parent selections** (Task 6 / final): a forged POST with a `moleculeSlug`/`atomSlug` that doesn't exist is written straight into `parents`. It degrades safely (both `filterPublic` and `publishCascade` treat it as a dangling ref) and is gated to the single admin, but there's no error shown. Add an existence check when the vault browser (2b-iii) makes selection richer.
+- **`SlugExistsError` mapping assumes slug is the sole unique index** (Task 3): `isDuplicateKey` maps any `E11000` on a collection to a slug collision. Harden with an `err.keyPattern` check if a second unique index is ever added.
+- **`newMoleculeDomain` silently defaults to `music`** on a tampered/missing value (Task 6) rather than a friendly error — inconsistent with the "never silent" posture, low risk (admin-only 3-option select).
+- **`createVersion` → `setPublic` is not transactional** (Task 6): a crash between them can leave a published version whose parent chain isn't fully public. `filterPublic` keeps this safe (the item just doesn't appear publicly), but consider a "republish" affordance in 2b-iii.
+- **No action/page-level integration test** for promote→cascade (final): matches the spec §9 scope (pure fns unit-tested + manual smoke). Consider one when a test harness for server actions exists.
+- **Minor `lib/promote.ts` polish** (Task 2): description prefill uses `resolveText(capture.body)` un-trimmed while other fields trim; add a `state:"private"` pass-through test for symmetry.
+- **Double `buildVersionInput`** (Task 6): called once for the precheck (with `null` parent) and once with the real atom — harmless (pure) duplicate parse; could validate the already-built real input instead.
