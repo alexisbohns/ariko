@@ -82,7 +82,16 @@ The login gate. Submitting the correct `ADMIN_PASSWORD` sets an httpOnly, `SameS
 
 ### `/admin`
 
-* **Quick-capture bar** — title (required), an optional note with an en/fr toggle, and one or more paste-a-link fields. Submitting creates a `Capture` in the inbox via the same `validateInboxPayload` → `createOrUpdateCapture` path as `/api/inbox`; embed providers are auto-detected. Image attach is deferred to 2b-ii.
-* **Inbox** — a read-only table of `status:"inbox"` captures (source, title, note, media, age), newest first.
+* **Quick-capture bar** — title (required), an optional note with an en/fr toggle, and one or more paste-a-link fields. Submitting creates a `Capture` in the inbox via the same `validateInboxPayload` → `createOrUpdateCapture` path as `/api/inbox`; embed providers are auto-detected. Image attach is deferred to a later slice.
+* **Inbox** — a read-only table of `status:"inbox"` captures (source, title, note, media, age), newest first. Each row's title links to the capture's triage page.
+
+### `/admin/triage/[id]`
+
+Turns a captured item into a first-class `Version` in the atomic model (or discards it).
+
+* **Promote** — choose an existing molecule and atom from the dropdowns, or type a new slug/name (a blank "new slug" falls back to the selection; new-fields win when filled). Fill the version fields (slug, name, type, date, description) and pick a state: `draft` / `private` / `published`. The capture's media and provenance are carried onto the version.
+* **Private by default** — newly created molecules/atoms are `visibility:"private"`. Publishing a version runs the pure `publishCascade` (the write-time mirror of `filterPublic`) which flips that version's parent atom and molecule to `public`, so a published version never dangles under a private parent. Promoting as draft/private leaves the parents untouched.
+* **Discard** — drops the capture from the inbox (`status:"discarded"`).
+* Run `npm run validators` after pulling this change to ensure the atomic-model slug indexes. The public zone does **not** yet reflect a publish (its caching/revalidation arrives in slice 2b-iii); the admin, which reads the full dataset per request, sees changes immediately.
 
 See `docs/superpowers/specs/` and `docs/superpowers/plans/` for the design and implementation plans.

@@ -107,7 +107,9 @@ export default async function AdminPage({
             {captures.map((c) => (
               <tr key={c.id}>
                 <td>{c.source.kind}</td>
-                <td>{c.title}</td>
+                <td>
+                  <a href={`/admin/triage/${c.id}`}>{c.title}</a>
+                </td>
                 <td>{noteSnippet(c.body)}</td>
                 <td>{mediaLabel(c.media)}</td>
                 <td>{ageLabel(c.createdAt, now)}</td>
