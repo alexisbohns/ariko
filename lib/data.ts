@@ -4,17 +4,53 @@ import yaml from "js-yaml";
 
 export type Domain = "music" | "design" | "podcast";
 
+export type Visibility = "private" | "public";
+export type VersionState = "draft" | "private" | "published";
+
+export interface LocalizedText {
+  en?: string;
+  fr?: string;
+}
+export type Text = string | LocalizedText;
+
+export interface MediaEmbed {
+  kind: "embed";
+  provider: string; // soundcloud | spotify | deezer | ausha | youtube | vimeo | figma | ...
+  url: string;
+  embedId?: string;
+}
+export interface MediaImage {
+  kind: "image";
+  storageKey: string;
+  url: string;
+  alt?: string;
+  width?: number;
+  height?: number;
+}
+export type Media = MediaEmbed | MediaImage;
+
+export interface Source {
+  kind: string; // manual | github | changelog | arkaik | ...
+  url?: string;
+  externalId?: string;
+  capturedAt?: string;
+}
+
 export interface Molecule {
   slug: string;
   name: string;
   domain: Domain;
   description: string;
+  visibility?: Visibility; // default treated as "public"
+  tags?: string[];
 }
 
 export interface Atom {
   slug: string;
   name: string;
   parents: string[]; // e.g. ["molecule:republic-of-masquerade"]
+  visibility?: Visibility; // default treated as "public"
+  tags?: string[];
 }
 
 export interface Version {
@@ -24,6 +60,11 @@ export interface Version {
   date: string;
   description: string;
   parents: string[]; // e.g. ["atom:rom-win"]
+  state?: VersionState; // absent => NOT published (safe default)
+  content?: Text; // optional rich markdown, localizable
+  media?: Media[];
+  source?: Source;
+  tags?: string[];
   [key: string]: unknown; // flexible per-type properties
 }
 
