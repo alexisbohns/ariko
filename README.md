@@ -41,4 +41,32 @@ As of the Vault Spine slice, content lives in **MongoDB** (not the static seed).
 * `npm run dev` / `npm run build` — **require DB reachability**: the public pages query Mongo at build/request time, so a clean-checkout or CI build needs `MONGODB_URI` set and the cluster reachable.
 * `npm test` — pure unit tests; DB-backed integration tests auto-skip unless `MONGODB_URI` is set (run them with `node --env-file=.env.local --import tsx --test "lib/**/*.test.ts"`).
 
+## Ingestion spine
+
+As of the Ingestion Spine slice, content can be captured into Mongo via API instead of only through the seed.
+
+* Set `INBOX_TOKENS` in `.env.local` — comma-separated `kind:token` pairs, e.g. `*:tok_master,github:tok_gh`. A `kind` of `*` accepts the token for any source kind; otherwise the token is only valid for that specific `source.kind`.
+* Set `CLOUDINARY_URL` in `.env.local` (from the Cloudinary dashboard, e.g. `cloudinary://<key>:<secret>@<cloud_name>`) — required for `/api/upload` to store images.
+* `npm run validators` — applies the DB-side `$jsonSchema` validators and capture indexes. Run once after pulling this change, and again after any validator edit.
+
+### `POST /api/inbox`
+
+Bearer-authenticated capture ingestion: `Authorization: Bearer <token>`.
+
+Body: `{ title, body?, content?, media?: [], source: { kind, url?, externalId? }, suggested? }`.
+
+* Dedups/upserts on `(source.kind, source.externalId)` when `externalId` is present; otherwise every post creates a new capture.
+* Embed media (`{ kind: "embed", url }`) auto-detects its provider (YouTube, Vimeo, etc.) when `provider` is omitted.
+* Returns `{ id, created }` — `201` when a new capture is created, `200` on an upsert of an existing one.
+* `401` when the bearer token is missing/unknown, `403` when the token isn't authorized for that `source.kind`, `400` on a malformed or invalid payload.
+
+### `POST /api/upload`
+
+Bearer-authenticated Cloudinary image upload: `Authorization: Bearer <token>`, body is `multipart/form-data` with a `file` field.
+
+* Returns a `MediaImage` descriptor (`{ kind: "image", storageKey, url, width?, height? }`) on success (`201`).
+* `401` when the bearer token is missing/unknown, `400` when the `file` field is absent, `502` if the upload to Cloudinary itself fails (e.g. a placeholder/invalid `CLOUDINARY_URL`).
+
+The admin UI (quick-capture bar, triage, publish) arrives in Plan 2b — for now these endpoints are exercised via API only.
+
 See `docs/superpowers/specs/` and `docs/superpowers/plans/` for the design and implementation plans.

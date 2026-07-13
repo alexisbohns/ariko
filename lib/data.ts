@@ -74,6 +74,30 @@ export interface RawSeed {
   versions?: Version[];
 }
 
+export type CaptureStatus = "inbox" | "promoted" | "discarded";
+
+export interface CaptureSuggestion {
+  moleculeSlug?: string;
+  atomSlug?: string;
+  type?: string;
+  tags?: string[];
+}
+
+// Raw inbox item. Kept separate from the atomic model until triaged (spec §4.2).
+export interface Capture {
+  id: string; // crypto.randomUUID() at creation; captures are not slug-addressable
+  title: string;
+  body?: LocalizedText;
+  content?: LocalizedText;
+  media: Media[];
+  source: Source;
+  suggested?: CaptureSuggestion;
+  status: CaptureStatus;
+  promotedTo: string[]; // version slugs; empty until 2b triage
+  createdAt: string; // ISO
+  updatedAt: string; // ISO
+}
+
 export interface TimelineEntry {
   version: Version;
   atom: Atom | null;
