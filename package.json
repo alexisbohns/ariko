@@ -10,6 +10,7 @@
     "migrate": "node --env-file=.env.local --import tsx scripts/migrate-seed.ts"
   },
   "dependencies": {
+    "cloudinary": "^2.10.0",
     "js-yaml": "^4.1.0",
     "mongodb": "^6.21.0",
     "next": "^15.3.0",
