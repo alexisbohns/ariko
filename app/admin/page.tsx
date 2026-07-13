@@ -5,7 +5,7 @@ import { createCaptureAction, logoutAction } from "./actions";
 export const dynamic = "force-dynamic";
 
 function noteSnippet(body: Capture["body"]): string {
-  const text = body?.en ?? body?.fr ?? "";
+  const text = body?.en || body?.fr || "";
   if (!text) return "—";
   return text.length > 60 ? `${text.slice(0, 60)}…` : text;
 }
