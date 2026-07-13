@@ -416,3 +416,18 @@ git commit -m "docs: document force-dynamic public pages and the vault browser"
 - **`filterVaultEntries` never consults visibility** — it filters `version.state`, and the vault intentionally shows everything (`getFullDataset`, not `filterPublic`). The public/private split is enforced only on the public read path, which is untouched.
 - **`force-dynamic` is per-page route segment config** — it must be a top-level `export const dynamic` in each page module, not inside the component. A version with no `state` shows as `—` in the vault and is excluded by any specific state filter (only "all" shows it).
 - **`TimelineEntry` fixtures in the test** use `state as never`/`domain as never` casts only to keep the fixture terse; the real `timelineVersions()` returns properly typed entries.
+
+## Execution notes (added during subagent-driven execution)
+
+All 4 tasks implemented and passed review (T1/T3 two-stage spec + code-quality; T2 a single scaled review for the config-only change), plus a final whole-slice review (**ready to merge**, no Critical/Important). Gates green: `npm test` 96 pass / 16 pre-existing DB skips, `npx tsc --noEmit` clean.
+
+- **Live smoke** (Chrome extension unavailable): seeded a published lineage + a draft version via the write layer + `setPublic`, minted a session cookie, and `curl`ed. Confirmed: the public `/timeline` shows the published version and **hides the draft** with no rebuild (force-dynamic works, `filterPublic` still applies); `/` shows the now-public atom; `/admin/vault` shows **both** states; `?state=draft` and `?domain=design` filter correctly; `/admin/vault` redirects 307 without a cookie.
+
+## Deferred follow-ups (surfaced during review)
+
+Non-blocking; none blocks 2b-iii:
+
+- **Vault atom-name link targets the public `/atom/[id]` page** (T3 code-review, Important): for a `draft`/`private` version whose atom isn't public, clicking the name 404s; for a public atom, the target page won't list the draft/private version clicked. The real fix is an **admin-side atom detail view** (shows all states) — a later "edit/view Version" slice. Until then the link is only fully useful for published items.
+- **`"all"` sentinel vs a real tag named `"all"`** (T3, minor/theoretical): a tag literally `"all"` would be indistinguishable from clearing the tag filter in `vaultHref`.
+- **Tag filter is exact membership** (final, minor): fine for a closed option list from `distinctTags`; revisit if tags ever become free-text search.
+- **No unit test for the vault `getFullDataset()` failure branch** (final, minor): the fallback JSX is only reachable via a real DB failure; consistent with the project's no-DB-in-`npm test` pattern.
