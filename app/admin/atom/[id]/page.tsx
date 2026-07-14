@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { resolveText } from "@/lib/data";
 import { getFullDataset } from "@/lib/store";
 import { atomDetail, type AtomDetailView } from "@/lib/atom-detail";
 
@@ -40,7 +41,7 @@ export default async function AdminAtomPage({ params }: { params: Promise<{ id: 
       <p>
         <a href="/admin/vault">← vault</a>
       </p>
-      <h1>{atom.name}</h1>
+      <h1>{resolveText(atom.name)}</h1>
       <ul>
         <li>atom: {atom.slug}</li>
         <li>visibility: {atom.visibility ?? "public (default)"}</li>
@@ -55,7 +56,7 @@ export default async function AdminAtomPage({ params }: { params: Promise<{ id: 
       ) : (
         versions.map((version) => (
           <section key={version.slug}>
-            <h3>{version.name}</h3>
+            <h3>{resolveText(version.name)}</h3>
             <p>
               <a href={`/admin/version/${version.slug}`}>edit</a>
             </p>

@@ -1,5 +1,5 @@
-import type { Capture, Media, Source, VersionState } from "./data";
-import { resolveText } from "./data";
+import type { Capture, Media, Source, Text, VersionState } from "./data";
+import { composeText, resolveText } from "./data";
 
 export type ParentResolution =
   | { mode: "create"; slug: string }
@@ -20,20 +20,24 @@ export function resolveParentChoice(newSlug: string, selectedSlug: string): Pare
 // The fields written to a new Version. Structurally the createVersion input.
 export interface VersionInput {
   slug: string;
-  name: string;
+  name: Text;
   type: string;
   date: string;
-  description: string;
+  description: Text;
   state: VersionState;
   parents: string[];
   media: Media[];
   source: Source;
 }
 
-// Pure. Maps the triage form + the source capture into a VersionInput. Prefills
-// name from the capture title and description from the capture note (flattened via
-// resolveText), both overridable by form fields. Carries the capture's media and
-// provenance. `atomParentSlug` (resolved by the action) wires the atom parent ref.
+// Pure. Maps the triage form + the source capture into a VersionInput. name and
+// description compose from paired en/fr fields (B1), WYSIWYG: the triage page
+// prefills the boxes per-language (name from capture.title, descriptions from
+// capture.body via textPart), and what the boxes submit is exactly what is
+// stored — clearing a box clears that language, and a fully cleared name fails
+// validation instead of being silently resurrected. Carries the capture's media
+// and provenance. `atomParentSlug` (resolved by the action) wires the atom
+// parent ref.
 export function buildVersionInput(
   form: FormData,
   capture: Capture,
@@ -46,10 +50,10 @@ export function buildVersionInput(
 
   return {
     slug: get("versionSlug"),
-    name: get("versionName") || capture.title.trim(),
+    name: composeText(get("versionName"), get("versionNameFr")),
     type: get("type"),
     date: get("date"),
-    description: get("description") || resolveText(capture.body),
+    description: composeText(get("description"), get("descriptionFr")),
     state,
     parents: atomParentSlug ? [`atom:${atomParentSlug}`] : [],
     media: capture.media,
@@ -57,13 +61,14 @@ export function buildVersionInput(
   };
 }
 
-// Pure guard for the required Version fields (spec §7). Media/source are carried,
-// not user-entered, so they are not validated here.
+// Pure guard for the required Version fields (spec §7). "name required" means at
+// least one language is present (resolveText non-empty) — an fr-only name is valid.
+// Media/source are carried, not user-entered, so they are not validated here.
 export function validateVersionInput(
   v: VersionInput,
 ): { ok: true } | { ok: false; error: string } {
   if (!v.slug) return { ok: false, error: "version slug is required" };
-  if (!v.name) return { ok: false, error: "version name is required" };
+  if (!resolveText(v.name)) return { ok: false, error: "version name is required" };
   if (!v.type) return { ok: false, error: "version type is required" };
   if (!v.date) return { ok: false, error: "version date is required" };
   return { ok: true };

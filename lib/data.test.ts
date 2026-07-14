@@ -2,8 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   buildDataset,
+  composeText,
   getDataset,
   publishCascade,
+  textPart,
   unpublishCascade,
   unpublishCascadeForAtoms,
   type RawSeed,
@@ -356,6 +358,54 @@ test("delete-shaped: already-private flip targets are still returned (idempotent
     versions: [],
   };
   assert.deepEqual(unpublishCascadeForAtoms(raw, ["a1"]), { moleculeSlugs: ["m1"], atomSlugs: ["a1"] });
+});
+
+// --- textPart / composeText: the strict-access and compose halves of the bilingual
+// Text widening (B1). textPart backs form prefills, where resolveText's fallback
+// would silently copy en into the fr box (and corrupt data on save); composeText is
+// the form builders' inverse, turning the paired inputs back into a Text.
+
+test("textPart treats a plain string as the en part", () => {
+  assert.equal(textPart("hello", "en"), "hello");
+});
+
+test("textPart never falls back: the fr part of a plain string is empty", () => {
+  assert.equal(textPart("hello", "fr"), "");
+});
+
+test("textPart returns exactly the requested part of a localized object", () => {
+  assert.equal(textPart({ en: "Hi", fr: "Salut" }, "en"), "Hi");
+  assert.equal(textPart({ en: "Hi", fr: "Salut" }, "fr"), "Salut");
+});
+
+test("textPart returns empty for a missing part (no cross-language fallback)", () => {
+  assert.equal(textPart({ en: "Hi" }, "fr"), "");
+  assert.equal(textPart({ fr: "Salut" }, "en"), "");
+});
+
+test("textPart of an absent value is empty", () => {
+  assert.equal(textPart(undefined, "en"), "");
+  assert.equal(textPart(undefined, "fr"), "");
+});
+
+test("composeText with both parts blank is the empty string", () => {
+  assert.equal(composeText("", ""), "");
+  assert.equal(composeText("  ", " "), "");
+});
+
+test("composeText keeps en-only content a plain string (trimmed)", () => {
+  assert.equal(composeText("Hi", ""), "Hi");
+  assert.equal(composeText(" Hi ", "  "), "Hi");
+});
+
+test("composeText builds a localized object when fr is present", () => {
+  assert.deepEqual(composeText("Hi", "Salut"), { en: "Hi", fr: "Salut" });
+});
+
+test("composeText omits a blank en from the object", () => {
+  const t = composeText("", "Salut");
+  assert.deepEqual(t, { fr: "Salut" });
+  assert.equal(typeof t === "object" && "en" in t, false, "blank en must be omitted, not empty");
 });
 
 test("adapter equivalence: unpublishCascade(slug) === unpublishCascadeForAtoms(that version's atom refs)", () => {

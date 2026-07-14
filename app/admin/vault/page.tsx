@@ -1,5 +1,5 @@
 import { getFullDataset } from "@/lib/store";
-import type { TimelineEntry } from "@/lib/data";
+import { resolveText, type TimelineEntry } from "@/lib/data";
 import { filterVaultEntries, distinctTags } from "@/lib/vault";
 
 export const dynamic = "force-dynamic";
@@ -98,7 +98,11 @@ export default async function VaultPage({
             {entries.map((e) => (
               <tr key={e.version.slug}>
                 <td>
-                  {e.atom ? <a href={`/admin/atom/${e.atom.slug}`}>{e.version.name}</a> : e.version.name}
+                  {e.atom ? (
+                    <a href={`/admin/atom/${e.atom.slug}`}>{resolveText(e.version.name)}</a>
+                  ) : (
+                    resolveText(e.version.name)
+                  )}
                 </td>
                 <td>{e.version.state ?? "—"}</td>
                 <td>{e.domain ?? "—"}</td>

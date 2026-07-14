@@ -62,3 +62,10 @@ test("empty input returns empty", () => {
 test("distinctTags returns sorted unique tags across entries", () => {
   assert.deepEqual(distinctTags(ENTRIES), ["demo", "release", "wip"]);
 });
+
+test("localized version names resolve to display strings at build time (B1)", () => {
+  const e = entry("v-fr", "draft", null);
+  e.version.name = { en: "Name en", fr: "Nom fr" };
+  const r = filterVaultEntries([e], {});
+  assert.equal(r[0].version.name, "Name en");
+});

@@ -1,4 +1,4 @@
-import { type Domain } from "@/lib/data";
+import { resolveText, type Domain } from "@/lib/data";
 import { getPublicDataset } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -41,9 +41,9 @@ export default async function TimelinePage({
         {entries.map((entry) => (
           <li key={entry.version.slug}>
             {entry.atom ? (
-              <a href={`/atom/${entry.atom.slug}`}>{entry.version.name}</a>
+              <a href={`/atom/${entry.atom.slug}`}>{resolveText(entry.version.name)}</a>
             ) : (
-              entry.version.name
+              resolveText(entry.version.name)
             )}
             {" — "}
             <time dateTime={entry.version.date}>{entry.version.date}</time>

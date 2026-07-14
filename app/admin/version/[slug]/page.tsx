@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { resolveText, textPart } from "@/lib/data";
 import { getVersion } from "@/lib/atomic";
 import { editVersionAction, deleteVersionAction } from "../../actions";
 
@@ -39,9 +40,18 @@ export default async function EditVersionPage({
 
       <form action={editVersionAction}>
         <input type="hidden" name="slug" value={version.slug} />
+        {/* Prefills use the STRICT textPart — resolveText's fallback would copy en
+            into the fr box and corrupt the data on save. The name inputs carry no
+            `required`: the name is required as a whole (either language), enforced
+            server-side, and an fr-only name is valid. */}
         <p>
           <label>
-            Name <input type="text" name="name" defaultValue={version.name} required />
+            Name <input type="text" name="name" defaultValue={textPart(version.name, "en")} />
+          </label>
+        </p>
+        <p>
+          <label>
+            Name (fr) <input type="text" name="nameFr" defaultValue={textPart(version.name, "fr")} />
           </label>
         </p>
         <p>
@@ -56,7 +66,12 @@ export default async function EditVersionPage({
         </p>
         <p>
           <label>
-            Description <textarea name="description" defaultValue={version.description} />
+            Description <textarea name="description" defaultValue={textPart(version.description, "en")} />
+          </label>
+        </p>
+        <p>
+          <label>
+            Description (fr) <textarea name="descriptionFr" defaultValue={textPart(version.description, "fr")} />
           </label>
         </p>
         <fieldset>
@@ -92,7 +107,7 @@ export default async function EditVersionPage({
           <p>
             <label>
               <input type="checkbox" name="confirm" required /> Yes, permanently delete the version
-              “{version.name}” — this cannot be undone.
+              “{resolveText(version.name)}” — this cannot be undone.
             </label>
           </p>
           <p>

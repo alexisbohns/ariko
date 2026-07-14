@@ -51,3 +51,16 @@ test("a dangling molecule ref is surfaced as-is but yields a null domain", () =>
 test("an atom with no versions returns an empty versions array", () => {
   assert.deepEqual(atomDetail(DATASET, "loner")!.versions, []);
 });
+
+test("localized atom/version text resolves to display strings at build time (B1)", () => {
+  const seed: RawSeed = {
+    atoms: [{ slug: "bi", name: { en: "Win", fr: "Victoire" }, parents: [] }],
+    versions: [
+      { slug: "bi-v1", name: { fr: "Prise une" }, type: "t", date: "2025-01-01", description: { en: "first", fr: "première" }, parents: ["atom:bi"] },
+    ],
+  };
+  const view = atomDetail(buildDataset(seed), "bi")!;
+  assert.equal(view.atom.name, "Win");
+  assert.equal(view.versions[0].name, "Prise une"); // fr-only → display fallback
+  assert.equal(view.versions[0].description, "first");
+});
