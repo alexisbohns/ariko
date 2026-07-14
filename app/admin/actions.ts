@@ -7,7 +7,7 @@ import { buildCaptureBody } from "@/lib/capture-form";
 import { validateInboxPayload } from "@/lib/inbox";
 import { createOrUpdateCapture, getCapture, markCapturePromoted, discardCapture } from "@/lib/captures";
 import { loadRawSeed } from "@/lib/store";
-import { publishCascade, type Domain } from "@/lib/data";
+import { publishCascade, unpublishCascade, type Domain } from "@/lib/data";
 import { resolveParentChoice, buildVersionInput, validateVersionInput } from "@/lib/promote";
 import { buildVersionPatch, validateVersionPatch } from "@/lib/version-edit";
 import {
@@ -18,6 +18,7 @@ import {
   SlugExistsError,
   getVersion,
   updateVersion,
+  setPrivate,
 } from "@/lib/atomic";
 import {
   requireSession,
@@ -166,11 +167,18 @@ export async function editVersionAction(formData: FormData): Promise<void> {
 
   await updateVersion(slug, patch);
 
-  // Re-publish reuses the upward, idempotent cascade (same as promote). Un-publishing
-  // (draft/private) is state-only — parents are intentionally left as-is.
+  // Re-publish reuses the upward, idempotent cascade (same as promote). Any other
+  // state runs the downward recompute (A1): re-privatize parents that no longer
+  // shelter a published version. Idempotent — a draft save under a still-published
+  // sibling flips nothing; an empty shell left by an older un-publish is healed.
+  // Both branches load the dataset AFTER updateVersion, so the just-saved state
+  // is what the cascade evaluates.
   if (patch.state === "published") {
     const { moleculeSlugs, atomSlugs } = publishCascade(await loadRawSeed(), slug);
     await setPublic(moleculeSlugs, atomSlugs);
+  } else {
+    const { moleculeSlugs, atomSlugs } = unpublishCascade(await loadRawSeed(), slug);
+    await setPrivate(moleculeSlugs, atomSlugs);
   }
 
   revalidatePath("/admin");
