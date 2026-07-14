@@ -8,19 +8,18 @@
 
 ### Seeding
 
-* pre-seed with a `/data/seed.yml` (human)
-* seed with a `/data/seed.json` file (agent)
+* pre-seeded from `/data/seed.yml` (human-authored), imported into Mongo via `npm run migrate`
 
 ### Architecture
 
-* **Molecule**: has a name, type (`music | product | podcast | writing`), and contains atoms
+* **Molecule**: has a name, domain (`music | design | podcast`), and contains atoms
 * **Atom**: has a name, belongs to a molecule (optional — can be standalone), and contains versions
-* **Version**: has a name, date, and a flat key-value properties object (flexible per type)
+* **Version**: has a name, type, date, description, state (`draft | private | published`), carried media/source, tags, and flexible per-type properties. `parents` refs (`molecule:slug` / `atom:slug`) express **containment only** — future non-containment links (lineage, "featured in") will live in a separate `relations[]`.
 
 ## Pages
 
 * `/` — Directory. For each molecule (+ a "Standalone" group for orphan atoms): `<h2>` molecule name, `<ul>` of atom names as links to /atom/[id].
-* `/timeline` — Timeline. All atom-versions sorted by date descending. Above the list: a `<ul>` of type filter buttons (`all | music | product | podcast | writing`). Below: a `<ul>` of filtered results.
+* `/timeline` — Timeline. All atom-versions sorted by date descending. Above the list: a `<ul>` of domain filter buttons (`all | music | design | podcast`). Below: a `<ul>` of filtered results.
 * `/atom/[id]` — Atom detail. `<h1>` atom name, then for each version: `<h2>` version name, `<ul>` of all key-value properties.
 
 ## Constraints
@@ -115,7 +114,8 @@ A read-only detail view of a single atom over the **full** dataset (every state/
 A dedicated edit page for a single Version, reached from each version's `edit` link on the atom-detail view.
 
 * Editable: `name`, `type`, `date`, `description`, and `state` (draft/private/published). The `slug` is immutable (identity); re-parenting, media, source, content, and tags are out of scope.
-* Re-publishing (→ `published`) runs the same upward `publishCascade` as promote, flipping the parent atom/molecule public. Un-publishing (→ `draft`/`private`) is state-only — it hides the version from the public site immediately (`force-dynamic`) but leaves parents as-is, so a parent may remain public with no published version (cosmetic, not a leak; a downward "recompute visibility" pass is a later slice).
+* Re-publishing (→ `published`) runs the same upward `publishCascade` as promote, flipping the parent atom/molecule public. Un-publishing (`published` → `draft`/`private`) runs the downward `unpublishCascade` + `setPrivate`: the withdrawn version's atom, left with no published version, is re-privatized — and its molecule too when no public atom remains under it — so pulled work leaves no empty public shell (not even its name). A still-published sibling version keeps its lineage public.
+* The recompute is **transition-gated**: it fires only when the version actually leaves `published`. A routine draft save never flips visibility that was authored directly (e.g. seeded name-only public atoms), and re-running `npm run migrate` no longer force-republishes — the migration's public/published defaults apply on first insert only, so admin un-publishes survive a re-migrate.
 * Read-only `slug`/atom context is shown; a blank required field re-renders with an error and writes nothing. Gated by the `/admin/*` middleware and the action's `requireSession()`.
 
 See `docs/superpowers/specs/` and `docs/superpowers/plans/` for the design and implementation plans.

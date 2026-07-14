@@ -6,6 +6,7 @@ import {
   createAtom,
   createVersion,
   setPublic,
+  setPrivate,
   listMolecules,
   listAtoms,
   SlugExistsError,
@@ -72,6 +73,23 @@ test("setPublic flips visibility to public", { skip: !hasDb }, async (t) => {
 
 test("setPublic is a no-op on empty arrays", { skip: !hasDb }, async () => {
   await setPublic([], []); // must not throw
+});
+
+test("setPrivate flips visibility back to private", { skip: !hasDb }, async (t) => {
+  t.after(cleanup);
+  await createMolecule({ slug: "__test__qm", name: "M", domain: "music", description: "" });
+  await createAtom({ slug: "__test__qa", name: "A", moleculeSlug: "__test__qm" });
+  await setPublic(["__test__qm"], ["__test__qa"]);
+  await setPrivate(["__test__qm"], ["__test__qa"]);
+  const db = await getDb();
+  const m = await db.collection("molecules").findOne({ slug: "__test__qm" });
+  const a = await db.collection("atoms").findOne({ slug: "__test__qa" });
+  assert.equal(m?.visibility, "private");
+  assert.equal(a?.visibility, "private");
+});
+
+test("setPrivate is a no-op on empty arrays", { skip: !hasDb }, async () => {
+  await setPrivate([], []); // must not throw
 });
 
 test("a duplicate slug throws SlugExistsError", { skip: !hasDb }, async (t) => {

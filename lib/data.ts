@@ -48,7 +48,7 @@ export interface Molecule {
 export interface Atom {
   slug: string;
   name: string;
-  parents: string[]; // e.g. ["molecule:republic-of-masquerade"]
+  parents: string[]; // containment ONLY, e.g. ["molecule:republic-of-masquerade"] — non-containment links belong in a future relations[] (graph runway)
   visibility?: Visibility; // default treated as "public"
   tags?: string[];
 }
@@ -59,7 +59,7 @@ export interface Version {
   type: string;
   date: string;
   description: string;
-  parents: string[]; // e.g. ["atom:rom-win"]
+  parents: string[]; // containment ONLY, e.g. ["atom:rom-win"] — drives the privacy cascades and timeline grouping; cross-links go in a future relations[]
   state?: VersionState; // absent => NOT published (safe default)
   content?: Text; // optional rich markdown, localizable
   media?: Media[];
@@ -281,6 +281,60 @@ export function publishCascade(
   }
 
   return { moleculeSlugs: [...moleculeSlugs], atomSlugs };
+}
+
+// Downward un-publish recompute — the inverse of publishCascade (roadmap A1). For the
+// given version, returns the EXISTING atom parents left with NO published version, and
+// their EXISTING molecule parents left with NO public atom once those atoms flip.
+// Evaluate against a dataset loaded AFTER the version's state was saved, so the
+// version's own state counts (still-published → no-op). Dangling refs are ignored and
+// flip-target visibility is not consulted (idempotent flip), exactly as publishCascade.
+export function unpublishCascade(
+  raw: RawSeed,
+  versionSlug: string,
+): { moleculeSlugs: string[]; atomSlugs: string[] } {
+  const molecules = raw.molecules ?? [];
+  const atoms = raw.atoms ?? [];
+  const versions = raw.versions ?? [];
+
+  const version = versions.find((v) => v.slug === versionSlug);
+  if (!version) return { moleculeSlugs: [], atomSlugs: [] };
+
+  const atomBySlug = new Map(atoms.map((a) => [a.slug, a]));
+  const moleculeExists = new Set(molecules.map((m) => m.slug));
+
+  // An atom is sheltered while ANY published version still points at it.
+  const shelteredAtoms = new Set<string>();
+  for (const v of versions) {
+    if (v.state !== "published") continue;
+    for (const s of parentsWithPrefix(v.parents, ATOM_PREFIX)) shelteredAtoms.add(s);
+  }
+
+  const flipping = new Set(
+    parentsWithPrefix(version.parents, ATOM_PREFIX).filter(
+      (s) => atomBySlug.has(s) && !shelteredAtoms.has(s),
+    ),
+  );
+
+  const moleculeCandidates = new Set<string>();
+  for (const atomSlug of flipping) {
+    for (const m of parentsWithPrefix(atomBySlug.get(atomSlug)!.parents, MOLECULE_PREFIX)) {
+      if (moleculeExists.has(m)) moleculeCandidates.add(m);
+    }
+  }
+
+  // A molecule is sheltered while any surviving public atom still points at it —
+  // the same "public unless explicitly private" rule filterPublic reads by.
+  const shelteredMolecules = new Set<string>();
+  for (const a of atoms) {
+    if (flipping.has(a.slug) || a.visibility === "private") continue;
+    for (const m of parentsWithPrefix(a.parents, MOLECULE_PREFIX)) shelteredMolecules.add(m);
+  }
+
+  return {
+    moleculeSlugs: [...moleculeCandidates].filter((m) => !shelteredMolecules.has(m)),
+    atomSlugs: [...flipping],
+  };
 }
 
 let cached: Dataset | null = null;

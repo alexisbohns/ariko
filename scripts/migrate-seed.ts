@@ -1,8 +1,9 @@
-// One-time baseline migration: imports data/seed.yml into Mongo. It defaults
-// visibility/state to public/published only when the seed entry does NOT already
-// specify them, so an authored `state: draft`/`visibility: private` is respected
-// on re-run rather than force-published. Retire this once content is authored
-// through the admin instead of seed.yml.
+// One-time baseline migration: imports data/seed.yml into Mongo. Authored
+// `state`/`visibility` values in the seed are always respected; when the seed
+// omits them, the public/published defaults are applied via $setOnInsert — i.e.
+// on FIRST insert only — so a re-run never clobbers state/visibility that was
+// since changed through the admin (an un-publish must survive a re-migrate).
+// Retire this once content is authored through the admin instead of seed.yml.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import yaml from "js-yaml";
@@ -22,21 +23,25 @@ async function main() {
   for (const m of raw.molecules ?? []) {
     await db.collection("molecules").updateOne(
       { slug: m.slug },
-      { $set: { ...m, visibility: m.visibility ?? "public" } },
+      m.visibility
+        ? { $set: { ...m } }
+        : { $set: { ...m }, $setOnInsert: { visibility: "public" } },
       { upsert: true },
     );
   }
   for (const a of raw.atoms ?? []) {
     await db.collection("atoms").updateOne(
       { slug: a.slug },
-      { $set: { ...a, visibility: a.visibility ?? "public" } },
+      a.visibility
+        ? { $set: { ...a } }
+        : { $set: { ...a }, $setOnInsert: { visibility: "public" } },
       { upsert: true },
     );
   }
   for (const v of raw.versions ?? []) {
     await db.collection("versions").updateOne(
       { slug: v.slug },
-      { $set: { ...v, state: v.state ?? "published" } },
+      v.state ? { $set: { ...v } } : { $set: { ...v }, $setOnInsert: { state: "published" } },
       { upsert: true },
     );
   }
