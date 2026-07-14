@@ -48,7 +48,7 @@ export interface Molecule {
 export interface Atom {
   slug: string;
   name: string;
-  parents: string[]; // e.g. ["molecule:republic-of-masquerade"]
+  parents: string[]; // containment ONLY, e.g. ["molecule:republic-of-masquerade"] — non-containment links belong in a future relations[] (graph runway)
   visibility?: Visibility; // default treated as "public"
   tags?: string[];
 }
@@ -59,7 +59,7 @@ export interface Version {
   type: string;
   date: string;
   description: string;
-  parents: string[]; // e.g. ["atom:rom-win"]
+  parents: string[]; // containment ONLY, e.g. ["atom:rom-win"] — drives the privacy cascades and timeline grouping; cross-links go in a future relations[]
   state?: VersionState; // absent => NOT published (safe default)
   content?: Text; // optional rich markdown, localizable
   media?: Media[];
@@ -303,41 +303,38 @@ export function unpublishCascade(
   const atomBySlug = new Map(atoms.map((a) => [a.slug, a]));
   const moleculeExists = new Set(molecules.map((m) => m.slug));
 
+  // An atom is sheltered while ANY published version still points at it.
   const shelteredAtoms = new Set<string>();
   for (const v of versions) {
     if (v.state !== "published") continue;
     for (const s of parentsWithPrefix(v.parents, ATOM_PREFIX)) shelteredAtoms.add(s);
   }
 
-  const atomSlugs = [
-    ...new Set(
-      parentsWithPrefix(version.parents, ATOM_PREFIX).filter(
-        (s) => atomBySlug.has(s) && !shelteredAtoms.has(s),
-      ),
+  const flipping = new Set(
+    parentsWithPrefix(version.parents, ATOM_PREFIX).filter(
+      (s) => atomBySlug.has(s) && !shelteredAtoms.has(s),
     ),
-  ];
-  const flipping = new Set(atomSlugs);
+  );
 
   const moleculeCandidates = new Set<string>();
-  for (const atomSlug of atomSlugs) {
+  for (const atomSlug of flipping) {
     for (const m of parentsWithPrefix(atomBySlug.get(atomSlug)!.parents, MOLECULE_PREFIX)) {
       if (moleculeExists.has(m)) moleculeCandidates.add(m);
     }
   }
 
-  // A candidate molecule stays public while any non-flipped, non-private atom still
-  // points at it (same "public unless explicitly private" rule filterPublic reads by).
-  const moleculeSlugs = [...moleculeCandidates].filter(
-    (m) =>
-      !atoms.some(
-        (a) =>
-          !flipping.has(a.slug) &&
-          a.visibility !== "private" &&
-          parentsWithPrefix(a.parents, MOLECULE_PREFIX).includes(m),
-      ),
-  );
+  // A molecule is sheltered while any surviving public atom still points at it —
+  // the same "public unless explicitly private" rule filterPublic reads by.
+  const shelteredMolecules = new Set<string>();
+  for (const a of atoms) {
+    if (flipping.has(a.slug) || a.visibility === "private") continue;
+    for (const m of parentsWithPrefix(a.parents, MOLECULE_PREFIX)) shelteredMolecules.add(m);
+  }
 
-  return { moleculeSlugs, atomSlugs };
+  return {
+    moleculeSlugs: [...moleculeCandidates].filter((m) => !shelteredMolecules.has(m)),
+    atomSlugs: [...flipping],
+  };
 }
 
 let cached: Dataset | null = null;

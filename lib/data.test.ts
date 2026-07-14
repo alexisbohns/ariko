@@ -1,6 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildDataset, getDataset, publishCascade, unpublishCascade, type RawSeed } from "./data";
+import {
+  buildDataset,
+  getDataset,
+  publishCascade,
+  unpublishCascade,
+  type RawSeed,
+  type VersionState,
+  type Visibility,
+} from "./data";
 
 // Synthetic seed exercising every edge case the directory/timeline must handle:
 // multi-parent atoms, standalone atoms, dangling molecule refs, and a version
@@ -149,15 +157,14 @@ test("an atom with two real molecule parents cascades both molecules", () => {
 // --- unpublishCascade: the downward inverse (roadmap A1). Fixtures are built per
 // test because the interesting variable is the surviving published/public siblings.
 
-type S = "draft" | "private" | "published";
-function ver(slug: string, parents: string[], state?: S) {
-  return { slug, name: slug.toUpperCase(), type: "t", date: "2025-01-01", description: "", parents, ...(state ? { state } : {}) };
+function ver(slug: string, parents: string[], state: VersionState) {
+  return { slug, name: slug.toUpperCase(), type: "t", date: "2025-01-01", description: "", parents, state };
 }
-const mol = (slug: string, visibility?: "private" | "public") => ({
-  slug, name: slug.toUpperCase(), domain: "music" as const, description: "", ...(visibility ? { visibility } : {}),
+const mol = (slug: string, visibility: Visibility) => ({
+  slug, name: slug.toUpperCase(), domain: "music" as const, description: "", visibility,
 });
-const atom = (slug: string, parents: string[], visibility?: "private" | "public") => ({
-  slug, name: slug.toUpperCase(), parents, ...(visibility ? { visibility } : {}),
+const atom = (slug: string, parents: string[], visibility: Visibility) => ({
+  slug, name: slug.toUpperCase(), parents, visibility,
 });
 
 test("unpublishCascade re-privatizes the atom and its molecule when the last published version is pulled", () => {

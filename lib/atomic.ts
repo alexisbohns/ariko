@@ -1,5 +1,5 @@
 import { getDb } from "./db";
-import type { Atom, Domain, Molecule, Version } from "./data";
+import type { Atom, Domain, Molecule, Version, Visibility } from "./data";
 import type { VersionInput } from "./promote";
 import type { VersionPatch } from "./version-edit";
 
@@ -106,25 +106,27 @@ export async function updateVersion(slug: string, patch: VersionPatch): Promise<
   await db.collection<Version>("versions").updateOne({ slug }, { $set: { ...patch } });
 }
 
-// The write half of the publish cascade. No-op on empty arrays.
-export async function setPublic(moleculeSlugs: string[], atomSlugs: string[]): Promise<void> {
+// Shared write half of the visibility cascades. No-op on empty arrays.
+async function setVisibility(
+  moleculeSlugs: string[],
+  atomSlugs: string[],
+  visibility: Visibility,
+): Promise<void> {
   const db = await getDb();
   if (moleculeSlugs.length > 0) {
-    await db.collection("molecules").updateMany({ slug: { $in: moleculeSlugs } }, { $set: { visibility: "public" } });
+    await db.collection("molecules").updateMany({ slug: { $in: moleculeSlugs } }, { $set: { visibility } });
   }
   if (atomSlugs.length > 0) {
-    await db.collection("atoms").updateMany({ slug: { $in: atomSlugs } }, { $set: { visibility: "public" } });
+    await db.collection("atoms").updateMany({ slug: { $in: atomSlugs } }, { $set: { visibility } });
   }
 }
 
-// The write half of the un-publish cascade — the exact mirror of setPublic. No-op on
-// empty arrays.
+// The write half of the publish cascade.
+export async function setPublic(moleculeSlugs: string[], atomSlugs: string[]): Promise<void> {
+  return setVisibility(moleculeSlugs, atomSlugs, "public");
+}
+
+// The write half of the un-publish cascade — the exact mirror of setPublic.
 export async function setPrivate(moleculeSlugs: string[], atomSlugs: string[]): Promise<void> {
-  const db = await getDb();
-  if (moleculeSlugs.length > 0) {
-    await db.collection("molecules").updateMany({ slug: { $in: moleculeSlugs } }, { $set: { visibility: "private" } });
-  }
-  if (atomSlugs.length > 0) {
-    await db.collection("atoms").updateMany({ slug: { $in: atomSlugs } }, { $set: { visibility: "private" } });
-  }
+  return setVisibility(moleculeSlugs, atomSlugs, "private");
 }
