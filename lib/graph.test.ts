@@ -230,6 +230,130 @@ test("toGraph(filterPublic(raw)) emits only published content", () => {
   ]);
 });
 
+// relations[] edges (G2): one edge per relation, kind passed through verbatim,
+// emitted AFTER all containment edges, gated on both ends being nodes.
+test("toGraph emits relation edges with their kind, after containment edges", () => {
+  const seed: RawSeed = {
+    molecules: [{ slug: "m", name: "M", domain: "music", description: "" }],
+    atoms: [{ slug: "a", name: "A", parents: ["molecule:m"] }],
+    versions: [
+      { slug: "v0", name: "V0", type: "song", date: "2026-01-01", description: "", parents: ["atom:a"], state: "published" },
+      {
+        slug: "v1",
+        name: "V1",
+        type: "song",
+        date: "2026-01-02",
+        description: "",
+        parents: ["atom:a"],
+        state: "published",
+        relations: [
+          { kind: "evolves-from", ref: "version:v0" },
+          { kind: "related-to", ref: "atom:a" },
+          { kind: "featured-in", ref: "molecule:m" },
+        ],
+      },
+    ],
+  };
+  assert.deepEqual(toGraph(seed).edges, [
+    { source: "molecule:m", target: "atom:a", kind: "contains" },
+    { source: "atom:a", target: "version:v0", kind: "contains" },
+    { source: "atom:a", target: "version:v1", kind: "contains" },
+    { source: "version:v1", target: "version:v0", kind: "evolves-from" },
+    { source: "version:v1", target: "atom:a", kind: "related-to" },
+    { source: "version:v1", target: "molecule:m", kind: "featured-in" },
+  ]);
+});
+
+test("toGraph emits no relation edge when the target is not a node (both-ends prune)", () => {
+  const seed: RawSeed = {
+    versions: [
+      {
+        slug: "v",
+        name: "V",
+        type: "song",
+        date: "2026-01-01",
+        description: "",
+        parents: [],
+        state: "published",
+        relations: [
+          { kind: "evolves-from", ref: "version:ghost" },
+          { kind: "related-to", ref: "atom:ghost" },
+          { kind: "related-to", ref: "not-even-a-ref" },
+        ],
+      },
+    ],
+  };
+  const graph = toGraph(seed);
+  assert.deepEqual(graph.nodes.map((n) => n.id), ["version:v"]);
+  assert.deepEqual(graph.edges, []);
+});
+
+test("toGraph dedupes relation edges on (source, target, kind) — same pair, two kinds → two edges", () => {
+  const seed: RawSeed = {
+    versions: [
+      { slug: "v0", name: "V0", type: "song", date: "2026-01-01", description: "", parents: [], state: "published" },
+      {
+        slug: "v1",
+        name: "V1",
+        type: "song",
+        date: "2026-01-02",
+        description: "",
+        parents: [],
+        state: "published",
+        relations: [
+          { kind: "evolves-from", ref: "version:v0" },
+          { kind: "evolves-from", ref: "version:v0" }, // identical duplicate → one edge
+          { kind: "references", ref: "version:v0" }, // same pair, distinct kind → its own edge
+        ],
+      },
+    ],
+  };
+  assert.deepEqual(toGraph(seed).edges, [
+    { source: "version:v1", target: "version:v0", kind: "evolves-from" },
+    { source: "version:v1", target: "version:v0", kind: "references" },
+  ]);
+});
+
+// Composition (spec §3): the scrub upstream plus the both-ends prune — only the
+// published sibling's edge survives, and no scrubbed slug appears ANYWHERE in
+// the serialized JSON.
+test("toGraph(filterPublic(raw)) keeps only relation edges to surviving targets, leaking no slug", () => {
+  const seed: RawSeed = {
+    molecules: [{ slug: "g-m", name: "M", domain: "music", description: "" }],
+    atoms: [
+      { slug: "g-a", name: "A", parents: ["molecule:g-m"] },
+      { slug: "g-a-hidden", name: "A hidden", parents: ["molecule:g-m"], visibility: "private" },
+    ],
+    versions: [
+      { slug: "g-v-unpub", name: "Draft", type: "song", date: "2026-01-01", description: "", parents: ["atom:g-a"], state: "draft" },
+      { slug: "g-v-sibling", name: "Sibling", type: "song", date: "2026-01-02", description: "", parents: ["atom:g-a"], state: "published" },
+      {
+        slug: "g-v-main",
+        name: "Main",
+        type: "song",
+        date: "2026-01-03",
+        description: "",
+        parents: ["atom:g-a"],
+        state: "published",
+        relations: [
+          { kind: "evolves-from", ref: "version:g-v-unpub" },
+          { kind: "related-to", ref: "atom:g-a-hidden" },
+          { kind: "evolves-from", ref: "version:g-v-sibling" },
+        ],
+      },
+    ],
+  };
+  const graph = toGraph(filterPublic(seed));
+  assert.deepEqual(
+    graph.edges.filter((e) => e.kind !== "contains"),
+    [{ source: "version:g-v-main", target: "version:g-v-sibling", kind: "evolves-from" }],
+  );
+  const json = JSON.stringify(graph);
+  for (const scrubbed of ["g-v-unpub", "g-a-hidden"]) {
+    assert.equal(json.includes(scrubbed), false, `${scrubbed} must not appear anywhere in the graph JSON`);
+  }
+});
+
 test("toGraph(filterPublic(raw)) never emits a filtered id as a node OR an edge end", () => {
   // (The both-ends rule itself is pinned by the explicit edge assertions above —
   // checking edges against graph.nodes here would be tautological by construction.)
