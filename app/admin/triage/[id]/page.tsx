@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getCapture } from "@/lib/captures";
 import { listMolecules, listAtoms } from "@/lib/atomic";
-import { resolveText } from "@/lib/data";
+import { resolveText, textPart } from "@/lib/data";
 import { promoteCaptureAction, discardCaptureAction } from "../../actions";
 
 export const dynamic = "force-dynamic";
@@ -119,9 +119,19 @@ export default async function TriagePage({
               Slug <input type="text" name="versionSlug" required />
             </label>
           </p>
+          {/* Prefills use the STRICT textPart — resolveText's fallback would copy en
+              into the fr box and corrupt the data on save. The name inputs carry no
+              `required`: the name is required as a whole (either language), enforced
+              server-side, and the builder falls back to the capture title. Blank
+              description fields carry the capture's note verbatim on promote. */}
           <p>
             <label>
-              Name <input type="text" name="versionName" defaultValue={capture.title} required />
+              Name <input type="text" name="versionName" defaultValue={capture.title} />
+            </label>
+          </p>
+          <p>
+            <label>
+              Name (fr) <input type="text" name="versionNameFr" />
             </label>
           </p>
           <p>
@@ -136,7 +146,12 @@ export default async function TriagePage({
           </p>
           <p>
             <label>
-              Description <textarea name="description" defaultValue={note} />
+              Description <textarea name="description" defaultValue={textPart(capture.body, "en")} />
+            </label>
+          </p>
+          <p>
+            <label>
+              Description (fr) <textarea name="descriptionFr" defaultValue={textPart(capture.body, "fr")} />
             </label>
           </p>
           <fieldset>

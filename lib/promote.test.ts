@@ -33,11 +33,15 @@ test("resolveParentChoice: none when both blank", () => {
   assert.deepEqual(resolveParentChoice("  ", ""), { mode: "none" });
 });
 
-test("buildVersionInput prefills name/description from the capture and carries media/source", () => {
+test("buildVersionInput is WYSIWYG: blank boxes store blank (nothing resurrected from the capture)", () => {
+  // The triage PAGE prefills the boxes (name from capture.title, descriptions per
+  // language via textPart) — the builder itself never falls back, so clearing a
+  // box genuinely clears that content and a blank name fails validation.
   const v = buildVersionInput(form([["versionSlug", "v1"], ["type", "demo"], ["date", "2025-02-02"]]), capture, "a1");
   assert.equal(v.slug, "v1");
-  assert.equal(v.name, "Song idea"); // prefilled from capture.title
-  assert.equal(v.description, "hummed melody"); // prefilled from capture.body via resolveText
+  assert.equal(v.name, "");
+  assert.equal(v.description, "");
+  assert.equal(validateVersionInput(v).ok, false);
   assert.equal(v.type, "demo");
   assert.equal(v.date, "2025-02-02");
   assert.equal(v.state, "draft"); // default
@@ -68,15 +72,78 @@ test("buildVersionInput coerces an unexpected state to draft", () => {
 });
 
 test("validateVersionInput rejects missing required fields", () => {
-  const base = buildVersionInput(form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), capture, null);
+  const base = buildVersionInput(
+    form([["versionSlug", "v1"], ["versionName", "n"], ["type", "t"], ["date", "2025-02-02"]]),
+    capture,
+    null,
+  );
   assert.equal(validateVersionInput(base).ok, true);
   assert.equal(validateVersionInput({ ...base, slug: "" }).ok, false);
   assert.equal(validateVersionInput({ ...base, type: "" }).ok, false);
   assert.equal(validateVersionInput({ ...base, date: "" }).ok, false);
 });
 
-test("validateVersionInput rejects an empty name (e.g. blank title + blank field)", () => {
-  const v = buildVersionInput(form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), { ...capture, title: "" }, null);
+test("validateVersionInput rejects a name cleared in both languages", () => {
+  const v = buildVersionInput(form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), capture, null);
   assert.equal(v.name, "");
   assert.equal(validateVersionInput(v).ok, false);
+});
+
+// --- Bilingual widening (B1): paired en/fr fields compose via composeText,
+// WYSIWYG (the page prefills, the builder never falls back); validation counts a
+// name present in either language.
+
+test("buildVersionInput composes a bilingual name from the paired fields", () => {
+  const v = buildVersionInput(
+    form([["versionSlug", "v1"], ["versionName", "Live cut"], ["versionNameFr", "Prise live"], ["type", "t"], ["date", "2025-02-02"]]),
+    capture,
+    null,
+  );
+  assert.deepEqual(v.name, { en: "Live cut", fr: "Prise live" });
+});
+
+test("buildVersionInput keeps an fr-only name (no capture-title fallback, no en borrowed)", () => {
+  const v = buildVersionInput(
+    form([["versionSlug", "v1"], ["versionNameFr", "Prise live"], ["type", "t"], ["date", "2025-02-02"]]),
+    capture,
+    null,
+  );
+  assert.deepEqual(v.name, { fr: "Prise live" });
+});
+
+test("buildVersionInput composes a bilingual description — a typed pair wins over the note", () => {
+  const v = buildVersionInput(
+    form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"], ["description", "at the club"], ["descriptionFr", "au club"]]),
+    capture,
+    null,
+  );
+  assert.deepEqual(v.description, { en: "at the club", fr: "au club" });
+});
+
+test("buildVersionInput: an fr-only typed description also wins over the note", () => {
+  const v = buildVersionInput(
+    form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"], ["descriptionFr", "au club"]]),
+    capture,
+    null,
+  );
+  assert.deepEqual(v.description, { fr: "au club" });
+});
+
+test("buildVersionInput: blank description fields and no capture body yield an empty string", () => {
+  const v = buildVersionInput(
+    form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]),
+    { ...capture, body: undefined },
+    null,
+  );
+  assert.equal(v.description, "");
+});
+
+test("validateVersionInput accepts an fr-only name", () => {
+  const base = buildVersionInput(form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), capture, null);
+  assert.equal(validateVersionInput({ ...base, name: { fr: "Nom" } }).ok, true);
+});
+
+test("validateVersionInput rejects a name with no language present, message unchanged", () => {
+  const base = buildVersionInput(form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), capture, null);
+  assert.deepEqual(validateVersionInput({ ...base, name: {} }), { ok: false, error: "version name is required" });
 });
