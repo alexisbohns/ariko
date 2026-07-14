@@ -167,16 +167,17 @@ export async function editVersionAction(formData: FormData): Promise<void> {
 
   await updateVersion(slug, patch);
 
-  // Re-publish reuses the upward, idempotent cascade (same as promote). Any other
-  // state runs the downward recompute (A1): re-privatize parents that no longer
-  // shelter a published version. Idempotent — a draft save under a still-published
-  // sibling flips nothing; an empty shell left by an older un-publish is healed.
-  // Both branches load the dataset AFTER updateVersion, so the just-saved state
-  // is what the cascade evaluates.
+  // Re-publish reuses the upward, idempotent cascade (same as promote). An actual
+  // un-publish — the version WAS published and no longer is — runs the downward
+  // recompute (A1): re-privatize parents left sheltering no published version.
+  // Gated on the transition (existing = pre-save state) so a routine draft save can
+  // never flip visibility somebody authored directly (e.g. a seeded public atom
+  // that has no published versions yet). Both branches load the dataset AFTER
+  // updateVersion, so the cascade evaluates the just-saved state.
   if (patch.state === "published") {
     const { moleculeSlugs, atomSlugs } = publishCascade(await loadRawSeed(), slug);
     await setPublic(moleculeSlugs, atomSlugs);
-  } else {
+  } else if (existing.state === "published") {
     const { moleculeSlugs, atomSlugs } = unpublishCascade(await loadRawSeed(), slug);
     await setPrivate(moleculeSlugs, atomSlugs);
   }
