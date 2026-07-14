@@ -32,8 +32,9 @@ This slice adds the inverse direction, completing the loop:
 | Shape | **A pure `unpublishCascade(raw, versionSlug)` in `lib/data.ts`**, the exact structural mirror of `publishCascade`: same signature, same return `{ moleculeSlugs, atomSlugs }`, same dangling-ref handling. (Rejected: a global whole-vault recompute — unbounded blast radius, touches lineages the admin didn't edit; a lineage-scoped pass matches the write that triggered it.) |
 | Atom rule | An EXISTING atom parent of the version is re-privatized iff it has **no remaining `published` version** in the dataset. The dataset is loaded AFTER `updateVersion`, so the just-saved state is what's evaluated — if the version is still `published`, its own state keeps its parents public (the function is a safe no-op on published versions). |
 | Molecule rule | An EXISTING molecule parent of a re-privatized atom is re-privatized iff it has **no remaining public atom** (`visibility !== "private"`, matching `filterPublic`'s read rule) once the atoms flipped in this same pass are excluded. Molecules of atoms that stay public are never candidates (they still shelter a public atom by definition). |
-| Idempotence | Like `publishCascade`, current visibility of the flip targets is **not consulted** — re-privatizing an already-private parent is a no-op write. Running the recompute on any non-published save is therefore safe and **self-healing**: it also repairs empty shells left by un-publishes that happened before this slice shipped. |
-| Wiring | `editVersionAction` only: `patch.state === "published"` keeps the existing publish branch; otherwise run `unpublishCascade(await loadRawSeed(), slug)` + `setPrivate(...)`. (Promote never needs it: a freshly created version can't empty a shell.) |
+| Idempotence | Like `publishCascade`, current visibility of the flip targets is **not consulted** — re-privatizing an already-private parent is a no-op write. |
+| Trigger — **transition-gated** | The recompute runs **only on an actual un-publish**: `existing.state === "published" && patch.state !== "published"` (`existing` is the pre-save read the action already holds). It must NOT run on every non-published save — visibility is *not* 100% cascade-managed: `scripts/migrate-seed.ts` authors it directly, and the seed legitimately ships public atoms with no published versions (name-only listings like `pbbls-path`). An unconditional recompute would let a routine draft-typo save silently privatize those. The cost of the gate: a shell left by a crash between `updateVersion` and `setPrivate` is healed by re-publishing and un-publishing again, not by arbitrary saves. |
+| Wiring | `editVersionAction` only: `patch.state === "published"` keeps the existing publish branch; `else if (existing.state === "published")` runs `unpublishCascade(await loadRawSeed(), slug)` + `setPrivate(...)`. (Promote never needs it: a freshly created version can't empty a shell.) |
 | Write half | **`setPrivate(moleculeSlugs, atomSlugs)` in `lib/atomic.ts`**, the exact mirror of `setPublic` (`updateMany` → `$set: { visibility: "private" }`, no-op on empty arrays). |
 | Styling | No UI change at all — this is a write-path slice. Bare functional HTML everywhere, unchanged. |
 
@@ -98,16 +99,16 @@ non-empty arrays, exactly like `setPublic`.
 ## 5. The action — `editVersionAction` (`app/admin/actions.ts`)
 
 The publish branch is untouched. The current trailing comment ("Un-publishing … is state-only —
-parents are intentionally left as-is") is replaced by the new behavior:
+parents are intentionally left as-is") is replaced by the new, transition-gated behavior:
 
 ```ts
 if (patch.state === "published") {
   const { moleculeSlugs, atomSlugs } = publishCascade(await loadRawSeed(), slug);
   await setPublic(moleculeSlugs, atomSlugs);
-} else {
-  // Downward recompute (A1): re-privatize parents that no longer shelter any
-  // published version. Idempotent — a draft save under a still-published sibling
-  // flips nothing; an empty shell left by an older un-publish is healed.
+} else if (existing.state === "published") {
+  // An actual un-publish: downward recompute (A1) — re-privatize parents left
+  // sheltering no published version. A routine draft save (no transition) never
+  // flips visibility somebody authored directly.
   const { moleculeSlugs, atomSlugs } = unpublishCascade(await loadRawSeed(), slug);
   await setPrivate(moleculeSlugs, atomSlugs);
 }
@@ -117,8 +118,10 @@ Note the ordering guarantee this relies on: `updateVersion(slug, patch)` runs BE
 `loadRawSeed()`, so the cascade always evaluates the post-save state (this is already how the
 publish branch works). Like `createVersion` → `setPublic`, the `updateVersion` → `setPrivate` pair
 is not transactional — a crash in between leaves a hidden draft under a public parent, which
-`filterPublic` renders safe (shell only, no content), and the next non-published save of any version
-in that lineage self-heals it.
+`filterPublic` renders safe (shell only, no content); re-publishing and un-publishing the version
+again heals it. Concurrent compute-then-write races between a publish and an un-publish on the same
+lineage exist in both directions (last write wins) — accepted at single-admin scale and parked in
+the roadmap hardening appendix.
 
 ---
 
@@ -131,8 +134,14 @@ in that lineage self-heals it.
   and (b) changing the public projection deserves its own slice with its own test matrix. Parked in
   the roadmap appendix as hardening.
 - **"Pinned" visibility** (letting the admin hold a parent public with zero published versions,
-  e.g. a teaser): no current requirement; visibility today is 100% cascade-managed. If teasers ever
-  matter, that's a new field (`pinnedPublic?`), not an exception in the cascade.
+  e.g. a teaser): partially covered by the transition gate — visibility authored outside the
+  cascades (the seed migration's name-only public atoms) survives because only an actual un-publish
+  recomputes, and only that version's lineage. A parent whose last published version IS withdrawn
+  always flips; if "keep it public anyway" ever matters, that's a new field (`pinnedPublic?`), not
+  an exception in the cascade.
+- **Rejecting an unrecognized `state` in `buildVersionPatch`** (it silently falls back to `draft`):
+  pre-existing seam behavior; now that an un-publish cascades, a malformed POST on a published
+  version does more than before. Parked in the hardening appendix.
 
 ---
 
@@ -158,14 +167,18 @@ Same convention — pure logic unit-tested exhaustively, glue smoke-tested manua
 2. Two published versions under one atom → un-publish one → atom/molecule stay `public`.
 3. Two atoms under one molecule, each with a published version → un-publish one → its atom flips
    `private`, molecule stays `public`; un-publish the other → molecule flips `private`.
-4. Save a draft version as draft again (no state change) under a published sibling → nothing flips.
+4. Save a draft version as draft again (no transition) → nothing flips — in particular a draft
+   under a seeded, version-less public atom leaves that atom public.
 
 ---
 
 ## 8. What this delivers
 
 The public projection becomes consistent in **both directions**: publishing lifts a lineage into the
-exhibition, and un-publishing now walks the same lineage back down, so withdrawn work leaves no
-public trace — no name, no empty shell. The cascade pair (`publishCascade`/`unpublishCascade`,
-`setPublic`/`setPrivate`) is symmetric, pure, and unit-tested as mirrors of each other, and Version
-deletion (A2) gets its visibility story for free.
+exhibition, and un-publishing now walks the same lineage back down, so the withdrawn version's atom
+leaves no public trace — no name, no empty shell (its molecule stays public only while another
+public atom legitimately shelters it). The cascade pair (`publishCascade`/`unpublishCascade`,
+`setPublic`/`setPrivate`) is symmetric, pure, and unit-tested as mirrors of each other. Version
+deletion (A2) reuses the same recompute — with one care: the cascade needs the version's parents,
+so A2 must capture them **before** the hard-delete (or extract the atom-level core), not call
+`unpublishCascade` with an already-deleted slug (that is a defined no-op).

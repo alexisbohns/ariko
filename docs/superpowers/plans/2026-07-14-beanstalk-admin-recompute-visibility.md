@@ -72,8 +72,10 @@ mirror of `publishCascade` — feeds a new `setPrivate` write half in `lib/atomi
 
 - [ ] **Step 1:** In `app/admin/actions.ts`, import `unpublishCascade` (from `@/lib/data`, next to
   `publishCascade`) and `setPrivate` (from `@/lib/atomic`). Replace the state-only comment + publish
-  `if` with the `if/else` from spec §5 (publish branch unchanged; else branch runs
-  `unpublishCascade(await loadRawSeed(), slug)` → `setPrivate`).
+  `if` with the transition-gated `if / else if` from spec §5 (publish branch unchanged;
+  `else if (existing.state === "published")` runs `unpublishCascade(await loadRawSeed(), slug)` →
+  `setPrivate` — only an actual un-publish recomputes, so routine draft saves never touch
+  seed-authored visibility).
 - [ ] **Step 2: Typecheck + test** — `npx tsc --noEmit && npm test`.
 - [ ] **Step 3: Commit** — `feat: recompute visibility on un-publish (editVersionAction)`
 
@@ -95,15 +97,21 @@ mirror of `publishCascade` — feeds a new `setPrivate` write half in `lib/atomi
 - `publishCascade`/`unpublishCascade` and `setPublic`/`setPrivate` form a symmetric, pure,
   unit-tested pair; the public projection is consistent in both directions.
 - Un-publishing the last published version of a lineage removes the atom (and, when emptied, the
-  molecule) from the public site entirely — no name, no shell. Self-healing: any non-published save
-  in a lineage repairs shells left from before this slice.
+  molecule) from the public site entirely — no name, no shell. The recompute is gated on the actual
+  published → non-published transition, so routine draft saves never flip visibility that was
+  authored directly (seeded name-only public atoms are respected).
 
 ## Deferred to later specs / follow-ups
 
-- **A2 · Delete a Version** — hard-delete, then reuse `unpublishCascade` on the deleted version's
-  lineage (evaluate against a dataset with the version removed).
+- **A2 · Delete a Version** — hard-delete, then reuse the recompute. Care: `unpublishCascade` needs
+  the version's parents from the dataset, and an already-deleted slug is a defined no-op — so A2
+  must capture `version.parents` **before** the delete (or extract the atom-level core of
+  `unpublishCascade` into a shared helper) and evaluate sheltering against the post-delete dataset.
 - **Read-side empty-shell pruning in `filterPublic`** — fail-closed belt-and-braces (spec §6);
   parked in the roadmap hardening appendix.
 - **`updateVersion` → `setPrivate` non-transactionality** — same shape as the existing
-  `createVersion` → `setPublic` gap; self-heals on the next lineage save. Parked with its sibling in
-  the hardening appendix.
+  `createVersion` → `setPublic` gap; heals via a re-publish → un-publish cycle. Concurrent
+  publish/un-publish compute-then-write races on one lineage (either direction can clobber the
+  other's parent flip) are accepted at single-admin scale. Parked in the hardening appendix.
+- **`buildVersionPatch` silently coerces an unrecognized `state` to `draft`** — pre-existing; now
+  that un-publish cascades, consider rejecting instead. Parked in the hardening appendix.
