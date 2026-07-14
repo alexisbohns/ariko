@@ -1,3 +1,4 @@
+import { resolveText } from "@/lib/data";
 import { getPublicDataset } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -15,11 +16,11 @@ export default async function DirectoryPage() {
         const atoms = data.atomsForMolecule(molecule.slug);
         return (
           <section key={molecule.slug}>
-            <h2>{molecule.name}</h2>
+            <h2>{resolveText(molecule.name)}</h2>
             <ul>
               {atoms.map((atom) => (
                 <li key={atom.slug}>
-                  <a href={`/atom/${atom.slug}`}>{atom.name}</a>
+                  <a href={`/atom/${atom.slug}`}>{resolveText(atom.name)}</a>
                 </li>
               ))}
             </ul>
@@ -33,7 +34,7 @@ export default async function DirectoryPage() {
           <ul>
             {standalone.map((atom) => (
               <li key={atom.slug}>
-                <a href={`/atom/${atom.slug}`}>{atom.name}</a>
+                <a href={`/atom/${atom.slug}`}>{resolveText(atom.name)}</a>
               </li>
             ))}
           </ul>

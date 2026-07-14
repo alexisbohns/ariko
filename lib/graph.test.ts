@@ -50,6 +50,28 @@ test("toGraph maps a version to exactly {id, kind, name, type, date} — no cont
   }
 });
 
+test("toGraph resolves a localized name to a plain string — GraphNode.name stays string (B1)", () => {
+  const seed: RawSeed = {
+    molecules: [{ slug: "m", name: { en: "M en", fr: "M fr" }, domain: "music", description: { fr: "notes" } }],
+    atoms: [{ slug: "a", name: { fr: "A fr" }, parents: ["molecule:m"] }],
+    versions: [
+      { slug: "v", name: { en: "V en", fr: "V fr" }, type: "song", date: "2026-01-01", description: "", parents: ["atom:a"], state: "published" },
+    ],
+  };
+  const byId = new Map(toGraph(seed).nodes.map((n) => [n.id, n]));
+  // Shape unchanged at ALL three kinds: the resolved string sits where the plain
+  // string always did, and localized inputs leak no extra fields onto the node.
+  assert.deepEqual(byId.get("molecule:m"), { id: "molecule:m", kind: "molecule", name: "M en", domain: "music" });
+  assert.deepEqual(byId.get("atom:a"), { id: "atom:a", kind: "atom", name: "A fr" }); // en missing → display fallback
+  assert.deepEqual(byId.get("version:v"), {
+    id: "version:v",
+    kind: "version",
+    name: "V en",
+    type: "song",
+    date: "2026-01-01",
+  });
+});
+
 test("toGraph includes tags only when non-empty", () => {
   const seed: RawSeed = {
     molecules: [{ slug: "m", name: "M", domain: "design", description: "", tags: ["x", "y"] }],
