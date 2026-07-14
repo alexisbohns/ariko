@@ -9,7 +9,16 @@ import { createOrUpdateCapture, getCapture, markCapturePromoted, discardCapture 
 import { loadRawSeed } from "@/lib/store";
 import { publishCascade, type Domain } from "@/lib/data";
 import { resolveParentChoice, buildVersionInput, validateVersionInput } from "@/lib/promote";
-import { createMolecule, createAtom, createVersion, setPublic, SlugExistsError } from "@/lib/atomic";
+import { buildVersionPatch, validateVersionPatch } from "@/lib/version-edit";
+import {
+  createMolecule,
+  createAtom,
+  createVersion,
+  setPublic,
+  SlugExistsError,
+  getVersion,
+  updateVersion,
+} from "@/lib/atomic";
 import {
   requireSession,
   setSessionCookie,
@@ -141,4 +150,32 @@ export async function promoteCaptureAction(formData: FormData): Promise<void> {
   }
   revalidatePath("/admin");
   redirect("/admin");
+}
+
+export async function editVersionAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+  const existing = await getVersion(slug);
+  if (!existing) redirect("/admin/vault");
+
+  const patch = buildVersionPatch(formData);
+  const check = validateVersionPatch(patch);
+  if (!check.ok) {
+    redirect(`/admin/version/${slug}?error=${encodeURIComponent(check.error)}`);
+  }
+
+  await updateVersion(slug, patch);
+
+  // Re-publish reuses the upward, idempotent cascade (same as promote). Un-publishing
+  // (draft/private) is state-only — parents are intentionally left as-is.
+  if (patch.state === "published") {
+    const { moleculeSlugs, atomSlugs } = publishCascade(await loadRawSeed(), slug);
+    await setPublic(moleculeSlugs, atomSlugs);
+  }
+
+  revalidatePath("/admin");
+  const atomSlug = existing.parents
+    .filter((p) => p.startsWith("atom:"))
+    .map((p) => p.slice("atom:".length))[0];
+  redirect(atomSlug ? `/admin/atom/${atomSlug}` : "/admin/vault");
 }

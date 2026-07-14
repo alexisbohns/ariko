@@ -56,6 +56,9 @@ export default async function AdminAtomPage({ params }: { params: Promise<{ id: 
         versions.map((version) => (
           <section key={version.slug}>
             <h3>{version.name}</h3>
+            <p>
+              <a href={`/admin/version/${version.slug}`}>edit</a>
+            </p>
             <p>state: {version.state ?? "—"}</p>
             <ul>
               {Object.entries(version)
