@@ -15,6 +15,7 @@
 * **Molecule**: has a name, domain (`music | design | podcast`), and contains atoms
 * **Atom**: has a name, belongs to a molecule (optional — can be standalone), and contains versions
 * **Version**: has a name, type, date, description, state (`draft | private | published`), carried media/source, tags, and flexible per-type properties. `parents` refs (`molecule:slug` / `atom:slug`) express **containment only** — future non-containment links (lineage, "featured in") will live in a separate `relations[]`.
+* **Bilingual (B1)**: `name`/`description` accept the `Text` type (`string | { en?, fr? }`); plain strings remain valid (no migration). Every surface renders via `resolveText` (en-first, blank parts fall through); the triage/edit forms author both languages via paired en/fr inputs (WYSIWYG — the boxes are prefilled per language and what they submit is what is stored).
 
 ## Pages
 

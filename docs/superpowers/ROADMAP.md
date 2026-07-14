@@ -49,6 +49,7 @@ with no DB; DB/glue is smoke-tested.
 | **A1 — Recompute visibility on un-publish** | #11 | Pure `unpublishCascade` (the downward inverse of `publishCascade`) + `setPrivate`, wired into `editVersionAction` and **gated on the actual `published → non-published` transition**: un-publishing the last published version re-privatizes its atom (and an emptied molecule) — withdrawn work leaves no public shell, while routine draft saves never touch seed-authored visibility. Also fixed `migrate-seed` so a re-run no longer clobbers admin un-publishes ($setOnInsert defaults). |
 | **A2 — Delete a Version** | #11 | Hard delete from the edit page's "Danger zone" (confirm checkbox, re-checked server-side). The recompute core is now atom-keyed (`unpublishCascadeForAtoms`; `unpublishCascade` is a thin adapter): parents + published state are captured **before** the delete, sheltering is evaluated against the post-delete dataset — a delete can't leave an empty public shell. |
 | **G1 — Public graph endpoint** | #11 | `GET /api/graph`: pure `toGraph` serializer (`lib/graph.ts`) over `filterPublic` — stable prefixed-ref node ids (incl. `version:`), containment edges with the both-ends prune rule, minimal node payload (no description/content/media/source until B3). The graph playground's data contract is live. |
+| **B1 — Bilingual `Text` widening** | — | `name`/`description` widened to `Text` across the model (plain strings stay valid — no migration); strict `textPart` + `composeText` helpers; WYSIWYG en/fr inputs on the triage/edit forms; every read surface resolves via `resolveText` (blank parts fall through); `GraphNode.name` stays `string`. |
 
 The admin loop is complete end to end: **capture → triage → publish → browse → edit / un-publish**,
 and the public projection is now consistent in **both directions** (publish lifts a lineage up,
@@ -77,14 +78,6 @@ matters to the north star) and an **explanation** (what it entails / where it or
     the atom view. *(Origin: atom-detail plan.)*
 
 ### Track B — Content richness (bilingual + media + rich text)
-
-- **B1 · `name` / `description` `string → Text` widening**
-  - *Intention:* first-class **bilingual (en/fr)** content — a recurring requirement deferred since
-    Plan 2a.
-  - *Explanation:* widen the atomic model's `name`/`description` from `string` to the existing
-    `Text` type (`string | { en?, fr? }`) at write time, and render via the existing `resolveText`
-    on public pages. Touches the model, the triage/edit forms, and public rendering. *(Origin:
-    referenced in 2a, 2b-i, 2b-ii, 2b-iii plans.)*
 
 - **B2 · Image attach on the capture bar + media-pending UX**
   - *Intention:* capture images from the browser, not just links — completing the capture surface.
