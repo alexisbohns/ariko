@@ -116,3 +116,15 @@ export async function setPublic(moleculeSlugs: string[], atomSlugs: string[]): P
     await db.collection("atoms").updateMany({ slug: { $in: atomSlugs } }, { $set: { visibility: "public" } });
   }
 }
+
+// The write half of the un-publish cascade — the exact mirror of setPublic. No-op on
+// empty arrays.
+export async function setPrivate(moleculeSlugs: string[], atomSlugs: string[]): Promise<void> {
+  const db = await getDb();
+  if (moleculeSlugs.length > 0) {
+    await db.collection("molecules").updateMany({ slug: { $in: moleculeSlugs } }, { $set: { visibility: "private" } });
+  }
+  if (atomSlugs.length > 0) {
+    await db.collection("atoms").updateMany({ slug: { $in: atomSlugs } }, { $set: { visibility: "private" } });
+  }
+}
