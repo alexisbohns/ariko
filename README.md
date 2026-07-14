@@ -16,6 +16,7 @@
 * **Atom**: has a name, belongs to a molecule (optional — can be standalone), and contains versions
 * **Version**: has a name, type, date, description, state (`draft | private | published`), carried media/source, tags, and flexible per-type properties. `parents` refs (`molecule:slug` / `atom:slug`) express **containment only** — future non-containment links (lineage, "featured in") will live in a separate `relations[]`.
 * **Bilingual (B1)**: `name`/`description` accept the `Text` type (`string | { en?, fr? }`); plain strings remain valid (no migration). Every surface renders via `resolveText` (en-first, blank parts fall through); the triage/edit forms author both languages via paired en/fr inputs (WYSIWYG — the boxes are prefilled per language and what they submit is what is stored).
+* **Relations (G2)**: versions carry optional non-containment edges `relations: [{ kind, ref }]` (`ref` in the prefixed grammar incl. `version:`; `kind` free, e.g. `evolves-from`, `featured-in`). `filterPublic` scrubs each published version's relations to targets that survive the projection (fail-closed, malformed shapes tolerated), so private/draft slugs can never leak; deletes need no cascade — hidden targets simply drop their edges. Authoring UI comes later; relations enter via seed or DB for now.
 
 ## Pages
 
@@ -129,6 +130,6 @@ The graph playground's data contract (roadmap G1): the published-only dataset as
 
 * Node ids reuse the prefixed-ref grammar (`molecule:<slug>` / `atom:<slug>` / `version:<slug>`); slugs are immutable, so ids are stable across publishes.
 * Unauthenticated and `force-dynamic` — it is the data twin of the public pages and composes the same `filterPublic` projection, so it can never expose more than the public HTML does. Node payloads deliberately exclude `description`/`content`/`media`/`source` until the exhibition slice (B3) defines what a focused node shows.
-* Edges are containment only (from `parents[]`) until `relations[]` lands (G2); an edge is emitted only when both ends survive the projection.
+* Edges: containment (from `parents[]`, kind `contains`) plus non-containment relations (from `relations[]`, per-relation kind); an edge is emitted only when both ends survive the projection.
 
 See `docs/superpowers/specs/` and `docs/superpowers/plans/` for the design and implementation plans.

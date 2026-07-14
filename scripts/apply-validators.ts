@@ -39,9 +39,24 @@ async function main() {
     },
   });
 
+  // versions has a $jsonSchema, so G2 extends it: relations[] stays optional
+  // (absent is valid), but every present entry must carry kind + ref strings.
   await applyValidator("versions", {
     bsonType: "object",
-    properties: { state: { enum: ["draft", "private", "published"] } },
+    properties: {
+      state: { enum: ["draft", "private", "published"] },
+      relations: {
+        bsonType: "array",
+        items: {
+          bsonType: "object",
+          required: ["kind", "ref"],
+          properties: {
+            kind: { bsonType: "string" },
+            ref: { bsonType: "string" },
+          },
+        },
+      },
+    },
   });
 
   await applyValidator("molecules", {

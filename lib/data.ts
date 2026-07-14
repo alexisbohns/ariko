@@ -36,6 +36,16 @@ export interface Source {
   capturedAt?: string;
 }
 
+// Non-containment edge (G2): the version that declares it points —kind→ ref.
+// ref reuses the prefixed grammar (version:/atom:/molecule:); kind is a free
+// string ("evolves-from", "featured-in", …) — vocabulary curation is a later
+// concern. No referential integrity by design: the filterPublic scrub and the
+// graph serializer's both-ends prune hide edges whose target is gone or hidden.
+export interface Relation {
+  kind: string;
+  ref: string;
+}
+
 export interface Molecule {
   slug: string;
   name: Text; // bilingual since B1; plain strings remain valid (no migration)
@@ -59,7 +69,8 @@ export interface Version {
   type: string;
   date: string;
   description: Text;
-  parents: string[]; // containment ONLY, e.g. ["atom:rom-win"] — drives the privacy cascades and timeline grouping; cross-links go in a future relations[]
+  parents: string[]; // containment ONLY, e.g. ["atom:rom-win"] — drives the privacy cascades and timeline grouping; cross-links go in relations[]
+  relations?: Relation[]; // non-containment edges (G2); scrubbed by filterPublic
   state?: VersionState; // absent => NOT published (safe default)
   content?: Text; // optional rich markdown, localizable
   media?: Media[];
@@ -114,9 +125,12 @@ export interface Dataset {
   domainForAtom(slug: string): Domain | null;
 }
 
-// The containment-ref grammar, shared with the graph serializer (lib/graph.ts).
+// The prefixed-ref grammar, shared with the graph serializer (lib/graph.ts).
+// parents[] uses molecule:/atom: only; version: appears in relations[] refs
+// (and as graph node ids) — nothing is ever contained BY a version.
 export const MOLECULE_PREFIX = "molecule:";
 export const ATOM_PREFIX = "atom:";
+export const VERSION_PREFIX = "version:";
 
 export function parentsWithPrefix(parents: string[] | undefined, prefix: string): string[] {
   return (parents ?? []).filter((p) => p.startsWith(prefix)).map((p) => p.slice(prefix.length));
@@ -233,7 +247,12 @@ export function composeText(en: string, fr: string): Text {
 //  - privacy cascades DOWNWARD, fail-closed: an Atom whose every EXISTING molecule
 //    parent was filtered out is dropped, and a Version whose every EXISTING atom
 //    parent was filtered out is dropped. Dangling (nonexistent) parent refs are
-//    ignored, so standalone-by-dangling items are preserved (matches buildDataset).
+//    ignored, so standalone-by-dangling items are preserved (matches buildDataset);
+//  - each kept Version's relations[] is scrubbed to refs whose TARGET survives
+//    this same projection (kept version/atom/molecule) — draft, private,
+//    cascaded-out, dangling, and unknown-prefix targets all drop, so a hidden
+//    slug can never leak through a property dump or the graph endpoint.
+// Pure: input objects are never mutated; scrubbing yields a fresh version object.
 export function filterPublic(raw: RawSeed): RawSeed {
   const rawMolecules = raw.molecules ?? [];
   const rawAtoms = raw.atoms ?? [];
@@ -251,11 +270,39 @@ export function filterPublic(raw: RawSeed): RawSeed {
   const atomExists = new Set(rawAtoms.map((a) => a.slug));
   const atomKept = new Set(atoms.map((a) => a.slug));
 
-  const versions = rawVersions.filter(
+  const keptVersions = rawVersions.filter(
     (v) =>
       v.state === "published" &&
       !allExistingParentsFiltered(v.parents, ATOM_PREFIX, atomExists, atomKept),
   );
+
+  // Relations may point at versions, so the kept-version set must exist BEFORE
+  // any relation is judged — a version ref survives iff its target survived the
+  // filter above.
+  const versionKept = new Set(keptVersions.map((v) => v.slug));
+  const refSurvives = (ref: string): boolean =>
+    ref.startsWith(VERSION_PREFIX)
+      ? versionKept.has(ref.slice(VERSION_PREFIX.length))
+      : ref.startsWith(ATOM_PREFIX)
+        ? atomKept.has(ref.slice(ATOM_PREFIX.length))
+        : ref.startsWith(MOLECULE_PREFIX) && moleculeKept.has(ref.slice(MOLECULE_PREFIX.length));
+
+  const versions = keptVersions.map((v) => {
+    if (!v.relations) return v; // absent stays absent — never materialize []
+    // Tolerate malformed shapes from direct DB writes (the validator's
+    // "moderate" level never re-checks pre-existing docs): a non-array field
+    // and non-{kind,ref}-string entries drop fail-closed instead of throwing —
+    // one bad doc must not 500 every public read.
+    if (!Array.isArray(v.relations)) return { ...v, relations: [] };
+    const scrubbed = v.relations.filter(
+      (rel) =>
+        rel != null &&
+        typeof rel.kind === "string" &&
+        typeof rel.ref === "string" &&
+        refSurvives(rel.ref),
+    );
+    return scrubbed.length === v.relations.length ? v : { ...v, relations: scrubbed };
+  });
 
   return { molecules, atoms, versions };
 }

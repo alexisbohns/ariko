@@ -50,6 +50,7 @@ with no DB; DB/glue is smoke-tested.
 | **A2 — Delete a Version** | #11 | Hard delete from the edit page's "Danger zone" (confirm checkbox, re-checked server-side). The recompute core is now atom-keyed (`unpublishCascadeForAtoms`; `unpublishCascade` is a thin adapter): parents + published state are captured **before** the delete, sheltering is evaluated against the post-delete dataset — a delete can't leave an empty public shell. |
 | **G1 — Public graph endpoint** | #11 | `GET /api/graph`: pure `toGraph` serializer (`lib/graph.ts`) over `filterPublic` — stable prefixed-ref node ids (incl. `version:`), containment edges with the both-ends prune rule, minimal node payload (no description/content/media/source until B3). The graph playground's data contract is live. |
 | **B1 — Bilingual `Text` widening** | — | `name`/`description` widened to `Text` across the model (plain strings stay valid — no migration); strict `textPart` + `composeText` helpers; WYSIWYG en/fr inputs on the triage/edit forms; every read surface resolves via `resolveText` (blank parts fall through); `GraphNode.name` stays `string`. |
+| **G2 — `relations[]` non-containment edges** | — | `Relation { kind, ref }` on Version (prefixed refs incl. `version:`); `filterPublic` scrubs relations fail-closed to projection-surviving targets (malformed shapes tolerated — one bad doc can't 500 the public site); `toGraph` emits per-kind relation edges with `(source, target, kind)` dedup; public dump renders `kind → ref`. No referential integrity needed, by design. Authoring UI deferred. |
 
 The admin loop is complete end to end: **capture → triage → publish → browse → edit / un-publish**,
 and the public projection is now consistent in **both directions** (publish lifts a lineage up,
@@ -119,15 +120,8 @@ node/edge grammar, multi-parent is structurally supported, and `filterPublic` is
   above). The contract every later slice plugs into: D1 renders it, G2 enriches it, D2 returns
   refs into it, D3 caches it (one JSON blob + `revalidateTag` beats caching N HTML pages).
 
-- **G2 · `relations[]` — non-containment edges**
-  - *Intention:* the edges that make the graph *interesting*: version→version evolution lineage
-    (demo → studio → live), cross-atom links ("song X featured in podcast Y"), atom↔atom kinship.
-  - *Explanation:* a `relations?: { kind: string; ref: string }[]` field on Version (and possibly
-    Atom), reusing the prefixed-ref grammar. **Locked decision:** `parents[]` stays containment-only
-    (it drives the privacy cascades and timeline grouping); every other connection is a relation.
-    Public projection rule: an edge renders only when BOTH ends survive `filterPublic` (prune, don't
-    cascade) — so deletes/un-publishes never need referential-integrity machinery, matching the
-    existing dangling-ref-tolerant reads. Admin authoring UI + C2-suggested relations come later.
+- **G2 · `relations[]`** — ✅ **shipped** (see the table above). Remaining follow-ups: an admin
+  authoring UI for relations (A3-era editing), C2-suggested relations, kind-vocabulary curation.
 
 - **G3 · Shared adjacency resolver (`neighbors(dataset, ref)`)**
   - *Intention:* one pure "what connects to this node" answer used by the admin (A4 molecule detail
@@ -235,13 +229,8 @@ current work. Full context lives in the originating plan's "Deferred follow-ups"
 
 ## Recommended next
 
-With A2 and G1 shipped, the functional runway splits into two independent lanes that can proceed in
-either order (or in parallel):
-
-- **Content richness:** **B1 (`Text` widening)** then **B2 (image attach)**, with **B3 (embed
-  rendering)** as the gate to D1.
-- **Graph runway:** **G2 (`relations[]`)** — the modeling decision is already locked
-  (parents = containment only; prune, don't cascade), so this is a contained model + triage/edit +
-  serializer slice that makes the live `/api/graph` contract worth exploring.
-
-D1 — the graph playground itself — opens once B3 and G2 are in.
+With A2, G1, B1, and G2 shipped, the functional runway to D1 narrows to Track B's remaining media
+work: **B2 (image attach on the capture bar)** then **B3 (rich content + embed rendering, with the
+embed host-matching hardening)** — B3 is the last gate before **D1, the graph playground itself**
+(G1's contract + G2's edges are live and waiting for it). A4/G3 (molecule detail on a shared
+`neighbors()` resolver) and a relations authoring UI are good parallel fillers.
