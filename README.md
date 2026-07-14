@@ -102,4 +102,12 @@ A read-only browser of the **whole** archive — every molecule/atom/version reg
 * Filter by `state` / `domain` / `tag` via query-param links (zero-JS, like `/timeline`); an unrecognized filter value falls back to "all".
 * Read-only — editing / re-publishing an existing version is a later slice.
 
+### /admin/atom/[id]
+
+A read-only detail view of a single atom over the **full** dataset (every state/visibility), reached from each vault row's version name — so `draft`/`private` versions no longer 404 (they previously linked to the public `/atom/[id]`, which hides unpublished content).
+
+* Header: the atom's name, slug, visibility, domain, molecule parent(s), and tags.
+* Then every version of the atom, newest first, with its `state` (draft/private/published), scalar fields, and tags.
+* Read-only — editing / re-publishing a version is a later slice. Gated by the same `/admin/*` middleware; `force-dynamic` so it reflects current DB state.
+
 See `docs/superpowers/specs/` and `docs/superpowers/plans/` for the design and implementation plans.
