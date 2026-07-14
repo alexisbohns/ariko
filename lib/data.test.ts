@@ -5,6 +5,7 @@ import {
   getDataset,
   publishCascade,
   unpublishCascade,
+  unpublishCascadeForAtoms,
   type RawSeed,
   type VersionState,
   type Visibility,
@@ -267,4 +268,104 @@ test("inverse symmetry: un-publish flips back exactly what publish flipped (sing
   const published = publishCascade({ molecules, atoms, versions: [ver("v1", ["atom:a1"], "published")] }, "v1");
   const unpublished = unpublishCascade({ molecules, atoms, versions: [ver("v1", ["atom:a1"], "draft")] }, "v1");
   assert.deepEqual(unpublished, published);
+});
+
+// --- unpublishCascadeForAtoms: the atom-keyed core (roadmap A2). The delete flow
+// captures a version's atom parents BEFORE the delete and evaluates them against the
+// POST-delete dataset — where the version no longer exists to shelter anything.
+
+test("delete-shaped: last published version already gone from the dataset flips atom and molecule", () => {
+  const raw: RawSeed = {
+    molecules: [mol("m1", "public")],
+    atoms: [atom("a1", ["molecule:m1"], "public")],
+    versions: [], // the deleted version was a1's only version
+  };
+  assert.deepEqual(unpublishCascadeForAtoms(raw, ["a1"]), { moleculeSlugs: ["m1"], atomSlugs: ["a1"] });
+});
+
+test("delete-shaped: a surviving published sibling shelters the atom (and molecule)", () => {
+  const raw: RawSeed = {
+    molecules: [mol("m1", "public")],
+    atoms: [atom("a1", ["molecule:m1"], "public")],
+    versions: [ver("v2", ["atom:a1"], "published")], // sibling of the deleted version
+  };
+  assert.deepEqual(unpublishCascadeForAtoms(raw, ["a1"]), { moleculeSlugs: [], atomSlugs: [] });
+});
+
+test("delete-shaped: a surviving draft sibling does not shelter", () => {
+  const raw: RawSeed = {
+    molecules: [mol("m1", "public")],
+    atoms: [atom("a1", ["molecule:m1"], "public")],
+    versions: [ver("v2", ["atom:a1"], "draft")],
+  };
+  assert.deepEqual(unpublishCascadeForAtoms(raw, ["a1"]), { moleculeSlugs: ["m1"], atomSlugs: ["a1"] });
+});
+
+test("unpublishCascadeForAtoms ignores unknown atom slugs", () => {
+  const raw: RawSeed = {
+    molecules: [mol("m1", "public")],
+    atoms: [atom("a1", ["molecule:m1"], "public")],
+    versions: [],
+  };
+  const r = unpublishCascadeForAtoms(raw, ["ghost", "a1"]);
+  assert.deepEqual(r, { moleculeSlugs: ["m1"], atomSlugs: ["a1"] });
+});
+
+test("unpublishCascadeForAtoms ignores a flipped atom's dangling molecule refs", () => {
+  const raw: RawSeed = {
+    molecules: [],
+    atoms: [atom("a1", ["molecule:ghost"], "public")],
+    versions: [],
+  };
+  assert.deepEqual(unpublishCascadeForAtoms(raw, ["a1"]), { moleculeSlugs: [], atomSlugs: ["a1"] });
+});
+
+test("unpublishCascadeForAtoms on empty input flips nothing", () => {
+  const raw: RawSeed = {
+    molecules: [mol("m1", "public")],
+    atoms: [atom("a1", ["molecule:m1"], "public")],
+    versions: [],
+  };
+  assert.deepEqual(unpublishCascadeForAtoms(raw, []), { moleculeSlugs: [], atomSlugs: [] });
+});
+
+test("unpublishCascadeForAtoms dedupes repeated atom slugs", () => {
+  const raw: RawSeed = {
+    molecules: [mol("m1", "public")],
+    atoms: [atom("a1", ["molecule:m1"], "public")],
+    versions: [],
+  };
+  assert.deepEqual(unpublishCascadeForAtoms(raw, ["a1", "a1"]), { moleculeSlugs: ["m1"], atomSlugs: ["a1"] });
+});
+
+test("delete-shaped: two flipped atoms sharing one molecule list it once", () => {
+  const raw: RawSeed = {
+    molecules: [mol("m1", "public")],
+    atoms: [atom("a1", ["molecule:m1"], "public"), atom("a2", ["molecule:m1"], "public")],
+    versions: [], // the deleted version was the only version of both atoms
+  };
+  const r = unpublishCascadeForAtoms(raw, ["a1", "a2"]);
+  assert.deepEqual([...r.atomSlugs].sort(), ["a1", "a2"]);
+  assert.deepEqual(r.moleculeSlugs, ["m1"]);
+});
+
+test("delete-shaped: already-private flip targets are still returned (idempotent flip)", () => {
+  const raw: RawSeed = {
+    molecules: [mol("m1", "private")],
+    atoms: [atom("a1", ["molecule:m1"], "private")],
+    versions: [],
+  };
+  assert.deepEqual(unpublishCascadeForAtoms(raw, ["a1"]), { moleculeSlugs: ["m1"], atomSlugs: ["a1"] });
+});
+
+test("adapter equivalence: unpublishCascade(slug) === unpublishCascadeForAtoms(that version's atom refs)", () => {
+  const raw: RawSeed = {
+    molecules: [mol("m1", "public"), mol("m2", "public")],
+    atoms: [atom("a1", ["molecule:m1"], "public"), atom("a2", ["molecule:m2"], "public")],
+    versions: [ver("v1", ["atom:a1", "atom:a2", "atom:ghost"], "draft"), ver("v2", ["atom:a2"], "published")],
+  };
+  assert.deepEqual(
+    unpublishCascade(raw, "v1"),
+    unpublishCascadeForAtoms(raw, ["a1", "a2", "ghost"]),
+  );
 });

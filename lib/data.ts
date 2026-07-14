@@ -114,10 +114,11 @@ export interface Dataset {
   domainForAtom(slug: string): Domain | null;
 }
 
-const MOLECULE_PREFIX = "molecule:";
-const ATOM_PREFIX = "atom:";
+// The containment-ref grammar, shared with the graph serializer (lib/graph.ts).
+export const MOLECULE_PREFIX = "molecule:";
+export const ATOM_PREFIX = "atom:";
 
-function parentsWithPrefix(parents: string[] | undefined, prefix: string): string[] {
+export function parentsWithPrefix(parents: string[] | undefined, prefix: string): string[] {
   return (parents ?? []).filter((p) => p.startsWith(prefix)).map((p) => p.slice(prefix.length));
 }
 
@@ -283,22 +284,20 @@ export function publishCascade(
   return { moleculeSlugs: [...moleculeSlugs], atomSlugs };
 }
 
-// Downward un-publish recompute — the inverse of publishCascade (roadmap A1). For the
-// given version, returns the EXISTING atom parents left with NO published version, and
-// their EXISTING molecule parents left with NO public atom once those atoms flip.
-// Evaluate against a dataset loaded AFTER the version's state was saved, so the
-// version's own state counts (still-published → no-op). Dangling refs are ignored and
+// Atom-level core of the downward recompute (roadmap A1/A2). Given candidate atom
+// slugs, returns the EXISTING atoms left with NO published version, and their
+// EXISTING molecule parents left with NO public atom once those atoms flip. Callers
+// that still have the version (un-publish) adapt via unpublishCascade; callers that
+// no longer do (delete) pass the atom parents they captured BEFORE the write and
+// evaluate against the post-write dataset. Dangling/unknown slugs are ignored and
 // flip-target visibility is not consulted (idempotent flip), exactly as publishCascade.
-export function unpublishCascade(
+export function unpublishCascadeForAtoms(
   raw: RawSeed,
-  versionSlug: string,
+  atomSlugs: string[],
 ): { moleculeSlugs: string[]; atomSlugs: string[] } {
   const molecules = raw.molecules ?? [];
   const atoms = raw.atoms ?? [];
   const versions = raw.versions ?? [];
-
-  const version = versions.find((v) => v.slug === versionSlug);
-  if (!version) return { moleculeSlugs: [], atomSlugs: [] };
 
   const atomBySlug = new Map(atoms.map((a) => [a.slug, a]));
   const moleculeExists = new Set(molecules.map((m) => m.slug));
@@ -311,9 +310,7 @@ export function unpublishCascade(
   }
 
   const flipping = new Set(
-    parentsWithPrefix(version.parents, ATOM_PREFIX).filter(
-      (s) => atomBySlug.has(s) && !shelteredAtoms.has(s),
-    ),
+    atomSlugs.filter((s) => atomBySlug.has(s) && !shelteredAtoms.has(s)),
   );
 
   const moleculeCandidates = new Set<string>();
@@ -335,6 +332,19 @@ export function unpublishCascade(
     moleculeSlugs: [...moleculeCandidates].filter((m) => !shelteredMolecules.has(m)),
     atomSlugs: [...flipping],
   };
+}
+
+// Downward un-publish recompute — the inverse of publishCascade (roadmap A1). Thin
+// adapter over unpublishCascadeForAtoms keyed by the version's atom parents, read
+// from the dataset (unknown version slug → no-op). Evaluate against a dataset loaded
+// AFTER the version's state was saved, so its own state counts (still-published → no-op).
+export function unpublishCascade(
+  raw: RawSeed,
+  versionSlug: string,
+): { moleculeSlugs: string[]; atomSlugs: string[] } {
+  const version = (raw.versions ?? []).find((v) => v.slug === versionSlug);
+  if (!version) return { moleculeSlugs: [], atomSlugs: [] };
+  return unpublishCascadeForAtoms(raw, parentsWithPrefix(version.parents, ATOM_PREFIX));
 }
 
 let cached: Dataset | null = null;
