@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildDataset, getDataset, publishCascade, type RawSeed } from "./data";
+import { buildDataset, getDataset, publishCascade, unpublishCascade, type RawSeed } from "./data";
 
 // Synthetic seed exercising every edge case the directory/timeline must handle:
 // multi-parent atoms, standalone atoms, dangling molecule refs, and a version
@@ -144,4 +144,120 @@ test("an atom with two real molecule parents cascades both molecules", () => {
   const r = publishCascade(raw, "v1");
   assert.deepEqual(r.atomSlugs, ["a1"]);
   assert.deepEqual([...r.moleculeSlugs].sort(), ["m1", "m2"]);
+});
+
+// --- unpublishCascade: the downward inverse (roadmap A1). Fixtures are built per
+// test because the interesting variable is the surviving published/public siblings.
+
+type S = "draft" | "private" | "published";
+function ver(slug: string, parents: string[], state?: S) {
+  return { slug, name: slug.toUpperCase(), type: "t", date: "2025-01-01", description: "", parents, ...(state ? { state } : {}) };
+}
+const mol = (slug: string, visibility?: "private" | "public") => ({
+  slug, name: slug.toUpperCase(), domain: "music" as const, description: "", ...(visibility ? { visibility } : {}),
+});
+const atom = (slug: string, parents: string[], visibility?: "private" | "public") => ({
+  slug, name: slug.toUpperCase(), parents, ...(visibility ? { visibility } : {}),
+});
+
+test("unpublishCascade re-privatizes the atom and its molecule when the last published version is pulled", () => {
+  const raw: RawSeed = {
+    molecules: [mol("m1", "public")],
+    atoms: [atom("a1", ["molecule:m1"], "public")],
+    versions: [ver("v1", ["atom:a1"], "draft")], // just un-published
+  };
+  assert.deepEqual(unpublishCascade(raw, "v1"), { moleculeSlugs: ["m1"], atomSlugs: ["a1"] });
+});
+
+test("unpublishCascade keeps the whole lineage when a published sibling version remains", () => {
+  const raw: RawSeed = {
+    molecules: [mol("m1", "public")],
+    atoms: [atom("a1", ["molecule:m1"], "public")],
+    versions: [ver("v1", ["atom:a1"], "draft"), ver("v2", ["atom:a1"], "published")],
+  };
+  assert.deepEqual(unpublishCascade(raw, "v1"), { moleculeSlugs: [], atomSlugs: [] });
+});
+
+test("unpublishCascade flips the atom but keeps a molecule that still has another public atom", () => {
+  const raw: RawSeed = {
+    molecules: [mol("m1", "public")],
+    atoms: [atom("a1", ["molecule:m1"], "public"), atom("a2", ["molecule:m1"], "public")],
+    versions: [ver("v1", ["atom:a1"], "draft")],
+  };
+  assert.deepEqual(unpublishCascade(raw, "v1"), { moleculeSlugs: [], atomSlugs: ["a1"] });
+});
+
+test("unpublishCascade evaluates each atom parent of a multi-parent version independently", () => {
+  const raw: RawSeed = {
+    molecules: [mol("m1", "public"), mol("m2", "public")],
+    atoms: [atom("a1", ["molecule:m1"], "public"), atom("a2", ["molecule:m2"], "public")],
+    versions: [ver("v1", ["atom:a1", "atom:a2"], "draft"), ver("v2", ["atom:a2"], "published")],
+  };
+  // a2 keeps its published sibling; a1 empties, and with it m1.
+  assert.deepEqual(unpublishCascade(raw, "v1"), { moleculeSlugs: ["m1"], atomSlugs: ["a1"] });
+});
+
+test("unpublishCascade lists a molecule shared by two flipped atoms once", () => {
+  const raw: RawSeed = {
+    molecules: [mol("m1", "public")],
+    atoms: [atom("a1", ["molecule:m1"], "public"), atom("a2", ["molecule:m1"], "public")],
+    versions: [ver("v1", ["atom:a1", "atom:a2"], "draft")],
+  };
+  const r = unpublishCascade(raw, "v1");
+  assert.deepEqual([...r.atomSlugs].sort(), ["a1", "a2"]);
+  assert.deepEqual(r.moleculeSlugs, ["m1"]);
+});
+
+test("unpublishCascade ignores dangling atom and molecule refs", () => {
+  const raw: RawSeed = {
+    molecules: [],
+    atoms: [atom("a1", ["molecule:ghost"], "public")],
+    versions: [ver("v1", ["atom:ghost", "atom:a1"], "draft")],
+  };
+  assert.deepEqual(unpublishCascade(raw, "v1"), { moleculeSlugs: [], atomSlugs: ["a1"] });
+});
+
+test("a parentless version un-cascades nothing", () => {
+  const raw: RawSeed = { molecules: [], atoms: [], versions: [ver("v1", [], "draft")] };
+  assert.deepEqual(unpublishCascade(raw, "v1"), { moleculeSlugs: [], atomSlugs: [] });
+});
+
+test("an unknown version slug un-cascades nothing", () => {
+  const raw: RawSeed = { molecules: [], atoms: [], versions: [] };
+  assert.deepEqual(unpublishCascade(raw, "nope"), { moleculeSlugs: [], atomSlugs: [] });
+});
+
+test("unpublishCascade is a no-op while the version is still published (its own state shelters its parents)", () => {
+  const raw: RawSeed = {
+    molecules: [mol("m1", "public")],
+    atoms: [atom("a1", ["molecule:m1"], "public")],
+    versions: [ver("v1", ["atom:a1"], "published")],
+  };
+  assert.deepEqual(unpublishCascade(raw, "v1"), { moleculeSlugs: [], atomSlugs: [] });
+});
+
+test("an explicitly-private sibling atom does not count as remaining public for the molecule rule", () => {
+  const raw: RawSeed = {
+    molecules: [mol("m1", "public")],
+    atoms: [atom("a1", ["molecule:m1"], "public"), atom("a2", ["molecule:m1"], "private")],
+    versions: [ver("v1", ["atom:a1"], "draft")],
+  };
+  assert.deepEqual(unpublishCascade(raw, "v1"), { moleculeSlugs: ["m1"], atomSlugs: ["a1"] });
+});
+
+test("flip targets are returned regardless of their current visibility (idempotent flip)", () => {
+  const raw: RawSeed = {
+    molecules: [mol("m1", "private")],
+    atoms: [atom("a1", ["molecule:m1"], "private")],
+    versions: [ver("v1", ["atom:a1"], "draft")],
+  };
+  assert.deepEqual(unpublishCascade(raw, "v1"), { moleculeSlugs: ["m1"], atomSlugs: ["a1"] });
+});
+
+test("inverse symmetry: un-publish flips back exactly what publish flipped (single-version lineage)", () => {
+  const molecules = [mol("m1", "public")];
+  const atoms = [atom("a1", ["molecule:m1"], "public")];
+  const published = publishCascade({ molecules, atoms, versions: [ver("v1", ["atom:a1"], "published")] }, "v1");
+  const unpublished = unpublishCascade({ molecules, atoms, versions: [ver("v1", ["atom:a1"], "draft")] }, "v1");
+  assert.deepEqual(unpublished, published);
 });

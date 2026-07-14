@@ -283,6 +283,63 @@ export function publishCascade(
   return { moleculeSlugs: [...moleculeSlugs], atomSlugs };
 }
 
+// Downward un-publish recompute — the inverse of publishCascade (roadmap A1). For the
+// given version, returns the EXISTING atom parents left with NO published version, and
+// their EXISTING molecule parents left with NO public atom once those atoms flip.
+// Evaluate against a dataset loaded AFTER the version's state was saved, so the
+// version's own state counts (still-published → no-op). Dangling refs are ignored and
+// flip-target visibility is not consulted (idempotent flip), exactly as publishCascade.
+export function unpublishCascade(
+  raw: RawSeed,
+  versionSlug: string,
+): { moleculeSlugs: string[]; atomSlugs: string[] } {
+  const molecules = raw.molecules ?? [];
+  const atoms = raw.atoms ?? [];
+  const versions = raw.versions ?? [];
+
+  const version = versions.find((v) => v.slug === versionSlug);
+  if (!version) return { moleculeSlugs: [], atomSlugs: [] };
+
+  const atomBySlug = new Map(atoms.map((a) => [a.slug, a]));
+  const moleculeExists = new Set(molecules.map((m) => m.slug));
+
+  const shelteredAtoms = new Set<string>();
+  for (const v of versions) {
+    if (v.state !== "published") continue;
+    for (const s of parentsWithPrefix(v.parents, ATOM_PREFIX)) shelteredAtoms.add(s);
+  }
+
+  const atomSlugs = [
+    ...new Set(
+      parentsWithPrefix(version.parents, ATOM_PREFIX).filter(
+        (s) => atomBySlug.has(s) && !shelteredAtoms.has(s),
+      ),
+    ),
+  ];
+  const flipping = new Set(atomSlugs);
+
+  const moleculeCandidates = new Set<string>();
+  for (const atomSlug of atomSlugs) {
+    for (const m of parentsWithPrefix(atomBySlug.get(atomSlug)!.parents, MOLECULE_PREFIX)) {
+      if (moleculeExists.has(m)) moleculeCandidates.add(m);
+    }
+  }
+
+  // A candidate molecule stays public while any non-flipped, non-private atom still
+  // points at it (same "public unless explicitly private" rule filterPublic reads by).
+  const moleculeSlugs = [...moleculeCandidates].filter(
+    (m) =>
+      !atoms.some(
+        (a) =>
+          !flipping.has(a.slug) &&
+          a.visibility !== "private" &&
+          parentsWithPrefix(a.parents, MOLECULE_PREFIX).includes(m),
+      ),
+  );
+
+  return { moleculeSlugs, atomSlugs };
+}
+
 let cached: Dataset | null = null;
 
 // Reads data/seed.yml once at first call (build time), then caches.
