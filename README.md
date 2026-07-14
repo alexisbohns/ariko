@@ -110,4 +110,12 @@ A read-only detail view of a single atom over the **full** dataset (every state/
 * Then every version of the atom, newest first, with its `state` (draft/private/published), scalar fields, and tags.
 * Read-only — editing / re-publishing a version is a later slice. Gated by the same `/admin/*` middleware; `force-dynamic` so it reflects current DB state.
 
+### /admin/version/[slug]
+
+A dedicated edit page for a single Version, reached from each version's `edit` link on the atom-detail view.
+
+* Editable: `name`, `type`, `date`, `description`, and `state` (draft/private/published). The `slug` is immutable (identity); re-parenting, media, source, content, and tags are out of scope.
+* Re-publishing (→ `published`) runs the same upward `publishCascade` as promote, flipping the parent atom/molecule public. Un-publishing (→ `draft`/`private`) is state-only — it hides the version from the public site immediately (`force-dynamic`) but leaves parents as-is, so a parent may remain public with no published version (cosmetic, not a leak; a downward "recompute visibility" pass is a later slice).
+* Read-only `slug`/atom context is shown; a blank required field re-renders with an error and writes nothing. Gated by the `/admin/*` middleware and the action's `requireSession()`.
+
 See `docs/superpowers/specs/` and `docs/superpowers/plans/` for the design and implementation plans.

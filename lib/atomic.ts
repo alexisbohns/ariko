@@ -1,6 +1,7 @@
 import { getDb } from "./db";
 import type { Atom, Domain, Molecule, Version } from "./data";
 import type { VersionInput } from "./promote";
+import type { VersionPatch } from "./version-edit";
 
 // Thrown when a create hits the unique slug index. Lets the server action turn a
 // collision into a friendly message instead of a 500.
@@ -89,6 +90,20 @@ export async function createVersion(input: VersionInput): Promise<Version> {
     throw err;
   }
   return doc;
+}
+
+// Single-version read for the edit-page prefill (projection drops _id).
+export async function getVersion(slug: string): Promise<Version | null> {
+  const db = await getDb();
+  return db.collection<Version>("versions").findOne({ slug }, { projection: { _id: 0 } });
+}
+
+// Updates ONLY the editable fields via $set. Never touches slug / parents / media /
+// source / content, so an edit can never re-parent or drop carried media. slug is
+// immutable, so there is no unique-index collision path here.
+export async function updateVersion(slug: string, patch: VersionPatch): Promise<void> {
+  const db = await getDb();
+  await db.collection<Version>("versions").updateOne({ slug }, { $set: { ...patch } });
 }
 
 // The write half of the publish cascade. No-op on empty arrays.
