@@ -13,6 +13,12 @@ test("resolveText picks the requested language, falling back to en then fr", () 
   assert.equal(resolveText(undefined), "");
 });
 
+test("resolveText falls through blank parts (a hand-authored empty en never blanks the name)", () => {
+  assert.equal(resolveText({ en: "", fr: "Nom" }, "en"), "Nom");
+  assert.equal(resolveText({ en: "Hi", fr: "" }, "fr"), "Hi");
+  assert.equal(resolveText({ en: "", fr: "" }), "");
+});
+
 const raw: RawSeed = {
   molecules: [
     { slug: "m-pub", name: "Pub", domain: "music", description: "" },

@@ -38,16 +38,16 @@ export interface Source {
 
 export interface Molecule {
   slug: string;
-  name: string;
+  name: Text; // bilingual since B1; plain strings remain valid (no migration)
   domain: Domain;
-  description: string;
+  description: Text;
   visibility?: Visibility; // default treated as "public"
   tags?: string[];
 }
 
 export interface Atom {
   slug: string;
-  name: string;
+  name: Text; // bilingual since B1; plain strings remain valid (no migration)
   parents: string[]; // containment ONLY, e.g. ["molecule:republic-of-masquerade"] — non-containment links belong in a future relations[] (graph runway)
   visibility?: Visibility; // default treated as "public"
   tags?: string[];
@@ -55,10 +55,10 @@ export interface Atom {
 
 export interface Version {
   slug: string;
-  name: string;
+  name: Text; // bilingual since B1; plain strings remain valid (no migration)
   type: string;
   date: string;
-  description: string;
+  description: Text;
   parents: string[]; // containment ONLY, e.g. ["atom:rom-win"] — drives the privacy cascades and timeline grouping; cross-links go in a future relations[]
   state?: VersionState; // absent => NOT published (safe default)
   content?: Text; // optional rich markdown, localizable
@@ -199,10 +199,32 @@ export function buildDataset(raw: RawSeed): Dataset {
   };
 }
 
+// Blank parts fall through (|| not ??): a hand-authored { en: "", fr: "Nom" }
+// resolves to "Nom" instead of rendering blank and failing name validation.
 export function resolveText(value: Text | undefined, lang: "en" | "fr" = "en"): string {
   if (value == null) return "";
   if (typeof value === "string") return value;
-  return value[lang] ?? value.en ?? value.fr ?? "";
+  return value[lang] || value.en || value.fr || "";
+}
+
+// Strict single-part access — the form-prefill path (B1). Unlike resolveText it
+// NEVER falls back across languages: prefilling the fr box with a fallback would
+// silently copy en into it and corrupt the data on save. A plain string counts as
+// the en part; the other part is empty.
+export function textPart(value: Text | undefined, lang: "en" | "fr"): string {
+  if (value == null) return "";
+  if (typeof value === "string") return lang === "en" ? value : "";
+  return value[lang] ?? "";
+}
+
+// Inverse of the paired form inputs (B1): both blank → "", fr blank → a plain
+// string (keeps simple content simple), otherwise { en?, fr } with a blank en
+// omitted. Trims both parts.
+export function composeText(en: string, fr: string): Text {
+  const e = en.trim();
+  const f = fr.trim();
+  if (!f) return e;
+  return e ? { en: e, fr: f } : { fr: f };
 }
 
 // Public projection of the vault. The security-sensitive rules live here:
