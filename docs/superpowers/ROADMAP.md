@@ -46,7 +46,9 @@ with no DB; DB/glue is smoke-tested.
 | **Plan 2b-iii — Public revalidation + vault browser** | #7 | `force-dynamic` public pages (publishes appear instantly), read-only `/admin/vault` browser with state/domain/tag filters. |
 | **Admin atom-detail view** | #8 | Read-only `/admin/atom/[id]` over the full dataset; fixed the vault link so draft/private versions no longer 404. |
 | **Edit / un-publish a Version** | #9 | `/admin/version/[slug]` edit page + `editVersionAction`; edit core fields, re-publish (reuse cascade), un-publish (state-only). |
-| **A1 — Recompute visibility on un-publish** | — | Pure `unpublishCascade` (the downward inverse of `publishCascade`) + `setPrivate`, wired into `editVersionAction` and **gated on the actual `published → non-published` transition**: un-publishing the last published version re-privatizes its atom (and an emptied molecule) — withdrawn work leaves no public shell, while routine draft saves never touch seed-authored visibility. Also fixed `migrate-seed` so a re-run no longer clobbers admin un-publishes ($setOnInsert defaults). |
+| **A1 — Recompute visibility on un-publish** | #11 | Pure `unpublishCascade` (the downward inverse of `publishCascade`) + `setPrivate`, wired into `editVersionAction` and **gated on the actual `published → non-published` transition**: un-publishing the last published version re-privatizes its atom (and an emptied molecule) — withdrawn work leaves no public shell, while routine draft saves never touch seed-authored visibility. Also fixed `migrate-seed` so a re-run no longer clobbers admin un-publishes ($setOnInsert defaults). |
+| **A2 — Delete a Version** | #11 | Hard delete from the edit page's "Danger zone" (confirm checkbox, re-checked server-side). The recompute core is now atom-keyed (`unpublishCascadeForAtoms`; `unpublishCascade` is a thin adapter): parents + published state are captured **before** the delete, sheltering is evaluated against the post-delete dataset — a delete can't leave an empty public shell. |
+| **G1 — Public graph endpoint** | #11 | `GET /api/graph`: pure `toGraph` serializer (`lib/graph.ts`) over `filterPublic` — stable prefixed-ref node ids (incl. `version:`), containment edges with the both-ends prune rule, minimal node payload (no description/content/media/source until B3). The graph playground's data contract is live. |
 
 The admin loop is complete end to end: **capture → triage → publish → browse → edit / un-publish**,
 and the public projection is now consistent in **both directions** (publish lifts a lineage up,
@@ -60,14 +62,6 @@ Grouped into tracks. Within each track, items are roughly ordered. Each has an *
 matters to the north star) and an **explanation** (what it entails / where it originates).
 
 ### Track A — Admin write surface (finish the editing story)
-
-- **A2 · Delete a Version**
-  - *Intention:* let the admin remove a version entirely, not just soft-hide it via state.
-  - *Explanation:* hard-delete from `versions`, then reuse the A1 recompute — with one care:
-    `unpublishCascade` reads the version's parents from the dataset and no-ops on an unknown slug,
-    so A2 must capture `version.parents` **before** the delete (or extract the cascade's atom-level
-    core into a shared helper) and evaluate sheltering against the post-delete dataset. Complements
-    the edit page. *(Origin: edit-version plan; recompute shipped with A1.)*
 
 - **A3 · Re-parent / edit identity & carried fields**
   - *Intention:* correct structural mistakes (wrong atom, wrong media) after creation.
@@ -128,14 +122,9 @@ project. The model is already close: `parents[]` refs (`molecule:slug` / `atom:s
 node/edge grammar, multi-parent is structurally supported, and `filterPublic` is a pure
 `RawSeed → RawSeed` projection any serializer can sit behind.
 
-- **G1 · Public graph projection endpoint (`GET /api/graph`)** — *the graph client's data contract.*
-  - *Intention:* the graph playground is a client-side app; it needs published-only **data**, not
-    server-rendered HTML. Nothing public serves JSON today.
-  - *Explanation:* a pure `toGraph(raw) → { nodes, edges }` serializer over
-    `filterPublic(loadRawSeed())` (nodes: molecules/atoms/versions with slug-based stable ids;
-    edges: containment from `parents[]`, later `relations[]`), exposed as a `force-dynamic` GET
-    route. Also the natural D3 cache target: one JSON blob invalidated by `revalidateTag` on
-    publish/un-publish beats caching N HTML pages. Can ship any time — no design dependency.
+- **G1 · Public graph projection endpoint (`GET /api/graph`)** — ✅ **shipped** (see the table
+  above). The contract every later slice plugs into: D1 renders it, G2 enriches it, D2 returns
+  refs into it, D3 caches it (one JSON blob + `revalidateTag` beats caching N HTML pages).
 
 - **G2 · `relations[]` — non-containment edges**
   - *Intention:* the edges that make the graph *interesting*: version→version evolution lineage
@@ -194,10 +183,12 @@ current work. Full context lives in the originating plan's "Deferred follow-ups"
   **`updateVersion` → `setPrivate`** can leave a shell on a crash in between — heals via a
   re-publish → un-publish cycle of that version. *(A1)*
 - **Concurrent publish/un-publish compute-then-write races** — two overlapping actions on one
-  lineage (either direction, incl. promote-publish vs edit-un-publish) each load a snapshot, then
-  write; the last `setPublic`/`setPrivate` wins and can briefly hide a just-published version (never
-  leaks — `filterPublic` fails closed). Accepted at single-admin scale; revisit if writes ever get
-  concurrent (sessions/transactions or a version-stamped flip). *(A1 review)*
+  lineage (either direction, incl. promote-publish vs edit-un-publish, and delete's
+  `getVersion` → `deleteVersion` TOCTOU where a concurrent publish makes `wasPublished` stale) each
+  load a snapshot, then write; the last `setPublic`/`setPrivate` wins and can briefly hide a
+  just-published version (never leaks — `filterPublic` fails closed). Accepted at single-admin
+  scale; revisit if writes ever get concurrent (sessions/transactions or a version-stamped flip).
+  *(A1/A2 review)*
 - **`buildVersionPatch` silently coerces an unrecognized `state` to `draft`** — pre-existing seam
   behavior; now that un-publish cascades, a malformed POST on a published version un-publishes AND
   re-privatizes its lineage instead of failing validation. Consider rejecting unrecognized values.
@@ -218,6 +209,10 @@ current work. Full context lives in the originating plan's "Deferred follow-ups"
   atom parent; the vault renders it as unlinked text (only atom-detail pages carry `edit` links), so
   `/admin/version/[slug]` must be typed by hand. Link vault rows straight to the edit page (or gate
   parentless promotion). *(audit)*
+- **Post-save/delete redirect trusts parent refs** — the edit and delete actions land on
+  `/admin/atom/<first atom parent>` without an existence check, so a hand-authored dangling parent
+  ref 404s after a successful write. Harmless (admin-gated, write completed) and consistent with
+  dangling-ref tolerance; fall back to the vault if it ever grates. *(A2 review)*
 
 **Auth / endpoint hygiene**
 - **HMAC domain separation** — `hmacHex` is shared by session signing and password verification;
@@ -242,9 +237,13 @@ current work. Full context lives in the originating plan's "Deferred follow-ups"
 
 ## Recommended next
 
-**A2 — Delete a Version** (smallest slice; completes the admin write surface's destructive half,
-reusing the A1 recompute — mind the capture-parents-before-delete note). Then **G1 — the public
-graph endpoint**: it has zero dependencies, zero design surface, and it turns the graph endgame
-from an idea into a contract every later slice (D1, D2, D3, G2) plugs into. **B1 (`Text`
-widening)** and **B2 (image attach)** follow toward content richness, with **B3 (embed rendering)**
-as the gate to D1 — which is now explicitly the graph playground, consuming G1/G2.
+With A2 and G1 shipped, the functional runway splits into two independent lanes that can proceed in
+either order (or in parallel):
+
+- **Content richness:** **B1 (`Text` widening)** then **B2 (image attach)**, with **B3 (embed
+  rendering)** as the gate to D1.
+- **Graph runway:** **G2 (`relations[]`)** — the modeling decision is already locked
+  (parents = containment only; prune, don't cascade), so this is a contained model + triage/edit +
+  serializer slice that makes the live `/api/graph` contract worth exploring.
+
+D1 — the graph playground itself — opens once B3 and G2 are in.

@@ -116,6 +116,18 @@ A dedicated edit page for a single Version, reached from each version's `edit` l
 * Editable: `name`, `type`, `date`, `description`, and `state` (draft/private/published). The `slug` is immutable (identity); re-parenting, media, source, content, and tags are out of scope.
 * Re-publishing (→ `published`) runs the same upward `publishCascade` as promote, flipping the parent atom/molecule public. Un-publishing (`published` → `draft`/`private`) runs the downward `unpublishCascade` + `setPrivate`: the withdrawn version's atom, left with no published version, is re-privatized — and its molecule too when no public atom remains under it — so pulled work leaves no empty public shell (not even its name). A still-published sibling version keeps its lineage public.
 * The recompute is **transition-gated**: it fires only when the version actually leaves `published`. A routine draft save never flips visibility that was authored directly (e.g. seeded name-only public atoms), and re-running `npm run migrate` no longer force-republishes — the migration's public/published defaults apply on first insert only, so admin un-publishes survive a re-migrate.
+* **Delete** — a "Danger zone" form at the bottom of the page hard-deletes the version (confirm checkbox required, re-checked server-side). When the deleted version was `published`, the same downward recompute runs against the post-delete dataset (its atom parents are captured before the delete), so a delete can never leave an empty public shell either. References to the deleted slug elsewhere (a capture's `promotedTo`) are left dangling by design — every read path tolerates dangling refs.
 * Read-only `slug`/atom context is shown; a blank required field re-renders with an error and writes nothing. Gated by the `/admin/*` middleware and the action's `requireSession()`.
+
+## Public graph endpoint
+
+### `GET /api/graph`
+
+The graph playground's data contract (roadmap G1): the published-only dataset as JSON —
+`{ nodes: [{ id, kind, name, domain?, type?, date?, tags? }], edges: [{ source, target, kind: "contains" }] }`.
+
+* Node ids reuse the prefixed-ref grammar (`molecule:<slug>` / `atom:<slug>` / `version:<slug>`); slugs are immutable, so ids are stable across publishes.
+* Unauthenticated and `force-dynamic` — it is the data twin of the public pages and composes the same `filterPublic` projection, so it can never expose more than the public HTML does. Node payloads deliberately exclude `description`/`content`/`media`/`source` until the exhibition slice (B3) defines what a focused node shows.
+* Edges are containment only (from `parents[]`) until `relations[]` lands (G2); an edge is emitted only when both ends survive the projection.
 
 See `docs/superpowers/specs/` and `docs/superpowers/plans/` for the design and implementation plans.
