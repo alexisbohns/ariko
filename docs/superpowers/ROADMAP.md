@@ -206,6 +206,11 @@ current work. Full context lives in the originating plan's "Deferred follow-ups"
   `/admin/atom/<first atom parent>` without an existence check, so a hand-authored dangling parent
   ref 404s after a successful write. Harmless (admin-gated, write completed) and consistent with
   dangling-ref tolerance; fall back to the vault if it ever grates. *(A2 review)*
+- **Validation bounce loses in-flight edits** — the version forms' name inputs dropped the browser
+  `required` (an fr-only name is valid, so `required` on the en box would be wrong), so a fully
+  cleared name now round-trips to the server, which redirects with `?error=` and re-renders from
+  the stored doc — any other fields typed in that submission are lost. Bare-HTML limitation;
+  address with form echo-back (or client JS post-D1). *(B1 review)*
 
 **Auth / endpoint hygiene**
 - **HMAC domain separation** — `hmacHex` is shared by session signing and password verification;
