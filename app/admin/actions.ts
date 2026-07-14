@@ -7,13 +7,14 @@ import { buildCaptureBody } from "@/lib/capture-form";
 import { validateInboxPayload } from "@/lib/inbox";
 import { createOrUpdateCapture, getCapture, markCapturePromoted, discardCapture } from "@/lib/captures";
 import { loadRawSeed } from "@/lib/store";
-import { publishCascade, unpublishCascade, type Domain } from "@/lib/data";
+import { publishCascade, unpublishCascade, unpublishCascadeForAtoms, type Domain } from "@/lib/data";
 import { resolveParentChoice, buildVersionInput, validateVersionInput } from "@/lib/promote";
 import { buildVersionPatch, validateVersionPatch } from "@/lib/version-edit";
 import {
   createMolecule,
   createAtom,
   createVersion,
+  deleteVersion,
   setPublic,
   SlugExistsError,
   getVersion,
@@ -162,7 +163,9 @@ export async function editVersionAction(formData: FormData): Promise<void> {
   const patch = buildVersionPatch(formData);
   const check = validateVersionPatch(patch);
   if (!check.ok) {
-    redirect(`/admin/version/${slug}?error=${encodeURIComponent(check.error)}`);
+    // The page renders ?error verbatim (the delete action shares the slot), so the
+    // message carries its own "could not save" context.
+    redirect(`/admin/version/${slug}?error=${encodeURIComponent(`could not save: ${check.error}`)}`);
   }
 
   await updateVersion(slug, patch);
@@ -183,8 +186,51 @@ export async function editVersionAction(formData: FormData): Promise<void> {
   }
 
   revalidatePath("/admin");
-  const atomSlug = existing.parents
+  const atomSlug = (existing.parents ?? [])
     .filter((p) => p.startsWith("atom:"))
     .map((p) => p.slice("atom:".length))[0];
   redirect(atomSlug ? `/admin/atom/${atomSlug}` : "/admin/vault");
+}
+
+// Hard delete (roadmap A2). The atom parents and published state are captured BEFORE
+// the delete — afterwards the version is gone from the dataset, so the slug-keyed
+// unpublishCascade would silently no-op. The recompute (only when the deleted version
+// WAS published; a draft/private delete cannot change the public projection) runs the
+// atom-keyed core against the dataset loaded AFTER the delete, so the deleted version
+// cannot shelter anything.
+export async function deleteVersionAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+
+  // Existence first, so the confirm-fail redirect below only ever targets a real
+  // edit page (and the slug it interpolates is a known-good stored slug).
+  const existing = await getVersion(slug);
+  if (!existing) redirect("/admin/vault");
+
+  // Server-side re-check of the confirm checkbox; the browser `required` is only UX.
+  if (String(formData.get("confirm") ?? "") !== "on") {
+    redirect(
+      `/admin/version/${encodeURIComponent(slug)}?error=${encodeURIComponent(
+        "could not delete: confirm the permanent deletion first",
+      )}`,
+    );
+  }
+
+  const atomSlugs = (existing.parents ?? [])
+    .filter((p) => p.startsWith("atom:"))
+    .map((p) => p.slice("atom:".length));
+  const wasPublished = existing.state === "published";
+
+  await deleteVersion(slug);
+
+  if (wasPublished) {
+    const { moleculeSlugs, atomSlugs: flipAtoms } = unpublishCascadeForAtoms(
+      await loadRawSeed(),
+      atomSlugs,
+    );
+    await setPrivate(moleculeSlugs, flipAtoms);
+  }
+
+  revalidatePath("/admin");
+  redirect(atomSlugs[0] ? `/admin/atom/${atomSlugs[0]}` : "/admin/vault");
 }

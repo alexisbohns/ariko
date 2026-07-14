@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getVersion } from "@/lib/atomic";
-import { editVersionAction } from "../../actions";
+import { editVersionAction, deleteVersionAction } from "../../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +30,7 @@ export default async function EditVersionPage({
         <a href={backHref}>← back</a>
       </p>
       <h1>Edit version</h1>
-      {error ? <p role="alert">Could not save: {error}</p> : null}
+      {error ? <p role="alert">{error}</p> : null}
 
       <ul>
         <li>slug: {version.slug}</li>
@@ -83,6 +83,23 @@ export default async function EditVersionPage({
           <button type="submit">Save</button>
         </p>
       </form>
+
+      <hr />
+      <section>
+        <h2>Danger zone</h2>
+        <form action={deleteVersionAction}>
+          <input type="hidden" name="slug" value={version.slug} />
+          <p>
+            <label>
+              <input type="checkbox" name="confirm" required /> Yes, permanently delete the version
+              “{version.name}” — this cannot be undone.
+            </label>
+          </p>
+          <p>
+            <button type="submit">Delete version</button>
+          </p>
+        </form>
+      </section>
     </article>
   );
 }
