@@ -115,7 +115,7 @@ A read-only detail view of a single atom over the **full** dataset (every state/
 A dedicated edit page for a single Version, reached from each version's `edit` link on the atom-detail view.
 
 * Editable: `name`, `type`, `date`, `description`, and `state` (draft/private/published). The `slug` is immutable (identity); re-parenting, media, source, content, and tags are out of scope.
-* Re-publishing (→ `published`) runs the same upward `publishCascade` as promote, flipping the parent atom/molecule public. Un-publishing (→ `draft`/`private`) is state-only — it hides the version from the public site immediately (`force-dynamic`) but leaves parents as-is, so a parent may remain public with no published version (cosmetic, not a leak; a downward "recompute visibility" pass is a later slice).
+* Re-publishing (→ `published`) runs the same upward `publishCascade` as promote, flipping the parent atom/molecule public. Un-publishing (→ `draft`/`private`) runs the downward `unpublishCascade` + `setPrivate`: a parent atom left with no published version, and a molecule left with no public atom, are re-privatized — withdrawn work leaves no empty public shell (not even its name). The recompute is idempotent and self-healing (any non-published save repairs a shell left from before this slice), and a still-published sibling version keeps its lineage public.
 * Read-only `slug`/atom context is shown; a blank required field re-renders with an error and writes nothing. Gated by the `/admin/*` middleware and the action's `requireSession()`.
 
 See `docs/superpowers/specs/` and `docs/superpowers/plans/` for the design and implementation plans.

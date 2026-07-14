@@ -454,7 +454,8 @@ git commit -m "docs: document the admin edit/un-publish Version page"
 
 ## Deferred to later specs
 
-- Downward visibility recompute / auto-re-privatizing empty public parents on un-publish.
+- ~~Downward visibility recompute / auto-re-privatizing empty public parents on un-publish.~~
+  **Shipped** as A1 (`2026-07-14-beanstalk-admin-recompute-visibility.md`).
 - Editing `slug`, re-parenting, `media`, `source`, `content`, `tags`; deleting a Version outright.
 
 ## Notes / small risks to watch during execution

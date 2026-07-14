@@ -41,8 +41,11 @@ with no DB; DB/glue is smoke-tested.
 | **Plan 2b-iii — Public revalidation + vault browser** | #7 | `force-dynamic` public pages (publishes appear instantly), read-only `/admin/vault` browser with state/domain/tag filters. |
 | **Admin atom-detail view** | #8 | Read-only `/admin/atom/[id]` over the full dataset; fixed the vault link so draft/private versions no longer 404. |
 | **Edit / un-publish a Version** | #9 | `/admin/version/[slug]` edit page + `editVersionAction`; edit core fields, re-publish (reuse cascade), un-publish (state-only). |
+| **A1 — Recompute visibility on un-publish** | — | Pure `unpublishCascade` (the downward inverse of `publishCascade`) + `setPrivate`, wired into `editVersionAction`: un-publishing the last published version re-privatizes its atom (and an emptied molecule) — withdrawn work leaves no public shell. Idempotent + self-healing. |
 
-The admin loop is complete end to end: **capture → triage → publish → browse → edit / un-publish**.
+The admin loop is complete end to end: **capture → triage → publish → browse → edit / un-publish**,
+and the public projection is now consistent in **both directions** (publish lifts a lineage up,
+un-publish walks it back down).
 
 ---
 
@@ -53,22 +56,12 @@ matters to the north star) and an **explanation** (what it entails / where it or
 
 ### Track A — Admin write surface (finish the editing story)
 
-- **A1 · Recompute visibility on un-publish** — ⭐ *recommended next; direct follow-up to PR #9.*
-  - *Intention:* keep the public exhibition honest — no public atom/molecule left showing an empty
-    shell after its last published version is pulled.
-  - *Explanation:* un-publish is currently **state-only** (a deliberate PR #9 scope cut): flipping a
-    version off `published` hides it, but a parent atom/molecule that an earlier publish made public
-    stays public — so a parent can remain public with **no** published version. Not a leak
-    (`filterPublic` still hides the draft's content), but cosmetically wrong. Build the **pure
-    inverse of `publishCascade`**: after un-publish, re-privatize an atom with no remaining published
-    version, and a molecule with no remaining public atom. Pure + unit-tested; mirrors the existing
-    cascade's shape. *(Origin: edit-version plan, "Deferred to later specs.")*
-
 - **A2 · Delete a Version**
   - *Intention:* let the admin remove a version entirely, not just soft-hide it via state.
-  - *Explanation:* hard-delete from `versions`, handling the visibility implications (a delete that
-    empties a public parent should trigger the A1 recompute). Complements the edit page. *(Origin:
-    edit-version plan.)*
+  - *Explanation:* hard-delete from `versions`, then reuse the now-existing `unpublishCascade` on
+    the deleted version's lineage (evaluated against a dataset with the version removed) so a delete
+    that empties a public parent re-privatizes it. Complements the edit page. *(Origin: edit-version
+    plan; visibility story shipped with A1.)*
 
 - **A3 · Re-parent / edit identity & carried fields**
   - *Intention:* correct structural mistakes (wrong atom, wrong media) after creation.
@@ -153,7 +146,14 @@ current work. Full context lives in the originating plan's "Deferred follow-ups"
   value written directly to Mongo can't fail *open*. *(Plan 1)*
 - **`createVersion` → `setPublic` isn't transactional** — a crash between them can leave a published
   version whose parents aren't fully public. `filterPublic` keeps it safe (just hidden); consider a
-  "republish" affordance. *(2b-ii)*
+  "republish" affordance. *(2b-ii)* The mirror gap now exists on the other side:
+  **`updateVersion` → `setPrivate`** can leave a shell on a crash in between — self-heals on the next
+  non-published save in that lineage. *(A1)*
+- **Read-side empty-shell pruning in `filterPublic`** — belt-and-braces for A1: also drop, at read
+  time, a public atom with no published version (and a molecule with no surviving atom), making
+  shells *impossible* regardless of stored visibility (crash between writes, forged write). Deferred
+  because the write-side recompute keeps the vault's stored visibility truthful, which read-side
+  pruning alone would not. *(A1 spec §6)*
 - **Re-validate "existing" parent selections** — a forged admin POST with a nonexistent
   `moleculeSlug`/`atomSlug` is written straight into `parents` (degrades safely as a dangling ref, no
   error shown). Add an existence check. *(2b-ii)*
@@ -183,8 +183,7 @@ current work. Full context lives in the originating plan's "Deferred follow-ups"
 
 ## Recommended next
 
-**A1 — Recompute visibility on un-publish.** It's the smallest, highest-coherence slice: it closes
-the one deliberate gap left by the just-merged edit/un-publish work, it's a pure function mirroring
-code that already exists (`publishCascade`), and it makes the public projection fully consistent in
-both directions. Then B1 (`Text` widening) or B2 (image attach) are natural follow-ons toward the
-public-exhibition payoff.
+**A2 — Delete a Version**, now that A1 handed it its visibility story for free (`unpublishCascade`
+on the deleted version's lineage). It completes the admin write surface's destructive half. Then
+**B1 (`Text` widening)** and **B2 (image attach)** are the natural follow-ons toward the
+public-exhibition payoff, with **B3 (embed rendering)** as the gate to D1.
