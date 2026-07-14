@@ -5,6 +5,7 @@ import {
   createMolecule,
   createAtom,
   createVersion,
+  deleteVersion,
   setPublic,
   setPrivate,
   listMolecules,
@@ -90,6 +91,31 @@ test("setPrivate flips visibility back to private", { skip: !hasDb }, async (t) 
 
 test("setPrivate is a no-op on empty arrays", { skip: !hasDb }, async () => {
   await setPrivate([], []); // must not throw
+});
+
+test("deleteVersion removes only the targeted version doc", { skip: !hasDb }, async (t) => {
+  t.after(cleanup);
+  const base = {
+    name: "Del",
+    type: "demo",
+    date: "2025-01-01",
+    description: "",
+    state: "draft" as const,
+    parents: [],
+    media: [],
+    source: { kind: "manual" },
+  };
+  await createVersion({ slug: "__test__del", ...base });
+  await createVersion({ slug: "__test__keep", ...base });
+  await deleteVersion("__test__del");
+  const db = await getDb();
+  assert.equal(await db.collection("versions").findOne({ slug: "__test__del" }), null);
+  // The delete must be slug-scoped — a sibling doc survives.
+  assert.notEqual(await db.collection("versions").findOne({ slug: "__test__keep" }), null);
+});
+
+test("deleteVersion on a missing slug does not throw", { skip: !hasDb }, async () => {
+  await deleteVersion("__test__never-existed"); // deleteOne matches 0 → no-op
 });
 
 test("a duplicate slug throws SlugExistsError", { skip: !hasDb }, async (t) => {

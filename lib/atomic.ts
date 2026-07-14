@@ -106,6 +106,16 @@ export async function updateVersion(slug: string, patch: VersionPatch): Promise<
   await db.collection<Version>("versions").updateOne({ slug }, { $set: { ...patch } });
 }
 
+// Hard delete (roadmap A2). Idempotent — deleting a missing slug is a no-op
+// (deleteOne matches 0). Callers needing the visibility recompute must capture the
+// version's atom parents and state BEFORE calling this; afterwards the version no
+// longer exists for unpublishCascade to find. Dangling refs to the deleted slug
+// (capture promotedTo, future relations[]) are tolerated on all read paths.
+export async function deleteVersion(slug: string): Promise<void> {
+  const db = await getDb();
+  await db.collection<Version>("versions").deleteOne({ slug });
+}
+
 // Shared write half of the visibility cascades. No-op on empty arrays.
 async function setVisibility(
   moleculeSlugs: string[],
