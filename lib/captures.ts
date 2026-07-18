@@ -19,6 +19,19 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+// One retry converges after a lost upsert race: the winner's document exists by
+// the time the loser retries, so the second attempt takes the update path.
+// Anything but a duplicate-key error (code 11000) — and a second consecutive
+// 11000 — propagates unchanged.
+export async function withDuplicateKeyRetry<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    if ((err as { code?: number }).code === 11000) return fn();
+    throw err;
+  }
+}
+
 export async function createOrUpdateCapture(
   input: InboxInput,
 ): Promise<{ capture: Capture; created: boolean }> {
@@ -39,24 +52,26 @@ export async function createOrUpdateCapture(
     if (input.content !== undefined) set.content = input.content;
     if (input.suggested !== undefined) set.suggested = input.suggested;
 
-    const res = await col.findOneAndUpdate(
-      { "source.kind": input.source.kind, "source.externalId": input.source.externalId },
-      {
-        $set: set,
-        $setOnInsert: {
-          id: crypto.randomUUID(),
-          status: "inbox",
-          promotedTo: [],
-          createdAt: now,
-          "source.capturedAt": input.source.capturedAt ?? now,
+    const res = await withDuplicateKeyRetry(() =>
+      col.findOneAndUpdate(
+        { "source.kind": input.source.kind, "source.externalId": input.source.externalId },
+        {
+          $set: set,
+          $setOnInsert: {
+            id: crypto.randomUUID(),
+            status: "inbox",
+            promotedTo: [],
+            createdAt: now,
+            "source.capturedAt": input.source.capturedAt ?? now,
+          },
         },
-      },
-      {
-        upsert: true,
-        returnDocument: "after",
-        includeResultMetadata: true,
-        projection: { _id: 0 },
-      },
+        {
+          upsert: true,
+          returnDocument: "after",
+          includeResultMetadata: true,
+          projection: { _id: 0 },
+        },
+      ),
     );
     const created = !res.lastErrorObject?.updatedExisting;
     return { capture: res.value as Capture, created };
