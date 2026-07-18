@@ -1,4 +1,4 @@
-import type { LocalizedText, Media, MediaImage, Source, CaptureSuggestion } from "./data";
+import type { LocalizedText, Media, MediaImage, Source, CaptureSuggestion, Text } from "./data";
 import { detectEmbed } from "./embeds";
 
 // Media as it arrives in a raw JSON payload: an embed may omit `provider`
@@ -8,7 +8,7 @@ export type InputMedia =
   | MediaImage;
 
 export interface InboxInput {
-  title: string;
+  title: Text;
   body?: LocalizedText;
   content?: LocalizedText;
   media: Media[];
@@ -26,6 +26,32 @@ function isObject(v: unknown): v is Record<string, unknown> {
 
 function nonEmptyString(v: unknown): v is string {
   return typeof v === "string" && v.trim().length > 0;
+}
+
+// One language part of an incoming Text: absent is fine, non-strings are junk,
+// blank strings are dropped (mirrors composeText's blank-part behavior).
+function textPartInput(v: unknown): { ok: boolean; part?: string } {
+  if (v === undefined) return { ok: true };
+  if (typeof v !== "string") return { ok: false };
+  const t = v.trim();
+  return t ? { ok: true, part: t } : { ok: true };
+}
+
+// The B1 Text shape at the payload boundary: a non-empty string, or { en?, fr? }
+// with at least one non-empty part. Null means invalid.
+function normalizeTextInput(v: unknown): Text | null {
+  if (typeof v === "string") {
+    const t = v.trim();
+    return t ? t : null;
+  }
+  if (isObject(v)) {
+    const en = textPartInput(v.en);
+    const fr = textPartInput(v.fr);
+    if (!en.ok || !fr.ok) return null;
+    if (!en.part && !fr.part) return null;
+    return { ...(en.part ? { en: en.part } : {}), ...(fr.part ? { fr: fr.part } : {}) };
+  }
+  return null;
 }
 
 // Fill provider for bare embeds; pass images and already-typed embeds through.
@@ -46,7 +72,8 @@ export function normalizeMedia(media: InputMedia[]): Media[] {
 // error string (spec §7: malformed payloads are rejected, never silently dropped).
 export function validateInboxPayload(body: unknown): ValidationResult {
   if (!isObject(body)) return { ok: false, error: "body must be a JSON object" };
-  if (!nonEmptyString(body.title)) return { ok: false, error: "title is required" };
+  const title = normalizeTextInput(body.title);
+  if (title === null) return { ok: false, error: "title is required" };
   if (!isObject(body.source) || !nonEmptyString(body.source.kind)) {
     return { ok: false, error: "source.kind is required" };
   }
@@ -97,7 +124,7 @@ export function validateInboxPayload(body: unknown): ValidationResult {
   };
 
   const value: InboxInput = {
-    title: (body.title as string).trim(),
+    title,
     media: normalizeMedia(inputMedia),
     source,
     ...(isObject(body.body) ? { body: body.body as LocalizedText } : {}),

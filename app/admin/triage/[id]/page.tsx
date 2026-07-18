@@ -31,7 +31,7 @@ export default async function TriagePage({
       {error ? <p role="alert">Could not promote: {error}</p> : null}
 
       <section>
-        <h2>{capture.title}</h2>
+        <h2>{resolveText(capture.title)}</h2>
         {note ? <p>{note}</p> : null}
         <p>source: {capture.source.kind}</p>
         {capture.media.length > 0 ? (
@@ -126,12 +126,12 @@ export default async function TriagePage({
               description fields carry the capture's note verbatim on promote. */}
           <p>
             <label>
-              Name <input type="text" name="versionName" defaultValue={capture.title} />
+              Name <input type="text" name="versionName" defaultValue={textPart(capture.title, "en")} />
             </label>
           </p>
           <p>
             <label>
-              Name (fr) <input type="text" name="versionNameFr" />
+              Name (fr) <input type="text" name="versionNameFr" defaultValue={textPart(capture.title, "fr")} />
             </label>
           </p>
           <p>

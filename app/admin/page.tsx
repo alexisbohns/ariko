@@ -1,4 +1,4 @@
-import type { Capture } from "@/lib/data";
+import { type Capture, resolveText } from "@/lib/data";
 import { listCaptures } from "@/lib/captures";
 import { createCaptureAction, logoutAction } from "./actions";
 
@@ -112,7 +112,7 @@ export default async function AdminPage({
               <tr key={c.id}>
                 <td>{c.source.kind}</td>
                 <td>
-                  <a href={`/admin/triage/${c.id}`}>{c.title}</a>
+                  <a href={`/admin/triage/${c.id}`}>{resolveText(c.title)}</a>
                 </td>
                 <td>{noteSnippet(c.body)}</td>
                 <td>{mediaLabel(c.media)}</td>

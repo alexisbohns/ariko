@@ -97,7 +97,7 @@ export interface CaptureSuggestion {
 // Raw inbox item. Kept separate from the atomic model until triaged (spec §4.2).
 export interface Capture {
   id: string; // crypto.randomUUID() at creation; captures are not slug-addressable
-  title: string;
+  title: Text; // bilingual since C1; plain strings remain valid (no migration)
   body?: LocalizedText;
   content?: LocalizedText;
   media: Media[];
