@@ -15,6 +15,9 @@ function toHex(buf: ArrayBuffer): string {
 
 // Constant-time string compare. Returns false on length mismatch (callers that
 // must hide length compare fixed-length HMAC hex — see verifyPassword).
+// For raw variable-length secrets in Node-runtime code use lib/auth.ts
+// timingSafeEqualStr instead; this XOR loop is only safe because callers
+// compare pre-hashed fixed-length hex.
 export function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;

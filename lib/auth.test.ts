@@ -52,3 +52,19 @@ test("an empty bearer token is never authorized", () => {
   assert.equal(authorize("Bearer ", "github", t), "unauthorized");
   assert.equal(hasValidToken("Bearer ", t), false);
 });
+
+test("authorize matches when the candidate is the last configured token", () => {
+  const t = parseTokens("a:tok_a,b:tok_b,github:tok_last");
+  assert.equal(authorize("Bearer tok_last", "github", t), "ok");
+  assert.equal(authorize("Bearer tok_last", "a", t), "forbidden");
+});
+
+test("tokens of different lengths compare safely", () => {
+  const t = parseTokens("*:short,github:a_much_longer_token_value_here");
+  assert.equal(authorize("Bearer short", "manual", t), "ok");
+  assert.equal(authorize("Bearer a_much_longer_token_value_here", "github", t), "ok");
+  assert.equal(authorize("Bearer shor", "manual", t), "unauthorized");
+  assert.equal(authorize("Bearer short_but_longer", "manual", t), "unauthorized");
+  assert.equal(hasValidToken("Bearer a_much_longer_token_value_here", t), true);
+  assert.equal(hasValidToken("Bearer nope", t), false);
+});

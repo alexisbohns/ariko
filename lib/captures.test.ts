@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createOrUpdateCapture, getCapture, ensureCaptureIndexes, markCapturePromoted, discardCapture } from "./captures";
+import { createOrUpdateCapture, getCapture, ensureCaptureIndexes, markCapturePromoted, discardCapture, withDuplicateKeyRetry } from "./captures";
 import { closeDb, getDb } from "./db";
 
 const hasDb = Boolean(process.env.MONGODB_URI);
@@ -9,6 +9,51 @@ async function cleanup() {
   const db = await getDb();
   await db.collection("captures").deleteMany({ title: /^__test__/ });
 }
+
+function dupErr(): Error & { code: number } {
+  return Object.assign(new Error("E11000 duplicate key"), { code: 11000 });
+}
+
+test("withDuplicateKeyRetry returns the second result after a lost upsert race", async () => {
+  let calls = 0;
+  const result = await withDuplicateKeyRetry(async () => {
+    calls += 1;
+    if (calls === 1) throw dupErr();
+    return "winner";
+  });
+  assert.equal(result, "winner");
+  assert.equal(calls, 2);
+});
+
+test("withDuplicateKeyRetry calls fn once on success", async () => {
+  let calls = 0;
+  assert.equal(await withDuplicateKeyRetry(async () => ++calls), 1);
+  assert.equal(calls, 1);
+});
+
+test("withDuplicateKeyRetry propagates a second consecutive 11000", async () => {
+  let calls = 0;
+  await assert.rejects(
+    withDuplicateKeyRetry(async () => {
+      calls += 1;
+      throw dupErr();
+    }),
+    (err: Error & { code?: number }) => err.code === 11000,
+  );
+  assert.equal(calls, 2);
+});
+
+test("withDuplicateKeyRetry propagates non-duplicate errors immediately", async () => {
+  let calls = 0;
+  await assert.rejects(
+    withDuplicateKeyRetry(async () => {
+      calls += 1;
+      throw new Error("network down");
+    }),
+    /network down/,
+  );
+  assert.equal(calls, 1);
+});
 
 test("createOrUpdateCapture inserts a fresh manual capture", { skip: !hasDb }, async (t) => {
   await ensureCaptureIndexes();

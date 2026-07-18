@@ -1,14 +1,30 @@
 import { authorize, parseTokens } from "../../../lib/auth";
-import { validateInboxPayload } from "../../../lib/inbox";
+import { MAX_INBOX_BODY_BYTES, validateInboxPayload } from "../../../lib/inbox";
 import { createOrUpdateCapture } from "../../../lib/captures";
 
 export async function POST(request: Request): Promise<Response> {
   const tokens = parseTokens(process.env.INBOX_TOKENS);
 
-  // Parse first so we know the source kind for the per-kind auth check.
+  // Size gate before parsing and before any auth reasoning (spec: 413 wins
+  // over 401 — an oversized body yields no source.kind, and 413 leaks nothing).
+  const tooLarge = () =>
+    Response.json(
+      { error: `body too large (max ${MAX_INBOX_BODY_BYTES} bytes)` },
+      { status: 413 },
+    );
+  const declared = Number(request.headers.get("content-length") ?? "");
+  if (Number.isFinite(declared) && declared > MAX_INBOX_BODY_BYTES) return tooLarge();
+
+  // The header can lie or be absent (chunked encoding): measure what arrived.
+  // Buffering fully before checking is fine here: even a body that lies about
+  // or omits Content-Length is capped by the platform's own request-size
+  // limit (~4.5 MB on Vercel), so this can never grow unbounded.
+  const text = await request.text();
+  if (Buffer.byteLength(text) > MAX_INBOX_BODY_BYTES) return tooLarge();
+
   let body: unknown;
   try {
-    body = await request.json();
+    body = JSON.parse(text);
   } catch {
     return Response.json({ error: "invalid JSON body" }, { status: 400 });
   }
