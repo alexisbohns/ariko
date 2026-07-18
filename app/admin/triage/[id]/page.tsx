@@ -34,6 +34,19 @@ export default async function TriagePage({
         <h2>{resolveText(capture.title)}</h2>
         {note ? <p>{note}</p> : null}
         <p>source: {capture.source.kind}</p>
+        {capture.suggested ? (
+          <p>
+            suggested:{" "}
+            {[
+              capture.suggested.moleculeSlug && `molecule ${capture.suggested.moleculeSlug}`,
+              capture.suggested.atomSlug && `atom ${capture.suggested.atomSlug}`,
+              capture.suggested.type && `type ${capture.suggested.type}`,
+              capture.suggested.tags?.length ? `tags ${capture.suggested.tags.join(", ")}` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+        ) : null}
         {capture.media.length > 0 ? (
           <ul>
             {capture.media.map((m, i) => (
@@ -53,7 +66,7 @@ export default async function TriagePage({
           <p>
             <label>
               Existing{" "}
-              <select name="moleculeSlug" defaultValue="">
+              <select name="moleculeSlug" defaultValue={capture.suggested?.moleculeSlug ?? ""}>
                 <option value="">— none —</option>
                 {molecules.map((m) => (
                   <option key={m.slug} value={m.slug}>
@@ -90,7 +103,7 @@ export default async function TriagePage({
           <p>
             <label>
               Existing{" "}
-              <select name="atomSlug" defaultValue="">
+              <select name="atomSlug" defaultValue={capture.suggested?.atomSlug ?? ""}>
                 <option value="">— none —</option>
                 {atoms.map((a) => (
                   <option key={a.slug} value={a.slug}>
@@ -136,7 +149,7 @@ export default async function TriagePage({
           </p>
           <p>
             <label>
-              Type <input type="text" name="type" required />
+              Type <input type="text" name="type" required defaultValue={capture.suggested?.type ?? ""} />
             </label>
           </p>
           <p>
