@@ -56,7 +56,7 @@ As of the Ingestion Spine slice, content can be captured into Mongo via API inst
 
 Bearer-authenticated capture ingestion: `Authorization: Bearer <token>`.
 
-Body: `{ title, body?, content?, media?: [], source: { kind, url?, externalId? }, suggested? }`.
+Body: `{ title, body?, content?, media?: [], source: { kind, url?, externalId? }, suggested? }`. Bodies over 256 KB are rejected with `413` before parsing or auth.
 
 * Dedups/upserts on `(source.kind, source.externalId)` when `externalId` is present; otherwise every post creates a new capture.
 * Embed media (`{ kind: "embed", url }`) auto-detects its provider (YouTube, Vimeo, etc.) when `provider` is omitted.

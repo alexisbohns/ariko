@@ -52,6 +52,7 @@ with no DB; DB/glue is smoke-tested.
 | **B1 — Bilingual `Text` widening** | — | `name`/`description` widened to `Text` across the model (plain strings stay valid — no migration); strict `textPart` + `composeText` helpers; WYSIWYG en/fr inputs on the triage/edit forms; every read surface resolves via `resolveText` (blank parts fall through); `GraphNode.name` stays `string`. |
 | **G2 — `relations[]` non-containment edges** | — | `Relation { kind, ref }` on Version (prefixed refs incl. `version:`); `filterPublic` scrubs relations fail-closed to projection-surviving targets (malformed shapes tolerated — one bad doc can't 500 the public site); `toGraph` emits per-kind relation edges with `(source, target, kind)` dedup; public dump renders `kind → ref`. No referential integrity needed, by design. Authoring UI deferred. |
 | **C1a — Lab Note pipeline (GitHub connector)** | #17 | Merged PRs post bilingual Lab Note captures to `/api/inbox` via a reusable workflow owned by ariko (self-dogfooding trigger included); `Capture.title` widened to `Text`. |
+| **C1b — Inbox go-live hardening** | #?? | E11000 single-retry on the dedup upsert (concurrent posts converge); constant-time bearer-token compare (SHA-256 + `timingSafeEqual`, no-early-exit scan); 256 KB body cap on `/api/inbox` (413 before auth). |
 
 The admin loop is complete end to end: **capture → triage → publish → browse → edit / un-publish**,
 and the public projection is now consistent in **both directions** (publish lifts a lineage up,
@@ -99,11 +100,8 @@ matters to the north star) and an **explanation** (what it entails / where it or
 
 - **C1 · Connectors (GitHub / Arkaik / changelog → `POST /api/inbox`)**
   - *Intention:* feed the vault automatically from the tools where work already happens.
-  - *Explanation:* external services post captures with a bearer token. Going live here triggers two
-    already-scoped hardening items: a `catch(E11000) → retry as updateOne` for the **concurrent
-    double-upsert race**, and endpoint hardening for untrusted exposure (constant-time token compare,
-    max-body-size guard before `request.json()`). *(Origin: 2a deferred follow-ups.)*
-  - *Status:* GitHub half shipped 2026-07-18 (Lab Note pipeline, spec `2026-07-18-lab-note-pipeline-design.md`). Remaining: skill/plugin distribution + caller-stub fan-out (deferred follow-ups in the plan), Arkaik/changelog connectors, and the two go-live hardening items above.
+  - *Explanation:* external services post captures with a bearer token. Go-live hardening shipped as **C1b** (see Shipped). *(Origin: 2a deferred follow-ups.)*
+  - *Status:* GitHub half shipped 2026-07-18 (Lab Note pipeline, spec `2026-07-18-lab-note-pipeline-design.md`). Remaining: skill/plugin distribution + caller-stub fan-out (deferred follow-ups in the plan), and Arkaik/changelog connectors (hardening shipped as C1b).
 
 - **C2 · AI-assisted classification**
   - *Intention:* reduce triage friction by pre-filling the target molecule/atom/type/tags.
