@@ -65,12 +65,12 @@ try {
     body: JSON.stringify(payload),
   });
 } catch (err) {
-  console.error(`lab-note: ${arikoUrl} unreachable: ${err.message} — re-run when it is back.`);
+  console.error(`lab-note: ${arikoUrl} unreachable: ${err.cause?.message ?? err.message} — re-run when it is back.`);
   process.exit(3);
 }
 
 const { outcome, exitCode } = classifyResponse(res.status);
-const detail = await res.text();
+const detail = (await res.text()).slice(0, 1000);
 if (exitCode === 0) {
   console.log(`lab-note: ${outcome} (HTTP ${res.status}) ${detail}`);
 } else if (outcome === "unauthorized") {
