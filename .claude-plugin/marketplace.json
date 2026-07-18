@@ -1,0 +1,13 @@
+{
+  "name": "ariko",
+  "owner": {
+    "name": "Alexis Bohns"
+  },
+  "plugins": [
+    {
+      "name": "lab-note",
+      "source": "./plugins/lab-note",
+      "description": "Author bilingual (EN/FR) Lab Notes in PR bodies — merged PRs post them to the Ariko inbox automatically."
+    }
+  ]
+}
