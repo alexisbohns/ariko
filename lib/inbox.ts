@@ -1,6 +1,10 @@
 import type { LocalizedText, Media, MediaImage, Source, CaptureSuggestion, Text } from "./data";
 import { detectEmbed } from "./embeds";
 
+// Hard cap for /api/inbox request bodies (spec 2026-07-18-c1-hardening §5):
+// ~17× under Vercel's platform limit, far above any real capture.
+export const MAX_INBOX_BODY_BYTES = 256 * 1024;
+
 // Media as it arrives in a raw JSON payload: an embed may omit `provider`
 // (we detect it), while the stored `Media` type always has one.
 export type InputMedia =
