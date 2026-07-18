@@ -1,0 +1,71 @@
+# Reusable Lab Note workflow (C1). Other repos call it @main via a ~10-line stub
+# (see README "Lab Note pipeline"); ariko itself dogfoods the same file through
+# the pull_request trigger below. Checking out ariko@main on every run is the
+# freshness mechanism: callers always execute the current logic.
+name: lab-note
+
+on:
+  workflow_call:
+    inputs:
+      ariko_url:
+        description: Ariko origin to post to
+        type: string
+        required: false
+        default: https://www.ariko.app
+      dry_run:
+        description: Print the payload instead of posting
+        type: boolean
+        required: false
+        default: false
+    secrets:
+      inbox_token:
+        required: true
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number to rehearse or backfill
+        type: string
+        required: true
+      ariko_url:
+        description: Ariko origin to post to
+        type: string
+        required: false
+        default: https://www.ariko.app
+      dry_run:
+        description: Print the payload instead of posting
+        type: boolean
+        required: false
+        default: true
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  post:
+    # Direct pull_request runs (ariko's own PRs) only proceed on merge; a called
+    # run inherits the caller's event, so the same guard covers their PRs too.
+    # workflow_dispatch passes through (backfill/rehearsal of any PR).
+    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: alexisbohns/ariko
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --prefix scripts/lab-note --no-audit --no-fund
+      - name: Post lab note
+        env:
+          LAB_NOTE_REPO: ${{ github.repository }}
+          LAB_NOTE_PR: ${{ inputs.pr_number || github.event.pull_request.number }}
+          ARIKO_URL: ${{ inputs.ariko_url || 'https://www.ariko.app' }}
+          DRY_RUN: ${{ inputs.dry_run == true && 'true' || 'false' }}
+          GITHUB_TOKEN: ${{ github.token }}
+          # inbox_token when called; ariko's own repo secret on direct runs.
+          INBOX_TOKEN: ${{ secrets.inbox_token || secrets.ARIKO_INBOX_TOKEN }}
+        run: node scripts/lab-note/post.mjs
