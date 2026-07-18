@@ -52,7 +52,7 @@ with no DB; DB/glue is smoke-tested.
 | **B1 — Bilingual `Text` widening** | — | `name`/`description` widened to `Text` across the model (plain strings stay valid — no migration); strict `textPart` + `composeText` helpers; WYSIWYG en/fr inputs on the triage/edit forms; every read surface resolves via `resolveText` (blank parts fall through); `GraphNode.name` stays `string`. |
 | **G2 — `relations[]` non-containment edges** | — | `Relation { kind, ref }` on Version (prefixed refs incl. `version:`); `filterPublic` scrubs relations fail-closed to projection-surviving targets (malformed shapes tolerated — one bad doc can't 500 the public site); `toGraph` emits per-kind relation edges with `(source, target, kind)` dedup; public dump renders `kind → ref`. No referential integrity needed, by design. Authoring UI deferred. |
 | **C1a — Lab Note pipeline (GitHub connector)** | #17 | Merged PRs post bilingual Lab Note captures to `/api/inbox` via a reusable workflow owned by ariko (self-dogfooding trigger included); `Capture.title` widened to `Text`. |
-| **C1b — Inbox go-live hardening** | #?? | E11000 single-retry on the dedup upsert (concurrent posts converge); constant-time bearer-token compare (SHA-256 + `timingSafeEqual`, no-early-exit scan); 256 KB body cap on `/api/inbox` (413 before auth). |
+| **C1b — Inbox go-live hardening** | #18 | E11000 single-retry on the dedup upsert (concurrent posts converge); constant-time bearer-token compare (SHA-256 + `timingSafeEqual`, no-early-exit scan); 256 KB body cap on `/api/inbox` (413 before auth). |
 
 The admin loop is complete end to end: **capture → triage → publish → browse → edit / un-publish**,
 and the public projection is now consistent in **both directions** (publish lifts a lineage up,
