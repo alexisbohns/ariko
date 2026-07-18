@@ -10,7 +10,7 @@ export default async function LoginPage({
   const { error } = await searchParams;
   return (
     <article>
-      <h1>Beanstalk admin</h1>
+      <h1>Ariko admin</h1>
       <form action={loginAction}>
         <p>
           <label>
