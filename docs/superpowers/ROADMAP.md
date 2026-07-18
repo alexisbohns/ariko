@@ -1,6 +1,6 @@
 # Beanstalk — Roadmap
 
-**Last updated:** 2026-07-14
+**Last updated:** 2026-07-18
 
 This is the single, browsable view of where Beanstalk is and what's next. It **aggregates** the
 "Deferred to later specs / follow-ups" sections that live at the bottom of each plan in

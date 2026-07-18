@@ -133,6 +133,8 @@ gh workflow run lab-note.yml --repo alexisbohns/ariko -f pr_number=<N> -f dry_ru
 gh run watch --repo alexisbohns/ariko   # dry_run prints the payload it would post
 ```
 
+Passing `-f dry_run=false` instead performs a real, dedup-safe post (backfill): posting upserts on `owner/repo#N`, so re-runs update the same capture. Note that `workflow_dispatch` exists only on ariko's own copy of the workflow and resolves `pr_number` against **this repo's** PRs — sibling repos' stubs run on merge only and cannot be dispatched.
+
 ## Admin zone
 
 As of Plan 2b-i, a password-gated admin zone lets you capture into the inbox from the browser and review it — no curl needed. It is intentionally **bare functional HTML** (no CSS, no client JavaScript) until the project's artistic direction is set; triage/promote/publish (2b-ii) and the vault browser (2b-iii) come next.
