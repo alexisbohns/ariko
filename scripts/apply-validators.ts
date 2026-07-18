@@ -29,7 +29,17 @@ async function main() {
     required: ["id", "title", "source", "status"],
     properties: {
       id: { bsonType: "string" },
-      title: { bsonType: "string" },
+      // Text since C1: plain string or { en?, fr? } — mirrors lib/inbox.ts normalizeTextInput.
+      title: {
+        oneOf: [
+          { bsonType: "string" },
+          {
+            bsonType: "object",
+            properties: { en: { bsonType: "string" }, fr: { bsonType: "string" } },
+            additionalProperties: false,
+          },
+        ],
+      },
       status: { enum: ["inbox", "promoted", "discarded"] },
       source: {
         bsonType: "object",
