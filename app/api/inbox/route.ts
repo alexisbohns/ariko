@@ -16,6 +16,9 @@ export async function POST(request: Request): Promise<Response> {
   if (Number.isFinite(declared) && declared > MAX_INBOX_BODY_BYTES) return tooLarge();
 
   // The header can lie or be absent (chunked encoding): measure what arrived.
+  // Buffering fully before checking is fine here: even a body that lies about
+  // or omits Content-Length is capped by the platform's own request-size
+  // limit (~4.5 MB on Vercel), so this can never grow unbounded.
   const text = await request.text();
   if (Buffer.byteLength(text) > MAX_INBOX_BODY_BYTES) return tooLarge();
 
