@@ -1,4 +1,4 @@
-/node_modules
+node_modules/
 /.next
 /out
 *.tsbuildinfo
@@ -8,3 +8,5 @@ next-env.d.ts
 
 # Visual brainstorming companion (local mockups, not source)
 .superpowers/
+.vercel
+.env*
