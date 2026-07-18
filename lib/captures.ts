@@ -19,15 +19,16 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-// One retry converges after a lost upsert race: the winner's document exists by
-// the time the loser retries, so the second attempt takes the update path.
-// Anything but a duplicate-key error (code 11000) — and a second consecutive
-// 11000 — propagates unchanged.
+// Retries fn exactly once when it rejects with a Mongo duplicate-key error
+// (code 11000); anything else — and a second consecutive 11000 — propagates
+// unchanged. Safe for the dedup upsert below because one retry converges: the
+// winner's document exists by the time the loser retries, so the second
+// attempt takes the update path. (A plain insert would NOT converge this way.)
 export async function withDuplicateKeyRetry<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (err) {
-    if ((err as { code?: number }).code === 11000) return fn();
+    if (typeof err === "object" && err !== null && (err as { code?: number }).code === 11000) return fn();
     throw err;
   }
 }
