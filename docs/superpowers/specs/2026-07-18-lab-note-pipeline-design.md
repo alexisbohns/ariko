@@ -166,10 +166,15 @@ recoverable by re-run because posting is idempotent.
 
 ## 9. Rollout
 
-**Prerequisite:** Beanstalk deployed at a public URL (planned; not yet live at
-design time). Steps 1 can land before it — unit tests and `dry_run` need no
-deployment — but the first real post (step 2) and the fan-out (step 4) require
-it, and the reusable workflow's `beanstalk_url` default is filled in then.
+**Prerequisite:** Beanstalk deployed and healthy at its public URL —
+**`https://www.ariko.app`** (Vercel; the apex `ariko.app` 308-redirects to
+`www`, so the workflow's `beanstalk_url` default is the `www` origin to avoid
+POSTs bouncing through a redirect). At design time the deployment exists but
+500s: the Vercel project lacks the runtime env vars (`MONGODB_URI` et al.);
+`INBOX_TOKENS` with the `github:`-scoped token must also be set there for
+`/api/inbox` to accept the workflow's posts. Step 1 can land before the env
+fix — unit tests and `dry_run` need no deployment — but the first real post
+(step 2) and the fan-out (step 4) require it.
 
 1. **Beanstalk first**: title widening + script + tests + reusable workflow +
    beanstalk's own caller stub + mint the `github:` token + README/ROADMAP
