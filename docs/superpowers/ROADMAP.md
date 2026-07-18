@@ -51,8 +51,9 @@ with no DB; DB/glue is smoke-tested.
 | **G1 — Public graph endpoint** | #11 | `GET /api/graph`: pure `toGraph` serializer (`lib/graph.ts`) over `filterPublic` — stable prefixed-ref node ids (incl. `version:`), containment edges with the both-ends prune rule, minimal node payload (no description/content/media/source until B3). The graph playground's data contract is live. |
 | **B1 — Bilingual `Text` widening** | — | `name`/`description` widened to `Text` across the model (plain strings stay valid — no migration); strict `textPart` + `composeText` helpers; WYSIWYG en/fr inputs on the triage/edit forms; every read surface resolves via `resolveText` (blank parts fall through); `GraphNode.name` stays `string`. |
 | **G2 — `relations[]` non-containment edges** | — | `Relation { kind, ref }` on Version (prefixed refs incl. `version:`); `filterPublic` scrubs relations fail-closed to projection-surviving targets (malformed shapes tolerated — one bad doc can't 500 the public site); `toGraph` emits per-kind relation edges with `(source, target, kind)` dedup; public dump renders `kind → ref`. No referential integrity needed, by design. Authoring UI deferred. |
-| **C1a — Lab Note pipeline (GitHub connector)** | #17 | Merged PRs post bilingual Lab Note captures to `/api/inbox` via a reusable workflow owned by ariko (self-dogfooding trigger included); `Capture.title` widened to `Text`. |
+| **C1a — Lab Note pipeline (GitHub connector)** | #17 | Merged PRs post bilingual Lab Note captures to `/api/inbox` via a reusable workflow owned by ariko (self-dogfooding trigger included); `Capture.title` widened to `Text`. Spec `2026-07-18-lab-note-pipeline-design.md`; shipped 2026-07-18. |
 | **C1b — Inbox go-live hardening** | #18 | E11000 single-retry on the dedup upsert (concurrent posts converge); constant-time bearer-token compare (SHA-256 + `timingSafeEqual`, no-early-exit scan); 256 KB body cap on `/api/inbox` (413 before auth). |
+| **C1c — Lab Note fan-out kit** | #19 | Harmonized authoring skill shipped as a Claude Code plugin (`ariko` marketplace); sibling rollout via templated issues + centrally-set secrets — no pushes to sibling repos. |
 
 The admin loop is complete end to end: **capture → triage → publish → browse → edit / un-publish**,
 and the public projection is now consistent in **both directions** (publish lifts a lineage up,
@@ -101,7 +102,7 @@ matters to the north star) and an **explanation** (what it entails / where it or
 - **C1 · Connectors (GitHub / Arkaik / changelog → `POST /api/inbox`)**
   - *Intention:* feed the vault automatically from the tools where work already happens.
   - *Explanation:* external services post captures with a bearer token. Go-live hardening shipped as **C1b** (see Shipped). *(Origin: 2a deferred follow-ups.)*
-  - *Status:* GitHub half shipped 2026-07-18 (Lab Note pipeline, spec `2026-07-18-lab-note-pipeline-design.md`). Remaining: skill/plugin distribution + caller-stub fan-out (deferred follow-ups in the plan), and Arkaik/changelog connectors (hardening shipped as C1b).
+  - *Status:* Plugin + fan-out kit shipped as C1c; caller stubs land via per-repo issues (C1 GitHub half done when they close). Remaining: Arkaik/changelog connectors.
 
 - **C2 · AI-assisted classification**
   - *Intention:* reduce triage friction by pre-filling the target molecule/atom/type/tags.

@@ -103,6 +103,11 @@ tests + thin CLI) and the reusable workflow `.github/workflows/lab-note.yml`,
 which every repo calls `@main`. This repo triggers the same file directly on
 its own merged PRs.
 
+**Authoring** — the harmonized `lab-note` skill ships as a Claude Code plugin
+from this repo: `/plugin marketplace add alexisbohns/ariko`, then
+`/plugin install lab-note@ariko`. One install serves every repo; pbbls keeps
+its repo-local superset skill, which takes precedence there by design.
+
 **Wiring another repo** — add `.github/workflows/lab-note.yml`:
 
 ```yaml

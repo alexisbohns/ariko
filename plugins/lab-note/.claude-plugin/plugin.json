@@ -1,0 +1,8 @@
+{
+  "name": "lab-note",
+  "description": "Author bilingual (EN/FR) Lab Notes in PR bodies — merged PRs post them to the Ariko inbox automatically.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Alexis Bohns"
+  }
+}
