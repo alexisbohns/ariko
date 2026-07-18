@@ -31,6 +31,10 @@ function bearer(header: string | null): string | null {
 // Equality via SHA-256 digests: the buffers handed to timingSafeEqual are
 // always equal-length, so neither the content nor the length of the candidate
 // leaks through timing.
+// Not interchangeable with lib/session.ts's timingSafeEqual: that one is an
+// edge-safe XOR loop that is only safe on pre-hashed fixed-length hex, while
+// this one hashes internally (safe for raw variable-length strings) but needs
+// node:crypto — Node-runtime callers only.
 function timingSafeEqualStr(a: string, b: string): boolean {
   const da = createHash("sha256").update(a).digest();
   const db = createHash("sha256").update(b).digest();
@@ -48,8 +52,8 @@ export function authorize(
   // Scan every entry without early exit: iteration count is independent of
   // where (or whether) the candidate matches.
   let matched: Set<string> | null = null;
-  for (const [candidate, kinds] of tokens) {
-    if (timingSafeEqualStr(token, candidate)) matched = kinds;
+  for (const [stored, kinds] of tokens) {
+    if (timingSafeEqualStr(token, stored)) matched = kinds;
   }
   if (!matched) return "unauthorized";
   if (matched.has("*") || matched.has(sourceKind)) return "ok";
@@ -64,8 +68,8 @@ export function hasValidToken(
   const token = bearer(header);
   if (token == null) return false;
   let found = false;
-  for (const [candidate] of tokens) {
-    if (timingSafeEqualStr(token, candidate)) found = true;
+  for (const [stored] of tokens) {
+    if (timingSafeEqualStr(token, stored)) found = true;
   }
   return found;
 }
