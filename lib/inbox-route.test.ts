@@ -16,8 +16,23 @@ function req(body: unknown, auth?: string): Request {
 
 test("413 when the declared/actual body exceeds the cap", async () => {
   process.env.INBOX_TOKENS = "*:tok_master";
-  // A string body sets content-length automatically → exercises the header fast-path.
+  // No auto content-length in this runtime — this exercises the measured check.
   const res = await POST(req("x".repeat(MAX_INBOX_BODY_BYTES + 1), "Bearer tok_master"));
+  assert.equal(res.status, 413);
+});
+
+test("413 via the content-length fast path alone (tiny body, lying-large header)", async () => {
+  process.env.INBOX_TOKENS = "*:tok_master";
+  const res = await POST(
+    new Request("http://localhost/api/inbox", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "content-length": String(MAX_INBOX_BODY_BYTES + 1),
+      },
+      body: "{}",
+    }),
+  );
   assert.equal(res.status, 413);
 });
 
