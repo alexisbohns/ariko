@@ -72,6 +72,71 @@ Bearer-authenticated Cloudinary image upload: `Authorization: Bearer <token>`, b
 
 The admin UI builds on these endpoints. Connectors post to `/api/inbox` with a bearer token; the browser capture bar (below) reaches the same capture path through a session-authenticated server action.
 
+### Lab Note pipeline (C1 · GitHub connector)
+
+Merging a PR whose body contains a `## Lab Note` section posts a bilingual
+capture to the inbox automatically. The section holds one ```yaml fence:
+
+    ## Lab Note
+
+    ```yaml
+    en:
+      title: Relations join the public graph      # required
+      summary: One or two sentences, user-facing. # required
+    fr:                                           # recommended — adaptation, not translation
+      title: Les relations rejoignent le graphe
+      summary: Une ou deux phrases.
+    suggested:                                    # optional — prefills triage
+      molecule: ariko
+      atom: public-graph
+      type: feature
+      tags: [changelog, graph]
+    ```
+
+Unknown top-level keys are ignored (pbbls keeps its superset keys in the same
+block). No section → the job logs "skipped". A malformed note fails the job;
+edit the merged PR's body and re-run — the script fetches the live body and
+posting is idempotent (upsert on `owner/repo#N`).
+
+**Machinery** (all owned by this repo): `scripts/lab-note/` (pure logic +
+tests + thin CLI) and the reusable workflow `.github/workflows/lab-note.yml`,
+which every repo calls `@main`. This repo triggers the same file directly on
+its own merged PRs.
+
+**Wiring another repo** — add `.github/workflows/lab-note.yml`:
+
+```yaml
+name: lab-note
+on:
+  pull_request:
+    types: [closed]
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  lab-note:
+    if: github.event.pull_request.merged == true
+    uses: alexisbohns/ariko/.github/workflows/lab-note.yml@main
+    secrets:
+      inbox_token: ${{ secrets.ARIKO_INBOX_TOKEN }}
+```
+
+and set its secret once (the `github:`-scoped token from Ariko's
+`INBOX_TOKENS`, so a leaked CI token can only write `kind:"github"` captures):
+
+```bash
+gh secret set ARIKO_INBOX_TOKEN --repo alexisbohns/<repo> --body "$TOKEN"
+```
+
+**Rehearsal / backfill** (workflow file must be on `main`):
+
+```bash
+gh workflow run lab-note.yml --repo alexisbohns/ariko -f pr_number=<N> -f dry_run=true
+gh run watch --repo alexisbohns/ariko   # dry_run prints the payload it would post
+```
+
+Passing `-f dry_run=false` instead performs a real, dedup-safe post (backfill): posting upserts on `owner/repo#N`, so re-runs update the same capture. Note that `workflow_dispatch` exists only on ariko's own copy of the workflow and resolves `pr_number` against **this repo's** PRs — sibling repos' stubs run on merge only and cannot be dispatched.
+
 ## Admin zone
 
 As of Plan 2b-i, a password-gated admin zone lets you capture into the inbox from the browser and review it — no curl needed. It is intentionally **bare functional HTML** (no CSS, no client JavaScript) until the project's artistic direction is set; triage/promote/publish (2b-ii) and the vault browser (2b-iii) come next.

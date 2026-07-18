@@ -78,3 +78,37 @@ test("rejects malformed media entries instead of throwing", () => {
 test("rejects a present-but-non-string externalId (dedup key must not be silently dropped)", () => {
   assert.equal(validateInboxPayload({ title: "hi", source: { kind: "github", externalId: 42 } }).ok, false);
 });
+
+test("accepts a bilingual { en, fr } title and trims its parts", () => {
+  const r = validateInboxPayload({
+    title: { en: "  Relations ship  ", fr: " Les relations arrivent " },
+    source: { kind: "github" },
+  });
+  assert.equal(r.ok, true);
+  if (r.ok) {
+    assert.deepEqual(r.value.title, { en: "Relations ship", fr: "Les relations arrivent" });
+  }
+});
+
+test("accepts an fr-only object title", () => {
+  const r = validateInboxPayload({ title: { fr: "Bonjour" }, source: { kind: "manual" } });
+  assert.equal(r.ok, true);
+  if (r.ok) assert.deepEqual(r.value.title, { fr: "Bonjour" });
+});
+
+test("drops blank-string title parts instead of storing them", () => {
+  const r = validateInboxPayload({ title: { en: "Hi", fr: "   " }, source: { kind: "manual" } });
+  assert.equal(r.ok, true);
+  if (r.ok) assert.deepEqual(r.value.title, { en: "Hi" });
+});
+
+test("rejects junk titles", () => {
+  const junk: unknown[] = [42, true, [], {}, { en: "" }, { fr: "   " }, { en: 42 }, { en: "ok", fr: 7 }];
+  for (const title of junk) {
+    assert.equal(
+      validateInboxPayload({ title, source: { kind: "manual" } }).ok,
+      false,
+      `should reject title ${JSON.stringify(title)}`,
+    );
+  }
+});

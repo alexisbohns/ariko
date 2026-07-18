@@ -1,0 +1,8 @@
+{
+  "name": "ariko-lab-note",
+  "private": true,
+  "description": "Posts a merged PR's Lab Note section to the Ariko inbox. Run by .github/workflows/lab-note.yml; pure logic in lib.mjs, I/O shell in post.mjs.",
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  }
+}

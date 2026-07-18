@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --import tsx --test \"lib/**/*.test.ts\"",
+    "test": "node --import tsx --test \"lib/**/*.test.ts\" \"scripts/lab-note/*.test.mjs\"",
     "migrate": "node --env-file=.env.local --import tsx scripts/migrate-seed.ts",
     "validators": "node --env-file=.env.local --import tsx scripts/apply-validators.ts"
   },
