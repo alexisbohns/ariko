@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 export const metadata = {
-  title: "Beanstalk",
+  title: "Ariko",
   description: "An atomic portfolio of creative and professional work.",
 };
 

@@ -1,4 +1,6 @@
-# Beanstalk
+# Ariko
+
+*Formerly "Beanstalk" — renamed 2026-07-18. Live at [www.ariko.app](https://www.ariko.app) (Vercel). The Mongo database keeps the legacy name `beanstalk`.*
 
 * **Intention**: I want to showcase all my creative and professional work, organized around an atomic content model.
 * **Vision**: Everything I create — songs, product features, podcast episodes, blog posts — is an atom. Atoms group into molecules (albums, products, podcasts, blogs). The key insight is that atoms evolve: every atom has one or more versions, which are the fundamental unit of work. A song can have a demo, a studio recording, a live version. A feature can have a POC, an MVP, a V2. The portfolio tells the story of evolution, not just the final state.

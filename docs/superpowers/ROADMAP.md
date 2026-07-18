@@ -1,8 +1,8 @@
-# Beanstalk — Roadmap
+# Ariko — Roadmap
 
 **Last updated:** 2026-07-14
 
-This is the single, browsable view of where Beanstalk is and what's next. It **aggregates** the
+This is the single, browsable view of where Ariko is and what's next. It **aggregates** the
 "Deferred to later specs / follow-ups" sections that live at the bottom of each plan in
 `docs/superpowers/plans/`. Those per-plan sections remain the authoritative source; this file rolls
 them up, adds the *why*, and orders them. When a slice ships, move its item to **Shipped** and prune
@@ -12,7 +12,7 @@ the corresponding per-plan note if it's fully covered.
 
 ## North star (intention)
 
-Beanstalk is a personal **"central node"**: a place that showcases all of Alexis's creative and
+Ariko is a personal **"central node"**: a place that showcases all of Alexis's creative and
 professional work on an **atomic content model** — `Molecule → Atom → Version`. An atom is any unit
 of work (a song, a product feature, a podcast episode, a post); atoms **evolve** through versions
 (demo → studio → live; POC → MVP → V2). The portfolio tells the story of *evolution*, not just the
