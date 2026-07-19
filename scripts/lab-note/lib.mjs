@@ -102,3 +102,73 @@ export function classifyResponse(status) {
   if (status === 400) return { outcome: "rejected", exitCode: 2 };
   return { outcome: "unreachable", exitCode: 3 };
 }
+
+// --- Advisory reminder (C1d) ---------------------------------------------------
+// The reminder is a non-blocking PR-open counterpart to the merge-time post: it
+// nudges when a PR has no valid Lab Note, and shifts note validation left. It
+// never classifies "user-facing" from the diff — instead it nags on any PR that
+// has neither a valid note nor the opt-out label, which is cheap because it only
+// comments. Same gate/parse as the post path (extractLabNoteYaml + parseLabNote).
+
+// Opt-out label that silences the reminder (chore/refactor/infra/docs PRs).
+export const OPT_OUT_LABEL = "no-lab-note";
+
+// Hidden marker that identifies our comment so the shell can upsert exactly one.
+export const REMINDER_MARKER = "<!-- lab-note-reminder -->";
+
+// Pure verdict for a PR body + context. States:
+//   ok       valid note present            → no reminder (remove any stale one)
+//   missing  no "## Lab Note" section       → reminder
+//   invalid  section present but malformed   → reminder naming the exact problem
+//   skipped  draft, or opt-out label present → no reminder
+export function reminderVerdict(prBody, { hasOptOutLabel = false, isDraft = false } = {}) {
+  if (isDraft) return { state: "skipped", reason: "draft" };
+  if (hasOptOutLabel) return { state: "skipped", reason: `${OPT_OUT_LABEL} label` };
+  const yamlText = extractLabNoteYaml(prBody ?? "");
+  if (yamlText === null) return { state: "missing" };
+  const parsed = parseLabNote(yamlText);
+  if (!parsed.ok) return { state: "invalid", error: parsed.error };
+  return { state: "ok" };
+}
+
+// Markdown comment body for a verdict, or null when no comment should exist.
+// molecule is this repo's suggested slug, shown in the skeleton. Built without
+// template literals so the embedded ```yaml fence stays literal.
+export function reminderComment(verdict, { molecule = "ariko" } = {}) {
+  if (verdict.state !== "missing" && verdict.state !== "invalid") return null;
+  const lines = [REMINDER_MARKER];
+  if (verdict.state === "invalid") {
+    lines.push(
+      "⚠️ **Lab Note check** — the `## Lab Note` section is present but invalid: **" +
+        verdict.error +
+        "**.",
+      "",
+      "Fix the YAML in the PR body (see the `lab-note` skill or `CLAUDE.md`). Catching it now avoids a loud failure when the post-on-merge job runs.",
+    );
+  } else {
+    lines.push(
+      "📋 **Lab Note check** — this PR has no `## Lab Note` section.",
+      "",
+      "If it changes something a user, visitor, or listener would notice, add one so the change files itself into the Ariko inbox on merge (see the `lab-note` skill or `CLAUDE.md`):",
+      "",
+      "```yaml",
+      "en:",
+      "  title: Short, benefit-first title             # required",
+      "  summary: One or two sentences, user-facing.   # required",
+      "fr:                                             # recommended — adaptation, informal \"Tu\"",
+      "  title: Titre court, orienté bénéfice",
+      "  summary: Une ou deux phrases, adaptées, pas traduites littéralement.",
+      "suggested:                                      # optional",
+      "  molecule: " + molecule,
+      "  type: feature",
+      "  tags: [changelog]",
+      "```",
+      "",
+      "Just a chore / refactor / infra / docs change? Add the **`" +
+        OPT_OUT_LABEL +
+        "`** label and this check goes quiet.",
+    );
+  }
+  lines.push("", "_Non-blocking reminder from the Lab Note pipeline._");
+  return lines.join("\n");
+}

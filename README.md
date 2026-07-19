@@ -108,7 +108,20 @@ from this repo: `/plugin marketplace add alexisbohns/ariko`, then
 `/plugin install lab-note@ariko`. One install serves every repo; pbbls keeps
 its repo-local superset skill, which takes precedence there by design.
 
-**Wiring another repo** — add `.github/workflows/lab-note.yml`:
+**Making it a requirement** (C1d) — a skill is discretionary and only present
+where the plugin is installed, so three always-on layers keep every repo honest:
+
+1. **`CLAUDE.md`** carries the requirement and a self-sufficient copy of the
+   contract, so an agent authors a valid note even with no plugin loaded.
+2. **`.github/pull_request_template.md`** pre-seeds the `## Lab Note` section as
+   the default PR body (delete it for chore/refactor/infra/docs PRs).
+3. An **advisory reminder** — the reusable `lab-note-reminder.yml` workflow —
+   comments on a PR that lacks a valid note (and surfaces malformed notes at
+   PR-open instead of loudly at merge). It never blocks; add the **`no-lab-note`**
+   label to silence it. Machinery: `scripts/lab-note/remind.mjs` +
+   `reminderVerdict`/`reminderComment` in `lib.mjs`.
+
+**Wiring another repo** — add `.github/workflows/lab-note.yml` (post on merge):
 
 ```yaml
 name: lab-note
@@ -131,6 +144,22 @@ and set its secret once (the `github:`-scoped token from Ariko's
 
 ```bash
 gh secret set ARIKO_INBOX_TOKEN --repo alexisbohns/<repo> --body "$TOKEN"
+```
+
+For the advisory reminder, add `.github/workflows/lab-note-reminder.yml` too — no
+secret needed (it comments with the built-in `GITHUB_TOKEN`):
+
+```yaml
+name: lab-note-reminder
+on:
+  pull_request:
+    types: [opened, edited, synchronize, labeled, unlabeled, ready_for_review]
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  lab-note-reminder:
+    uses: alexisbohns/ariko/.github/workflows/lab-note-reminder.yml@main
 ```
 
 **Rehearsal / backfill** (workflow file must be on `main`):

@@ -1,0 +1,39 @@
+# Reusable advisory Lab Note reminder (C1d). Non-blocking: comments on a PR that
+# lacks a valid "## Lab Note" section so user-facing changes don't merge without
+# one, and surfaces malformed notes at PR-open instead of loudly at merge. Opt out
+# with the "no-lab-note" label. Siblings call it @main via a stub; ariko dogfoods
+# it through the pull_request trigger below. Checks out ariko@main on every run so
+# callers always execute the current logic. No inbox token — commenting uses the
+# built-in GITHUB_TOKEN.
+name: lab-note-reminder
+
+on:
+  workflow_call: {}
+  pull_request:
+    types: [opened, edited, synchronize, labeled, unlabeled, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  remind:
+    # Skip drafts (the shell also guards this; here it avoids running at all). A
+    # called run inherits the caller's event, so the same guard covers their PRs.
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: alexisbohns/ariko
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --prefix scripts/lab-note --no-audit --no-fund
+      - name: Lab Note reminder
+        env:
+          LAB_NOTE_REPO: ${{ github.repository }}
+          LAB_NOTE_PR: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/lab-note/remind.mjs
