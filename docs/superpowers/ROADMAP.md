@@ -54,6 +54,7 @@ with no DB; DB/glue is smoke-tested.
 | **C1a — Lab Note pipeline (GitHub connector)** | #17 | Merged PRs post bilingual Lab Note captures to `/api/inbox` via a reusable workflow owned by ariko (self-dogfooding trigger included); `Capture.title` widened to `Text`. Spec `2026-07-18-lab-note-pipeline-design.md`; shipped 2026-07-18. |
 | **C1b — Inbox go-live hardening** | #18 | E11000 single-retry on the dedup upsert (concurrent posts converge); constant-time bearer-token compare (SHA-256 + `timingSafeEqual`, no-early-exit scan); 256 KB body cap on `/api/inbox` (413 before auth). |
 | **C1c — Lab Note fan-out kit** | #19 | Harmonized authoring skill shipped as a Claude Code plugin (`ariko` marketplace); sibling rollout via templated issues + centrally-set secrets — no pushes to sibling repos. |
+| **C1d — Lab Note requirement** | #?? | Moved the requirement off the discretionary skill into always-on layers: a root `CLAUDE.md` with the contract inlined, a PR template seeding the `## Lab Note` section, and a reusable **advisory** reminder workflow (`lab-note-reminder.yml` + `remind.mjs`) that comments on PRs missing/malforming a note (opt out with `no-lab-note`) and shifts validation left. Sibling rollout via the same issue-kit pattern. |
 
 The admin loop is complete end to end: **capture → triage → publish → browse → edit / un-publish**,
 and the public projection is now consistent in **both directions** (publish lifts a lineage up,
@@ -102,7 +103,7 @@ matters to the north star) and an **explanation** (what it entails / where it or
 - **C1 · Connectors (GitHub / Arkaik / changelog → `POST /api/inbox`)**
   - *Intention:* feed the vault automatically from the tools where work already happens.
   - *Explanation:* external services post captures with a bearer token. Go-live hardening shipped as **C1b** (see Shipped). *(Origin: 2a deferred follow-ups.)*
-  - *Status:* Plugin + fan-out kit shipped as C1c; caller stubs land via per-repo issues (C1 GitHub half done when they close). Remaining: Arkaik/changelog connectors.
+  - *Status:* Plugin + fan-out kit shipped as C1c; the requirement layers (CLAUDE.md + PR template + advisory reminder) shipped as C1d so notes stop depending on a discretionary skill. Caller/requirement stubs land via per-repo issues (C1 GitHub half done when they close). Remaining: Arkaik/changelog connectors.
 
 - **C2 · AI-assisted classification**
   - *Intention:* reduce triage friction by pre-filling the target molecule/atom/type/tags.

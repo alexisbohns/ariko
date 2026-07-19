@@ -1,6 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { extractLabNoteYaml, parseLabNote, buildInboxPayload, classifyResponse } from "./lib.mjs";
+import {
+  extractLabNoteYaml,
+  parseLabNote,
+  buildInboxPayload,
+  classifyResponse,
+  reminderVerdict,
+  reminderComment,
+  REMINDER_MARKER,
+  OPT_OUT_LABEL,
+} from "./lib.mjs";
 
 const F = "```";
 const note = (heading, lines) => [heading, `${F}yaml`, ...lines, F].join("\n");
@@ -136,4 +145,46 @@ test("classifyResponse: maps /api/inbox statuses to outcomes (spec §7)", () => 
   assert.deepEqual(classifyResponse(401), { outcome: "unauthorized", exitCode: 4 });
   assert.deepEqual(classifyResponse(403), { outcome: "unauthorized", exitCode: 4 });
   assert.deepEqual(classifyResponse(500), { outcome: "unreachable", exitCode: 3 });
+});
+
+test("reminderVerdict: ok when a valid note is present", () => {
+  const body = note("## Lab Note", ["en:", "  title: Hi", "  summary: A note."]);
+  assert.deepEqual(reminderVerdict(body), { state: "ok" });
+});
+
+test("reminderVerdict: missing when there is no Lab Note section", () => {
+  assert.deepEqual(reminderVerdict("## Summary\n\nJust a chore PR."), { state: "missing" });
+  assert.deepEqual(reminderVerdict(""), { state: "missing" });
+  assert.deepEqual(reminderVerdict(undefined), { state: "missing" });
+});
+
+test("reminderVerdict: invalid surfaces the exact parse error", () => {
+  const body = note("## Lab Note", ["en:", "  title: Hi"]); // no summary
+  const v = reminderVerdict(body);
+  assert.equal(v.state, "invalid");
+  assert.match(v.error, /en\.summary/);
+});
+
+test("reminderVerdict: draft and opt-out label short-circuit to skipped", () => {
+  assert.equal(reminderVerdict("no note here", { isDraft: true }).state, "skipped");
+  // opt-out wins even when the note is missing
+  assert.equal(reminderVerdict("no note here", { hasOptOutLabel: true }).state, "skipped");
+  assert.equal(reminderVerdict("no note here", { hasOptOutLabel: true }).reason, `${OPT_OUT_LABEL} label`);
+});
+
+test("reminderComment: null for ok/skipped, marked + actionable for missing/invalid", () => {
+  assert.equal(reminderComment({ state: "ok" }), null);
+  assert.equal(reminderComment({ state: "skipped", reason: "draft" }), null);
+
+  const missing = reminderComment({ state: "missing" }, { molecule: "femfolk" });
+  assert.ok(missing.startsWith(REMINDER_MARKER));
+  assert.match(missing, /molecule: femfolk/);
+  assert.match(missing, new RegExp(OPT_OUT_LABEL));
+  // the skeleton fence is balanced (opening + closing ```yaml/```)
+  assert.equal((missing.match(/```/g) || []).length, 2);
+
+  const invalid = reminderComment({ state: "invalid", error: "en.title is required" });
+  assert.ok(invalid.startsWith(REMINDER_MARKER));
+  assert.match(invalid, /en\.title is required/);
+  assert.equal((invalid.match(/```/g) || []).length, 0); // no skeleton on the invalid path
 });
