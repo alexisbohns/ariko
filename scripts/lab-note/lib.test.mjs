@@ -103,6 +103,30 @@ test("parseLabNote: names the exact problem", () => {
   assert.match(parseLabNote("en:\n  title: ''\n  summary: s").error, /en\.title/);
 });
 
+// By far the most common way a hand-authored note fails to parse: a colon in an
+// unquoted summary ("s'afficher : ceux que...", "Heads up: it moved"). js-yaml
+// calls that "bad indentation of a mapping entry", which tells the author
+// nothing about the fix — so the error names the fix.
+test("parseLabNote: a colon in an unquoted value points at quoting", () => {
+  const r = parseLabNote("en:\n  title: Hi\n  summary: Heads up: it moved.");
+  assert.equal(r.ok, false);
+  assert.match(r.error, /invalid YAML/);
+  assert.match(r.error, /quote/i);
+  assert.match(r.error, /summary/);
+});
+
+test("parseLabNote: an unrelated YAML error keeps its own message, unhinted", () => {
+  const r = parseLabNote("en: [broken");
+  assert.equal(r.ok, false);
+  assert.doesNotMatch(r.error, /quote/i);
+});
+
+test("parseLabNote: a colon inside a properly quoted value parses fine", () => {
+  const r = parseLabNote('en:\n  title: "Hi"\n  summary: "Heads up: it moved."');
+  assert.equal(r.ok, true);
+  assert.equal(r.note.en.summary, "Heads up: it moved.");
+});
+
 test("parseLabNote: junk suggested entries are dropped, not fatal", () => {
   const r = parseLabNote("en:\n  title: Hi\n  summary: S.\nsuggested:\n  tags: [1, 2]\n  molecule: 42");
   assert.equal(r.ok, true);

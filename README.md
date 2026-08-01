@@ -81,17 +81,22 @@ capture to the inbox automatically. The section holds one ```yaml fence:
 
     ```yaml
     en:
-      title: Relations join the public graph      # required
-      summary: One or two sentences, user-facing. # required
-    fr:                                           # recommended — adaptation, not translation
-      title: Les relations rejoignent le graphe
-      summary: Une ou deux phrases.
-    suggested:                                    # optional — prefills triage
+      title: "Relations join the public graph"      # required
+      summary: "One or two sentences, user-facing." # required
+    fr:                                             # recommended — adaptation, not translation
+      title: "Les relations rejoignent le graphe"
+      summary: "Une ou deux phrases."
+    suggested:                                      # optional — prefills triage
       molecule: ariko
       atom: public-graph
       type: feature
       tags: [changelog, graph]
     ```
+
+Every title and summary is **double-quoted**, always. A colon in a sentence
+("Heads up: it moved") is the one thing an unquoted YAML value cannot hold, and
+it is the malformed note this pipeline sees most; quoting removes the failure
+mode outright. Slug-ish values need no quotes.
 
 Unknown top-level keys are ignored (pbbls keeps its superset keys in the same
 block). No section → the job logs "skipped". A malformed note fails the job;

@@ -35,6 +35,24 @@ function isMapping(v) {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
+// Why a note usually fails to parse: a colon inside an unquoted title/summary
+// ("Heads up: it moved", "ton compte : ceux que..."). YAML reads "key: value"
+// there and gives up, and js-yaml's own wording ("bad indentation of a mapping
+// entry") points nowhere near the fix. Returns the offending key, or null —
+// only ever used to ADD a hint, never to change the verdict, so a false
+// negative costs nothing.
+function unquotedColonKey(yamlText) {
+  for (const line of String(yamlText).split(/\r?\n/)) {
+    const m = /^\s*(title|summary)\s*:\s+(\S.*?)\s*$/.exec(line);
+    if (!m) continue;
+    const value = m[2];
+    // Already quoted (or a block scalar) — YAML is happy with colons there.
+    if (/^["']/.test(value) || /^[|>]/.test(value)) continue;
+    if (/:(\s|$)/.test(value)) return m[1];
+  }
+  return null;
+}
+
 // Validates the harmonized contract (spec §3): en.title + en.summary required,
 // fr recommended, suggested optional, unknown keys ignored (pbbls superset).
 // CORE_SCHEMA for the same reason as lib/data.ts: unquoted dates stay strings.
@@ -43,7 +61,11 @@ export function parseLabNote(yamlText) {
   try {
     doc = yaml.load(yamlText, { schema: yaml.CORE_SCHEMA });
   } catch (err) {
-    return { ok: false, error: `invalid YAML: ${err.message}` };
+    // The hint leads: js-yaml's message ends in a multi-line caret diagram, and
+    // anything appended after that is easy to miss in a log or a PR comment.
+    const key = unquotedColonKey(yamlText);
+    const hint = key ? `the ${key} contains a colon, so it must be wrapped in "quotes" — ` : "";
+    return { ok: false, error: `invalid YAML: ${hint}${err.message}` };
   }
   if (!isMapping(doc)) return { ok: false, error: "lab note must be a YAML mapping" };
   const en = isMapping(doc.en) ? doc.en : {};
