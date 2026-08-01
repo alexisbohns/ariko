@@ -30,17 +30,24 @@ One section whose heading **starts with** `## Lab Note` (pbbls' longer
 
 ```yaml
 en:
-  title: Swap glyphs with the community           # required
-  summary: One or two sentences, user-facing.     # required
+  title: "Swap glyphs with the community"          # required
+  summary: "One or two sentences, user-facing."    # required
 fr:
-  title: Échange des glyphes avec la communauté   # recommended
-  summary: Une ou deux phrases, adaptées, pas traduites littéralement.
-suggested:                                        # optional — prefills triage in the Ariko admin
+  title: "Échange des glyphes avec la communauté"  # recommended
+  summary: "Une ou deux phrases, adaptées, pas traduites littéralement."
+suggested:                                         # optional — prefills triage in the Ariko admin
   molecule: pbbls        # this repo's molecule slug — see the table below
   atom: glyphs           # ONLY if you are confident the atom slug exists; omit otherwise
   type: feature          # e.g. feature | improvement | fix | announcement
   tags: [changelog]
 ```
+
+**Always wrap every title and summary in double quotes.** A colon is the
+natural way to write a sentence ("Heads up: it moved", "ton compte : ceux
+que...") and it is exactly what breaks an unquoted YAML value — the parser
+reads `key: value` and gives up on the whole note. Quoting costs nothing and
+removes the failure mode entirely; apostrophes and em dashes are then free too.
+Slug-ish values (`molecule`, `atom`, `type`, `tags`) need no quotes.
 
 Unknown top-level keys are **ignored** by Ariko — a repo may keep extra keys
 for its own tooling in the same block (pbbls does exactly this for its Lab
@@ -66,7 +73,8 @@ Write for **end users, not engineers**:
 
 - **Lead with the benefit**, not the mechanism. "Find a glyph you love and
   swap it" beats "Added a swap endpoint to the Glyphs tab."
-- **Short.** A title of a few words; a summary of one or two sentences.
+- **Short.** A title of a few words; a summary of one or two sentences. Both
+  always in double quotes — see above.
 - **Warm and a little playful**, never corporate. No "We are pleased to
   announce."
 - **French uses the informal "Tu"** — casual and friendly, addressing the user
@@ -76,7 +84,12 @@ Write for **end users, not engineers**:
 
 ## If the posted note is wrong
 
-A malformed note **fails the merge job loudly** (the log names the exact
-problem, e.g. `en.title is required`). Recovery: edit the merged PR's body and
-re-run the failed job — the workflow fetches the live body and posting is
-idempotent.
+You should hear about it before merge: the advisory reminder comments on the PR
+at open/edit time naming the exact problem, and clears its own comment once you
+fix the body. **After opening a PR, check its comments** rather than assuming
+the note is fine.
+
+A malformed note that reaches merge **fails the merge job loudly** (the log
+names the exact problem, e.g. `en.title is required`, or an unquoted colon in a
+summary). Recovery: edit the merged PR's body and re-run the failed job — the
+workflow fetches the live body and posting is idempotent.
