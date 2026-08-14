@@ -16,7 +16,7 @@ export default async function TimelinePage({
     domain && (DOMAINS as string[]).includes(domain) ? (domain as Domain) : "all";
 
   const entries = (await getPublicDataset())
-    .timelineVersions()
+    .timelineSprouts()
     .filter((entry) => active === "all" || entry.domain === active);
 
   return (
@@ -39,16 +39,16 @@ export default async function TimelinePage({
 
       <ul>
         {entries.map((entry) => (
-          <li key={entry.version.slug}>
-            {entry.atom ? (
-              <a href={`/atom/${entry.atom.slug}`}>{resolveText(entry.version.name)}</a>
+          <li key={entry.sprout.slug}>
+            {entry.bean ? (
+              <a href={`/bean/${entry.bean.slug}`}>{resolveText(entry.sprout.name)}</a>
             ) : (
-              resolveText(entry.version.name)
+              resolveText(entry.sprout.name)
             )}
             {" — "}
-            <time dateTime={entry.version.date}>{entry.version.date}</time>
+            <time dateTime={entry.sprout.date}>{entry.sprout.date}</time>
             {" — "}
-            {entry.version.type}
+            {entry.sprout.type}
           </li>
         ))}
       </ul>

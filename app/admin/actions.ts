@@ -3,24 +3,24 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { verifyPassword } from "@/lib/session";
-import { buildCaptureBody } from "@/lib/capture-form";
+import { buildSeedBody } from "@/lib/seed-form";
 import { validateInboxPayload } from "@/lib/inbox";
-import { createOrUpdateCapture, getCapture, markCapturePromoted, discardCapture } from "@/lib/captures";
-import { loadRawSeed } from "@/lib/store";
-import { publishCascade, unpublishCascade, unpublishCascadeForAtoms, type Domain } from "@/lib/data";
-import { resolveParentChoice, buildVersionInput, validateVersionInput } from "@/lib/promote";
-import { buildVersionPatch, validateVersionPatch } from "@/lib/version-edit";
+import { createOrUpdateSeed, getSeed, markSeedPromoted, discardSeed } from "@/lib/seeds";
+import { loadRawGarden } from "@/lib/store";
+import { publishCascade, unpublishCascade, unpublishCascadeForBeans, type Domain } from "@/lib/data";
+import { resolveParentChoice, buildSproutInput, validateSproutInput } from "@/lib/promote";
+import { buildSproutPatch, validateSproutPatch } from "@/lib/sprout-edit";
 import {
-  createMolecule,
-  createAtom,
-  createVersion,
+  createPod,
+  createBean,
+  createSprout,
   deleteVersion,
   setPublic,
   SlugExistsError,
-  getVersion,
+  getSprout,
   updateVersion,
   setPrivate,
-} from "@/lib/atomic";
+} from "@/lib/botanical";
 import {
   requireSession,
   setSessionCookie,
@@ -47,39 +47,39 @@ export async function logoutAction(): Promise<void> {
 }
 
 // Map the form → raw body → the SAME validate + persist seam /api/inbox uses.
-export async function createCaptureAction(formData: FormData): Promise<void> {
+export async function createSeedAction(formData: FormData): Promise<void> {
   await requireSession();
-  const raw = buildCaptureBody(formData);
+  const raw = buildSeedBody(formData);
   const parsed = validateInboxPayload(raw);
   if (!parsed.ok) {
     redirect(`/admin?error=${encodeURIComponent(parsed.error)}`);
   }
-  await createOrUpdateCapture(parsed.value);
+  await createOrUpdateSeed(parsed.value);
   revalidatePath("/admin");
   redirect("/admin");
 }
 
 const DOMAINS: Domain[] = ["music", "design", "podcast"];
 
-export async function discardCaptureAction(formData: FormData): Promise<void> {
+export async function discardSeedAction(formData: FormData): Promise<void> {
   await requireSession();
-  const captureId = String(formData.get("captureId") ?? "");
-  await discardCapture(captureId);
+  const seedId = String(formData.get("seedId") ?? "");
+  await discardSeed(seedId);
   revalidatePath("/admin");
   redirect("/admin");
 }
 
-export async function promoteCaptureAction(formData: FormData): Promise<void> {
+export async function promoteSeedAction(formData: FormData): Promise<void> {
   await requireSession();
-  const captureId = String(formData.get("captureId") ?? "");
-  const capture = await getCapture(captureId);
-  if (!capture) redirect("/admin");
+  const seedId = String(formData.get("seedId") ?? "");
+  const seed = await getSeed(seedId);
+  if (!seed) redirect("/admin");
 
   // Validate the version's own fields BEFORE any write, so an invalid version never
   // leaves orphan molecule/atom docs behind.
-  const precheck = validateVersionInput(buildVersionInput(formData, capture, null));
+  const precheck = validateSproutInput(buildSproutInput(formData, seed, null));
   if (!precheck.ok) {
-    redirect(`/admin/triage/${captureId}?error=${encodeURIComponent(precheck.error)}`);
+    redirect(`/admin/triage/${seedId}?error=${encodeURIComponent(precheck.error)}`);
   }
 
   // Resolve parent choices up front (pure) so we can guard invalid combinations
@@ -88,15 +88,15 @@ export async function promoteCaptureAction(formData: FormData): Promise<void> {
   // the molecule orphaned — reject it rather than silently drop the intent.
   const molChoice = resolveParentChoice(
     String(formData.get("newMoleculeSlug") ?? ""),
-    String(formData.get("moleculeSlug") ?? ""),
+    String(formData.get("podSlug") ?? ""),
   );
   const atomChoice = resolveParentChoice(
     String(formData.get("newAtomSlug") ?? ""),
-    String(formData.get("atomSlug") ?? ""),
+    String(formData.get("beanSlug") ?? ""),
   );
   if (molChoice.mode === "create" && atomChoice.mode !== "create") {
     redirect(
-      `/admin/triage/${captureId}?error=${encodeURIComponent(
+      `/admin/triage/${seedId}?error=${encodeURIComponent(
         "a new molecule must be paired with a new atom under it",
       )}`,
     );
@@ -106,49 +106,49 @@ export async function promoteCaptureAction(formData: FormData): Promise<void> {
   // anything else propagates. redirect() stays OUT of the try (it throws to control flow).
   let slugError: string | null = null;
   try {
-    let moleculeSlug: string | null = null;
+    let podSlug: string | null = null;
     if (molChoice.mode === "create") {
       const domainRaw = String(formData.get("newMoleculeDomain") ?? "");
       const domain: Domain = DOMAINS.includes(domainRaw as Domain) ? (domainRaw as Domain) : "music";
-      await createMolecule({
+      await createPod({
         slug: molChoice.slug,
         name: String(formData.get("newMoleculeName") ?? "").trim() || molChoice.slug,
         domain,
         description: "",
       });
-      moleculeSlug = molChoice.slug;
+      podSlug = molChoice.slug;
     } else if (molChoice.mode === "existing") {
-      moleculeSlug = molChoice.slug;
+      podSlug = molChoice.slug;
     }
 
-    let atomSlug: string | null = null;
+    let beanSlug: string | null = null;
     if (atomChoice.mode === "create") {
-      await createAtom({
+      await createBean({
         slug: atomChoice.slug,
         name: String(formData.get("newAtomName") ?? "").trim() || atomChoice.slug,
-        moleculeSlug,
+        podSlug,
       });
-      atomSlug = atomChoice.slug;
+      beanSlug = atomChoice.slug;
     } else if (atomChoice.mode === "existing") {
-      atomSlug = atomChoice.slug;
+      beanSlug = atomChoice.slug;
     }
 
-    const input = buildVersionInput(formData, capture, atomSlug);
-    await createVersion(input);
+    const input = buildSproutInput(formData, seed, beanSlug);
+    await createSprout(input);
 
     if (input.state === "published") {
-      const { moleculeSlugs, atomSlugs } = publishCascade(await loadRawSeed(), input.slug);
-      await setPublic(moleculeSlugs, atomSlugs);
+      const { podSlugs, beanSlugs } = publishCascade(await loadRawGarden(), input.slug);
+      await setPublic(podSlugs, beanSlugs);
     }
 
-    await markCapturePromoted(captureId, input.slug);
+    await markSeedPromoted(seedId, input.slug);
   } catch (err) {
     if (err instanceof SlugExistsError) slugError = err.message;
     else throw err;
   }
 
   if (slugError) {
-    redirect(`/admin/triage/${captureId}?error=${encodeURIComponent(slugError)}`);
+    redirect(`/admin/triage/${seedId}?error=${encodeURIComponent(slugError)}`);
   }
   revalidatePath("/admin");
   redirect("/admin");
@@ -157,15 +157,15 @@ export async function promoteCaptureAction(formData: FormData): Promise<void> {
 export async function editVersionAction(formData: FormData): Promise<void> {
   await requireSession();
   const slug = String(formData.get("slug") ?? "");
-  const existing = await getVersion(slug);
+  const existing = await getSprout(slug);
   if (!existing) redirect("/admin/vault");
 
-  const patch = buildVersionPatch(formData);
-  const check = validateVersionPatch(patch);
+  const patch = buildSproutPatch(formData);
+  const check = validateSproutPatch(patch);
   if (!check.ok) {
     // The page renders ?error verbatim (the delete action shares the slot), so the
     // message carries its own "could not save" context.
-    redirect(`/admin/version/${slug}?error=${encodeURIComponent(`could not save: ${check.error}`)}`);
+    redirect(`/admin/sprout/${slug}?error=${encodeURIComponent(`could not save: ${check.error}`)}`);
   }
 
   await updateVersion(slug, patch);
@@ -178,18 +178,18 @@ export async function editVersionAction(formData: FormData): Promise<void> {
   // that has no published versions yet). Both branches load the dataset AFTER
   // updateVersion, so the cascade evaluates the just-saved state.
   if (patch.state === "published") {
-    const { moleculeSlugs, atomSlugs } = publishCascade(await loadRawSeed(), slug);
-    await setPublic(moleculeSlugs, atomSlugs);
+    const { podSlugs, beanSlugs } = publishCascade(await loadRawGarden(), slug);
+    await setPublic(podSlugs, beanSlugs);
   } else if (existing.state === "published") {
-    const { moleculeSlugs, atomSlugs } = unpublishCascade(await loadRawSeed(), slug);
-    await setPrivate(moleculeSlugs, atomSlugs);
+    const { podSlugs, beanSlugs } = unpublishCascade(await loadRawGarden(), slug);
+    await setPrivate(podSlugs, beanSlugs);
   }
 
   revalidatePath("/admin");
-  const atomSlug = (existing.parents ?? [])
-    .filter((p) => p.startsWith("atom:"))
-    .map((p) => p.slice("atom:".length))[0];
-  redirect(atomSlug ? `/admin/atom/${atomSlug}` : "/admin/vault");
+  const beanSlug = (existing.parents ?? [])
+    .filter((p) => p.startsWith("bean:"))
+    .map((p) => p.slice("bean:".length))[0];
+  redirect(beanSlug ? `/admin/bean/${beanSlug}` : "/admin/vault");
 }
 
 // Hard delete (roadmap A2). The atom parents and published state are captured BEFORE
@@ -204,33 +204,33 @@ export async function deleteVersionAction(formData: FormData): Promise<void> {
 
   // Existence first, so the confirm-fail redirect below only ever targets a real
   // edit page (and the slug it interpolates is a known-good stored slug).
-  const existing = await getVersion(slug);
+  const existing = await getSprout(slug);
   if (!existing) redirect("/admin/vault");
 
   // Server-side re-check of the confirm checkbox; the browser `required` is only UX.
   if (String(formData.get("confirm") ?? "") !== "on") {
     redirect(
-      `/admin/version/${encodeURIComponent(slug)}?error=${encodeURIComponent(
+      `/admin/sprout/${encodeURIComponent(slug)}?error=${encodeURIComponent(
         "could not delete: confirm the permanent deletion first",
       )}`,
     );
   }
 
-  const atomSlugs = (existing.parents ?? [])
-    .filter((p) => p.startsWith("atom:"))
-    .map((p) => p.slice("atom:".length));
+  const beanSlugs = (existing.parents ?? [])
+    .filter((p) => p.startsWith("bean:"))
+    .map((p) => p.slice("bean:".length));
   const wasPublished = existing.state === "published";
 
   await deleteVersion(slug);
 
   if (wasPublished) {
-    const { moleculeSlugs, atomSlugs: flipAtoms } = unpublishCascadeForAtoms(
-      await loadRawSeed(),
-      atomSlugs,
+    const { podSlugs, beanSlugs: flipAtoms } = unpublishCascadeForBeans(
+      await loadRawGarden(),
+      beanSlugs,
     );
-    await setPrivate(moleculeSlugs, flipAtoms);
+    await setPrivate(podSlugs, flipAtoms);
   }
 
   revalidatePath("/admin");
-  redirect(atomSlugs[0] ? `/admin/atom/${atomSlugs[0]}` : "/admin/vault");
+  redirect(beanSlugs[0] ? `/admin/bean/${beanSlugs[0]}` : "/admin/vault");
 }

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { resolveText } from "@/lib/data";
 import { getFullDataset } from "@/lib/store";
-import { atomDetail, type AtomDetailView } from "@/lib/atom-detail";
+import { beanDetail, type BeanDetailView } from "@/lib/bean-detail";
 
 export const dynamic = "force-dynamic";
 
@@ -12,10 +12,10 @@ function isScalar(value: unknown): value is string | number | boolean {
 export default async function AdminAtomPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  let view: AtomDetailView | null = null;
+  let view: BeanDetailView | null = null;
   let failed = false;
   try {
-    view = atomDetail(await getFullDataset(), id);
+    view = beanDetail(await getFullDataset(), id);
   } catch {
     failed = true;
   }
@@ -34,31 +34,31 @@ export default async function AdminAtomPage({ params }: { params: Promise<{ id: 
 
   if (!view) notFound();
 
-  const { atom, domain, moleculeParents, versions } = view;
+  const { bean, domain, podParents, sprouts } = view;
 
   return (
     <article>
       <p>
         <a href="/admin/vault">← vault</a>
       </p>
-      <h1>{resolveText(atom.name)}</h1>
+      <h1>{resolveText(bean.name)}</h1>
       <ul>
-        <li>atom: {atom.slug}</li>
-        <li>visibility: {atom.visibility ?? "public (default)"}</li>
+        <li>atom: {bean.slug}</li>
+        <li>visibility: {bean.visibility ?? "public (default)"}</li>
         <li>domain: {domain ?? "—"}</li>
-        <li>molecule: {moleculeParents.join(", ") || "—"}</li>
-        <li>tags: {(atom.tags ?? []).join(", ") || "—"}</li>
+        <li>molecule: {podParents.join(", ") || "—"}</li>
+        <li>tags: {(bean.tags ?? []).join(", ") || "—"}</li>
       </ul>
 
-      <h2>Versions ({versions.length})</h2>
-      {versions.length === 0 ? (
+      <h2>Versions ({sprouts.length})</h2>
+      {sprouts.length === 0 ? (
         <p>No versions.</p>
       ) : (
-        versions.map((version) => (
+        sprouts.map((version) => (
           <section key={version.slug}>
             <h3>{resolveText(version.name)}</h3>
             <p>
-              <a href={`/admin/version/${version.slug}`}>edit</a>
+              <a href={`/admin/sprout/${version.slug}`}>edit</a>
             </p>
             <p>state: {version.state ?? "—"}</p>
             <ul>

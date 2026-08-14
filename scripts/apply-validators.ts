@@ -1,6 +1,6 @@
 import { getDb, closeDb } from "../lib/db";
-import { ensureCaptureIndexes } from "../lib/captures";
-import { ensureAtomicIndexes } from "../lib/atomic";
+import { ensureSeedIndexes } from "../lib/seeds";
+import { ensureBotanicalIndexes } from "../lib/botanical";
 
 // Applies a $jsonSchema validator to a collection, creating it if absent.
 // Idempotent: safe to re-run. validationLevel "moderate" only validates inserts
@@ -24,7 +24,7 @@ async function applyValidator(name: string, schema: object): Promise<void> {
 }
 
 async function main() {
-  await applyValidator("captures", {
+  await applyValidator("seeds", {
     bsonType: "object",
     required: ["id", "title", "source", "status"],
     properties: {
@@ -51,7 +51,7 @@ async function main() {
 
   // versions has a $jsonSchema, so G2 extends it: relations[] stays optional
   // (absent is valid), but every present entry must carry kind + ref strings.
-  await applyValidator("versions", {
+  await applyValidator("sprouts", {
     bsonType: "object",
     properties: {
       state: { enum: ["draft", "private", "published"] },
@@ -69,20 +69,20 @@ async function main() {
     },
   });
 
-  await applyValidator("molecules", {
+  await applyValidator("pods", {
     bsonType: "object",
     properties: { visibility: { enum: ["private", "public"] } },
   });
 
-  await applyValidator("atoms", {
+  await applyValidator("beans", {
     bsonType: "object",
     properties: { visibility: { enum: ["private", "public"] } },
   });
 
-  await ensureCaptureIndexes();
+  await ensureSeedIndexes();
   console.log("capture indexes ensured");
 
-  await ensureAtomicIndexes();
+  await ensureBotanicalIndexes();
   console.log("atomic indexes ensured");
 
   await closeDb();

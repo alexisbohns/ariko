@@ -39,13 +39,13 @@ test("carries body, content, suggested, and source fields through", () => {
     title: "PR #42",
     body: { en: "hello", fr: "bonjour" },
     source: { kind: "github", url: "https://x", externalId: "42" },
-    suggested: { moleculeSlug: "pbbls" },
+    suggested: { podSlug: "pbbls" },
   });
   assert.equal(r.ok, true);
   if (r.ok) {
     assert.deepEqual(r.value.body, { en: "hello", fr: "bonjour" });
     assert.equal(r.value.source.externalId, "42");
-    assert.equal(r.value.suggested?.moleculeSlug, "pbbls");
+    assert.equal(r.value.suggested?.podSlug, "pbbls");
   }
 });
 
@@ -111,4 +111,24 @@ test("rejects junk titles", () => {
       `should reject title ${JSON.stringify(title)}`,
     );
   }
+});
+
+test("suggestion accepts legacy wire keys moleculeSlug/atomSlug as podSlug/beanSlug", () => {
+  const legacy = validateInboxPayload({
+    title: "t",
+    source: { kind: "github", externalId: "o/r#1" },
+    suggested: { moleculeSlug: "pbbls", atomSlug: "ios", type: "feature" },
+  });
+  assert.ok(legacy.ok);
+  assert.deepEqual(legacy.ok && legacy.value.suggested, {
+    podSlug: "pbbls",
+    beanSlug: "ios",
+    type: "feature",
+  });
+  const canonical = validateInboxPayload({
+    title: "t",
+    source: { kind: "github", externalId: "o/r#2" },
+    suggested: { podSlug: "pbbls" },
+  });
+  assert.deepEqual(canonical.ok && canonical.value.suggested, { podSlug: "pbbls" });
 });

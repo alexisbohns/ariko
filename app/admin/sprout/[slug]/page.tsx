@@ -1,11 +1,11 @@
 import { notFound } from "next/navigation";
 import { resolveText, textPart } from "@/lib/data";
-import { getVersion } from "@/lib/atomic";
+import { getSprout } from "@/lib/botanical";
 import { editVersionAction, deleteVersionAction } from "../../actions";
 
 export const dynamic = "force-dynamic";
 
-const ATOM_PREFIX = "atom:";
+const ATOM_PREFIX = "bean:";
 
 export default async function EditVersionPage({
   params,
@@ -17,13 +17,13 @@ export default async function EditVersionPage({
   const { slug } = await params;
   const { error } = await searchParams;
 
-  const version = await getVersion(slug);
+  const version = await getSprout(slug);
   if (!version) notFound();
 
-  const atomSlug = (version.parents ?? [])
+  const beanSlug = (version.parents ?? [])
     .filter((p) => p.startsWith(ATOM_PREFIX))
     .map((p) => p.slice(ATOM_PREFIX.length))[0];
-  const backHref = atomSlug ? `/admin/atom/${atomSlug}` : "/admin/vault";
+  const backHref = beanSlug ? `/admin/bean/${beanSlug}` : "/admin/vault";
 
   return (
     <article>
@@ -35,7 +35,7 @@ export default async function EditVersionPage({
 
       <ul>
         <li>slug: {version.slug}</li>
-        <li>atom: {atomSlug ?? "—"}</li>
+        <li>atom: {beanSlug ?? "—"}</li>
       </ul>
 
       <form action={editVersionAction}>

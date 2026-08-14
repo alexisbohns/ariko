@@ -5,8 +5,8 @@ import type { TimelineEntry } from "./data";
 
 function entry(slug: string, state: string | undefined, domain: string | null, tags?: string[]): TimelineEntry {
   return {
-    version: { slug, name: slug, type: "t", date: "2025-01-01", description: "", parents: [], ...(state ? { state: state as never } : {}), ...(tags ? { tags } : {}) },
-    atom: domain ? { slug: `atom-${slug}`, name: "a", parents: [] } : null,
+    sprout: { slug, name: slug, type: "t", date: "2025-01-01", description: "", parents: [], ...(state ? { state: state as never } : {}), ...(tags ? { tags } : {}) },
+    bean: domain ? { slug: `bean-${slug}`, name: "a", parents: [] } : null,
     domain: domain as never,
   };
 }
@@ -24,22 +24,22 @@ test("no filters returns all entries", () => {
 
 test("filters by state", () => {
   const r = filterVaultEntries(ENTRIES, { state: "published" });
-  assert.deepEqual(r.map((e) => e.version.slug), ["v2", "v4"]);
+  assert.deepEqual(r.map((e) => e.sprout.slug), ["v2", "v4"]);
 });
 
 test("filters by domain", () => {
   const r = filterVaultEntries(ENTRIES, { domain: "music" });
-  assert.deepEqual(r.map((e) => e.version.slug), ["v1", "v2"]);
+  assert.deepEqual(r.map((e) => e.sprout.slug), ["v1", "v2"]);
 });
 
 test("filters by tag (membership)", () => {
   const r = filterVaultEntries(ENTRIES, { tag: "release" });
-  assert.deepEqual(r.map((e) => e.version.slug), ["v2", "v4"]);
+  assert.deepEqual(r.map((e) => e.sprout.slug), ["v2", "v4"]);
 });
 
 test("combined filters intersect", () => {
   const r = filterVaultEntries(ENTRIES, { state: "published", domain: "music" });
-  assert.deepEqual(r.map((e) => e.version.slug), ["v2"]);
+  assert.deepEqual(r.map((e) => e.sprout.slug), ["v2"]);
 });
 
 test("an unknown state value falls back to all", () => {
@@ -63,9 +63,9 @@ test("distinctTags returns sorted unique tags across entries", () => {
   assert.deepEqual(distinctTags(ENTRIES), ["demo", "release", "wip"]);
 });
 
-test("localized version names resolve to display strings at build time (B1)", () => {
+test("localized sprout names resolve to display strings at build time (B1)", () => {
   const e = entry("v-fr", "draft", null);
-  e.version.name = { en: "Name en", fr: "Nom fr" };
+  e.sprout.name = { en: "Name en", fr: "Nom fr" };
   const r = filterVaultEntries([e], {});
-  assert.equal(r[0].version.name, "Name en");
+  assert.equal(r[0].sprout.name, "Name en");
 });

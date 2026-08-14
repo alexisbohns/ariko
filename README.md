@@ -2,9 +2,9 @@
 
 *Formerly "Beanstalk" — renamed 2026-07-18. Live at [www.ariko.app](https://www.ariko.app) (Vercel). The Mongo database keeps the legacy name `beanstalk`.*
 
-* **Intention**: I want to showcase all my creative and professional work, organized around an atomic content model.
-* **Vision**: Everything I create — songs, product features, podcast episodes, blog posts — is an atom. Atoms group into molecules (albums, products, podcasts, blogs). The key insight is that atoms evolve: every atom has one or more versions, which are the fundamental unit of work. A song can have a demo, a studio recording, a live version. A feature can have a POC, an MVP, a V2. The portfolio tells the story of evolution, not just the final state.
-* **Approach**: Build a zero-CSS Next.js app (App Router) as a POC for a personal portfolio system based on an atomic content model.
+* **Intention**: I want to showcase all my creative and professional work, organized around a botanical content model.
+* **Vision**: Everything I create — songs, product features, podcast episodes, blog posts — is a bean. Beans group into pods (albums, products, podcasts, blogs). The key insight is that beans evolve: every bean has one or more sprouts, which are the fundamental unit of work. A song can have a demo, a studio recording, a live take. A feature can have a POC, an MVP, a V2. The portfolio tells the story of evolution, not just the final state.
+* **Approach**: Build a zero-CSS Next.js app (App Router) as a POC for a personal portfolio system based on a botanical content model.
 
 ## Data model
 
@@ -14,17 +14,17 @@
 
 ### Architecture
 
-* **Molecule**: has a name, domain (`music | design | podcast`), and contains atoms
-* **Atom**: has a name, belongs to a molecule (optional — can be standalone), and contains versions
-* **Version**: has a name, type, date, description, state (`draft | private | published`), carried media/source, tags, and flexible per-type properties. `parents` refs (`molecule:slug` / `atom:slug`) express **containment only** — future non-containment links (lineage, "featured in") will live in a separate `relations[]`.
+* **Pod**: has a name, domain (`music | design | podcast`), and contains beans
+* **Bean**: has a name, belongs to a pod (optional — can be standalone), and contains sprouts
+* **Sprout**: has a name, type, date, description, state (`draft | private | published`), carried media/source, tags, and flexible per-type properties. `parents` refs (`pod:slug` / `bean:slug`) express **containment only** — future non-containment links (lineage, "featured in") will live in a separate `relations[]`.
 * **Bilingual (B1)**: `name`/`description` accept the `Text` type (`string | { en?, fr? }`); plain strings remain valid (no migration). Every surface renders via `resolveText` (en-first, blank parts fall through); the triage/edit forms author both languages via paired en/fr inputs (WYSIWYG — the boxes are prefilled per language and what they submit is what is stored).
-* **Relations (G2)**: versions carry optional non-containment edges `relations: [{ kind, ref }]` (`ref` in the prefixed grammar incl. `version:`; `kind` free, e.g. `evolves-from`, `featured-in`). `filterPublic` scrubs each published version's relations to targets that survive the projection (fail-closed, malformed shapes tolerated), so private/draft slugs can never leak; deletes need no cascade — hidden targets simply drop their edges. Authoring UI comes later; relations enter via seed or DB for now.
+* **Relations (G2)**: sprouts carry optional non-containment edges `relations: [{ kind, ref }]` (`ref` in the prefixed grammar incl. `sprout:`; `kind` free, e.g. `evolves-from`, `featured-in`). `filterPublic` scrubs each published sprout's relations to targets that survive the projection (fail-closed, malformed shapes tolerated), so private/draft slugs can never leak; deletes need no cascade — hidden targets simply drop their edges. Authoring UI comes later; relations enter via seed or DB for now.
 
 ## Pages
 
-* `/` — Directory. For each molecule (+ a "Standalone" group for orphan atoms): `<h2>` molecule name, `<ul>` of atom names as links to /atom/[id].
-* `/timeline` — Timeline. All atom-versions sorted by date descending. Above the list: a `<ul>` of domain filter buttons (`all | music | design | podcast`). Below: a `<ul>` of filtered results.
-* `/atom/[id]` — Atom detail. `<h1>` atom name, then for each version: `<h2>` version name, `<ul>` of all key-value properties.
+* `/` — Directory. For each pod (+ a "Standalone" group for orphan beans): `<h2>` pod name, `<ul>` of bean names as links to /bean/[id].
+* `/timeline` — Timeline. All sprouts sorted by date descending. Above the list: a `<ul>` of domain filter buttons (`all | music | design | podcast`). Below: a `<ul>` of filtered results.
+* `/bean/[id]` — Bean detail. `<h1>` bean name, then for each sprout: `<h2>` sprout name, `<ul>` of all key-value properties.
 
 ## Constraints
 
@@ -41,7 +41,7 @@ As of the Vault Spine slice, content lives in **MongoDB** (not the static seed).
 
 * Set `MONGODB_URI` and `MONGODB_DB` in `.env.local` (gitignored).
 * `npm run migrate` — one-time import of `data/seed.yml` into Mongo (idempotent).
-* `npm run dev` — needs `MONGODB_URI` set and the cluster reachable (pages query Mongo at request time). The public pages (`/`, `/timeline`, `/atom/[id]`) are `force-dynamic`, so they read published-only from Mongo on every request and reflect a publish immediately — and `npm run build` no longer needs DB reachability to prerender them.
+* `npm run dev` — needs `MONGODB_URI` set and the cluster reachable (pages query Mongo at request time). The public pages (`/`, `/timeline`, `/bean/[id]`) are `force-dynamic`, so they read published-only from Mongo on every request and reflect a publish immediately — and `npm run build` no longer needs DB reachability to prerender them.
 * `npm test` — pure unit tests; DB-backed integration tests auto-skip unless `MONGODB_URI` is set (run them with `node --env-file=.env.local --import tsx --test "lib/**/*.test.ts"`).
 
 ## Ingestion spine
@@ -50,17 +50,17 @@ As of the Ingestion Spine slice, content can be captured into Mongo via API inst
 
 * Set `INBOX_TOKENS` in `.env.local` — comma-separated `kind:token` pairs, e.g. `*:tok_master,github:tok_gh`. A `kind` of `*` accepts the token for any source kind; otherwise the token is only valid for that specific `source.kind`.
 * Set `CLOUDINARY_URL` in `.env.local` (from the Cloudinary dashboard, e.g. `cloudinary://<key>:<secret>@<cloud_name>`) — required for `/api/upload` to store images.
-* `npm run validators` — applies the DB-side `$jsonSchema` validators and capture indexes. Run once after pulling this change, and again after any validator edit.
+* `npm run validators` — applies the DB-side `$jsonSchema` validators and seed indexes. Run once after pulling this change, and again after any validator edit.
 
 ### `POST /api/inbox`
 
-Bearer-authenticated capture ingestion: `Authorization: Bearer <token>`.
+Bearer-authenticated seed ingestion: `Authorization: Bearer <token>`.
 
 Body: `{ title, body?, content?, media?: [], source: { kind, url?, externalId? }, suggested? }`. Bodies over 256 KB are rejected with `413` before parsing or auth.
 
-* Dedups/upserts on `(source.kind, source.externalId)` when `externalId` is present; otherwise every post creates a new capture.
+* Dedups/upserts on `(source.kind, source.externalId)` when `externalId` is present; otherwise every post creates a new seed.
 * Embed media (`{ kind: "embed", url }`) auto-detects its provider (YouTube, Vimeo, etc.) when `provider` is omitted.
-* Returns `{ id, created }` — `201` when a new capture is created, `200` on an upsert of an existing one.
+* Returns `{ id, created }` — `201` when a new seed is created, `200` on an upsert of an existing one.
 * `401` when the bearer token is missing/unknown, `403` when the token isn't authorized for that `source.kind`, `400` on a malformed or invalid payload, `413` when the body exceeds 256 KB.
 
 ### `POST /api/upload`
@@ -70,12 +70,12 @@ Bearer-authenticated Cloudinary image upload: `Authorization: Bearer <token>`, b
 * Returns a `MediaImage` descriptor (`{ kind: "image", storageKey, url, width?, height? }`) on success (`201`).
 * `401` when the bearer token is missing/unknown, `400` when the `file` field is absent, `502` if the upload to Cloudinary itself fails (e.g. a placeholder/invalid `CLOUDINARY_URL`).
 
-The admin UI builds on these endpoints. Connectors post to `/api/inbox` with a bearer token; the browser capture bar (below) reaches the same capture path through a session-authenticated server action.
+The admin UI builds on these endpoints. Connectors post to `/api/inbox` with a bearer token; the browser capture bar (below) reaches the same ingestion path through a session-authenticated server action.
 
 ### Lab Note pipeline (C1 · GitHub connector)
 
 Merging a PR whose body contains a `## Lab Note` section posts a bilingual
-capture to the inbox automatically. The section holds one ```yaml fence:
+seed to the inbox automatically. The section holds one ```yaml fence:
 
     ## Lab Note
 

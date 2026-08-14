@@ -31,7 +31,7 @@ export default async function VaultPage({
 
   let all: TimelineEntry[] | null = null;
   try {
-    all = (await getFullDataset()).timelineVersions();
+    all = (await getFullDataset()).timelineSprouts();
   } catch {
     all = null;
   }
@@ -96,19 +96,19 @@ export default async function VaultPage({
           </thead>
           <tbody>
             {entries.map((e) => (
-              <tr key={e.version.slug}>
+              <tr key={e.sprout.slug}>
                 <td>
-                  {e.atom ? (
-                    <a href={`/admin/atom/${e.atom.slug}`}>{resolveText(e.version.name)}</a>
+                  {e.bean ? (
+                    <a href={`/admin/bean/${e.bean.slug}`}>{resolveText(e.sprout.name)}</a>
                   ) : (
-                    resolveText(e.version.name)
+                    resolveText(e.sprout.name)
                   )}
                 </td>
-                <td>{e.version.state ?? "—"}</td>
+                <td>{e.sprout.state ?? "—"}</td>
                 <td>{e.domain ?? "—"}</td>
-                <td>{e.atom?.slug ?? "—"}</td>
-                <td>{e.version.date}</td>
-                <td>{(e.version.tags ?? []).join(", ") || "—"}</td>
+                <td>{e.bean?.slug ?? "—"}</td>
+                <td>{e.sprout.date}</td>
+                <td>{(e.sprout.tags ?? []).join(", ") || "—"}</td>
               </tr>
             ))}
           </tbody>

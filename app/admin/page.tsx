@@ -1,16 +1,16 @@
-import { type Capture, resolveText } from "@/lib/data";
-import { listCaptures } from "@/lib/captures";
-import { createCaptureAction, logoutAction } from "./actions";
+import { type Seed, resolveText } from "@/lib/data";
+import { listSeeds } from "@/lib/seeds";
+import { createSeedAction, logoutAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-function noteSnippet(body: Capture["body"]): string {
+function noteSnippet(body: Seed["body"]): string {
   const text = body?.en || body?.fr || "";
   if (!text) return "—";
   return text.length > 60 ? `${text.slice(0, 60)}…` : text;
 }
 
-function mediaLabel(media: Capture["media"]): string {
+function mediaLabel(media: Seed["media"]): string {
   if (media.length === 0) return "—";
   if (media.length === 1) return `1 ${media[0].kind}`;
   return `${media.length} items`;
@@ -35,11 +35,11 @@ export default async function AdminPage({
 }) {
   const { error } = await searchParams;
 
-  let captures: Capture[] | null = null;
+  let seeds: Seed[] | null = null;
   try {
-    captures = await listCaptures({ status: "inbox" });
+    seeds = await listSeeds({ status: "inbox" });
   } catch {
-    captures = null; // rendered as a load-failure line below
+    seeds = null; // rendered as a load-failure line below
   }
 
   const now = Date.now();
@@ -54,9 +54,9 @@ export default async function AdminPage({
         <a href="/admin/vault">vault →</a>
       </p>
 
-      <h1>Capture</h1>
+      <h1>Seed</h1>
       {error ? <p role="alert">Could not save: {error}</p> : null}
-      <form action={createCaptureAction}>
+      <form action={createSeedAction}>
         <p>
           <label>
             Title <input type="text" name="title" required />
@@ -91,10 +91,10 @@ export default async function AdminPage({
         </p>
       </form>
 
-      <h2>Inbox {captures ? `(${captures.length})` : ""}</h2>
-      {captures === null ? (
+      <h2>Inbox {seeds ? `(${seeds.length})` : ""}</h2>
+      {seeds === null ? (
         <p role="alert">Couldn&apos;t load the inbox.</p>
-      ) : captures.length === 0 ? (
+      ) : seeds.length === 0 ? (
         <p>Inbox empty.</p>
       ) : (
         <table>
@@ -108,7 +108,7 @@ export default async function AdminPage({
             </tr>
           </thead>
           <tbody>
-            {captures.map((c) => (
+            {seeds.map((c) => (
               <tr key={c.id}>
                 <td>{c.source.kind}</td>
                 <td>

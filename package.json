@@ -7,8 +7,9 @@
     "build": "next build",
     "start": "next start",
     "test": "node --import tsx --test \"lib/**/*.test.ts\" \"scripts/lab-note/*.test.mjs\"",
-    "migrate": "node --env-file=.env.local --import tsx scripts/migrate-seed.ts",
-    "validators": "node --env-file=.env.local --import tsx scripts/apply-validators.ts"
+    "migrate": "node --env-file=.env.local --import tsx scripts/migrate-garden.ts",
+    "validators": "node --env-file=.env.local --import tsx scripts/apply-validators.ts",
+    "migrate:botanical": "node --env-file=.env.local --import tsx scripts/migrate-botanical.ts"
   },
   "dependencies": {
     "cloudinary": "^2.10.0",

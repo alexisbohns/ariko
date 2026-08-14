@@ -26,7 +26,7 @@ export async function POST(request: Request): Promise<Response> {
     const media = await uploadImage(bytes, filename);
     return Response.json(media, { status: 201 });
   } catch (err) {
-    // Upload failure never costs a capture: inbox and upload are separate calls.
+    // Upload failure never costs a seed: inbox and upload are separate calls.
     return Response.json(
       { error: "upload failed", detail: err instanceof Error ? err.message : String(err) },
       { status: 502 },

@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { resolveParentChoice, buildVersionInput, validateVersionInput } from "./promote";
-import type { Capture } from "./data";
+import { resolveParentChoice, buildSproutInput, validateSproutInput } from "./promote";
+import type { Seed } from "./data";
 
-const capture: Capture = {
+const seed: Seed = {
   id: "c1",
   title: "Song idea",
   body: { en: "hummed melody", fr: "mélodie" },
@@ -33,27 +33,27 @@ test("resolveParentChoice: none when both blank", () => {
   assert.deepEqual(resolveParentChoice("  ", ""), { mode: "none" });
 });
 
-test("buildVersionInput is WYSIWYG: blank boxes store blank (nothing resurrected from the capture)", () => {
-  // The triage PAGE prefills the boxes (name from capture.title, descriptions per
+test("buildSproutInput is WYSIWYG: blank boxes store blank (nothing resurrected from the seed)", () => {
+  // The triage PAGE prefills the boxes (name from seed.title, descriptions per
   // language via textPart) — the builder itself never falls back, so clearing a
   // box genuinely clears that content and a blank name fails validation.
-  const v = buildVersionInput(form([["versionSlug", "v1"], ["type", "demo"], ["date", "2025-02-02"]]), capture, "a1");
+  const v = buildSproutInput(form([["versionSlug", "v1"], ["type", "demo"], ["date", "2025-02-02"]]), seed, "a1");
   assert.equal(v.slug, "v1");
   assert.equal(v.name, "");
   assert.equal(v.description, "");
-  assert.equal(validateVersionInput(v).ok, false);
+  assert.equal(validateSproutInput(v).ok, false);
   assert.equal(v.type, "demo");
   assert.equal(v.date, "2025-02-02");
   assert.equal(v.state, "draft"); // default
-  assert.deepEqual(v.parents, ["atom:a1"]);
-  assert.deepEqual(v.media, capture.media);
-  assert.deepEqual(v.source, capture.source);
+  assert.deepEqual(v.parents, ["bean:a1"]);
+  assert.deepEqual(v.media, seed.media);
+  assert.deepEqual(v.source, seed.source);
 });
 
-test("buildVersionInput uses provided fields over prefill and parses state", () => {
-  const v = buildVersionInput(
+test("buildSproutInput uses provided fields over prefill and parses state", () => {
+  const v = buildSproutInput(
     form([["versionSlug", "v1"], ["versionName", "Live cut"], ["type", "live"], ["date", "2025-02-02"], ["description", "at the club"], ["state", "published"]]),
-    capture,
+    seed,
     "a1",
   );
   assert.equal(v.name, "Live cut");
@@ -61,89 +61,89 @@ test("buildVersionInput uses provided fields over prefill and parses state", () 
   assert.equal(v.state, "published");
 });
 
-test("buildVersionInput yields a parentless version when atomParentSlug is null", () => {
-  const v = buildVersionInput(form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), capture, null);
+test("buildSproutInput yields a parentless sprout when beanParentSlug is null", () => {
+  const v = buildSproutInput(form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), seed, null);
   assert.deepEqual(v.parents, []);
 });
 
-test("buildVersionInput coerces an unexpected state to draft", () => {
-  const v = buildVersionInput(form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"], ["state", "bogus"]]), capture, null);
+test("buildSproutInput coerces an unexpected state to draft", () => {
+  const v = buildSproutInput(form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"], ["state", "bogus"]]), seed, null);
   assert.equal(v.state, "draft");
 });
 
-test("validateVersionInput rejects missing required fields", () => {
-  const base = buildVersionInput(
+test("validateSproutInput rejects missing required fields", () => {
+  const base = buildSproutInput(
     form([["versionSlug", "v1"], ["versionName", "n"], ["type", "t"], ["date", "2025-02-02"]]),
-    capture,
+    seed,
     null,
   );
-  assert.equal(validateVersionInput(base).ok, true);
-  assert.equal(validateVersionInput({ ...base, slug: "" }).ok, false);
-  assert.equal(validateVersionInput({ ...base, type: "" }).ok, false);
-  assert.equal(validateVersionInput({ ...base, date: "" }).ok, false);
+  assert.equal(validateSproutInput(base).ok, true);
+  assert.equal(validateSproutInput({ ...base, slug: "" }).ok, false);
+  assert.equal(validateSproutInput({ ...base, type: "" }).ok, false);
+  assert.equal(validateSproutInput({ ...base, date: "" }).ok, false);
 });
 
-test("validateVersionInput rejects a name cleared in both languages", () => {
-  const v = buildVersionInput(form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), capture, null);
+test("validateSproutInput rejects a name cleared in both languages", () => {
+  const v = buildSproutInput(form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), seed, null);
   assert.equal(v.name, "");
-  assert.equal(validateVersionInput(v).ok, false);
+  assert.equal(validateSproutInput(v).ok, false);
 });
 
 // --- Bilingual widening (B1): paired en/fr fields compose via composeText,
 // WYSIWYG (the page prefills, the builder never falls back); validation counts a
 // name present in either language.
 
-test("buildVersionInput composes a bilingual name from the paired fields", () => {
-  const v = buildVersionInput(
+test("buildSproutInput composes a bilingual name from the paired fields", () => {
+  const v = buildSproutInput(
     form([["versionSlug", "v1"], ["versionName", "Live cut"], ["versionNameFr", "Prise live"], ["type", "t"], ["date", "2025-02-02"]]),
-    capture,
+    seed,
     null,
   );
   assert.deepEqual(v.name, { en: "Live cut", fr: "Prise live" });
 });
 
-test("buildVersionInput keeps an fr-only name (no capture-title fallback, no en borrowed)", () => {
-  const v = buildVersionInput(
+test("buildSproutInput keeps an fr-only name (no seed-title fallback, no en borrowed)", () => {
+  const v = buildSproutInput(
     form([["versionSlug", "v1"], ["versionNameFr", "Prise live"], ["type", "t"], ["date", "2025-02-02"]]),
-    capture,
+    seed,
     null,
   );
   assert.deepEqual(v.name, { fr: "Prise live" });
 });
 
-test("buildVersionInput composes a bilingual description — a typed pair wins over the note", () => {
-  const v = buildVersionInput(
+test("buildSproutInput composes a bilingual description — a typed pair wins over the note", () => {
+  const v = buildSproutInput(
     form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"], ["description", "at the club"], ["descriptionFr", "au club"]]),
-    capture,
+    seed,
     null,
   );
   assert.deepEqual(v.description, { en: "at the club", fr: "au club" });
 });
 
-test("buildVersionInput: an fr-only typed description also wins over the note", () => {
-  const v = buildVersionInput(
+test("buildSproutInput: an fr-only typed description also wins over the note", () => {
+  const v = buildSproutInput(
     form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"], ["descriptionFr", "au club"]]),
-    capture,
+    seed,
     null,
   );
   assert.deepEqual(v.description, { fr: "au club" });
 });
 
-test("buildVersionInput: blank description fields and no capture body yield an empty string", () => {
-  const v = buildVersionInput(
+test("buildSproutInput: blank description fields and no seed body yield an empty string", () => {
+  const v = buildSproutInput(
     form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]),
-    { ...capture, body: undefined },
+    { ...seed, body: undefined },
     null,
   );
   assert.equal(v.description, "");
 });
 
-test("validateVersionInput accepts an fr-only name", () => {
-  const base = buildVersionInput(form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), capture, null);
-  assert.equal(validateVersionInput({ ...base, name: { fr: "Nom" } }).ok, true);
+test("validateSproutInput accepts an fr-only name", () => {
+  const base = buildSproutInput(form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), seed, null);
+  assert.equal(validateSproutInput({ ...base, name: { fr: "Nom" } }).ok, true);
 });
 
-test("validateVersionInput rejects a name with no language present, message unchanged", () => {
-  const base = buildVersionInput(form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), capture, null);
-  assert.deepEqual(validateVersionInput({ ...base, name: {} }), { ok: false, error: "version name is required" });
+test("validateSproutInput rejects a name with no language present, message unchanged", () => {
+  const base = buildSproutInput(form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), seed, null);
+  assert.deepEqual(validateSproutInput({ ...base, name: {} }), { ok: false, error: "sprout name is required" });
 });
