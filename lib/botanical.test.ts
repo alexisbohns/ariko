@@ -18,9 +18,9 @@ const hasDb = Boolean(process.env.MONGODB_URI);
 
 async function cleanup() {
   const db = await getDb();
-  await db.collection("molecules").deleteMany({ slug: /^__test__/ });
-  await db.collection("atoms").deleteMany({ slug: /^__test__/ });
-  await db.collection("versions").deleteMany({ slug: /^__test__/ });
+  await db.collection("pods").deleteMany({ slug: /^__test__/ });
+  await db.collection("beans").deleteMany({ slug: /^__test__/ });
+  await db.collection("sprouts").deleteMany({ slug: /^__test__/ });
 }
 
 test("createPod/createBean insert private-by-default", { skip: !hasDb }, async (t) => {
@@ -66,8 +66,8 @@ test("setPublic flips visibility to public", { skip: !hasDb }, async (t) => {
   await createBean({ slug: "__test__pa", name: "A", podSlug: "__test__pm" });
   await setPublic(["__test__pm"], ["__test__pa"]);
   const db = await getDb();
-  const m = await db.collection("molecules").findOne({ slug: "__test__pm" });
-  const a = await db.collection("atoms").findOne({ slug: "__test__pa" });
+  const m = await db.collection("pods").findOne({ slug: "__test__pm" });
+  const a = await db.collection("beans").findOne({ slug: "__test__pa" });
   assert.equal(m?.visibility, "public");
   assert.equal(a?.visibility, "public");
 });
@@ -83,8 +83,8 @@ test("setPrivate flips visibility back to private", { skip: !hasDb }, async (t) 
   await setPublic(["__test__qm"], ["__test__qa"]);
   await setPrivate(["__test__qm"], ["__test__qa"]);
   const db = await getDb();
-  const m = await db.collection("molecules").findOne({ slug: "__test__qm" });
-  const a = await db.collection("atoms").findOne({ slug: "__test__qa" });
+  const m = await db.collection("pods").findOne({ slug: "__test__qm" });
+  const a = await db.collection("beans").findOne({ slug: "__test__qa" });
   assert.equal(m?.visibility, "private");
   assert.equal(a?.visibility, "private");
 });
@@ -109,9 +109,9 @@ test("deleteVersion removes only the targeted sprout doc", { skip: !hasDb }, asy
   await createSprout({ slug: "__test__keep", ...base });
   await deleteVersion("__test__del");
   const db = await getDb();
-  assert.equal(await db.collection("versions").findOne({ slug: "__test__del" }), null);
+  assert.equal(await db.collection("sprouts").findOne({ slug: "__test__del" }), null);
   // The delete must be slug-scoped — a sibling doc survives.
-  assert.notEqual(await db.collection("versions").findOne({ slug: "__test__keep" }), null);
+  assert.notEqual(await db.collection("sprouts").findOne({ slug: "__test__keep" }), null);
 });
 
 test("deleteVersion on a missing slug does not throw", { skip: !hasDb }, async () => {

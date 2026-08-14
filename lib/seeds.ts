@@ -3,7 +3,7 @@ import type { Seed } from "./data";
 import type { InboxInput } from "./inbox";
 
 function seedsCol() {
-  return getDb().then((db) => db.collection<Seed>("captures"));
+  return getDb().then((db) => db.collection<Seed>("seeds"));
 }
 
 // Unique only when externalId exists, so manual seeds never collide on null.

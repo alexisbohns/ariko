@@ -22,13 +22,13 @@ test("loadRawGarden returns arrays for all three collections", { skip: !hasDb },
 test("loadRawGarden returns documents without Mongo _id", { skip: !hasDb }, async () => {
   const db = await getDb();
   const probe = { slug: "__store_probe__", name: "Probe", domain: "music" as const, description: "" };
-  await db.collection("molecules").updateOne({ slug: probe.slug }, { $set: probe }, { upsert: true });
+  await db.collection("pods").updateOne({ slug: probe.slug }, { $set: probe }, { upsert: true });
   try {
     const found = (await loadRawGarden()).pods?.find((m) => m.slug === probe.slug);
     assert.ok(found, "probe molecule should be loaded");
     assert.equal("_id" in (found as object), false);
   } finally {
-    await db.collection("molecules").deleteOne({ slug: probe.slug });
+    await db.collection("pods").deleteOne({ slug: probe.slug });
   }
 });
 
@@ -40,13 +40,13 @@ test("public dataset includes published but excludes drafted sprouts", { skip: !
   const base = { type: "note", date: "2099-01-01", description: "leak probe", parents: [] };
   const published = { ...base, slug: "__leak_probe_published__", name: "Published Probe", state: "published" as const };
   const draft = { ...base, slug: "__leak_probe_draft__", name: "Draft Probe", state: "draft" as const };
-  await db.collection("versions").updateOne({ slug: published.slug }, { $set: published }, { upsert: true });
-  await db.collection("versions").updateOne({ slug: draft.slug }, { $set: draft }, { upsert: true });
+  await db.collection("sprouts").updateOne({ slug: published.slug }, { $set: published }, { upsert: true });
+  await db.collection("sprouts").updateOne({ slug: draft.slug }, { $set: draft }, { upsert: true });
   try {
     const slugs = new Set((await getPublicDataset()).timelineSprouts().map((e) => e.sprout.slug));
     assert.equal(slugs.has(published.slug), true, "published version missing — dataset is degenerate, test would pass vacuously");
     assert.equal(slugs.has(draft.slug), false, "draft version leaked into the public dataset");
   } finally {
-    await db.collection("versions").deleteMany({ slug: { $in: [published.slug, draft.slug] } });
+    await db.collection("sprouts").deleteMany({ slug: { $in: [published.slug, draft.slug] } });
   }
 });

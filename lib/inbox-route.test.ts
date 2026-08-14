@@ -103,6 +103,6 @@ test("201 creates a seed for a valid authorized payload", { skip: !hasDb }, asyn
   // cleanup
   const { getDb, closeDb } = await import("./db");
   const db = await getDb();
-  await db.collection("captures").deleteOne({ id: json.id });
+  await db.collection("seeds").deleteOne({ id: json.id });
   await closeDb();
 });

@@ -23,19 +23,19 @@ function isDuplicateKey(err: unknown): boolean {
 // re-runnable, and wiring it into scripts/apply-validators.ts.
 export async function ensureBotanicalIndexes(): Promise<void> {
   const db = await getDb();
-  await db.collection("molecules").createIndex({ slug: 1 }, { unique: true });
-  await db.collection("atoms").createIndex({ slug: 1 }, { unique: true });
-  await db.collection("versions").createIndex({ slug: 1 }, { unique: true });
+  await db.collection("pods").createIndex({ slug: 1 }, { unique: true });
+  await db.collection("beans").createIndex({ slug: 1 }, { unique: true });
+  await db.collection("sprouts").createIndex({ slug: 1 }, { unique: true });
 }
 
 export async function listPods(): Promise<Pod[]> {
   const db = await getDb();
-  return db.collection<Pod>("molecules").find({}, { projection: { _id: 0 } }).sort({ slug: 1 }).toArray();
+  return db.collection<Pod>("pods").find({}, { projection: { _id: 0 } }).sort({ slug: 1 }).toArray();
 }
 
 export async function listBeans(): Promise<Bean[]> {
   const db = await getDb();
-  return db.collection<Bean>("atoms").find({}, { projection: { _id: 0 } }).sort({ slug: 1 }).toArray();
+  return db.collection<Bean>("beans").find({}, { projection: { _id: 0 } }).sort({ slug: 1 }).toArray();
 }
 
 export interface NewPod {
@@ -49,7 +49,7 @@ export async function createPod(input: NewPod): Promise<Pod> {
   const db = await getDb();
   const doc: Pod = { ...input, visibility: "private" };
   try {
-    await db.collection<Pod>("molecules").insertOne({ ...doc });
+    await db.collection<Pod>("pods").insertOne({ ...doc });
   } catch (err) {
     if (isDuplicateKey(err)) throw new SlugExistsError("pod", input.slug);
     throw err;
@@ -72,7 +72,7 @@ export async function createBean(input: NewBean): Promise<Bean> {
     visibility: "private",
   };
   try {
-    await db.collection<Bean>("atoms").insertOne({ ...doc });
+    await db.collection<Bean>("beans").insertOne({ ...doc });
   } catch (err) {
     if (isDuplicateKey(err)) throw new SlugExistsError("bean", input.slug);
     throw err;
@@ -84,7 +84,7 @@ export async function createSprout(input: SproutInput): Promise<Sprout> {
   const db = await getDb();
   const doc: Sprout = { ...input };
   try {
-    await db.collection<Sprout>("versions").insertOne({ ...doc });
+    await db.collection<Sprout>("sprouts").insertOne({ ...doc });
   } catch (err) {
     if (isDuplicateKey(err)) throw new SlugExistsError("sprout", input.slug);
     throw err;
@@ -95,7 +95,7 @@ export async function createSprout(input: SproutInput): Promise<Sprout> {
 // Single-version read for the edit-page prefill (projection drops _id).
 export async function getSprout(slug: string): Promise<Sprout | null> {
   const db = await getDb();
-  return db.collection<Sprout>("versions").findOne({ slug }, { projection: { _id: 0 } });
+  return db.collection<Sprout>("sprouts").findOne({ slug }, { projection: { _id: 0 } });
 }
 
 // Updates ONLY the editable fields via $set. Never touches slug / parents / media /
@@ -103,7 +103,7 @@ export async function getSprout(slug: string): Promise<Sprout | null> {
 // immutable, so there is no unique-index collision path here.
 export async function updateVersion(slug: string, patch: SproutPatch): Promise<void> {
   const db = await getDb();
-  await db.collection<Sprout>("versions").updateOne({ slug }, { $set: { ...patch } });
+  await db.collection<Sprout>("sprouts").updateOne({ slug }, { $set: { ...patch } });
 }
 
 // Hard delete (roadmap A2). Idempotent — deleting a missing slug is a no-op
@@ -113,7 +113,7 @@ export async function updateVersion(slug: string, patch: SproutPatch): Promise<v
 // (seed promotedTo, future relations[]) are tolerated on all read paths.
 export async function deleteVersion(slug: string): Promise<void> {
   const db = await getDb();
-  await db.collection<Sprout>("versions").deleteOne({ slug });
+  await db.collection<Sprout>("sprouts").deleteOne({ slug });
 }
 
 // Shared write half of the visibility cascades. No-op on empty arrays.
@@ -124,10 +124,10 @@ async function setVisibility(
 ): Promise<void> {
   const db = await getDb();
   if (podSlugs.length > 0) {
-    await db.collection("molecules").updateMany({ slug: { $in: podSlugs } }, { $set: { visibility } });
+    await db.collection("pods").updateMany({ slug: { $in: podSlugs } }, { $set: { visibility } });
   }
   if (beanSlugs.length > 0) {
-    await db.collection("atoms").updateMany({ slug: { $in: beanSlugs } }, { $set: { visibility } });
+    await db.collection("beans").updateMany({ slug: { $in: beanSlugs } }, { $set: { visibility } });
   }
 }
 

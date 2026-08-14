@@ -7,7 +7,7 @@ const hasDb = Boolean(process.env.MONGODB_URI);
 
 async function cleanup() {
   const db = await getDb();
-  await db.collection("captures").deleteMany({ title: /^__test__/ });
+  await db.collection("seeds").deleteMany({ title: /^__test__/ });
 }
 
 function dupErr(): Error & { code: number } {
