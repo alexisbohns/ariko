@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getCapture } from "@/lib/captures";
-import { listMolecules, listAtoms } from "@/lib/atomic";
+import { listPods, listBeans } from "@/lib/botanical";
 import { resolveText, textPart } from "@/lib/data";
 import { promoteCaptureAction, discardCaptureAction } from "../../actions";
 
@@ -19,7 +19,7 @@ export default async function TriagePage({
   const capture = await getCapture(id);
   if (!capture || capture.status !== "inbox") notFound();
 
-  const [molecules, atoms] = await Promise.all([listMolecules(), listAtoms()]);
+  const [molecules, atoms] = await Promise.all([listPods(), listBeans()]);
   const note = resolveText(capture.body);
 
   return (

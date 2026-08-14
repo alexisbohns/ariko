@@ -1,6 +1,6 @@
-import { resolveText, type Domain, type TimelineEntry, type VersionState } from "./data";
+import { resolveText, type Domain, type TimelineEntry, type SproutState } from "./data";
 
-const STATES: VersionState[] = ["draft", "private", "published"];
+const STATES: SproutState[] = ["draft", "private", "published"];
 const DOMAINS: Domain[] = ["music", "design", "podcast"];
 
 export interface VaultFilters {
@@ -15,7 +15,7 @@ export interface VaultFilters {
 // Surviving rows carry their version name resolved to a display string (B1) —
 // resolution happens at build time, so the vault table renders plain strings.
 export function filterVaultEntries(entries: TimelineEntry[], filters: VaultFilters): TimelineEntry[] {
-  const state = STATES.includes(filters.state as VersionState) ? (filters.state as VersionState) : undefined;
+  const state = STATES.includes(filters.state as SproutState) ? (filters.state as SproutState) : undefined;
   const domain = DOMAINS.includes(filters.domain as Domain) ? (filters.domain as Domain) : undefined;
   const tag = filters.tag && filters.tag.trim() ? filters.tag.trim() : undefined;
 

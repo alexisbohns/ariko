@@ -1,5 +1,5 @@
 import { getDb } from "./db";
-import type { Atom, Domain, Molecule, Version, Visibility } from "./data";
+import type { Bean, Domain, Pod, Sprout, Visibility } from "./data";
 import type { VersionInput } from "./promote";
 import type { VersionPatch } from "./version-edit";
 
@@ -21,81 +21,81 @@ function isDuplicateKey(err: unknown): boolean {
 
 // Idempotent — the Plan 1 migration already created these; making it explicit and
 // re-runnable, and wiring it into scripts/apply-validators.ts.
-export async function ensureAtomicIndexes(): Promise<void> {
+export async function ensureBotanicalIndexes(): Promise<void> {
   const db = await getDb();
   await db.collection("molecules").createIndex({ slug: 1 }, { unique: true });
   await db.collection("atoms").createIndex({ slug: 1 }, { unique: true });
   await db.collection("versions").createIndex({ slug: 1 }, { unique: true });
 }
 
-export async function listMolecules(): Promise<Molecule[]> {
+export async function listPods(): Promise<Pod[]> {
   const db = await getDb();
-  return db.collection<Molecule>("molecules").find({}, { projection: { _id: 0 } }).sort({ slug: 1 }).toArray();
+  return db.collection<Pod>("molecules").find({}, { projection: { _id: 0 } }).sort({ slug: 1 }).toArray();
 }
 
-export async function listAtoms(): Promise<Atom[]> {
+export async function listBeans(): Promise<Bean[]> {
   const db = await getDb();
-  return db.collection<Atom>("atoms").find({}, { projection: { _id: 0 } }).sort({ slug: 1 }).toArray();
+  return db.collection<Bean>("atoms").find({}, { projection: { _id: 0 } }).sort({ slug: 1 }).toArray();
 }
 
-export interface NewMolecule {
+export interface NewPod {
   slug: string;
   name: string;
   domain: Domain;
   description: string;
 }
 
-export async function createMolecule(input: NewMolecule): Promise<Molecule> {
+export async function createPod(input: NewPod): Promise<Pod> {
   const db = await getDb();
-  const doc: Molecule = { ...input, visibility: "private" };
+  const doc: Pod = { ...input, visibility: "private" };
   try {
-    await db.collection<Molecule>("molecules").insertOne({ ...doc });
+    await db.collection<Pod>("molecules").insertOne({ ...doc });
   } catch (err) {
-    if (isDuplicateKey(err)) throw new SlugExistsError("molecule", input.slug);
+    if (isDuplicateKey(err)) throw new SlugExistsError("pod", input.slug);
     throw err;
   }
   return doc;
 }
 
-export interface NewAtom {
+export interface NewBean {
   slug: string;
   name: string;
   podSlug: string | null;
 }
 
-export async function createAtom(input: NewAtom): Promise<Atom> {
+export async function createBean(input: NewBean): Promise<Bean> {
   const db = await getDb();
-  const doc: Atom = {
+  const doc: Bean = {
     slug: input.slug,
     name: input.name,
     parents: input.podSlug ? [`pod:${input.podSlug}`] : [],
     visibility: "private",
   };
   try {
-    await db.collection<Atom>("atoms").insertOne({ ...doc });
+    await db.collection<Bean>("atoms").insertOne({ ...doc });
   } catch (err) {
-    if (isDuplicateKey(err)) throw new SlugExistsError("atom", input.slug);
+    if (isDuplicateKey(err)) throw new SlugExistsError("bean", input.slug);
     throw err;
   }
   return doc;
 }
 
-export async function createVersion(input: VersionInput): Promise<Version> {
+export async function createSprout(input: VersionInput): Promise<Sprout> {
   const db = await getDb();
-  const doc: Version = { ...input };
+  const doc: Sprout = { ...input };
   try {
-    await db.collection<Version>("versions").insertOne({ ...doc });
+    await db.collection<Sprout>("versions").insertOne({ ...doc });
   } catch (err) {
-    if (isDuplicateKey(err)) throw new SlugExistsError("version", input.slug);
+    if (isDuplicateKey(err)) throw new SlugExistsError("sprout", input.slug);
     throw err;
   }
   return doc;
 }
 
 // Single-version read for the edit-page prefill (projection drops _id).
-export async function getVersion(slug: string): Promise<Version | null> {
+export async function getSprout(slug: string): Promise<Sprout | null> {
   const db = await getDb();
-  return db.collection<Version>("versions").findOne({ slug }, { projection: { _id: 0 } });
+  return db.collection<Sprout>("versions").findOne({ slug }, { projection: { _id: 0 } });
 }
 
 // Updates ONLY the editable fields via $set. Never touches slug / parents / media /
@@ -103,7 +103,7 @@ export async function getVersion(slug: string): Promise<Version | null> {
 // immutable, so there is no unique-index collision path here.
 export async function updateVersion(slug: string, patch: VersionPatch): Promise<void> {
   const db = await getDb();
-  await db.collection<Version>("versions").updateOne({ slug }, { $set: { ...patch } });
+  await db.collection<Sprout>("versions").updateOne({ slug }, { $set: { ...patch } });
 }
 
 // Hard delete (roadmap A2). Idempotent — deleting a missing slug is a no-op
@@ -113,7 +113,7 @@ export async function updateVersion(slug: string, patch: VersionPatch): Promise<
 // (capture promotedTo, future relations[]) are tolerated on all read paths.
 export async function deleteVersion(slug: string): Promise<void> {
   const db = await getDb();
-  await db.collection<Version>("versions").deleteOne({ slug });
+  await db.collection<Sprout>("versions").deleteOne({ slug });
 }
 
 // Shared write half of the visibility cascades. No-op on empty arrays.

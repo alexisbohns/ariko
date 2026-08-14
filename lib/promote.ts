@@ -17,7 +17,7 @@ export function resolveParentChoice(newSlug: string, selectedSlug: string): Pare
   return { mode: "none" };
 }
 
-// The fields written to a new Version. Structurally the createVersion input.
+// The fields written to a new Version. Structurally the createSprout input.
 export interface VersionInput {
   slug: string;
   name: Text;

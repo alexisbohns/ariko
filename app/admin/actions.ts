@@ -6,21 +6,21 @@ import { verifyPassword } from "@/lib/session";
 import { buildCaptureBody } from "@/lib/capture-form";
 import { validateInboxPayload } from "@/lib/inbox";
 import { createOrUpdateCapture, getCapture, markCapturePromoted, discardCapture } from "@/lib/captures";
-import { loadRawSeed } from "@/lib/store";
+import { loadRawGarden } from "@/lib/store";
 import { publishCascade, unpublishCascade, unpublishCascadeForBeans, type Domain } from "@/lib/data";
 import { resolveParentChoice, buildVersionInput, validateVersionInput } from "@/lib/promote";
 import { buildVersionPatch, validateVersionPatch } from "@/lib/version-edit";
 import {
-  createMolecule,
-  createAtom,
-  createVersion,
+  createPod,
+  createBean,
+  createSprout,
   deleteVersion,
   setPublic,
   SlugExistsError,
-  getVersion,
+  getSprout,
   updateVersion,
   setPrivate,
-} from "@/lib/atomic";
+} from "@/lib/botanical";
 import {
   requireSession,
   setSessionCookie,
@@ -110,7 +110,7 @@ export async function promoteCaptureAction(formData: FormData): Promise<void> {
     if (molChoice.mode === "create") {
       const domainRaw = String(formData.get("newMoleculeDomain") ?? "");
       const domain: Domain = DOMAINS.includes(domainRaw as Domain) ? (domainRaw as Domain) : "music";
-      await createMolecule({
+      await createPod({
         slug: molChoice.slug,
         name: String(formData.get("newMoleculeName") ?? "").trim() || molChoice.slug,
         domain,
@@ -123,7 +123,7 @@ export async function promoteCaptureAction(formData: FormData): Promise<void> {
 
     let beanSlug: string | null = null;
     if (atomChoice.mode === "create") {
-      await createAtom({
+      await createBean({
         slug: atomChoice.slug,
         name: String(formData.get("newAtomName") ?? "").trim() || atomChoice.slug,
         podSlug,
@@ -134,10 +134,10 @@ export async function promoteCaptureAction(formData: FormData): Promise<void> {
     }
 
     const input = buildVersionInput(formData, capture, beanSlug);
-    await createVersion(input);
+    await createSprout(input);
 
     if (input.state === "published") {
-      const { podSlugs, beanSlugs } = publishCascade(await loadRawSeed(), input.slug);
+      const { podSlugs, beanSlugs } = publishCascade(await loadRawGarden(), input.slug);
       await setPublic(podSlugs, beanSlugs);
     }
 
@@ -157,7 +157,7 @@ export async function promoteCaptureAction(formData: FormData): Promise<void> {
 export async function editVersionAction(formData: FormData): Promise<void> {
   await requireSession();
   const slug = String(formData.get("slug") ?? "");
-  const existing = await getVersion(slug);
+  const existing = await getSprout(slug);
   if (!existing) redirect("/admin/vault");
 
   const patch = buildVersionPatch(formData);
@@ -178,10 +178,10 @@ export async function editVersionAction(formData: FormData): Promise<void> {
   // that has no published versions yet). Both branches load the dataset AFTER
   // updateVersion, so the cascade evaluates the just-saved state.
   if (patch.state === "published") {
-    const { podSlugs, beanSlugs } = publishCascade(await loadRawSeed(), slug);
+    const { podSlugs, beanSlugs } = publishCascade(await loadRawGarden(), slug);
     await setPublic(podSlugs, beanSlugs);
   } else if (existing.state === "published") {
-    const { podSlugs, beanSlugs } = unpublishCascade(await loadRawSeed(), slug);
+    const { podSlugs, beanSlugs } = unpublishCascade(await loadRawGarden(), slug);
     await setPrivate(podSlugs, beanSlugs);
   }
 
@@ -204,7 +204,7 @@ export async function deleteVersionAction(formData: FormData): Promise<void> {
 
   // Existence first, so the confirm-fail redirect below only ever targets a real
   // edit page (and the slug it interpolates is a known-good stored slug).
-  const existing = await getVersion(slug);
+  const existing = await getSprout(slug);
   if (!existing) redirect("/admin/vault");
 
   // Server-side re-check of the confirm checkbox; the browser `required` is only UX.
@@ -225,7 +225,7 @@ export async function deleteVersionAction(formData: FormData): Promise<void> {
 
   if (wasPublished) {
     const { podSlugs, beanSlugs: flipAtoms } = unpublishCascadeForBeans(
-      await loadRawSeed(),
+      await loadRawGarden(),
       beanSlugs,
     );
     await setPrivate(podSlugs, flipAtoms);

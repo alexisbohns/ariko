@@ -1,6 +1,6 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { loadRawSeed, getPublicDataset } from "./store";
+import { loadRawGarden, getPublicDataset } from "./store";
 import { closeDb, getDb } from "./db";
 
 const hasDb = Boolean(process.env.MONGODB_URI);
@@ -10,8 +10,8 @@ after(async () => {
   await closeDb();
 });
 
-test("loadRawSeed returns arrays for all three collections", { skip: !hasDb }, async () => {
-  const raw = await loadRawSeed();
+test("loadRawGarden returns arrays for all three collections", { skip: !hasDb }, async () => {
+  const raw = await loadRawGarden();
   assert.ok(Array.isArray(raw.pods));
   assert.ok(Array.isArray(raw.beans));
   assert.ok(Array.isArray(raw.sprouts));
@@ -19,12 +19,12 @@ test("loadRawSeed returns arrays for all three collections", { skip: !hasDb }, a
 
 // Insert a probe so this verifies the projection even when the DB is otherwise
 // empty (a loop over zero ambient docs would pass vacuously).
-test("loadRawSeed returns documents without Mongo _id", { skip: !hasDb }, async () => {
+test("loadRawGarden returns documents without Mongo _id", { skip: !hasDb }, async () => {
   const db = await getDb();
   const probe = { slug: "__store_probe__", name: "Probe", domain: "music" as const, description: "" };
   await db.collection("molecules").updateOne({ slug: probe.slug }, { $set: probe }, { upsert: true });
   try {
-    const found = (await loadRawSeed()).pods?.find((m) => m.slug === probe.slug);
+    const found = (await loadRawGarden()).pods?.find((m) => m.slug === probe.slug);
     assert.ok(found, "probe molecule should be loaded");
     assert.equal("_id" in (found as object), false);
   } finally {

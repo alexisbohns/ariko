@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { resolveText, textPart } from "@/lib/data";
-import { getVersion } from "@/lib/atomic";
+import { getSprout } from "@/lib/botanical";
 import { editVersionAction, deleteVersionAction } from "../../actions";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export default async function EditVersionPage({
   const { slug } = await params;
   const { error } = await searchParams;
 
-  const version = await getVersion(slug);
+  const version = await getSprout(slug);
   if (!version) notFound();
 
   const beanSlug = (version.parents ?? [])
