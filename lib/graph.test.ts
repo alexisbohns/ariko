@@ -3,13 +3,15 @@ import assert from "node:assert/strict";
 import { filterPublic, type RawGarden } from "./data";
 import { toGraph } from "./graph";
 
-test("toGraph maps a pod to exactly {id, kind, name, domain}", () => {
+test("toGraph maps a pod to exactly {id, kind, name}", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "m", name: "M", domain: "music", description: "secret notes" }],
+    pods: [{ slug: "m", name: "M", description: "secret notes", parents: ["plant:ghost"] }],
   };
   const { nodes } = toGraph(seed);
-  assert.deepEqual(nodes, [{ id: "pod:m", kind: "pod", name: "M", domain: "music" }]);
-  assert.equal("description" in nodes[0], false);
+  assert.deepEqual(nodes, [{ id: "pod:m", kind: "pod", name: "M" }]);
+  for (const key of ["description", "parents", "domain"]) {
+    assert.equal(key in nodes[0], false, `${key} must not leak into the node`);
+  }
 });
 
 test("toGraph maps an bean to exactly {id, kind, name} — no visibility/parents leakage", () => {
@@ -61,7 +63,7 @@ test("toGraph resolves a localized name to a plain string — GraphNode.name sta
   const byId = new Map(toGraph(seed).nodes.map((n) => [n.id, n]));
   // Shape unchanged at ALL three kinds: the resolved string sits where the plain
   // string always did, and localized inputs leak no extra fields onto the node.
-  assert.deepEqual(byId.get("pod:m"), { id: "pod:m", kind: "pod", name: "M en", domain: "music" });
+  assert.deepEqual(byId.get("pod:m"), { id: "pod:m", kind: "pod", name: "M en" });
   assert.deepEqual(byId.get("bean:a"), { id: "bean:a", kind: "bean", name: "A fr" }); // en missing → display fallback
   assert.deepEqual(byId.get("sprout:v"), {
     id: "sprout:v",
@@ -372,4 +374,76 @@ test("toGraph(filterPublic(raw)) never emits a filtered id as a node OR an edge 
   ]) {
     assert.equal(emitted.has(filtered), false, `${filtered} must not be public`);
   }
+});
+
+// --- Plant + bee projection (PR2). ---
+
+test("toGraph maps a plant to exactly {id, kind, name, natures} — relations/description never leak", () => {
+  const seed: RawGarden = {
+    plants: [{ slug: "melogram", name: "Melogram", natures: ["work", "tool"], description: "secret", relations: [{ kind: "distributes", ref: "plant:bohns-music" }] }],
+  };
+  const { nodes } = toGraph(seed);
+  assert.deepEqual(nodes, [{ id: "plant:melogram", kind: "plant", name: "Melogram", natures: ["work", "tool"] }]);
+  for (const key of ["description", "relations", "visibility"]) {
+    assert.equal(key in nodes[0], false, `${key} must not leak into the node`);
+  }
+});
+
+test("toGraph maps a bee to exactly {id, kind, name, type, status} — levers/serves/engine never leak", () => {
+  const seed: RawGarden = {
+    bees: [{ slug: "si", name: "Song identifier", kind: "capability", status: "live", engine: "x", schedule: "daily", levers: [{ label: "l" }], serves: ["plant:femfolk"], description: "d", visibility: "public" }],
+  };
+  const { nodes } = toGraph(seed);
+  assert.deepEqual(nodes, [{ id: "bee:si", kind: "bee", name: "Song identifier", type: "capability", status: "live" }]);
+  for (const key of ["levers", "serves", "engine", "schedule", "description", "visibility"]) {
+    assert.equal(key in nodes[0], false, `${key} must not leak into the node`);
+  }
+});
+
+test("toGraph emits plant containment for pods and direct beans", () => {
+  const seed: RawGarden = {
+    plants: [{ slug: "pl", name: "P", natures: ["work"], description: "" }],
+    pods: [{ slug: "m", name: "M", description: "", parents: ["plant:pl", "plant:ghost"] }],
+    beans: [{ slug: "direct", name: "D", parents: ["plant:pl"] }],
+  };
+  const { edges } = toGraph(seed);
+  assert.deepEqual(edges, [
+    { source: "plant:pl", target: "pod:m", kind: "contains" },
+    { source: "plant:pl", target: "bean:direct", kind: "contains" },
+  ]);
+});
+
+test("toGraph renders plant relation edges (distributes/chronicles) with both-ends prune", () => {
+  const seed: RawGarden = {
+    plants: [
+      { slug: "melogram", name: "Mg", natures: ["work", "tool"], description: "", relations: [{ kind: "distributes", ref: "plant:bohns-music" }, { kind: "chronicles", ref: "plant:ghost" }] },
+      { slug: "bohns-music", name: "BM", natures: ["work"], description: "" },
+    ],
+  };
+  assert.deepEqual(toGraph(seed).edges, [
+    { source: "plant:melogram", target: "plant:bohns-music", kind: "distributes" },
+  ]);
+});
+
+test("toGraph renders bee serves edges with both-ends prune", () => {
+  const seed: RawGarden = {
+    plants: [{ slug: "femfolk", name: "F", natures: ["work"], description: "" }],
+    bees: [{ slug: "si", name: "SI", kind: "capability", status: "live", levers: [], serves: ["plant:femfolk", "plant:ghost"], description: "" }],
+  };
+  assert.deepEqual(toGraph(seed).edges, [
+    { source: "bee:si", target: "plant:femfolk", kind: "serves" },
+  ]);
+});
+
+test("toGraph composed with filterPublic shows only public bees (the /api/graph contract)", () => {
+  const seed: RawGarden = {
+    plants: [{ slug: "pl", name: "P", natures: ["work"], description: "" }],
+    bees: [
+      { slug: "pub", name: "Pub", kind: "workflow", status: "live", levers: [], serves: ["plant:pl"], description: "", visibility: "public" },
+      { slug: "hidden", name: "H", kind: "adapter", status: "planned", levers: [], serves: ["plant:pl"], description: "" },
+    ],
+  };
+  const ids = toGraph(filterPublic(seed)).nodes.map((n) => n.id);
+  assert.ok(ids.includes("bee:pub"));
+  assert.equal(ids.includes("bee:hidden"), false);
 });
