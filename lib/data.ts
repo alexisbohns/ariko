@@ -418,7 +418,10 @@ export function filterPublic(raw: RawGarden): RawGarden {
     .filter((b) => b.visibility === "public")
     .map((b) => {
       const serves = (Array.isArray(b.serves) ? b.serves : []).filter(
-        (ref) => ref.startsWith(PLANT_PREFIX) && plantKept.has(ref.slice(PLANT_PREFIX.length)),
+        (ref) =>
+          typeof ref === "string" &&
+          ref.startsWith(PLANT_PREFIX) &&
+          plantKept.has(ref.slice(PLANT_PREFIX.length)),
       );
       return Array.isArray(b.serves) && serves.length === b.serves.length ? b : { ...b, serves };
     });

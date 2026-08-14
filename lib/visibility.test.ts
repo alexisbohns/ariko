@@ -275,3 +275,41 @@ test("filterPublic keeps only explicitly public bees (default is PRIVATE) and sc
   assert.deepEqual((out.bees ?? []).map((b) => b.slug), ["song-identifier"]);
   assert.deepEqual(out.bees?.[0]?.serves, ["plant:femfolk"]); // private and dangling plants scrubbed
 });
+
+test("filterPublic tolerates malformed bee serves entries fail-closed (one bad doc must not 500 the public site)", () => {
+  const seed: RawGarden = {
+    plants: [{ slug: "femfolk", name: "F", natures: ["work"], description: "" }],
+    bees: [
+      {
+        slug: "b", name: "B", kind: "routine", status: "live", levers: [], description: "", visibility: "public",
+        serves: [null, 5, "plant:femfolk"] as unknown as string[],
+      },
+    ],
+  };
+  const out = filterPublic(seed); // must not throw
+  assert.deepEqual(out.bees?.[0]?.serves, ["plant:femfolk"]);
+});
+
+test("filterPublic never mutates the input when scrubbing plant relations or bee serves (pure)", () => {
+  const seed: RawGarden = {
+    plants: [
+      {
+        slug: "pl", name: "P", natures: ["work"], description: "",
+        relations: [
+          { kind: "uses", ref: "plant:other" }, // kept
+          { kind: "uses", ref: "pod:ghost" }, // dropped: dangling — forces a scrub
+        ],
+      },
+      { slug: "other", name: "O", natures: ["tool"], description: "" },
+    ],
+    bees: [
+      {
+        slug: "b", name: "B", kind: "routine", status: "live", levers: [], description: "", visibility: "public",
+        serves: ["plant:pl", "plant:ghost"], // dangling entry forces a scrub
+      },
+    ],
+  };
+  const snapshot = structuredClone(seed);
+  filterPublic(seed);
+  assert.deepEqual(seed, snapshot);
+});
