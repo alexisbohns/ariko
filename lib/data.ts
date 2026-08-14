@@ -416,11 +416,11 @@ export function unpublishCascade(
 
 let cached: Dataset | null = null;
 
-// Reads data/seed.yml once at first call (build time), then caches.
-// (File becomes data/garden.yml in the data-migration task of this PR.)
+// Reads data/garden.yml once at first call (build time), then caches.
+
 export function getDataset(): Dataset {
   if (!cached) {
-    const file = readFileSync(join(process.cwd(), "data", "seed.yml"), "utf8");
+    const file = readFileSync(join(process.cwd(), "data", "garden.yml"), "utf8");
     // CORE_SCHEMA omits js-yaml's !!timestamp type, so dates like `2025-09-28`
     // stay plain strings instead of becoming Date objects.
     const parsed = yaml.load(file, { schema: yaml.CORE_SCHEMA }) as RawGarden;

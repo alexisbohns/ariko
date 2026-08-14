@@ -1,4 +1,7 @@
 import { test } from "node:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import yaml from "js-yaml";
 import assert from "node:assert/strict";
 import {
   buildDataset,
@@ -418,4 +421,21 @@ test("adapter equivalence: unpublishCascade(slug) === unpublishCascadeForBeans(t
     unpublishCascade(raw, "v1"),
     unpublishCascadeForBeans(raw, ["a1", "a2", "ghost"]),
   );
+});
+
+test("garden.yml parses into a garden with only botanical prefixes", () => {
+  const file = readFileSync(join(process.cwd(), "data", "garden.yml"), "utf8");
+  const raw = yaml.load(file, { schema: yaml.CORE_SCHEMA }) as RawGarden;
+  assert.ok((raw.pods ?? []).length > 0);
+  const refs = [
+    ...(raw.beans ?? []).flatMap((b) => b.parents ?? []),
+    ...(raw.sprouts ?? []).flatMap((s) => [
+      ...(s.parents ?? []),
+      ...(s.relations ?? []).map((r) => r.ref),
+    ]),
+  ];
+  assert.ok(refs.length > 0);
+  for (const ref of refs) {
+    assert.match(ref, /^(pod|bean|sprout):/, `legacy prefix survived: ${ref}`);
+  }
 });
