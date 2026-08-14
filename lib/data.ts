@@ -46,10 +46,48 @@ export interface Relation {
   ref: string;
 }
 
+export type PlantNature = "work" | "tool";
+
+// Top tier of the practice graph (slice 1 PR2). Plants are roots — they carry
+// no parents[]; pods and beans parent INTO them. relations[] carries the
+// articulation vocabulary (distributes | chronicles | uses | publishes-to |
+// monitors) as free strings, same G2 rule as sprout relations.
+export interface Plant {
+  slug: string;
+  name: Text;
+  natures: PlantNature[]; // array: melogram is both work AND tool
+  description: Text;
+  visibility?: Visibility; // default treated as "public", same rule as pods
+  relations?: Relation[];
+  tags?: string[];
+}
+
+// Operational species (slice 1 PR2): integration bricks, NOT content. Outside
+// the publish cascades entirely, and default-PRIVATE (the opposite of every
+// content tier) — public exhibition is an explicit per-bee opt-in.
+export interface BeeLever {
+  label: string;
+  url?: string;
+  ref?: string; // workflow file path, routine id, …
+}
+export interface Bee {
+  slug: string;
+  name: Text;
+  kind: "adapter" | "routine" | "workflow" | "capability";
+  status: "planned" | "live" | "paused" | "broken";
+  engine?: string; // claude-routine | gemini-action | action | …
+  schedule?: string; // human-readable or cron
+  levers: BeeLever[];
+  serves: string[]; // ["plant:femfolk", …]
+  description: Text;
+  visibility?: Visibility; // default treated as "private"
+}
+
 export interface Pod {
   slug: string;
   name: Text; // bilingual since B1; plain strings remain valid (no migration)
-  domain: Domain;
+  domain?: Domain; // TEMPORARY optional during PR2 — deleted in the Domain-retirement task
+  parents?: string[]; // containment ONLY, e.g. ["plant:bohns-music"] (PR2)
   description: Text;
   visibility?: Visibility; // default treated as "public"
   tags?: string[];
@@ -58,7 +96,7 @@ export interface Pod {
 export interface Bean {
   slug: string;
   name: Text; // bilingual since B1; plain strings remain valid (no migration)
-  parents: string[]; // containment ONLY, e.g. ["pod:republic-of-masquerade"] — non-containment links belong in a future relations[] (graph runway)
+  parents: string[]; // containment ONLY: "pod:…" and/or "plant:…" refs — a bean may skip the pod tier
   visibility?: Visibility; // default treated as "public"
   tags?: string[];
 }
@@ -80,9 +118,11 @@ export interface Sprout {
 }
 
 export interface RawGarden {
+  plants?: Plant[];
   pods?: Pod[];
   beans?: Bean[];
   sprouts?: Sprout[];
+  bees?: Bee[];
 }
 
 export type SeedStatus = "inbox" | "promoted" | "discarded";
@@ -112,25 +152,34 @@ export interface Seed {
 export interface TimelineEntry {
   sprout: Sprout;
   bean: Bean | null;
-  domain: Domain | null;
+  plant: Plant | null;
+  domain: Domain | null; // TEMPORARY — deleted in the Domain-retirement task
 }
 
 export interface Dataset {
+  getPlants(): Plant[];
+  podsForPlant(slug: string): Pod[];
+  beansForPlant(slug: string): Bean[]; // beans parented DIRECTLY to the plant
+  unrootedPods(): Pod[]; // pods with no resolvable plant parent
+  plantForBean(slug: string): Plant | null;
   getPods(): Pod[];
   beansForPod(slug: string): Bean[];
-  standaloneBeans(): Bean[];
+  standaloneBeans(): Bean[]; // no resolvable pod NOR plant parent
   getBean(slug: string): Bean | undefined;
   sproutsForBean(slug: string): Sprout[];
   timelineSprouts(): TimelineEntry[];
-  domainForBean(slug: string): Domain | null;
+  domainForBean(slug: string): Domain | null; // TEMPORARY — deleted in the Domain-retirement task
 }
 
 // The prefixed-ref grammar, shared with the graph serializer (lib/graph.ts).
-// parents[] uses pod:/bean: only; sprout: appears in relations[] refs
-// (and as graph node ids) — nothing is ever contained BY a sprout.
+// parents[] uses plant:/pod:/bean: only; sprout: and bee: appear in
+// relations[] refs (and as graph node ids) — nothing is ever contained BY a
+// sprout or a bee.
+export const PLANT_PREFIX = "plant:";
 export const POD_PREFIX = "pod:";
 export const BEAN_PREFIX = "bean:";
 export const SPROUT_PREFIX = "sprout:";
+export const BEE_PREFIX = "bee:";
 
 export function parentsWithPrefix(parents: string[] | undefined, prefix: string): string[] {
   return (parents ?? []).filter((p) => p.startsWith(prefix)).map((p) => p.slice(prefix.length));
@@ -149,12 +198,34 @@ export function buildDataset(raw: RawGarden): Dataset {
   const podBySlug = new Map(pods.map((p) => [p.slug, p]));
   const beanBySlug = new Map(beans.map((b) => [b.slug, b]));
 
-  // pod slug -> beans (in garden order); only resolvable pod refs.
+  const plants = raw.plants ?? [];
+  const plantBySlug = new Map(plants.map((p) => [p.slug, p]));
+
+  // plant slug -> pods (in garden order); only resolvable plant refs.
+  const podsByPlant = new Map<string, Pod[]>();
+  const unrooted: Pod[] = [];
+  for (const pod of pods) {
+    const plantSlugs = parentsWithPrefix(pod.parents, PLANT_PREFIX).filter((s) => plantBySlug.has(s));
+    if (plantSlugs.length === 0) {
+      unrooted.push(pod);
+      continue;
+    }
+    for (const p of plantSlugs) {
+      const list = podsByPlant.get(p) ?? [];
+      list.push(pod);
+      podsByPlant.set(p, list);
+    }
+  }
+
+  // pod/plant slug -> beans (in garden order); only resolvable refs. A bean is
+  // standalone only when NEITHER tier resolves (a direct plant parent counts).
   const beansByPod = new Map<string, Bean[]>();
+  const beansByPlant = new Map<string, Bean[]>();
   const standalone: Bean[] = [];
   for (const bean of beans) {
     const podSlugs = parentsWithPrefix(bean.parents, POD_PREFIX).filter((s) => podBySlug.has(s));
-    if (podSlugs.length === 0) {
+    const plantSlugs = parentsWithPrefix(bean.parents, PLANT_PREFIX).filter((s) => plantBySlug.has(s));
+    if (podSlugs.length === 0 && plantSlugs.length === 0) {
       standalone.push(bean); // no parent, or only dangling refs
       continue;
     }
@@ -162,6 +233,11 @@ export function buildDataset(raw: RawGarden): Dataset {
       const list = beansByPod.get(p) ?? [];
       list.push(bean);
       beansByPod.set(p, list);
+    }
+    for (const p of plantSlugs) {
+      const list = beansByPlant.get(p) ?? [];
+      list.push(bean);
+      beansByPlant.set(p, list);
     }
   }
 
@@ -183,7 +259,26 @@ export function buildDataset(raw: RawGarden): Dataset {
     if (!bean) return null;
     for (const podSlug of parentsWithPrefix(bean.parents, POD_PREFIX)) {
       const pod = podBySlug.get(podSlug);
-      if (pod) return pod.domain; // first resolvable pod parent wins
+      if (pod) return pod.domain ?? null; // first resolvable pod parent wins
+    }
+    return null;
+  }
+
+  function plantForBean(slug: string): Plant | null {
+    const bean = beanBySlug.get(slug);
+    if (!bean) return null;
+    // A direct plant parent wins; then the first resolvable pod's first plant.
+    for (const p of parentsWithPrefix(bean.parents, PLANT_PREFIX)) {
+      const plant = plantBySlug.get(p);
+      if (plant) return plant;
+    }
+    for (const podSlug of parentsWithPrefix(bean.parents, POD_PREFIX)) {
+      const pod = podBySlug.get(podSlug);
+      if (!pod) continue;
+      for (const pl of parentsWithPrefix(pod.parents, PLANT_PREFIX)) {
+        const plant = plantBySlug.get(pl);
+        if (plant) return plant;
+      }
     }
     return null;
   }
@@ -195,12 +290,18 @@ export function buildDataset(raw: RawGarden): Dataset {
       return {
         sprout,
         bean,
+        plant: bean ? plantForBean(bean.slug) : null,
         domain: bean ? domainForBean(bean.slug) : null,
       };
     })
     .sort((a, b) => byDateDesc(a.sprout, b.sprout));
 
   return {
+    getPlants: () => plants,
+    podsForPlant: (slug) => podsByPlant.get(slug) ?? [],
+    beansForPlant: (slug) => beansByPlant.get(slug) ?? [],
+    unrootedPods: () => unrooted,
+    plantForBean,
     getPods: () => pods,
     beansForPod: (slug) => beansByPod.get(slug) ?? [],
     standaloneBeans: () => standalone,

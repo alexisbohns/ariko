@@ -423,6 +423,60 @@ test("adapter equivalence: unpublishCascade(slug) === unpublishCascadeForBeans(t
   );
 });
 
+// --- Plant tier (slice 1 PR2): containment one tier up. ---
+
+const PLANTED: RawGarden = {
+  plants: [
+    { slug: "bohns-music", name: "Bohns Music", natures: ["work"], description: "" },
+    { slug: "pbbls", name: "Pebbles", natures: ["work"], description: "" },
+  ],
+  pods: [
+    { slug: "celesta", name: "Celesta", description: "", parents: ["plant:bohns-music"] },
+    { slug: "orphan-pod", name: "Orphan", description: "", parents: ["plant:ghost"] },
+  ],
+  beans: [
+    { slug: "felina", name: "Felina", parents: ["pod:celesta"] },
+    { slug: "pbbls-webapp", name: "Webapp", parents: ["plant:pbbls"] },
+    { slug: "loose", name: "Loose", parents: [] },
+  ],
+  sprouts: [
+    { slug: "felina-0", name: "F0", type: "song", date: "2026-01-01", description: "", parents: ["bean:felina"] },
+    { slug: "webapp-0", name: "W0", type: "feature", date: "2026-01-02", description: "", parents: ["bean:pbbls-webapp"] },
+  ],
+};
+
+test("buildDataset exposes plants, pods-per-plant and unrooted pods", () => {
+  const d = buildDataset(PLANTED);
+  assert.deepEqual(d.getPlants().map((p) => p.slug), ["bohns-music", "pbbls"]);
+  assert.deepEqual(d.podsForPlant("bohns-music").map((p) => p.slug), ["celesta"]);
+  assert.deepEqual(d.unrootedPods().map((p) => p.slug), ["orphan-pod"]); // dangling plant ref = unrooted
+});
+
+test("buildDataset treats a bean parented directly to a plant as first-class, not standalone", () => {
+  const d = buildDataset(PLANTED);
+  assert.deepEqual(d.beansForPlant("pbbls").map((b) => b.slug), ["pbbls-webapp"]);
+  assert.deepEqual(d.standaloneBeans().map((b) => b.slug), ["loose"]);
+});
+
+test("plantForBean resolves via the pod chain, direct plant parents winning over the pod route", () => {
+  const d = buildDataset(PLANTED);
+  assert.equal(d.plantForBean("felina")?.slug, "bohns-music"); // bean -> pod -> plant
+  assert.equal(d.plantForBean("pbbls-webapp")?.slug, "pbbls"); // bean -> plant direct
+  assert.equal(d.plantForBean("loose"), null);
+  const both = buildDataset({
+    ...PLANTED,
+    beans: [{ slug: "b", name: "B", parents: ["pod:celesta", "plant:pbbls"] }],
+  });
+  assert.equal(both.plantForBean("b")?.slug, "pbbls"); // direct wins
+});
+
+test("timelineSprouts carries the resolved plant on each entry", () => {
+  const d = buildDataset(PLANTED);
+  const byslug = new Map(d.timelineSprouts().map((e) => [e.sprout.slug, e]));
+  assert.equal(byslug.get("felina-0")?.plant?.slug, "bohns-music");
+  assert.equal(byslug.get("webapp-0")?.plant?.slug, "pbbls");
+});
+
 test("garden.yml parses into a garden with only botanical prefixes", () => {
   const file = readFileSync(join(process.cwd(), "data", "garden.yml"), "utf8");
   const raw = yaml.load(file, { schema: yaml.CORE_SCHEMA }) as RawGarden;

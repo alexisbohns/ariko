@@ -7,6 +7,7 @@ function entry(slug: string, state: string | undefined, domain: string | null, t
   return {
     sprout: { slug, name: slug, type: "t", date: "2025-01-01", description: "", parents: [], ...(state ? { state: state as never } : {}), ...(tags ? { tags } : {}) },
     bean: domain ? { slug: `bean-${slug}`, name: "a", parents: [] } : null,
+    plant: null,
     domain: domain as never,
   };
 }
