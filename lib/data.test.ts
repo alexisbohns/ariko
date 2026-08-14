@@ -557,3 +557,36 @@ test("unpublishCascade honors a plant sheltered by a surviving public DIRECT bea
   };
   assert.deepEqual(unpublishCascade(raw, "v"), { plantSlugs: [], podSlugs: [], beanSlugs: ["flipping"] });
 });
+
+test("unpublishCascade flips a plant reached only through a directly-parented bean", () => {
+  const raw: RawGarden = {
+    plants: [{ slug: "pl", name: "P", natures: ["work"], description: "" }],
+    pods: [],
+    beans: [{ slug: "b", name: "B", parents: ["plant:pl"] }],
+    sprouts: [{ slug: "v", name: "V", type: "t", date: "2026-01-01", description: "", parents: ["bean:b"], state: "draft" }],
+  };
+  assert.deepEqual(unpublishCascade(raw, "v"), { plantSlugs: ["pl"], podSlugs: [], beanSlugs: ["b"] });
+});
+
+test("an explicitly-private pod does not shelter a plant", () => {
+  const raw = structuredClone(CASCADE_GARDEN);
+  raw.pods!.push({ slug: "m2", name: "M2", description: "", parents: ["plant:pl1"], visibility: "private" });
+  raw.beans!.push({ slug: "a2", name: "A2", parents: ["pod:m2"] });
+  raw.sprouts![0].state = "draft";
+  const r = unpublishCascade(raw, "v1");
+  // m2 points at pl1 but is private -> no shelter; the plant flips with its lineage.
+  assert.deepEqual(r, { plantSlugs: ["pl1"], podSlugs: ["m1"], beanSlugs: ["a1"] });
+});
+
+test("an explicitly-private direct bean does not shelter a plant", () => {
+  const raw: RawGarden = {
+    plants: [{ slug: "pl", name: "P", natures: ["work"], description: "" }],
+    pods: [],
+    beans: [
+      { slug: "flipping", name: "F", parents: ["plant:pl"] },
+      { slug: "shelter", name: "S", parents: ["plant:pl"], visibility: "private" },
+    ],
+    sprouts: [{ slug: "v", name: "V", type: "t", date: "2026-01-01", description: "", parents: ["bean:flipping"], state: "draft" }],
+  };
+  assert.deepEqual(unpublishCascade(raw, "v"), { plantSlugs: ["pl"], podSlugs: [], beanSlugs: ["flipping"] });
+});
