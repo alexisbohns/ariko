@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { resolveParentChoice, buildVersionInput, validateVersionInput } from "./promote";
-import type { Capture } from "./data";
+import type { Seed } from "./data";
 
-const capture: Capture = {
+const capture: Seed = {
   id: "c1",
   title: "Song idea",
   body: { en: "hummed melody", fr: "mélodie" },

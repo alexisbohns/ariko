@@ -3,9 +3,9 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { verifyPassword } from "@/lib/session";
-import { buildCaptureBody } from "@/lib/capture-form";
+import { buildSeedBody } from "@/lib/seed-form";
 import { validateInboxPayload } from "@/lib/inbox";
-import { createOrUpdateCapture, getCapture, markCapturePromoted, discardCapture } from "@/lib/captures";
+import { createOrUpdateSeed, getSeed, markSeedPromoted, discardSeed } from "@/lib/seeds";
 import { loadRawGarden } from "@/lib/store";
 import { publishCascade, unpublishCascade, unpublishCascadeForBeans, type Domain } from "@/lib/data";
 import { resolveParentChoice, buildVersionInput, validateVersionInput } from "@/lib/promote";
@@ -47,39 +47,39 @@ export async function logoutAction(): Promise<void> {
 }
 
 // Map the form → raw body → the SAME validate + persist seam /api/inbox uses.
-export async function createCaptureAction(formData: FormData): Promise<void> {
+export async function createSeedAction(formData: FormData): Promise<void> {
   await requireSession();
-  const raw = buildCaptureBody(formData);
+  const raw = buildSeedBody(formData);
   const parsed = validateInboxPayload(raw);
   if (!parsed.ok) {
     redirect(`/admin?error=${encodeURIComponent(parsed.error)}`);
   }
-  await createOrUpdateCapture(parsed.value);
+  await createOrUpdateSeed(parsed.value);
   revalidatePath("/admin");
   redirect("/admin");
 }
 
 const DOMAINS: Domain[] = ["music", "design", "podcast"];
 
-export async function discardCaptureAction(formData: FormData): Promise<void> {
+export async function discardSeedAction(formData: FormData): Promise<void> {
   await requireSession();
-  const captureId = String(formData.get("captureId") ?? "");
-  await discardCapture(captureId);
+  const seedId = String(formData.get("seedId") ?? "");
+  await discardSeed(seedId);
   revalidatePath("/admin");
   redirect("/admin");
 }
 
-export async function promoteCaptureAction(formData: FormData): Promise<void> {
+export async function promoteSeedAction(formData: FormData): Promise<void> {
   await requireSession();
-  const captureId = String(formData.get("captureId") ?? "");
-  const capture = await getCapture(captureId);
+  const seedId = String(formData.get("seedId") ?? "");
+  const capture = await getSeed(seedId);
   if (!capture) redirect("/admin");
 
   // Validate the version's own fields BEFORE any write, so an invalid version never
   // leaves orphan molecule/atom docs behind.
   const precheck = validateVersionInput(buildVersionInput(formData, capture, null));
   if (!precheck.ok) {
-    redirect(`/admin/triage/${captureId}?error=${encodeURIComponent(precheck.error)}`);
+    redirect(`/admin/triage/${seedId}?error=${encodeURIComponent(precheck.error)}`);
   }
 
   // Resolve parent choices up front (pure) so we can guard invalid combinations
@@ -96,7 +96,7 @@ export async function promoteCaptureAction(formData: FormData): Promise<void> {
   );
   if (molChoice.mode === "create" && atomChoice.mode !== "create") {
     redirect(
-      `/admin/triage/${captureId}?error=${encodeURIComponent(
+      `/admin/triage/${seedId}?error=${encodeURIComponent(
         "a new molecule must be paired with a new atom under it",
       )}`,
     );
@@ -141,14 +141,14 @@ export async function promoteCaptureAction(formData: FormData): Promise<void> {
       await setPublic(podSlugs, beanSlugs);
     }
 
-    await markCapturePromoted(captureId, input.slug);
+    await markSeedPromoted(seedId, input.slug);
   } catch (err) {
     if (err instanceof SlugExistsError) slugError = err.message;
     else throw err;
   }
 
   if (slugError) {
-    redirect(`/admin/triage/${captureId}?error=${encodeURIComponent(slugError)}`);
+    redirect(`/admin/triage/${seedId}?error=${encodeURIComponent(slugError)}`);
   }
   revalidatePath("/admin");
   redirect("/admin");

@@ -1,4 +1,4 @@
-import type { Capture, Media, Source, Text, VersionState } from "./data";
+import type { Seed, Media, Source, Text, VersionState } from "./data";
 import { composeText, resolveText } from "./data";
 
 export type ParentResolution =
@@ -40,7 +40,7 @@ export interface VersionInput {
 // parent ref.
 export function buildVersionInput(
   form: FormData,
-  capture: Capture,
+  capture: Seed,
   atomParentSlug: string | null,
 ): VersionInput {
   const get = (k: string) => String(form.get(k) ?? "").trim();

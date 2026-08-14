@@ -112,3 +112,23 @@ test("rejects junk titles", () => {
     );
   }
 });
+
+test("suggestion accepts legacy wire keys moleculeSlug/atomSlug as podSlug/beanSlug", () => {
+  const legacy = validateInboxPayload({
+    title: "t",
+    source: { kind: "github", externalId: "o/r#1" },
+    suggested: { moleculeSlug: "pbbls", atomSlug: "ios", type: "feature" },
+  });
+  assert.ok(legacy.ok);
+  assert.deepEqual(legacy.ok && legacy.value.suggested, {
+    podSlug: "pbbls",
+    beanSlug: "ios",
+    type: "feature",
+  });
+  const canonical = validateInboxPayload({
+    title: "t",
+    source: { kind: "github", externalId: "o/r#2" },
+    suggested: { podSlug: "pbbls" },
+  });
+  assert.deepEqual(canonical.ok && canonical.value.suggested, { podSlug: "pbbls" });
+});

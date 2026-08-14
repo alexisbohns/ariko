@@ -1,5 +1,5 @@
 import { getDb, closeDb } from "../lib/db";
-import { ensureCaptureIndexes } from "../lib/captures";
+import { ensureSeedIndexes } from "../lib/seeds";
 import { ensureBotanicalIndexes } from "../lib/botanical";
 
 // Applies a $jsonSchema validator to a collection, creating it if absent.
@@ -79,7 +79,7 @@ async function main() {
     properties: { visibility: { enum: ["private", "public"] } },
   });
 
-  await ensureCaptureIndexes();
+  await ensureSeedIndexes();
   console.log("capture indexes ensured");
 
   await ensureBotanicalIndexes();

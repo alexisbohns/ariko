@@ -1,4 +1,4 @@
-import type { LocalizedText, Media, MediaImage, Source, CaptureSuggestion, Text } from "./data";
+import type { LocalizedText, Media, MediaImage, Source, SeedSuggestion, Text } from "./data";
 import { detectEmbed } from "./embeds";
 
 // Hard cap for /api/inbox request bodies (spec 2026-07-18-c1-hardening §5):
@@ -17,7 +17,7 @@ export interface InboxInput {
   content?: LocalizedText;
   media: Media[];
   source: Source;
-  suggested?: CaptureSuggestion;
+  suggested?: SeedSuggestion;
 }
 
 export type ValidationResult =
@@ -56,6 +56,25 @@ function normalizeTextInput(v: unknown): Text | null {
     return { ...(en.part ? { en: en.part } : {}), ...(fr.part ? { fr: fr.part } : {}) };
   }
   return null;
+}
+
+// Boundary alias — the ONLY place legacy vocabulary survives the botanical
+// rename. Sibling repos' lab-note payloads send moleculeSlug/atomSlug over the
+// wire; internally we speak pod/bean. Canonical keys win when both are present.
+function normalizeSuggestion(s: unknown): SeedSuggestion | undefined {
+  if (!isObject(s)) return undefined;
+  const pod = s.podSlug ?? s.moleculeSlug;
+  const bean = s.beanSlug ?? s.atomSlug;
+  const out: SeedSuggestion = {
+    ...(nonEmptyString(pod) ? { podSlug: pod } : {}),
+    ...(nonEmptyString(bean) ? { beanSlug: bean } : {}),
+    ...(nonEmptyString(s.type) ? { type: s.type } : {}),
+  };
+  if (Array.isArray(s.tags)) {
+    const tags = s.tags.filter((t): t is string => typeof t === "string");
+    if (tags.length) out.tags = tags;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 // Fill provider for bare embeds; pass images and already-typed embeds through.
@@ -133,7 +152,10 @@ export function validateInboxPayload(body: unknown): ValidationResult {
     source,
     ...(isObject(body.body) ? { body: body.body as LocalizedText } : {}),
     ...(isObject(body.content) ? { content: body.content as LocalizedText } : {}),
-    ...(isObject(body.suggested) ? { suggested: body.suggested as CaptureSuggestion } : {}),
+    ...((): { suggested?: SeedSuggestion } => {
+      const suggested = normalizeSuggestion(body.suggested);
+      return suggested ? { suggested } : {};
+    })(),
   };
   return { ok: true, value };
 }

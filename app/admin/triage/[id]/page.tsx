@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
-import { getCapture } from "@/lib/captures";
+import { getSeed } from "@/lib/seeds";
 import { listPods, listBeans } from "@/lib/botanical";
 import { resolveText, textPart } from "@/lib/data";
-import { promoteCaptureAction, discardCaptureAction } from "../../actions";
+import { promoteSeedAction, discardSeedAction } from "../../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,7 @@ export default async function TriagePage({
   const { id } = await params;
   const { error } = await searchParams;
 
-  const capture = await getCapture(id);
+  const capture = await getSeed(id);
   if (!capture || capture.status !== "inbox") notFound();
 
   const [molecules, atoms] = await Promise.all([listPods(), listBeans()]);
@@ -58,8 +58,8 @@ export default async function TriagePage({
         ) : null}
       </section>
 
-      <form action={promoteCaptureAction}>
-        <input type="hidden" name="captureId" value={capture.id} />
+      <form action={promoteSeedAction}>
+        <input type="hidden" name="seedId" value={capture.id} />
 
         <fieldset>
           <legend>Molecule</legend>
@@ -186,8 +186,8 @@ export default async function TriagePage({
         </p>
       </form>
 
-      <form action={discardCaptureAction}>
-        <input type="hidden" name="captureId" value={capture.id} />
+      <form action={discardSeedAction}>
+        <input type="hidden" name="seedId" value={capture.id} />
         <button type="submit">Discard</button>
       </form>
     </article>
