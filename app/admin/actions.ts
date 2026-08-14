@@ -165,7 +165,7 @@ export async function editVersionAction(formData: FormData): Promise<void> {
   if (!check.ok) {
     // The page renders ?error verbatim (the delete action shares the slot), so the
     // message carries its own "could not save" context.
-    redirect(`/admin/version/${slug}?error=${encodeURIComponent(`could not save: ${check.error}`)}`);
+    redirect(`/admin/sprout/${slug}?error=${encodeURIComponent(`could not save: ${check.error}`)}`);
   }
 
   await updateVersion(slug, patch);
@@ -189,7 +189,7 @@ export async function editVersionAction(formData: FormData): Promise<void> {
   const beanSlug = (existing.parents ?? [])
     .filter((p) => p.startsWith("bean:"))
     .map((p) => p.slice("bean:".length))[0];
-  redirect(beanSlug ? `/admin/atom/${beanSlug}` : "/admin/vault");
+  redirect(beanSlug ? `/admin/bean/${beanSlug}` : "/admin/vault");
 }
 
 // Hard delete (roadmap A2). The atom parents and published state are captured BEFORE
@@ -210,7 +210,7 @@ export async function deleteVersionAction(formData: FormData): Promise<void> {
   // Server-side re-check of the confirm checkbox; the browser `required` is only UX.
   if (String(formData.get("confirm") ?? "") !== "on") {
     redirect(
-      `/admin/version/${encodeURIComponent(slug)}?error=${encodeURIComponent(
+      `/admin/sprout/${encodeURIComponent(slug)}?error=${encodeURIComponent(
         "could not delete: confirm the permanent deletion first",
       )}`,
     );
@@ -232,5 +232,5 @@ export async function deleteVersionAction(formData: FormData): Promise<void> {
   }
 
   revalidatePath("/admin");
-  redirect(beanSlugs[0] ? `/admin/atom/${beanSlugs[0]}` : "/admin/vault");
+  redirect(beanSlugs[0] ? `/admin/bean/${beanSlugs[0]}` : "/admin/vault");
 }

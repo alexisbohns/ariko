@@ -23,7 +23,7 @@ export default async function EditVersionPage({
   const beanSlug = (version.parents ?? [])
     .filter((p) => p.startsWith(ATOM_PREFIX))
     .map((p) => p.slice(ATOM_PREFIX.length))[0];
-  const backHref = beanSlug ? `/admin/atom/${beanSlug}` : "/admin/vault";
+  const backHref = beanSlug ? `/admin/bean/${beanSlug}` : "/admin/vault";
 
   return (
     <article>

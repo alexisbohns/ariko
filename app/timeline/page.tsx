@@ -41,7 +41,7 @@ export default async function TimelinePage({
         {entries.map((entry) => (
           <li key={entry.sprout.slug}>
             {entry.bean ? (
-              <a href={`/atom/${entry.bean.slug}`}>{resolveText(entry.sprout.name)}</a>
+              <a href={`/bean/${entry.bean.slug}`}>{resolveText(entry.sprout.name)}</a>
             ) : (
               resolveText(entry.sprout.name)
             )}

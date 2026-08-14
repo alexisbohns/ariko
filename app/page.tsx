@@ -20,7 +20,7 @@ export default async function DirectoryPage() {
             <ul>
               {atoms.map((atom) => (
                 <li key={atom.slug}>
-                  <a href={`/atom/${atom.slug}`}>{resolveText(atom.name)}</a>
+                  <a href={`/bean/${atom.slug}`}>{resolveText(atom.name)}</a>
                 </li>
               ))}
             </ul>
@@ -34,7 +34,7 @@ export default async function DirectoryPage() {
           <ul>
             {standalone.map((atom) => (
               <li key={atom.slug}>
-                <a href={`/atom/${atom.slug}`}>{resolveText(atom.name)}</a>
+                <a href={`/bean/${atom.slug}`}>{resolveText(atom.name)}</a>
               </li>
             ))}
           </ul>

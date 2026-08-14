@@ -99,7 +99,7 @@ export default async function VaultPage({
               <tr key={e.sprout.slug}>
                 <td>
                   {e.bean ? (
-                    <a href={`/admin/atom/${e.bean.slug}`}>{resolveText(e.sprout.name)}</a>
+                    <a href={`/admin/bean/${e.bean.slug}`}>{resolveText(e.sprout.name)}</a>
                   ) : (
                     resolveText(e.sprout.name)
                   )}

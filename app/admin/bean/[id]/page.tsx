@@ -58,7 +58,7 @@ export default async function AdminAtomPage({ params }: { params: Promise<{ id: 
           <section key={version.slug}>
             <h3>{resolveText(version.name)}</h3>
             <p>
-              <a href={`/admin/version/${version.slug}`}>edit</a>
+              <a href={`/admin/sprout/${version.slug}`}>edit</a>
             </p>
             <p>state: {version.state ?? "—"}</p>
             <ul>
