@@ -8,7 +8,7 @@ test("toGraph maps a molecule to exactly {id, kind, name, domain}", () => {
     pods: [{ slug: "m", name: "M", domain: "music", description: "secret notes" }],
   };
   const { nodes } = toGraph(seed);
-  assert.deepEqual(nodes, [{ id: "pod:m", kind: "molecule", name: "M", domain: "music" }]);
+  assert.deepEqual(nodes, [{ id: "pod:m", kind: "pod", name: "M", domain: "music" }]);
   assert.equal("description" in nodes[0], false);
 });
 
@@ -17,7 +17,7 @@ test("toGraph maps an atom to exactly {id, kind, name} — no visibility/parents
     beans: [{ slug: "a", name: "A", parents: ["pod:ghost"], visibility: "private" }],
   };
   const { nodes } = toGraph(seed);
-  assert.deepEqual(nodes, [{ id: "bean:a", kind: "atom", name: "A" }]);
+  assert.deepEqual(nodes, [{ id: "bean:a", kind: "bean", name: "A" }]);
   for (const key of ["visibility", "parents"]) {
     assert.equal(key in nodes[0], false, `${key} must not leak into the node`);
   }
@@ -43,7 +43,7 @@ test("toGraph maps a version to exactly {id, kind, name, type, date} — no cont
   };
   const { nodes } = toGraph(seed);
   assert.deepEqual(nodes, [
-    { id: "sprout:v", kind: "version", name: "V", type: "song", date: "2026-01-01" },
+    { id: "sprout:v", kind: "sprout", name: "V", type: "song", date: "2026-01-01" },
   ]);
   for (const key of ["description", "content", "media", "source", "state", "parents", "bpm"]) {
     assert.equal(key in nodes[0], false, `${key} must not leak into the node`);
@@ -61,11 +61,11 @@ test("toGraph resolves a localized name to a plain string — GraphNode.name sta
   const byId = new Map(toGraph(seed).nodes.map((n) => [n.id, n]));
   // Shape unchanged at ALL three kinds: the resolved string sits where the plain
   // string always did, and localized inputs leak no extra fields onto the node.
-  assert.deepEqual(byId.get("pod:m"), { id: "pod:m", kind: "molecule", name: "M en", domain: "music" });
-  assert.deepEqual(byId.get("bean:a"), { id: "bean:a", kind: "atom", name: "A fr" }); // en missing → display fallback
+  assert.deepEqual(byId.get("pod:m"), { id: "pod:m", kind: "pod", name: "M en", domain: "music" });
+  assert.deepEqual(byId.get("bean:a"), { id: "bean:a", kind: "bean", name: "A fr" }); // en missing → display fallback
   assert.deepEqual(byId.get("sprout:v"), {
     id: "sprout:v",
-    kind: "version",
+    kind: "sprout",
     name: "V en",
     type: "song",
     date: "2026-01-01",
