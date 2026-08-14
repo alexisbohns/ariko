@@ -48,6 +48,6 @@ export async function POST(request: Request): Promise<Response> {
   if (auth === "unauthorized") return Response.json({ error: "unauthorized" }, { status: 401 });
   if (auth === "forbidden") return Response.json({ error: "forbidden source kind" }, { status: 403 });
 
-  const { capture, created } = await createOrUpdateSeed(parsed.value);
-  return Response.json({ id: capture.id, created }, { status: created ? 201 : 200 });
+  const { seed, created } = await createOrUpdateSeed(parsed.value);
+  return Response.json({ id: seed.id, created }, { status: created ? 201 : 200 });
 }

@@ -428,17 +428,3 @@ export function getDataset(): Dataset {
   }
   return cached;
 }
-
-// ── TEMPORARY rename scaffolding — DELETED in the last task of this PR. ──
-// Lets un-migrated modules compile while clusters rename one commit at a time.
-/** @deprecated use Pod */ export type Molecule = Pod;
-/** @deprecated use Bean */ export type Atom = Bean;
-/** @deprecated use Sprout */ export type Version = Sprout;
-/** @deprecated use Seed */ export type Capture = Seed;
-/** @deprecated use SeedStatus */ export type CaptureStatus = SeedStatus;
-/** @deprecated use SeedSuggestion */ export type CaptureSuggestion = SeedSuggestion;
-/** @deprecated use SproutState */ export type VersionState = SproutState;
-/** @deprecated use RawGarden */ export type RawSeed = RawGarden;
-/** @deprecated */ export const MOLECULE_PREFIX = POD_PREFIX;
-/** @deprecated */ export const ATOM_PREFIX = BEAN_PREFIX;
-/** @deprecated */ export const VERSION_PREFIX = SPROUT_PREFIX;

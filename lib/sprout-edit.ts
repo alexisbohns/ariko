@@ -1,4 +1,4 @@
-import type { Text, VersionState } from "./data";
+import type { Text, SproutState } from "./data";
 import { composeText, resolveText } from "./data";
 
 // The editable subset of a Version. Structurally the $set payload for updateVersion.
@@ -7,7 +7,7 @@ export interface SproutPatch {
   type: string;
   date: string;
   description: Text;
-  state: VersionState;
+  state: SproutState;
 }
 
 // Pure. Maps the edit form → the editable subset. name and description compose from
@@ -16,7 +16,7 @@ export interface SproutPatch {
 export function buildSproutPatch(form: FormData): SproutPatch {
   const get = (k: string) => String(form.get(k) ?? "").trim();
   const stateRaw = get("state");
-  const state: VersionState =
+  const state: SproutState =
     stateRaw === "published" || stateRaw === "private" ? stateRaw : "draft";
   return {
     name: composeText(get("name"), get("nameFr")),

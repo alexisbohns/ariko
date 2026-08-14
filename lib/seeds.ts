@@ -2,13 +2,13 @@ import { getDb } from "./db";
 import type { Seed } from "./data";
 import type { InboxInput } from "./inbox";
 
-function captures() {
+function seedsCol() {
   return getDb().then((db) => db.collection<Seed>("captures"));
 }
 
-// Unique only when externalId exists, so manual captures never collide on null.
+// Unique only when externalId exists, so manual seeds never collide on null.
 export async function ensureSeedIndexes(): Promise<void> {
-  const col = await captures();
+  const col = await seedsCol();
   await col.createIndex(
     { "source.kind": 1, "source.externalId": 1 },
     { unique: true, partialFilterExpression: { "source.externalId": { $exists: true } } },
@@ -35,11 +35,11 @@ export async function withDuplicateKeyRetry<T>(fn: () => Promise<T>): Promise<T>
 
 export async function createOrUpdateSeed(
   input: InboxInput,
-): Promise<{ capture: Seed; created: boolean }> {
-  const col = await captures();
+): Promise<{ seed: Seed; created: boolean }> {
+  const col = await seedsCol();
   const now = nowIso();
 
-  // Dedup path: a connector re-post updates the existing capture in place.
+  // Dedup path: a connector re-post updates the existing seed in place.
   if (input.source.externalId) {
     const set: Record<string, unknown> = {
       title: input.title,
@@ -75,11 +75,11 @@ export async function createOrUpdateSeed(
       ),
     );
     const created = !res.lastErrorObject?.updatedExisting;
-    return { capture: res.value as Seed, created };
+    return { seed: res.value as Seed, created };
   }
 
   // Manual path: always a new document.
-  const capture: Seed = {
+  const seed: Seed = {
     id: crypto.randomUUID(),
     title: input.title,
     media: input.media,
@@ -92,14 +92,14 @@ export async function createOrUpdateSeed(
     ...(input.content !== undefined ? { content: input.content } : {}),
     ...(input.suggested !== undefined ? { suggested: input.suggested } : {}),
   };
-  await col.insertOne(capture);
-  return { capture, created: true };
+  await col.insertOne(seed);
+  return { seed, created: true };
 }
 
 export async function listSeeds(
   filter: Partial<Pick<Seed, "status">> = {},
 ): Promise<Seed[]> {
-  const col = await captures();
+  const col = await seedsCol();
   return col
     .find(filter, { projection: { _id: 0 } })
     .sort({ createdAt: -1 })
@@ -107,22 +107,22 @@ export async function listSeeds(
 }
 
 export async function getSeed(id: string): Promise<Seed | null> {
-  const col = await captures();
+  const col = await seedsCol();
   return col.findOne({ id }, { projection: { _id: 0 } });
 }
 
-// Triage: a capture becomes a Version. Status flips to "promoted" and the version
+// Triage: a seed becomes a Version. Status flips to "promoted" and the version
 // slug is appended ($addToSet keeps it idempotent across re-promotes of the same slug).
 export async function markSeedPromoted(id: string, versionSlug: string): Promise<void> {
-  const col = await captures();
+  const col = await seedsCol();
   await col.updateOne(
     { id },
     { $set: { status: "promoted", updatedAt: nowIso() }, $addToSet: { promotedTo: versionSlug } },
   );
 }
 
-// Triage: explicitly drop a capture from the inbox.
+// Triage: explicitly drop a seed from the inbox.
 export async function discardSeed(id: string): Promise<void> {
-  const col = await captures();
+  const col = await seedsCol();
   await col.updateOne({ id }, { $set: { status: "discarded", updatedAt: nowIso() } });
 }

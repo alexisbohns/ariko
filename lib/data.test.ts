@@ -273,7 +273,7 @@ test("inverse symmetry: un-publish flips back exactly what publish flipped (sing
 });
 
 // --- unpublishCascadeForBeans: the atom-keyed core (roadmap A2). The delete flow
-// captures a version's atom parents BEFORE the delete and evaluates them against the
+// seeds a version's atom parents BEFORE the delete and evaluates them against the
 // POST-delete dataset — where the version no longer exists to shelter anything.
 
 test("delete-shaped: last published sprout already gone from the dataset flips bean and pod", () => {

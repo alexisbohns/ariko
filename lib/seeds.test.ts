@@ -55,26 +55,26 @@ test("withDuplicateKeyRetry propagates non-duplicate errors immediately", async 
   assert.equal(calls, 1);
 });
 
-test("createOrUpdateSeed inserts a fresh manual capture", { skip: !hasDb }, async (t) => {
+test("createOrUpdateSeed inserts a fresh manual seed", { skip: !hasDb }, async (t) => {
   await ensureSeedIndexes();
   t.after(cleanup);
-  const { capture, created } = await createOrUpdateSeed({
+  const { seed, created } = await createOrUpdateSeed({
     title: "__test__ manual one",
     media: [],
     source: { kind: "manual" },
   });
   assert.equal(created, true);
-  assert.equal(capture.status, "inbox");
-  assert.deepEqual(capture.promotedTo, []);
-  assert.ok(capture.id);
-  assert.ok(capture.createdAt);
+  assert.equal(seed.status, "inbox");
+  assert.deepEqual(seed.promotedTo, []);
+  assert.ok(seed.id);
+  assert.ok(seed.createdAt);
 });
 
-test("two manual captures (no externalId) are distinct documents", { skip: !hasDb }, async (t) => {
+test("two manual seeds (no externalId) are distinct documents", { skip: !hasDb }, async (t) => {
   t.after(cleanup);
   const a = await createOrUpdateSeed({ title: "__test__ dup", media: [], source: { kind: "manual" } });
   const b = await createOrUpdateSeed({ title: "__test__ dup", media: [], source: { kind: "manual" } });
-  assert.notEqual(a.capture.id, b.capture.id);
+  assert.notEqual(a.seed.id, b.seed.id);
 });
 
 test("same (kind, externalId) upserts instead of duplicating", { skip: !hasDb }, async (t) => {
@@ -92,14 +92,14 @@ test("same (kind, externalId) upserts instead of duplicating", { skip: !hasDb },
     source: { kind: "github", externalId: "__test__42" },
   });
   assert.equal(second.created, false);
-  assert.equal(second.capture.id, first.capture.id); // same doc
-  assert.equal(second.capture.createdAt, first.capture.createdAt); // preserved
-  const reread = await getSeed(first.capture.id);
+  assert.equal(second.seed.id, first.seed.id); // same doc
+  assert.equal(second.seed.createdAt, first.seed.createdAt); // preserved
+  const reread = await getSeed(first.seed.id);
   assert.equal(reread?.title, "__test__ pr v2"); // content overwritten
-  assert.notEqual(reread?.updatedAt, first.capture.updatedAt); // bumped
+  assert.notEqual(reread?.updatedAt, first.seed.updatedAt); // bumped
 });
 
-test("re-post preserves capturedAt from the first capture", { skip: !hasDb }, async (t) => {
+test("re-post preserves capturedAt from the first seed", { skip: !hasDb }, async (t) => {
   await ensureSeedIndexes();
   t.after(cleanup);
   const first = await createOrUpdateSeed({
@@ -107,7 +107,7 @@ test("re-post preserves capturedAt from the first capture", { skip: !hasDb }, as
     media: [],
     source: { kind: "github", externalId: "__test__capA" },
   });
-  const firstCapturedAt = first.capture.source.capturedAt;
+  const firstCapturedAt = first.seed.source.capturedAt;
   assert.ok(firstCapturedAt);
   await new Promise((r) => setTimeout(r, 5));
   const second = await createOrUpdateSeed({
@@ -115,26 +115,26 @@ test("re-post preserves capturedAt from the first capture", { skip: !hasDb }, as
     media: [],
     source: { kind: "github", externalId: "__test__capA" },
   });
-  assert.equal(second.capture.source.capturedAt, firstCapturedAt);
-  assert.notEqual(second.capture.updatedAt, firstCapturedAt);
+  assert.equal(second.seed.source.capturedAt, firstCapturedAt);
+  assert.notEqual(second.seed.updatedAt, firstCapturedAt);
 });
 
 test("markSeedPromoted sets status and appends the sprout slug", { skip: !hasDb }, async (t) => {
   t.after(cleanup);
-  const { capture } = await createOrUpdateSeed({ title: "__test__ promote", media: [], source: { kind: "manual" } });
-  await markSeedPromoted(capture.id, "ver-1");
-  await markSeedPromoted(capture.id, "ver-1"); // idempotent add
-  await markSeedPromoted(capture.id, "ver-2");
-  const reread = await getSeed(capture.id);
+  const { seed } = await createOrUpdateSeed({ title: "__test__ promote", media: [], source: { kind: "manual" } });
+  await markSeedPromoted(seed.id, "ver-1");
+  await markSeedPromoted(seed.id, "ver-1"); // idempotent add
+  await markSeedPromoted(seed.id, "ver-2");
+  const reread = await getSeed(seed.id);
   assert.equal(reread?.status, "promoted");
   assert.deepEqual([...(reread?.promotedTo ?? [])].sort(), ["ver-1", "ver-2"]);
 });
 
 test("discardSeed sets status discarded", { skip: !hasDb }, async (t) => {
   t.after(cleanup);
-  const { capture } = await createOrUpdateSeed({ title: "__test__ discard", media: [], source: { kind: "manual" } });
-  await discardSeed(capture.id);
-  const reread = await getSeed(capture.id);
+  const { seed } = await createOrUpdateSeed({ title: "__test__ discard", media: [], source: { kind: "manual" } });
+  await discardSeed(seed.id);
+  const reread = await getSeed(seed.id);
   assert.equal(reread?.status, "discarded");
 });
 

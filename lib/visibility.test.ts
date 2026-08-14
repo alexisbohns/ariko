@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { filterPublic, resolveText, type RawSeed } from "./data";
+import { filterPublic, resolveText, type RawGarden } from "./data";
 
 test("resolveText returns plain strings unchanged", () => {
   assert.equal(resolveText("hello"), "hello");
@@ -19,7 +19,7 @@ test("resolveText falls through blank parts (a hand-authored empty en never blan
   assert.equal(resolveText({ en: "", fr: "" }), "");
 });
 
-const raw: RawSeed = {
+const raw: RawGarden = {
   pods: [
     { slug: "m-pub", name: "Pub", domain: "music", description: "" },
     { slug: "m-priv", name: "Priv", domain: "music", description: "", visibility: "private" },
@@ -55,7 +55,7 @@ test("filterPublic never leaks a draft, private, or stateless sprout", () => {
 });
 
 test("filterPublic drops a published sprout whose only bean-parent is private", () => {
-  const seed: RawSeed = {
+  const seed: RawGarden = {
     pods: [{ slug: "m", name: "M", domain: "music", description: "" }],
     beans: [{ slug: "a-priv", name: "A", parents: ["pod:m"], visibility: "private" }],
     sprouts: [{ slug: "v", name: "V", type: "song", date: "2026-01-01", description: "", parents: ["bean:a-priv"], state: "published" }],
@@ -66,7 +66,7 @@ test("filterPublic drops a published sprout whose only bean-parent is private", 
 });
 
 test("filterPublic drops an bean whose only pod-parent is private (no standalone leak)", () => {
-  const seed: RawSeed = {
+  const seed: RawGarden = {
     pods: [{ slug: "m-priv", name: "M", domain: "music", description: "", visibility: "private" }],
     beans: [{ slug: "a", name: "A", parents: ["pod:m-priv"] }],
     sprouts: [],
@@ -77,7 +77,7 @@ test("filterPublic drops an bean whose only pod-parent is private (no standalone
 });
 
 test("filterPublic drops a published sprout transitively when its bean is cascaded out", () => {
-  const seed: RawSeed = {
+  const seed: RawGarden = {
     pods: [{ slug: "m-priv", name: "M", domain: "music", description: "", visibility: "private" }],
     beans: [{ slug: "a", name: "A", parents: ["pod:m-priv"] }],
     sprouts: [{ slug: "v", name: "V", type: "song", date: "2026-01-01", description: "", parents: ["bean:a"], state: "published" }],
@@ -86,7 +86,7 @@ test("filterPublic drops a published sprout transitively when its bean is cascad
 });
 
 test("filterPublic keeps a multi-parent bean if at least one pod-parent is public", () => {
-  const seed: RawSeed = {
+  const seed: RawGarden = {
     pods: [
       { slug: "m-pub", name: "Pub", domain: "music", description: "" },
       { slug: "m-priv", name: "Priv", domain: "music", description: "", visibility: "private" },
@@ -98,7 +98,7 @@ test("filterPublic keeps a multi-parent bean if at least one pod-parent is publi
 });
 
 test("filterPublic keeps an bean whose only pod-parent is a dangling (nonexistent) ref", () => {
-  const seed: RawSeed = {
+  const seed: RawGarden = {
     pods: [],
     beans: [{ slug: "a", name: "A", parents: ["pod:ghost"] }],
     sprouts: [],
@@ -109,7 +109,7 @@ test("filterPublic keeps an bean whose only pod-parent is a dangling (nonexisten
 // relations[] scrub matrix (G2). The projection prunes each KEPT version's
 // relations to refs whose target itself survives the projection — fail-closed:
 // draft/private/cascaded/dangling/unknown-prefix targets can never leak a slug.
-function relSeed(): RawSeed {
+function relSeed(): RawGarden {
   return {
     pods: [
       { slug: "rm-pub", name: "M pub", domain: "music", description: "" },
@@ -144,7 +144,7 @@ function relSeed(): RawSeed {
           { kind: "featured-in", ref: "pod:rm-pub" }, // kept: public molecule
           { kind: "featured-in", ref: "pod:rm-priv" }, // dropped: private molecule
           { kind: "related-to", ref: "sprout:ghost" }, // dropped: dangling
-          { kind: "related-to", ref: "capture:x" }, // dropped: unknown prefix
+          { kind: "related-to", ref: "seed:x" }, // dropped: unknown prefix
         ],
       },
     ],
@@ -152,7 +152,7 @@ function relSeed(): RawSeed {
 }
 
 test("filterPublic tolerates malformed relations fail-closed (one bad doc must not 500 the public site)", () => {
-  const seed: RawSeed = {
+  const seed: RawGarden = {
     pods: [{ slug: "m", name: "M", domain: "music", description: "" }],
     beans: [{ slug: "a", name: "A", parents: ["pod:m"] }],
     sprouts: [
@@ -187,7 +187,7 @@ test("filterPublic leaves an absent relations field absent (no materialized empt
 });
 
 test("filterPublic keeps a present-but-empty relations array as-is", () => {
-  const seed: RawSeed = {
+  const seed: RawGarden = {
     pods: [],
     beans: [{ slug: "a", name: "A", parents: [] }],
     sprouts: [

@@ -5,11 +5,11 @@ import {
   type Bean,
   type Dataset,
   type Pod,
-  type RawSeed,
+  type RawGarden,
   type Sprout,
 } from "./data";
 
-export async function loadRawGarden(): Promise<RawSeed> {
+export async function loadRawGarden(): Promise<RawGarden> {
   const db = await getDb();
   const [pods, beans, sprouts] = await Promise.all([
     db.collection<Pod>("molecules").find({}, { projection: { _id: 0 } }).toArray(),

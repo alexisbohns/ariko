@@ -2,7 +2,7 @@ import type { LocalizedText, Media, MediaImage, Source, SeedSuggestion, Text } f
 import { detectEmbed } from "./embeds";
 
 // Hard cap for /api/inbox request bodies (spec 2026-07-18-c1-hardening §5):
-// ~17× under Vercel's platform limit, far above any real capture.
+// ~17× under Vercel's platform limit, far above any real seed.
 export const MAX_INBOX_BODY_BYTES = 256 * 1024;
 
 // Media as it arrives in a raw JSON payload: an embed may omit `provider`

@@ -1,6 +1,6 @@
-import { BEAN_PREFIX, POD_PREFIX, SPROUT_PREFIX, parentsWithPrefix, resolveText, type Domain, type RawSeed } from "./data";
+import { BEAN_PREFIX, POD_PREFIX, SPROUT_PREFIX, parentsWithPrefix, resolveText, type Domain, type RawGarden } from "./data";
 
-// Graph projection of a RawSeed (roadmap G1) — the graph playground's data
+// Graph projection of a RawGarden (roadmap G1) — the graph playground's data
 // contract. Projection-agnostic: serializes whatever seed it is given, so the
 // public route feeds it filterPublic's output and a future admin vault-graph
 // can feed it the full dataset. Node ids reuse the prefixed-ref grammar
@@ -39,7 +39,7 @@ export interface Graph {
 // several kinds. Deterministic: nodes in input order (pods, beans,
 // sprouts); containment edges in child input order, then relation edges in
 // sprout-then-declaration order.
-export function toGraph(raw: RawSeed): Graph {
+export function toGraph(raw: RawGarden): Graph {
   const pods = raw.pods ?? [];
   const beans = raw.beans ?? [];
   const sprouts = raw.sprouts ?? [];

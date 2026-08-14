@@ -16,11 +16,11 @@ export default async function TriagePage({
   const { id } = await params;
   const { error } = await searchParams;
 
-  const capture = await getSeed(id);
-  if (!capture || capture.status !== "inbox") notFound();
+  const seed = await getSeed(id);
+  if (!seed || seed.status !== "inbox") notFound();
 
   const [molecules, atoms] = await Promise.all([listPods(), listBeans()]);
-  const note = resolveText(capture.body);
+  const note = resolveText(seed.body);
 
   return (
     <article>
@@ -31,25 +31,25 @@ export default async function TriagePage({
       {error ? <p role="alert">Could not promote: {error}</p> : null}
 
       <section>
-        <h2>{resolveText(capture.title)}</h2>
+        <h2>{resolveText(seed.title)}</h2>
         {note ? <p>{note}</p> : null}
-        <p>source: {capture.source.kind}</p>
-        {capture.suggested ? (
+        <p>source: {seed.source.kind}</p>
+        {seed.suggested ? (
           <p>
             suggested:{" "}
             {[
-              capture.suggested.podSlug && `molecule ${capture.suggested.podSlug}`,
-              capture.suggested.beanSlug && `atom ${capture.suggested.beanSlug}`,
-              capture.suggested.type && `type ${capture.suggested.type}`,
-              capture.suggested.tags?.length ? `tags ${capture.suggested.tags.join(", ")}` : null,
+              seed.suggested.podSlug && `molecule ${seed.suggested.podSlug}`,
+              seed.suggested.beanSlug && `atom ${seed.suggested.beanSlug}`,
+              seed.suggested.type && `type ${seed.suggested.type}`,
+              seed.suggested.tags?.length ? `tags ${seed.suggested.tags.join(", ")}` : null,
             ]
               .filter(Boolean)
               .join(" · ")}
           </p>
         ) : null}
-        {capture.media.length > 0 ? (
+        {seed.media.length > 0 ? (
           <ul>
-            {capture.media.map((m, i) => (
+            {seed.media.map((m, i) => (
               <li key={i}>
                 {m.kind}: {m.url}
               </li>
@@ -59,14 +59,14 @@ export default async function TriagePage({
       </section>
 
       <form action={promoteSeedAction}>
-        <input type="hidden" name="seedId" value={capture.id} />
+        <input type="hidden" name="seedId" value={seed.id} />
 
         <fieldset>
           <legend>Molecule</legend>
           <p>
             <label>
               Existing{" "}
-              <select name="podSlug" defaultValue={capture.suggested?.podSlug ?? ""}>
+              <select name="podSlug" defaultValue={seed.suggested?.podSlug ?? ""}>
                 <option value="">— none —</option>
                 {molecules.map((m) => (
                   <option key={m.slug} value={m.slug}>
@@ -103,7 +103,7 @@ export default async function TriagePage({
           <p>
             <label>
               Existing{" "}
-              <select name="beanSlug" defaultValue={capture.suggested?.beanSlug ?? ""}>
+              <select name="beanSlug" defaultValue={seed.suggested?.beanSlug ?? ""}>
                 <option value="">— none —</option>
                 {atoms.map((a) => (
                   <option key={a.slug} value={a.slug}>
@@ -135,21 +135,21 @@ export default async function TriagePage({
           {/* Prefills use the STRICT textPart — resolveText's fallback would copy en
               into the fr box and corrupt the data on save. The name inputs carry no
               `required`: the name is required as a whole (either language), enforced
-              server-side, and the builder falls back to the capture title. Blank
-              description fields carry the capture's note verbatim on promote. */}
+              server-side, and the builder falls back to the seed title. Blank
+              description fields carry the seed's note verbatim on promote. */}
           <p>
             <label>
-              Name <input type="text" name="versionName" defaultValue={textPart(capture.title, "en")} />
+              Name <input type="text" name="versionName" defaultValue={textPart(seed.title, "en")} />
             </label>
           </p>
           <p>
             <label>
-              Name (fr) <input type="text" name="versionNameFr" defaultValue={textPart(capture.title, "fr")} />
+              Name (fr) <input type="text" name="versionNameFr" defaultValue={textPart(seed.title, "fr")} />
             </label>
           </p>
           <p>
             <label>
-              Type <input type="text" name="type" required defaultValue={capture.suggested?.type ?? ""} />
+              Type <input type="text" name="type" required defaultValue={seed.suggested?.type ?? ""} />
             </label>
           </p>
           <p>
@@ -159,12 +159,12 @@ export default async function TriagePage({
           </p>
           <p>
             <label>
-              Description <textarea name="description" defaultValue={textPart(capture.body, "en")} />
+              Description <textarea name="description" defaultValue={textPart(seed.body, "en")} />
             </label>
           </p>
           <p>
             <label>
-              Description (fr) <textarea name="descriptionFr" defaultValue={textPart(capture.body, "fr")} />
+              Description (fr) <textarea name="descriptionFr" defaultValue={textPart(seed.body, "fr")} />
             </label>
           </p>
           <fieldset>
@@ -187,7 +187,7 @@ export default async function TriagePage({
       </form>
 
       <form action={discardSeedAction}>
-        <input type="hidden" name="seedId" value={capture.id} />
+        <input type="hidden" name="seedId" value={seed.id} />
         <button type="submit">Discard</button>
       </form>
     </article>

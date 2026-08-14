@@ -1,4 +1,4 @@
-import type { Seed, Media, Source, Text, VersionState } from "./data";
+import type { Seed, Media, Source, Text, SproutState } from "./data";
 import { composeText, resolveText } from "./data";
 
 export type ParentResolution =
@@ -24,28 +24,28 @@ export interface SproutInput {
   type: string;
   date: string;
   description: Text;
-  state: VersionState;
+  state: SproutState;
   parents: string[];
   media: Media[];
   source: Source;
 }
 
-// Pure. Maps the triage form + the source capture into a SproutInput. name and
+// Pure. Maps the triage form + the source seed into a SproutInput. name and
 // description compose from paired en/fr fields (B1), WYSIWYG: the triage page
-// prefills the boxes per-language (name from capture.title, descriptions from
-// capture.body via textPart), and what the boxes submit is exactly what is
+// prefills the boxes per-language (name from seed.title, descriptions from
+// seed.body via textPart), and what the boxes submit is exactly what is
 // stored — clearing a box clears that language, and a fully cleared name fails
-// validation instead of being silently resurrected. Carries the capture's media
+// validation instead of being silently resurrected. Carries the seed's media
 // and provenance. `atomParentSlug` (resolved by the action) wires the atom
 // parent ref.
 export function buildSproutInput(
   form: FormData,
-  capture: Seed,
+  seed: Seed,
   atomParentSlug: string | null,
 ): SproutInput {
   const get = (k: string) => String(form.get(k) ?? "").trim();
   const stateRaw = get("state");
-  const state: VersionState =
+  const state: SproutState =
     stateRaw === "published" || stateRaw === "private" ? stateRaw : "draft";
 
   return {
@@ -56,8 +56,8 @@ export function buildSproutInput(
     description: composeText(get("description"), get("descriptionFr")),
     state,
     parents: atomParentSlug ? [`bean:${atomParentSlug}`] : [],
-    media: capture.media,
-    source: capture.source,
+    media: seed.media,
+    source: seed.source,
   };
 }
 

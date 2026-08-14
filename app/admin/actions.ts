@@ -72,12 +72,12 @@ export async function discardSeedAction(formData: FormData): Promise<void> {
 export async function promoteSeedAction(formData: FormData): Promise<void> {
   await requireSession();
   const seedId = String(formData.get("seedId") ?? "");
-  const capture = await getSeed(seedId);
-  if (!capture) redirect("/admin");
+  const seed = await getSeed(seedId);
+  if (!seed) redirect("/admin");
 
   // Validate the version's own fields BEFORE any write, so an invalid version never
   // leaves orphan molecule/atom docs behind.
-  const precheck = validateSproutInput(buildSproutInput(formData, capture, null));
+  const precheck = validateSproutInput(buildSproutInput(formData, seed, null));
   if (!precheck.ok) {
     redirect(`/admin/triage/${seedId}?error=${encodeURIComponent(precheck.error)}`);
   }
@@ -133,7 +133,7 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
       beanSlug = atomChoice.slug;
     }
 
-    const input = buildSproutInput(formData, capture, beanSlug);
+    const input = buildSproutInput(formData, seed, beanSlug);
     await createSprout(input);
 
     if (input.state === "published") {

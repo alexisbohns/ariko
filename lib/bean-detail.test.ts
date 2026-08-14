@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildDataset, type RawSeed } from "./data";
+import { buildDataset, type RawGarden } from "./data";
 import { beanDetail } from "./bean-detail";
 
-const SEED: RawSeed = {
+const SEED: RawGarden = {
   pods: [{ slug: "rom", name: "Republic", domain: "music", description: "" }],
   beans: [
     { slug: "rom-win", name: "Win", parents: ["pod:rom"] },
@@ -53,7 +53,7 @@ test("an bean with no sprouts returns an empty sprouts array", () => {
 });
 
 test("localized bean/sprout text resolves to display strings at build time (B1)", () => {
-  const seed: RawSeed = {
+  const seed: RawGarden = {
     beans: [{ slug: "bi", name: { en: "Win", fr: "Victoire" }, parents: [] }],
     sprouts: [
       { slug: "bi-v1", name: { fr: "Prise une" }, type: "t", date: "2025-01-01", description: { en: "first", fr: "première" }, parents: ["bean:bi"] },

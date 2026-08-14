@@ -38,7 +38,7 @@ function vimeoId(url: string): string | undefined {
 }
 
 // Pure. Never throws. Unknown/unparseable → a generic "link" embed that still
-// preserves the original string (spec §7: capture never fails on a bad URL).
+// preserves the original string (spec §7: seed never fails on a bad URL).
 export function detectEmbed(url: string): MediaEmbed {
   const host = parseHost(url);
   const provider =

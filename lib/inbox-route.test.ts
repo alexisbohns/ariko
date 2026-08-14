@@ -91,7 +91,7 @@ test("400 when title is missing", async () => {
 
 const hasDb = Boolean(process.env.MONGODB_URI);
 
-test("201 creates a capture for a valid authorized payload", { skip: !hasDb }, async () => {
+test("201 creates a seed for a valid authorized payload", { skip: !hasDb }, async () => {
   process.env.INBOX_TOKENS = "*:tok_master";
   const res = await POST(
     req({ title: "__test__ route", source: { kind: "manual" } }, "Bearer tok_master"),

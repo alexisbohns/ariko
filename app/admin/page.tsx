@@ -35,11 +35,11 @@ export default async function AdminPage({
 }) {
   const { error } = await searchParams;
 
-  let captures: Seed[] | null = null;
+  let seeds: Seed[] | null = null;
   try {
-    captures = await listSeeds({ status: "inbox" });
+    seeds = await listSeeds({ status: "inbox" });
   } catch {
-    captures = null; // rendered as a load-failure line below
+    seeds = null; // rendered as a load-failure line below
   }
 
   const now = Date.now();
@@ -91,10 +91,10 @@ export default async function AdminPage({
         </p>
       </form>
 
-      <h2>Inbox {captures ? `(${captures.length})` : ""}</h2>
-      {captures === null ? (
+      <h2>Inbox {seeds ? `(${seeds.length})` : ""}</h2>
+      {seeds === null ? (
         <p role="alert">Couldn&apos;t load the inbox.</p>
-      ) : captures.length === 0 ? (
+      ) : seeds.length === 0 ? (
         <p>Inbox empty.</p>
       ) : (
         <table>
@@ -108,7 +108,7 @@ export default async function AdminPage({
             </tr>
           </thead>
           <tbody>
-            {captures.map((c) => (
+            {seeds.map((c) => (
               <tr key={c.id}>
                 <td>{c.source.kind}</td>
                 <td>

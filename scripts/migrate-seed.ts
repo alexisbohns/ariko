@@ -8,12 +8,12 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import yaml from "js-yaml";
 import { getDb } from "../lib/db";
-import type { RawSeed } from "../lib/data";
+import type { RawGarden } from "../lib/data";
 
 async function main() {
   const file = readFileSync(join(process.cwd(), "data", "seed.yml"), "utf8");
   // CORE_SCHEMA keeps dates as plain YYYY-MM-DD strings.
-  const raw = (yaml.load(file, { schema: yaml.CORE_SCHEMA }) as RawSeed) ?? {};
+  const raw = (yaml.load(file, { schema: yaml.CORE_SCHEMA }) as RawGarden) ?? {};
   const db = await getDb();
 
   await db.collection("molecules").createIndex({ slug: 1 }, { unique: true });

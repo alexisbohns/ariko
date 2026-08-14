@@ -1,7 +1,7 @@
 # CLAUDE.md — working in the Ariko repo
 
-Ariko is a personal "central node": a portfolio on an atomic content model
-(`Molecule → Atom → Version`), Next.js 15 / React 19 / TypeScript / MongoDB.
+Ariko is a personal "central node": a portfolio on a botanical content model
+(`Pod → Bean → Sprout`, with inbox `Seed`s), Next.js 15 / React 19 / TypeScript / MongoDB.
 The admin and public zones are intentionally **zero-CSS, no client JS, no UI
 framework** until an artistic direction is set. Orientation lives in
 [`README.md`](README.md); the sequenced plan lives in
@@ -17,7 +17,7 @@ PR posts it to the Ariko inbox automatically — no copy-paste.
 This section is the always-loaded summary and is **self-sufficient**: you can
 author a valid note from it alone, with no plugin installed. The `lab-note`
 skill (installable via `/plugin install lab-note@ariko`) is the source of truth
-for full tone guidance and the per-repo molecule table.
+for full tone guidance and the per-repo pod table.
 
 **The gate.** User/visitor/listener-facing change → write a note. Chore,
 refactor, infra, or docs-only change → **no note** (leave the section out; if the
@@ -38,7 +38,7 @@ fr:                                             # recommended — adaptation, in
   title: Titre court, orienté bénéfice
   summary: Une ou deux phrases, adaptées, pas traduites littéralement.
 suggested:                                      # optional — prefills triage in the Ariko admin
-  molecule: ariko        # THIS repo's molecule slug
+  molecule: ariko        # THIS repo's pod slug (YAML key stays `molecule`)
   type: feature          # feature | improvement | fix | announcement
   tags: [changelog]
   # atom: <slug>         # ONLY when you know the slug exists — never guess
@@ -48,7 +48,7 @@ suggested:                                      # optional — prefills triage i
 little playful, never corporate; no engineering jargon, ticket numbers, or
 internal names.
 
-**This repo's molecule slug is `ariko`.** A malformed note fails the post-on-merge
+**This repo's pod slug is `ariko`** (sent as `molecule:` in the YAML — the wire contract is unchanged). A malformed note fails the post-on-merge
 job loudly (e.g. `en.title is required`); the advisory reminder surfaces the same
 problems at PR-open time. Fix by editing the PR body — posting is idempotent.
 
