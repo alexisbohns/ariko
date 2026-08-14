@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { resolveText } from "@/lib/data";
 import { getFullDataset } from "@/lib/store";
-import { atomDetail, type AtomDetailView } from "@/lib/atom-detail";
+import { beanDetail, type BeanDetailView } from "@/lib/bean-detail";
 
 export const dynamic = "force-dynamic";
 
@@ -12,10 +12,10 @@ function isScalar(value: unknown): value is string | number | boolean {
 export default async function AdminAtomPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  let view: AtomDetailView | null = null;
+  let view: BeanDetailView | null = null;
   let failed = false;
   try {
-    view = atomDetail(await getFullDataset(), id);
+    view = beanDetail(await getFullDataset(), id);
   } catch {
     failed = true;
   }
@@ -34,7 +34,7 @@ export default async function AdminAtomPage({ params }: { params: Promise<{ id: 
 
   if (!view) notFound();
 
-  const { bean, domain, moleculeParents, sprouts } = view;
+  const { bean, domain, podParents, sprouts } = view;
 
   return (
     <article>
@@ -46,7 +46,7 @@ export default async function AdminAtomPage({ params }: { params: Promise<{ id: 
         <li>atom: {bean.slug}</li>
         <li>visibility: {bean.visibility ?? "public (default)"}</li>
         <li>domain: {domain ?? "—"}</li>
-        <li>molecule: {moleculeParents.join(", ") || "—"}</li>
+        <li>molecule: {podParents.join(", ") || "—"}</li>
         <li>tags: {(bean.tags ?? []).join(", ") || "—"}</li>
       </ul>
 

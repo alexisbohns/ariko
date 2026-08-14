@@ -8,8 +8,8 @@ import { validateInboxPayload } from "@/lib/inbox";
 import { createOrUpdateSeed, getSeed, markSeedPromoted, discardSeed } from "@/lib/seeds";
 import { loadRawGarden } from "@/lib/store";
 import { publishCascade, unpublishCascade, unpublishCascadeForBeans, type Domain } from "@/lib/data";
-import { resolveParentChoice, buildVersionInput, validateVersionInput } from "@/lib/promote";
-import { buildVersionPatch, validateVersionPatch } from "@/lib/version-edit";
+import { resolveParentChoice, buildSproutInput, validateSproutInput } from "@/lib/promote";
+import { buildSproutPatch, validateSproutPatch } from "@/lib/sprout-edit";
 import {
   createPod,
   createBean,
@@ -77,7 +77,7 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
 
   // Validate the version's own fields BEFORE any write, so an invalid version never
   // leaves orphan molecule/atom docs behind.
-  const precheck = validateVersionInput(buildVersionInput(formData, capture, null));
+  const precheck = validateSproutInput(buildSproutInput(formData, capture, null));
   if (!precheck.ok) {
     redirect(`/admin/triage/${seedId}?error=${encodeURIComponent(precheck.error)}`);
   }
@@ -133,7 +133,7 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
       beanSlug = atomChoice.slug;
     }
 
-    const input = buildVersionInput(formData, capture, beanSlug);
+    const input = buildSproutInput(formData, capture, beanSlug);
     await createSprout(input);
 
     if (input.state === "published") {
@@ -160,8 +160,8 @@ export async function editVersionAction(formData: FormData): Promise<void> {
   const existing = await getSprout(slug);
   if (!existing) redirect("/admin/vault");
 
-  const patch = buildVersionPatch(formData);
-  const check = validateVersionPatch(patch);
+  const patch = buildSproutPatch(formData);
+  const check = validateSproutPatch(patch);
   if (!check.ok) {
     // The page renders ?error verbatim (the delete action shares the slot), so the
     // message carries its own "could not save" context.

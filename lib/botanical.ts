@@ -1,7 +1,7 @@
 import { getDb } from "./db";
 import type { Bean, Domain, Pod, Sprout, Visibility } from "./data";
-import type { VersionInput } from "./promote";
-import type { VersionPatch } from "./version-edit";
+import type { SproutInput } from "./promote";
+import type { SproutPatch } from "./sprout-edit";
 
 // Thrown when a create hits the unique slug index. Lets the server action turn a
 // collision into a friendly message instead of a 500.
@@ -80,7 +80,7 @@ export async function createBean(input: NewBean): Promise<Bean> {
   return doc;
 }
 
-export async function createSprout(input: VersionInput): Promise<Sprout> {
+export async function createSprout(input: SproutInput): Promise<Sprout> {
   const db = await getDb();
   const doc: Sprout = { ...input };
   try {
@@ -101,7 +101,7 @@ export async function getSprout(slug: string): Promise<Sprout | null> {
 // Updates ONLY the editable fields via $set. Never touches slug / parents / media /
 // source / content, so an edit can never re-parent or drop carried media. slug is
 // immutable, so there is no unique-index collision path here.
-export async function updateVersion(slug: string, patch: VersionPatch): Promise<void> {
+export async function updateVersion(slug: string, patch: SproutPatch): Promise<void> {
   const db = await getDb();
   await db.collection<Sprout>("versions").updateOne({ slug }, { $set: { ...patch } });
 }

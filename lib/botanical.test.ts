@@ -37,7 +37,7 @@ test("createPod/createBean insert private-by-default", { skip: !hasDb }, async (
   assert.ok(atoms.some((x) => x.slug === "__test__a"));
 });
 
-test("createBean with no molecule is parentless", { skip: !hasDb }, async (t) => {
+test("createBean with no pod is parentless", { skip: !hasDb }, async (t) => {
   t.after(cleanup);
   const a = await createBean({ slug: "__test__solo", name: "Solo", podSlug: null });
   assert.deepEqual(a.parents, []);
@@ -93,7 +93,7 @@ test("setPrivate is a no-op on empty arrays", { skip: !hasDb }, async () => {
   await setPrivate([], []); // must not throw
 });
 
-test("deleteVersion removes only the targeted version doc", { skip: !hasDb }, async (t) => {
+test("deleteVersion removes only the targeted sprout doc", { skip: !hasDb }, async (t) => {
   t.after(cleanup);
   const base = {
     name: "Del",

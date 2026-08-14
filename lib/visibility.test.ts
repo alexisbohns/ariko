@@ -36,25 +36,25 @@ const raw: RawSeed = {
   ],
 };
 
-test("filterPublic keeps only published versions", () => {
+test("filterPublic keeps only published sprouts", () => {
   const slugs = (filterPublic(raw).sprouts ?? []).map((v) => v.slug);
   assert.deepEqual(slugs, ["v-published"]);
 });
 
-test("filterPublic drops private molecules and atoms, keeps the rest", () => {
+test("filterPublic drops private pods and beans, keeps the rest", () => {
   const out = filterPublic(raw);
   assert.deepEqual((out.pods ?? []).map((m) => m.slug), ["m-pub"]);
   assert.deepEqual((out.beans ?? []).map((a) => a.slug), ["a-pub"]);
 });
 
-test("filterPublic never leaks a draft, private, or stateless version", () => {
+test("filterPublic never leaks a draft, private, or stateless sprout", () => {
   const slugs = new Set((filterPublic(raw).sprouts ?? []).map((v) => v.slug));
   for (const leaked of ["v-draft", "v-private", "v-nostate"]) {
     assert.equal(slugs.has(leaked), false, `${leaked} must not be public`);
   }
 });
 
-test("filterPublic drops a published version whose only atom-parent is private", () => {
+test("filterPublic drops a published sprout whose only bean-parent is private", () => {
   const seed: RawSeed = {
     pods: [{ slug: "m", name: "M", domain: "music", description: "" }],
     beans: [{ slug: "a-priv", name: "A", parents: ["pod:m"], visibility: "private" }],
@@ -65,7 +65,7 @@ test("filterPublic drops a published version whose only atom-parent is private",
   assert.deepEqual((out.sprouts ?? []).map((v) => v.slug), []);
 });
 
-test("filterPublic drops an atom whose only molecule-parent is private (no standalone leak)", () => {
+test("filterPublic drops an bean whose only pod-parent is private (no standalone leak)", () => {
   const seed: RawSeed = {
     pods: [{ slug: "m-priv", name: "M", domain: "music", description: "", visibility: "private" }],
     beans: [{ slug: "a", name: "A", parents: ["pod:m-priv"] }],
@@ -76,7 +76,7 @@ test("filterPublic drops an atom whose only molecule-parent is private (no stand
   assert.deepEqual((out.beans ?? []).map((a) => a.slug), []);
 });
 
-test("filterPublic drops a published version transitively when its atom is cascaded out", () => {
+test("filterPublic drops a published sprout transitively when its bean is cascaded out", () => {
   const seed: RawSeed = {
     pods: [{ slug: "m-priv", name: "M", domain: "music", description: "", visibility: "private" }],
     beans: [{ slug: "a", name: "A", parents: ["pod:m-priv"] }],
@@ -85,7 +85,7 @@ test("filterPublic drops a published version transitively when its atom is casca
   assert.deepEqual((filterPublic(seed).sprouts ?? []).map((v) => v.slug), []);
 });
 
-test("filterPublic keeps a multi-parent atom if at least one molecule-parent is public", () => {
+test("filterPublic keeps a multi-parent bean if at least one pod-parent is public", () => {
   const seed: RawSeed = {
     pods: [
       { slug: "m-pub", name: "Pub", domain: "music", description: "" },
@@ -97,7 +97,7 @@ test("filterPublic keeps a multi-parent atom if at least one molecule-parent is 
   assert.deepEqual((filterPublic(seed).beans ?? []).map((a) => a.slug), ["a"]);
 });
 
-test("filterPublic keeps an atom whose only molecule-parent is a dangling (nonexistent) ref", () => {
+test("filterPublic keeps an bean whose only pod-parent is a dangling (nonexistent) ref", () => {
   const seed: RawSeed = {
     pods: [],
     beans: [{ slug: "a", name: "A", parents: ["pod:ghost"] }],

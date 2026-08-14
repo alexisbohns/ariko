@@ -119,7 +119,7 @@ test("re-post preserves capturedAt from the first capture", { skip: !hasDb }, as
   assert.notEqual(second.capture.updatedAt, firstCapturedAt);
 });
 
-test("markSeedPromoted sets status and appends the version slug", { skip: !hasDb }, async (t) => {
+test("markSeedPromoted sets status and appends the sprout slug", { skip: !hasDb }, async (t) => {
   t.after(cleanup);
   const { capture } = await createOrUpdateSeed({ title: "__test__ promote", media: [], source: { kind: "manual" } });
   await markSeedPromoted(capture.id, "ver-1");

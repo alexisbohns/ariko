@@ -35,13 +35,13 @@ const raw: RawGarden = {
   ],
 };
 
-test("timelineSprouts sorts all versions by date descending", () => {
+test("timelineSprouts sorts all sprouts by date descending", () => {
   const ds = buildDataset(raw);
   const slugs = ds.timelineSprouts().map((e) => e.sprout.slug);
   assert.deepEqual(slugs, ["v-new", "v-orphan", "v-mid", "v-old"]);
 });
 
-test("timeline entries tag each version with its atom and derived domain", () => {
+test("timeline entries tag each sprout with its bean and derived domain", () => {
   const ds = buildDataset(raw);
   const bySlug = new Map(ds.timelineSprouts().map((e) => [e.sprout.slug, e]));
 
@@ -54,18 +54,18 @@ test("timeline entries tag each version with its atom and derived domain", () =>
   assert.equal(vOrphan.domain, null);
 });
 
-test("beansForPod indexes atoms by molecule, including multi-parent atoms", () => {
+test("beansForPod indexes beans by pod, including multi-parent beans", () => {
   const ds = buildDataset(raw);
   assert.deepEqual(ds.beansForPod("m-music").map((a) => a.slug), ["a1", "a2"]);
   assert.deepEqual(ds.beansForPod("m-design").map((a) => a.slug), ["a2"]);
 });
 
-test("standaloneBeans are atoms with no resolvable molecule parent", () => {
+test("standaloneBeans are beans with no resolvable pod parent", () => {
   const ds = buildDataset(raw);
   assert.deepEqual(ds.standaloneBeans().map((a) => a.slug), ["a-standalone", "a-dangling"]);
 });
 
-test("domain is derived from an atom's first molecule parent", () => {
+test("domain is derived from an bean's first pod parent", () => {
   const ds = buildDataset(raw);
   assert.equal(ds.domainForBean("a1"), "music");
   assert.equal(ds.domainForBean("a2"), "music");
@@ -73,18 +73,18 @@ test("domain is derived from an atom's first molecule parent", () => {
   assert.equal(ds.domainForBean("a-dangling"), null);
 });
 
-test("sproutsForBean returns that atom's versions sorted by date descending", () => {
+test("sproutsForBean returns that bean's sprouts sorted by date descending", () => {
   const ds = buildDataset(raw);
   assert.deepEqual(ds.sproutsForBean("a1").map((v) => v.slug), ["v-new", "v-mid", "v-old"]);
 });
 
-test("getAtom looks up an atom by slug", () => {
+test("getAtom looks up an bean by slug", () => {
   const ds = buildDataset(raw);
   assert.equal(ds.getBean("a2")?.name, "A2");
   assert.equal(ds.getBean("missing"), undefined);
 });
 
-test("getDataset keeps version dates as plain YYYY-MM-DD strings", () => {
+test("getDataset keeps sprout dates as plain YYYY-MM-DD strings", () => {
   // js-yaml's default schema coerces unquoted dates into Date objects, which
   // breaks date rendering and drops `date` from scalar-property listings.
   const version = getDataset().timelineSprouts()[0].sprout;
@@ -106,27 +106,27 @@ const RAW = {
   ],
 };
 
-test("publishCascade returns the atom parent and its molecule parent", () => {
+test("publishCascade returns the bean parent and its pod parent", () => {
   const r = publishCascade(RAW, "v1");
   assert.deepEqual(r.beanSlugs, ["a1"]);
   assert.deepEqual(r.podSlugs, ["m1"]);
 });
 
-test("publishCascade unions multiple atom parents and their molecules, ignoring dangling molecule refs", () => {
+test("publishCascade unions multiple bean parents and their pods, ignoring dangling pod refs", () => {
   const r = publishCascade(RAW, "v2");
   assert.deepEqual([...r.beanSlugs].sort(), ["a1", "a2"]);
   assert.deepEqual(r.podSlugs, ["m1"]); // mX is dangling → excluded
 });
 
-test("a parentless version cascades nothing", () => {
+test("a parentless sprout cascades nothing", () => {
   assert.deepEqual(publishCascade(RAW, "v3"), { podSlugs: [], beanSlugs: [] });
 });
 
-test("a dangling atom parent is ignored", () => {
+test("a dangling bean parent is ignored", () => {
   assert.deepEqual(publishCascade(RAW, "v4"), { podSlugs: [], beanSlugs: [] });
 });
 
-test("an unknown version slug cascades nothing", () => {
+test("an unknown sprout slug cascades nothing", () => {
   assert.deepEqual(publishCascade(RAW, "nope"), { podSlugs: [], beanSlugs: [] });
 });
 
@@ -141,7 +141,7 @@ test("parents are returned regardless of current visibility (idempotent flip)", 
   assert.deepEqual(r.podSlugs, ["m1"]);
 });
 
-test("an atom with two real molecule parents cascades both molecules", () => {
+test("an bean with two real pod parents cascades both pods", () => {
   const raw = {
     pods: [
       { slug: "m1", name: "M1", domain: "music" as const, description: "" },
@@ -170,7 +170,7 @@ const atom = (slug: string, parents: string[], visibility: Visibility) => ({
   slug, name: slug.toUpperCase(), parents, visibility,
 });
 
-test("unpublishCascade re-privatizes the atom and its molecule when the last published version is pulled", () => {
+test("unpublishCascade re-privatizes the bean and its pod when the last published sprout is pulled", () => {
   const raw: RawGarden = {
     pods: [mol("m1", "public")],
     beans: [atom("a1", ["pod:m1"], "public")],
@@ -179,7 +179,7 @@ test("unpublishCascade re-privatizes the atom and its molecule when the last pub
   assert.deepEqual(unpublishCascade(raw, "v1"), { podSlugs: ["m1"], beanSlugs: ["a1"] });
 });
 
-test("unpublishCascade keeps the whole lineage when a published sibling version remains", () => {
+test("unpublishCascade keeps the whole lineage when a published sibling sprout remains", () => {
   const raw: RawGarden = {
     pods: [mol("m1", "public")],
     beans: [atom("a1", ["pod:m1"], "public")],
@@ -188,7 +188,7 @@ test("unpublishCascade keeps the whole lineage when a published sibling version 
   assert.deepEqual(unpublishCascade(raw, "v1"), { podSlugs: [], beanSlugs: [] });
 });
 
-test("unpublishCascade flips the atom but keeps a molecule that still has another public atom", () => {
+test("unpublishCascade flips the atom but keeps a pod that still has another public bean", () => {
   const raw: RawGarden = {
     pods: [mol("m1", "public")],
     beans: [atom("a1", ["pod:m1"], "public"), atom("a2", ["pod:m1"], "public")],
@@ -197,7 +197,7 @@ test("unpublishCascade flips the atom but keeps a molecule that still has anothe
   assert.deepEqual(unpublishCascade(raw, "v1"), { podSlugs: [], beanSlugs: ["a1"] });
 });
 
-test("unpublishCascade evaluates each atom parent of a multi-parent version independently", () => {
+test("unpublishCascade evaluates each bean parent of a multi-parent sprout independently", () => {
   const raw: RawGarden = {
     pods: [mol("m1", "public"), mol("m2", "public")],
     beans: [atom("a1", ["pod:m1"], "public"), atom("a2", ["pod:m2"], "public")],
@@ -207,7 +207,7 @@ test("unpublishCascade evaluates each atom parent of a multi-parent version inde
   assert.deepEqual(unpublishCascade(raw, "v1"), { podSlugs: ["m1"], beanSlugs: ["a1"] });
 });
 
-test("unpublishCascade lists a molecule shared by two flipped atoms once", () => {
+test("unpublishCascade lists a pod shared by two flipped beans once", () => {
   const raw: RawGarden = {
     pods: [mol("m1", "public")],
     beans: [atom("a1", ["pod:m1"], "public"), atom("a2", ["pod:m1"], "public")],
@@ -218,7 +218,7 @@ test("unpublishCascade lists a molecule shared by two flipped atoms once", () =>
   assert.deepEqual(r.podSlugs, ["m1"]);
 });
 
-test("unpublishCascade ignores dangling atom and molecule refs", () => {
+test("unpublishCascade ignores dangling bean and pod refs", () => {
   const raw: RawGarden = {
     pods: [],
     beans: [atom("a1", ["pod:ghost"], "public")],
@@ -227,17 +227,17 @@ test("unpublishCascade ignores dangling atom and molecule refs", () => {
   assert.deepEqual(unpublishCascade(raw, "v1"), { podSlugs: [], beanSlugs: ["a1"] });
 });
 
-test("a parentless version un-cascades nothing", () => {
+test("a parentless sprout un-cascades nothing", () => {
   const raw: RawGarden = { pods: [], beans: [], sprouts: [ver("v1", [], "draft")] };
   assert.deepEqual(unpublishCascade(raw, "v1"), { podSlugs: [], beanSlugs: [] });
 });
 
-test("an unknown version slug un-cascades nothing", () => {
+test("an unknown sprout slug un-cascades nothing", () => {
   const raw: RawGarden = { pods: [], beans: [], sprouts: [] };
   assert.deepEqual(unpublishCascade(raw, "nope"), { podSlugs: [], beanSlugs: [] });
 });
 
-test("unpublishCascade is a no-op while the version is still published (its own state shelters its parents)", () => {
+test("unpublishCascade is a no-op while the sprout is still published (its own state shelters its parents)", () => {
   const raw: RawGarden = {
     pods: [mol("m1", "public")],
     beans: [atom("a1", ["pod:m1"], "public")],
@@ -246,7 +246,7 @@ test("unpublishCascade is a no-op while the version is still published (its own 
   assert.deepEqual(unpublishCascade(raw, "v1"), { podSlugs: [], beanSlugs: [] });
 });
 
-test("an explicitly-private sibling atom does not count as remaining public for the molecule rule", () => {
+test("an explicitly-private sibling bean does not count as remaining public for the pod rule", () => {
   const raw: RawGarden = {
     pods: [mol("m1", "public")],
     beans: [atom("a1", ["pod:m1"], "public"), atom("a2", ["pod:m1"], "private")],
@@ -264,7 +264,7 @@ test("flip targets are returned regardless of their current visibility (idempote
   assert.deepEqual(unpublishCascade(raw, "v1"), { podSlugs: ["m1"], beanSlugs: ["a1"] });
 });
 
-test("inverse symmetry: un-publish flips back exactly what publish flipped (single-version lineage)", () => {
+test("inverse symmetry: un-publish flips back exactly what publish flipped (single-sprout lineage)", () => {
   const pods = [mol("m1", "public")];
   const beans = [atom("a1", ["pod:m1"], "public")];
   const published = publishCascade({ pods, beans, sprouts: [ver("v1", ["bean:a1"], "published")] }, "v1");
@@ -276,7 +276,7 @@ test("inverse symmetry: un-publish flips back exactly what publish flipped (sing
 // captures a version's atom parents BEFORE the delete and evaluates them against the
 // POST-delete dataset — where the version no longer exists to shelter anything.
 
-test("delete-shaped: last published version already gone from the dataset flips atom and molecule", () => {
+test("delete-shaped: last published sprout already gone from the dataset flips bean and pod", () => {
   const raw: RawGarden = {
     pods: [mol("m1", "public")],
     beans: [atom("a1", ["pod:m1"], "public")],
@@ -285,7 +285,7 @@ test("delete-shaped: last published version already gone from the dataset flips 
   assert.deepEqual(unpublishCascadeForBeans(raw, ["a1"]), { podSlugs: ["m1"], beanSlugs: ["a1"] });
 });
 
-test("delete-shaped: a surviving published sibling shelters the atom (and molecule)", () => {
+test("delete-shaped: a surviving published sibling shelters the bean (and pod)", () => {
   const raw: RawGarden = {
     pods: [mol("m1", "public")],
     beans: [atom("a1", ["pod:m1"], "public")],
@@ -303,7 +303,7 @@ test("delete-shaped: a surviving draft sibling does not shelter", () => {
   assert.deepEqual(unpublishCascadeForBeans(raw, ["a1"]), { podSlugs: ["m1"], beanSlugs: ["a1"] });
 });
 
-test("unpublishCascadeForBeans ignores unknown atom slugs", () => {
+test("unpublishCascadeForBeans ignores unknown bean slugs", () => {
   const raw: RawGarden = {
     pods: [mol("m1", "public")],
     beans: [atom("a1", ["pod:m1"], "public")],
@@ -313,7 +313,7 @@ test("unpublishCascadeForBeans ignores unknown atom slugs", () => {
   assert.deepEqual(r, { podSlugs: ["m1"], beanSlugs: ["a1"] });
 });
 
-test("unpublishCascadeForBeans ignores a flipped atom's dangling molecule refs", () => {
+test("unpublishCascadeForBeans ignores a flipped bean's dangling pod refs", () => {
   const raw: RawGarden = {
     pods: [],
     beans: [atom("a1", ["pod:ghost"], "public")],
@@ -331,7 +331,7 @@ test("unpublishCascadeForBeans on empty input flips nothing", () => {
   assert.deepEqual(unpublishCascadeForBeans(raw, []), { podSlugs: [], beanSlugs: [] });
 });
 
-test("unpublishCascadeForBeans dedupes repeated atom slugs", () => {
+test("unpublishCascadeForBeans dedupes repeated bean slugs", () => {
   const raw: RawGarden = {
     pods: [mol("m1", "public")],
     beans: [atom("a1", ["pod:m1"], "public")],
@@ -340,7 +340,7 @@ test("unpublishCascadeForBeans dedupes repeated atom slugs", () => {
   assert.deepEqual(unpublishCascadeForBeans(raw, ["a1", "a1"]), { podSlugs: ["m1"], beanSlugs: ["a1"] });
 });
 
-test("delete-shaped: two flipped atoms sharing one molecule list it once", () => {
+test("delete-shaped: two flipped beans sharing one pod list it once", () => {
   const raw: RawGarden = {
     pods: [mol("m1", "public")],
     beans: [atom("a1", ["pod:m1"], "public"), atom("a2", ["pod:m1"], "public")],
@@ -408,7 +408,7 @@ test("composeText omits a blank en from the object", () => {
   assert.equal(typeof t === "object" && "en" in t, false, "blank en must be omitted, not empty");
 });
 
-test("adapter equivalence: unpublishCascade(slug) === unpublishCascadeForBeans(that version's atom refs)", () => {
+test("adapter equivalence: unpublishCascade(slug) === unpublishCascadeForBeans(that sprout's bean refs)", () => {
   const raw: RawGarden = {
     pods: [mol("m1", "public"), mol("m2", "public")],
     beans: [atom("a1", ["pod:m1"], "public"), atom("a2", ["pod:m2"], "public")],

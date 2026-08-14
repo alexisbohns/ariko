@@ -18,7 +18,7 @@ export function resolveParentChoice(newSlug: string, selectedSlug: string): Pare
 }
 
 // The fields written to a new Version. Structurally the createSprout input.
-export interface VersionInput {
+export interface SproutInput {
   slug: string;
   name: Text;
   type: string;
@@ -30,7 +30,7 @@ export interface VersionInput {
   source: Source;
 }
 
-// Pure. Maps the triage form + the source capture into a VersionInput. name and
+// Pure. Maps the triage form + the source capture into a SproutInput. name and
 // description compose from paired en/fr fields (B1), WYSIWYG: the triage page
 // prefills the boxes per-language (name from capture.title, descriptions from
 // capture.body via textPart), and what the boxes submit is exactly what is
@@ -38,11 +38,11 @@ export interface VersionInput {
 // validation instead of being silently resurrected. Carries the capture's media
 // and provenance. `atomParentSlug` (resolved by the action) wires the atom
 // parent ref.
-export function buildVersionInput(
+export function buildSproutInput(
   form: FormData,
   capture: Seed,
   atomParentSlug: string | null,
-): VersionInput {
+): SproutInput {
   const get = (k: string) => String(form.get(k) ?? "").trim();
   const stateRaw = get("state");
   const state: VersionState =
@@ -64,12 +64,12 @@ export function buildVersionInput(
 // Pure guard for the required Version fields (spec §7). "name required" means at
 // least one language is present (resolveText non-empty) — an fr-only name is valid.
 // Media/source are carried, not user-entered, so they are not validated here.
-export function validateVersionInput(
-  v: VersionInput,
+export function validateSproutInput(
+  v: SproutInput,
 ): { ok: true } | { ok: false; error: string } {
   if (!v.slug) return { ok: false, error: "version slug is required" };
-  if (!resolveText(v.name)) return { ok: false, error: "version name is required" };
-  if (!v.type) return { ok: false, error: "version type is required" };
-  if (!v.date) return { ok: false, error: "version date is required" };
+  if (!resolveText(v.name)) return { ok: false, error: "sprout name is required" };
+  if (!v.type) return { ok: false, error: "sprout type is required" };
+  if (!v.date) return { ok: false, error: "sprout date is required" };
   return { ok: true };
 }

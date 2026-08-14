@@ -6,7 +6,7 @@ import type { TimelineEntry } from "./data";
 function entry(slug: string, state: string | undefined, domain: string | null, tags?: string[]): TimelineEntry {
   return {
     sprout: { slug, name: slug, type: "t", date: "2025-01-01", description: "", parents: [], ...(state ? { state: state as never } : {}), ...(tags ? { tags } : {}) },
-    bean: domain ? { slug: `atom-${slug}`, name: "a", parents: [] } : null,
+    bean: domain ? { slug: `bean-${slug}`, name: "a", parents: [] } : null,
     domain: domain as never,
   };
 }
@@ -63,7 +63,7 @@ test("distinctTags returns sorted unique tags across entries", () => {
   assert.deepEqual(distinctTags(ENTRIES), ["demo", "release", "wip"]);
 });
 
-test("localized version names resolve to display strings at build time (B1)", () => {
+test("localized sprout names resolve to display strings at build time (B1)", () => {
   const e = entry("v-fr", "draft", null);
   e.sprout.name = { en: "Name en", fr: "Nom fr" };
   const r = filterVaultEntries([e], {});

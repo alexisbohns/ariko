@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { filterPublic, type RawSeed } from "./data";
 import { toGraph } from "./graph";
 
-test("toGraph maps a molecule to exactly {id, kind, name, domain}", () => {
+test("toGraph maps a pod to exactly {id, kind, name, domain}", () => {
   const seed: RawSeed = {
     pods: [{ slug: "m", name: "M", domain: "music", description: "secret notes" }],
   };
@@ -12,7 +12,7 @@ test("toGraph maps a molecule to exactly {id, kind, name, domain}", () => {
   assert.equal("description" in nodes[0], false);
 });
 
-test("toGraph maps an atom to exactly {id, kind, name} — no visibility/parents leakage", () => {
+test("toGraph maps an bean to exactly {id, kind, name} — no visibility/parents leakage", () => {
   const seed: RawSeed = {
     beans: [{ slug: "a", name: "A", parents: ["pod:ghost"], visibility: "private" }],
   };
@@ -23,7 +23,7 @@ test("toGraph maps an atom to exactly {id, kind, name} — no visibility/parents
   }
 });
 
-test("toGraph maps a version to exactly {id, kind, name, type, date} — no content leakage", () => {
+test("toGraph maps a sprout to exactly {id, kind, name, type, date} — no content leakage", () => {
   const seed: RawSeed = {
     sprouts: [
       {
@@ -97,7 +97,7 @@ test("toGraph includes tags only when non-empty", () => {
   assert.deepEqual(byId.get("sprout:v-tagged")?.tags, ["z"]);
 });
 
-test("toGraph emits containment edges molecule→atom and atom→version, in child input order", () => {
+test("toGraph emits containment edges pod→atom and bean→sprout, in child input order", () => {
   const seed: RawSeed = {
     pods: [{ slug: "m", name: "M", domain: "music", description: "" }],
     beans: [
@@ -122,7 +122,7 @@ test("toGraph emits containment edges molecule→atom and atom→version, in chi
   ]);
 });
 
-test("toGraph emits one edge per existing parent for a multi-parent atom", () => {
+test("toGraph emits one edge per existing parent for a multi-parent bean", () => {
   const seed: RawSeed = {
     pods: [
       { slug: "m1", name: "M1", domain: "music", description: "" },
@@ -136,7 +136,7 @@ test("toGraph emits one edge per existing parent for a multi-parent atom", () =>
   ]);
 });
 
-test("toGraph emits one edge per existing atom parent for a multi-parent version", () => {
+test("toGraph emits one edge per existing bean parent for a multi-parent sprout", () => {
   const seed: RawSeed = {
     beans: [
       { slug: "a1", name: "A1", parents: [] },

@@ -35,7 +35,7 @@ test("loadRawGarden returns documents without Mongo _id", { skip: !hasDb }, asyn
 // Inserts BOTH a published and a draft probe: asserting the published one is
 // present proves the public dataset isn't degenerately empty, so the "draft is
 // absent" assertion can't pass vacuously.
-test("public dataset includes published but excludes drafted versions", { skip: !hasDb }, async () => {
+test("public dataset includes published but excludes drafted sprouts", { skip: !hasDb }, async () => {
   const db = await getDb();
   const base = { type: "note", date: "2099-01-01", description: "leak probe", parents: [] };
   const published = { ...base, slug: "__leak_probe_published__", name: "Published Probe", state: "published" as const };
