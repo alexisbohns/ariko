@@ -4,11 +4,11 @@ import { ATOM_PREFIX, MOLECULE_PREFIX, VERSION_PREFIX, parentsWithPrefix, resolv
 // contract. Projection-agnostic: serializes whatever seed it is given, so the
 // public route feeds it filterPublic's output and a future admin vault-graph
 // can feed it the full dataset. Node ids reuse the prefixed-ref grammar
-// ("molecule:slug" / "atom:slug", plus "version:slug"); slugs are immutable,
+// ("pod:slug" / "bean:slug", plus "sprout:slug"); slugs are immutable,
 // so ids are stable across publishes.
 
 export interface GraphNode {
-  id: string; // "molecule:slug" | "atom:slug" | "version:slug"
+  id: string; // "pod:slug" | "bean:slug" | "sprout:slug"
   kind: "molecule" | "atom" | "version";
   name: string; // resolved at serialization time (B1) — the contract's shape never widens; a ?lang= param is a later slice
   domain?: Domain; // molecules only
@@ -40,16 +40,16 @@ export interface Graph {
 // versions); containment edges in child input order, then relation edges in
 // version-then-declaration order.
 export function toGraph(raw: RawSeed): Graph {
-  const molecules = raw.molecules ?? [];
-  const atoms = raw.atoms ?? [];
-  const versions = raw.versions ?? [];
+  const pods = raw.pods ?? [];
+  const beans = raw.beans ?? [];
+  const sprouts = raw.sprouts ?? [];
 
   const nodes: GraphNode[] = [
-    ...molecules.map((m) =>
+    ...pods.map((m) =>
       withTags({ id: MOLECULE_PREFIX + m.slug, kind: "molecule" as const, name: resolveText(m.name), domain: m.domain }, m.tags),
     ),
-    ...atoms.map((a) => withTags({ id: ATOM_PREFIX + a.slug, kind: "atom" as const, name: resolveText(a.name) }, a.tags)),
-    ...versions.map((v) =>
+    ...beans.map((a) => withTags({ id: ATOM_PREFIX + a.slug, kind: "atom" as const, name: resolveText(a.name) }, a.tags)),
+    ...sprouts.map((v) =>
       withTags(
         { id: VERSION_PREFIX + v.slug, kind: "version" as const, name: resolveText(v.name), type: v.type, date: v.date },
         v.tags,
@@ -57,8 +57,8 @@ export function toGraph(raw: RawSeed): Graph {
     ),
   ];
 
-  const moleculeSlugs = new Set(molecules.map((m) => m.slug));
-  const atomSlugs = new Set(atoms.map((a) => a.slug));
+  const podSlugs = new Set(pods.map((m) => m.slug));
+  const beanSlugs = new Set(beans.map((a) => a.slug));
 
   const edges: GraphEdge[] = [];
   const seen = new Set<string>();
@@ -71,21 +71,21 @@ export function toGraph(raw: RawSeed): Graph {
     edges.push({ source, target, kind });
   }
 
-  for (const atom of atoms) {
+  for (const atom of beans) {
     for (const slug of parentsWithPrefix(atom.parents, MOLECULE_PREFIX)) {
-      if (moleculeSlugs.has(slug)) addEdge(MOLECULE_PREFIX + slug, ATOM_PREFIX + atom.slug, "contains");
+      if (podSlugs.has(slug)) addEdge(MOLECULE_PREFIX + slug, ATOM_PREFIX + atom.slug, "contains");
     }
   }
-  for (const version of versions) {
+  for (const version of sprouts) {
     for (const slug of parentsWithPrefix(version.parents, ATOM_PREFIX)) {
-      if (atomSlugs.has(slug)) addEdge(ATOM_PREFIX + slug, VERSION_PREFIX + version.slug, "contains");
+      if (beanSlugs.has(slug)) addEdge(ATOM_PREFIX + slug, VERSION_PREFIX + version.slug, "contains");
     }
   }
 
   // Relation edges after all containment: source is the declaring version,
   // target is the relation's ref verbatim — both must be node ids here.
   const nodeIds = new Set(nodes.map((n) => n.id));
-  for (const version of versions) {
+  for (const version of sprouts) {
     const source = VERSION_PREFIX + version.slug;
     for (const rel of version.relations ?? []) {
       if (nodeIds.has(source) && nodeIds.has(rel.ref)) addEdge(source, rel.ref, rel.kind);

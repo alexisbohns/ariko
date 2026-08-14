@@ -20,7 +20,7 @@ async function main() {
   await db.collection("atoms").createIndex({ slug: 1 }, { unique: true });
   await db.collection("versions").createIndex({ slug: 1 }, { unique: true });
 
-  for (const m of raw.molecules ?? []) {
+  for (const m of raw.pods ?? []) {
     await db.collection("molecules").updateOne(
       { slug: m.slug },
       m.visibility
@@ -29,7 +29,7 @@ async function main() {
       { upsert: true },
     );
   }
-  for (const a of raw.atoms ?? []) {
+  for (const a of raw.beans ?? []) {
     await db.collection("atoms").updateOne(
       { slug: a.slug },
       a.visibility
@@ -38,7 +38,7 @@ async function main() {
       { upsert: true },
     );
   }
-  for (const v of raw.versions ?? []) {
+  for (const v of raw.sprouts ?? []) {
     await db.collection("versions").updateOne(
       { slug: v.slug },
       v.state ? { $set: { ...v } } : { $set: { ...v }, $setOnInsert: { state: "published" } },
@@ -47,7 +47,7 @@ async function main() {
   }
 
   console.log(
-    `Migrated ${raw.molecules?.length ?? 0} molecules, ${raw.atoms?.length ?? 0} atoms, ${raw.versions?.length ?? 0} versions.`,
+    `Migrated ${raw.pods?.length ?? 0} molecules, ${raw.beans?.length ?? 0} atoms, ${raw.sprouts?.length ?? 0} versions.`,
   );
   process.exit(0);
 }

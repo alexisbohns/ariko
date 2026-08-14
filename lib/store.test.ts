@@ -12,9 +12,9 @@ after(async () => {
 
 test("loadRawSeed returns arrays for all three collections", { skip: !hasDb }, async () => {
   const raw = await loadRawSeed();
-  assert.ok(Array.isArray(raw.molecules));
-  assert.ok(Array.isArray(raw.atoms));
-  assert.ok(Array.isArray(raw.versions));
+  assert.ok(Array.isArray(raw.pods));
+  assert.ok(Array.isArray(raw.beans));
+  assert.ok(Array.isArray(raw.sprouts));
 });
 
 // Insert a probe so this verifies the projection even when the DB is otherwise
@@ -24,7 +24,7 @@ test("loadRawSeed returns documents without Mongo _id", { skip: !hasDb }, async 
   const probe = { slug: "__store_probe__", name: "Probe", domain: "music" as const, description: "" };
   await db.collection("molecules").updateOne({ slug: probe.slug }, { $set: probe }, { upsert: true });
   try {
-    const found = (await loadRawSeed()).molecules?.find((m) => m.slug === probe.slug);
+    const found = (await loadRawSeed()).pods?.find((m) => m.slug === probe.slug);
     assert.ok(found, "probe molecule should be loaded");
     assert.equal("_id" in (found as object), false);
   } finally {
@@ -43,7 +43,7 @@ test("public dataset includes published but excludes drafted versions", { skip: 
   await db.collection("versions").updateOne({ slug: published.slug }, { $set: published }, { upsert: true });
   await db.collection("versions").updateOne({ slug: draft.slug }, { $set: draft }, { upsert: true });
   try {
-    const slugs = new Set((await getPublicDataset()).timelineVersions().map((e) => e.version.slug));
+    const slugs = new Set((await getPublicDataset()).timelineSprouts().map((e) => e.sprout.slug));
     assert.equal(slugs.has(published.slug), true, "published version missing — dataset is degenerate, test would pass vacuously");
     assert.equal(slugs.has(draft.slug), false, "draft version leaked into the public dataset");
   } finally {

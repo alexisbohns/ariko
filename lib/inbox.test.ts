@@ -39,13 +39,13 @@ test("carries body, content, suggested, and source fields through", () => {
     title: "PR #42",
     body: { en: "hello", fr: "bonjour" },
     source: { kind: "github", url: "https://x", externalId: "42" },
-    suggested: { moleculeSlug: "pbbls" },
+    suggested: { podSlug: "pbbls" },
   });
   assert.equal(r.ok, true);
   if (r.ok) {
     assert.deepEqual(r.value.body, { en: "hello", fr: "bonjour" });
     assert.equal(r.value.source.externalId, "42");
-    assert.equal(r.value.suggested?.moleculeSlug, "pbbls");
+    assert.equal(r.value.suggested?.podSlug, "pbbls");
   }
 });
 

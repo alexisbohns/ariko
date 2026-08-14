@@ -60,7 +60,7 @@ export async function createMolecule(input: NewMolecule): Promise<Molecule> {
 export interface NewAtom {
   slug: string;
   name: string;
-  moleculeSlug: string | null;
+  podSlug: string | null;
 }
 
 export async function createAtom(input: NewAtom): Promise<Atom> {
@@ -68,7 +68,7 @@ export async function createAtom(input: NewAtom): Promise<Atom> {
   const doc: Atom = {
     slug: input.slug,
     name: input.name,
-    parents: input.moleculeSlug ? [`molecule:${input.moleculeSlug}`] : [],
+    parents: input.podSlug ? [`pod:${input.podSlug}`] : [],
     visibility: "private",
   };
   try {
@@ -118,25 +118,25 @@ export async function deleteVersion(slug: string): Promise<void> {
 
 // Shared write half of the visibility cascades. No-op on empty arrays.
 async function setVisibility(
-  moleculeSlugs: string[],
-  atomSlugs: string[],
+  podSlugs: string[],
+  beanSlugs: string[],
   visibility: Visibility,
 ): Promise<void> {
   const db = await getDb();
-  if (moleculeSlugs.length > 0) {
-    await db.collection("molecules").updateMany({ slug: { $in: moleculeSlugs } }, { $set: { visibility } });
+  if (podSlugs.length > 0) {
+    await db.collection("molecules").updateMany({ slug: { $in: podSlugs } }, { $set: { visibility } });
   }
-  if (atomSlugs.length > 0) {
-    await db.collection("atoms").updateMany({ slug: { $in: atomSlugs } }, { $set: { visibility } });
+  if (beanSlugs.length > 0) {
+    await db.collection("atoms").updateMany({ slug: { $in: beanSlugs } }, { $set: { visibility } });
   }
 }
 
 // The write half of the publish cascade.
-export async function setPublic(moleculeSlugs: string[], atomSlugs: string[]): Promise<void> {
-  return setVisibility(moleculeSlugs, atomSlugs, "public");
+export async function setPublic(podSlugs: string[], beanSlugs: string[]): Promise<void> {
+  return setVisibility(podSlugs, beanSlugs, "public");
 }
 
 // The write half of the un-publish cascade — the exact mirror of setPublic.
-export async function setPrivate(moleculeSlugs: string[], atomSlugs: string[]): Promise<void> {
-  return setVisibility(moleculeSlugs, atomSlugs, "private");
+export async function setPrivate(podSlugs: string[], beanSlugs: string[]): Promise<void> {
+  return setVisibility(podSlugs, beanSlugs, "private");
 }

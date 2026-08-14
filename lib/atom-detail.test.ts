@@ -4,15 +4,15 @@ import { buildDataset, type RawSeed } from "./data";
 import { atomDetail } from "./atom-detail";
 
 const SEED: RawSeed = {
-  molecules: [{ slug: "rom", name: "Republic", domain: "music", description: "" }],
-  atoms: [
-    { slug: "rom-win", name: "Win", parents: ["molecule:rom"] },
+  pods: [{ slug: "rom", name: "Republic", domain: "music", description: "" }],
+  beans: [
+    { slug: "rom-win", name: "Win", parents: ["pod:rom"] },
     { slug: "loner", name: "Loner", parents: [] },
-    { slug: "dangler", name: "Dangler", parents: ["molecule:ghost"] },
+    { slug: "dangler", name: "Dangler", parents: ["pod:ghost"] },
   ],
-  versions: [
-    { slug: "win-v1", name: "Win v1", type: "t", date: "2025-01-01", description: "", parents: ["atom:rom-win"], state: "draft" },
-    { slug: "win-v2", name: "Win v2", type: "t", date: "2025-03-01", description: "", parents: ["atom:rom-win"], state: "published" },
+  sprouts: [
+    { slug: "win-v1", name: "Win v1", type: "t", date: "2025-01-01", description: "", parents: ["bean:rom-win"], state: "draft" },
+    { slug: "win-v2", name: "Win v2", type: "t", date: "2025-03-01", description: "", parents: ["bean:rom-win"], state: "published" },
   ],
 };
 const DATASET = buildDataset(SEED);
@@ -24,16 +24,16 @@ test("unknown slug returns null", () => {
 test("found atom returns the atom and its versions newest-first", () => {
   const view = atomDetail(DATASET, "rom-win");
   assert.ok(view);
-  assert.equal(view!.atom.slug, "rom-win");
-  assert.deepEqual(view!.versions.map((v) => v.slug), ["win-v2", "win-v1"]);
+  assert.equal(view!.bean.slug, "rom-win");
+  assert.deepEqual(view!.sprouts.map((v) => v.slug), ["win-v2", "win-v1"]);
 });
 
 test("domain resolves via the molecule parent", () => {
   assert.equal(atomDetail(DATASET, "rom-win")!.domain, "music");
 });
 
-test("moleculeParents surfaces the molecule: refs (as-is)", () => {
-  assert.deepEqual(atomDetail(DATASET, "rom-win")!.moleculeParents, ["molecule:rom"]);
+test("moleculeParents surfaces the pod: refs (as-is)", () => {
+  assert.deepEqual(atomDetail(DATASET, "rom-win")!.moleculeParents, ["pod:rom"]);
 });
 
 test("a standalone atom has no molecule parents and a null domain", () => {
@@ -44,23 +44,23 @@ test("a standalone atom has no molecule parents and a null domain", () => {
 
 test("a dangling molecule ref is surfaced as-is but yields a null domain", () => {
   const view = atomDetail(DATASET, "dangler");
-  assert.deepEqual(view!.moleculeParents, ["molecule:ghost"]);
+  assert.deepEqual(view!.moleculeParents, ["pod:ghost"]);
   assert.equal(view!.domain, null);
 });
 
 test("an atom with no versions returns an empty versions array", () => {
-  assert.deepEqual(atomDetail(DATASET, "loner")!.versions, []);
+  assert.deepEqual(atomDetail(DATASET, "loner")!.sprouts, []);
 });
 
 test("localized atom/version text resolves to display strings at build time (B1)", () => {
   const seed: RawSeed = {
-    atoms: [{ slug: "bi", name: { en: "Win", fr: "Victoire" }, parents: [] }],
-    versions: [
-      { slug: "bi-v1", name: { fr: "Prise une" }, type: "t", date: "2025-01-01", description: { en: "first", fr: "première" }, parents: ["atom:bi"] },
+    beans: [{ slug: "bi", name: { en: "Win", fr: "Victoire" }, parents: [] }],
+    sprouts: [
+      { slug: "bi-v1", name: { fr: "Prise une" }, type: "t", date: "2025-01-01", description: { en: "first", fr: "première" }, parents: ["bean:bi"] },
     ],
   };
   const view = atomDetail(buildDataset(seed), "bi")!;
-  assert.equal(view.atom.name, "Win");
-  assert.equal(view.versions[0].name, "Prise une"); // fr-only → display fallback
-  assert.equal(view.versions[0].description, "first");
+  assert.equal(view.bean.name, "Win");
+  assert.equal(view.sprouts[0].name, "Prise une"); // fr-only → display fallback
+  assert.equal(view.sprouts[0].description, "first");
 });

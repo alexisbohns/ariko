@@ -38,8 +38,8 @@ export default async function TriagePage({
           <p>
             suggested:{" "}
             {[
-              capture.suggested.moleculeSlug && `molecule ${capture.suggested.moleculeSlug}`,
-              capture.suggested.atomSlug && `atom ${capture.suggested.atomSlug}`,
+              capture.suggested.podSlug && `molecule ${capture.suggested.podSlug}`,
+              capture.suggested.beanSlug && `atom ${capture.suggested.beanSlug}`,
               capture.suggested.type && `type ${capture.suggested.type}`,
               capture.suggested.tags?.length ? `tags ${capture.suggested.tags.join(", ")}` : null,
             ]
@@ -66,7 +66,7 @@ export default async function TriagePage({
           <p>
             <label>
               Existing{" "}
-              <select name="moleculeSlug" defaultValue={capture.suggested?.moleculeSlug ?? ""}>
+              <select name="podSlug" defaultValue={capture.suggested?.podSlug ?? ""}>
                 <option value="">— none —</option>
                 {molecules.map((m) => (
                   <option key={m.slug} value={m.slug}>
@@ -103,7 +103,7 @@ export default async function TriagePage({
           <p>
             <label>
               Existing{" "}
-              <select name="atomSlug" defaultValue={capture.suggested?.atomSlug ?? ""}>
+              <select name="beanSlug" defaultValue={capture.suggested?.beanSlug ?? ""}>
                 <option value="">— none —</option>
                 {atoms.map((a) => (
                   <option key={a.slug} value={a.slug}>

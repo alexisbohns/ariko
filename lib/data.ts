@@ -5,7 +5,7 @@ import yaml from "js-yaml";
 export type Domain = "music" | "design" | "podcast";
 
 export type Visibility = "private" | "public";
-export type VersionState = "draft" | "private" | "published";
+export type SproutState = "draft" | "private" | "published";
 
 export interface LocalizedText {
   en?: string;
@@ -36,8 +36,8 @@ export interface Source {
   capturedAt?: string;
 }
 
-// Non-containment edge (G2): the version that declares it points —kind→ ref.
-// ref reuses the prefixed grammar (version:/atom:/molecule:); kind is a free
+// Non-containment edge (G2): the sprout that declares it points —kind→ ref.
+// ref reuses the prefixed grammar (sprout:/bean:/pod:); kind is a free
 // string ("evolves-from", "featured-in", …) — vocabulary curation is a later
 // concern. No referential integrity by design: the filterPublic scrub and the
 // graph serializer's both-ends prune hide edges whose target is gone or hidden.
@@ -46,7 +46,7 @@ export interface Relation {
   ref: string;
 }
 
-export interface Molecule {
+export interface Pod {
   slug: string;
   name: Text; // bilingual since B1; plain strings remain valid (no migration)
   domain: Domain;
@@ -55,23 +55,23 @@ export interface Molecule {
   tags?: string[];
 }
 
-export interface Atom {
+export interface Bean {
   slug: string;
   name: Text; // bilingual since B1; plain strings remain valid (no migration)
-  parents: string[]; // containment ONLY, e.g. ["molecule:republic-of-masquerade"] — non-containment links belong in a future relations[] (graph runway)
+  parents: string[]; // containment ONLY, e.g. ["pod:republic-of-masquerade"] — non-containment links belong in a future relations[] (graph runway)
   visibility?: Visibility; // default treated as "public"
   tags?: string[];
 }
 
-export interface Version {
+export interface Sprout {
   slug: string;
   name: Text; // bilingual since B1; plain strings remain valid (no migration)
   type: string;
   date: string;
   description: Text;
-  parents: string[]; // containment ONLY, e.g. ["atom:rom-win"] — drives the privacy cascades and timeline grouping; cross-links go in relations[]
+  parents: string[]; // containment ONLY, e.g. ["bean:rom-win"] — drives the privacy cascades and timeline grouping; cross-links go in relations[]
   relations?: Relation[]; // non-containment edges (G2); scrubbed by filterPublic
-  state?: VersionState; // absent => NOT published (safe default)
+  state?: SproutState; // absent => NOT published (safe default)
   content?: Text; // optional rich markdown, localizable
   media?: Media[];
   source?: Source;
@@ -79,58 +79,58 @@ export interface Version {
   [key: string]: unknown; // flexible per-type properties
 }
 
-export interface RawSeed {
-  molecules?: Molecule[];
-  atoms?: Atom[];
-  versions?: Version[];
+export interface RawGarden {
+  pods?: Pod[];
+  beans?: Bean[];
+  sprouts?: Sprout[];
 }
 
-export type CaptureStatus = "inbox" | "promoted" | "discarded";
+export type SeedStatus = "inbox" | "promoted" | "discarded";
 
-export interface CaptureSuggestion {
-  moleculeSlug?: string;
-  atomSlug?: string;
+export interface SeedSuggestion {
+  podSlug?: string;
+  beanSlug?: string;
   type?: string;
   tags?: string[];
 }
 
-// Raw inbox item. Kept separate from the atomic model until triaged (spec §4.2).
-export interface Capture {
-  id: string; // crypto.randomUUID() at creation; captures are not slug-addressable
+// Raw inbox item. Kept separate from the botanical model until triaged (spec §4.2).
+export interface Seed {
+  id: string; // crypto.randomUUID() at creation; seeds are not slug-addressable
   title: Text; // bilingual since C1; plain strings remain valid (no migration)
   body?: LocalizedText;
   content?: LocalizedText;
   media: Media[];
   source: Source;
-  suggested?: CaptureSuggestion;
-  status: CaptureStatus;
-  promotedTo: string[]; // version slugs; empty until 2b triage
+  suggested?: SeedSuggestion;
+  status: SeedStatus;
+  promotedTo: string[]; // sprout slugs; empty until 2b triage
   createdAt: string; // ISO
   updatedAt: string; // ISO
 }
 
 export interface TimelineEntry {
-  version: Version;
-  atom: Atom | null;
+  sprout: Sprout;
+  bean: Bean | null;
   domain: Domain | null;
 }
 
 export interface Dataset {
-  getMolecules(): Molecule[];
-  atomsForMolecule(slug: string): Atom[];
-  standaloneAtoms(): Atom[];
-  getAtom(slug: string): Atom | undefined;
-  versionsForAtom(slug: string): Version[];
-  timelineVersions(): TimelineEntry[];
-  domainForAtom(slug: string): Domain | null;
+  getPods(): Pod[];
+  beansForPod(slug: string): Bean[];
+  standaloneBeans(): Bean[];
+  getBean(slug: string): Bean | undefined;
+  sproutsForBean(slug: string): Sprout[];
+  timelineSprouts(): TimelineEntry[];
+  domainForBean(slug: string): Domain | null;
 }
 
 // The prefixed-ref grammar, shared with the graph serializer (lib/graph.ts).
-// parents[] uses molecule:/atom: only; version: appears in relations[] refs
-// (and as graph node ids) — nothing is ever contained BY a version.
-export const MOLECULE_PREFIX = "molecule:";
-export const ATOM_PREFIX = "atom:";
-export const VERSION_PREFIX = "version:";
+// parents[] uses pod:/bean: only; sprout: appears in relations[] refs
+// (and as graph node ids) — nothing is ever contained BY a sprout.
+export const POD_PREFIX = "pod:";
+export const BEAN_PREFIX = "bean:";
+export const SPROUT_PREFIX = "sprout:";
 
 export function parentsWithPrefix(parents: string[] | undefined, prefix: string): string[] {
   return (parents ?? []).filter((p) => p.startsWith(prefix)).map((p) => p.slice(prefix.length));
@@ -141,75 +141,73 @@ function byDateDesc(a: { date: string }, b: { date: string }): number {
   return a.date < b.date ? 1 : a.date > b.date ? -1 : 0;
 }
 
-export function buildDataset(raw: RawSeed): Dataset {
-  const molecules = raw.molecules ?? [];
-  const atoms = raw.atoms ?? [];
-  const versions = raw.versions ?? [];
+export function buildDataset(raw: RawGarden): Dataset {
+  const pods = raw.pods ?? [];
+  const beans = raw.beans ?? [];
+  const sprouts = raw.sprouts ?? [];
 
-  const moleculeBySlug = new Map(molecules.map((m) => [m.slug, m]));
-  const atomBySlug = new Map(atoms.map((a) => [a.slug, a]));
+  const podBySlug = new Map(pods.map((p) => [p.slug, p]));
+  const beanBySlug = new Map(beans.map((b) => [b.slug, b]));
 
-  // molecule slug -> atoms (in seed order); only resolvable molecule refs.
-  const atomsByMolecule = new Map<string, Atom[]>();
-  const standalone: Atom[] = [];
-  for (const atom of atoms) {
-    const moleculeSlugs = parentsWithPrefix(atom.parents, MOLECULE_PREFIX).filter((s) =>
-      moleculeBySlug.has(s),
-    );
-    if (moleculeSlugs.length === 0) {
-      standalone.push(atom); // no parent, or only dangling refs
+  // pod slug -> beans (in garden order); only resolvable pod refs.
+  const beansByPod = new Map<string, Bean[]>();
+  const standalone: Bean[] = [];
+  for (const bean of beans) {
+    const podSlugs = parentsWithPrefix(bean.parents, POD_PREFIX).filter((s) => podBySlug.has(s));
+    if (podSlugs.length === 0) {
+      standalone.push(bean); // no parent, or only dangling refs
       continue;
     }
-    for (const m of moleculeSlugs) {
-      const list = atomsByMolecule.get(m) ?? [];
-      list.push(atom);
-      atomsByMolecule.set(m, list);
+    for (const p of podSlugs) {
+      const list = beansByPod.get(p) ?? [];
+      list.push(bean);
+      beansByPod.set(p, list);
     }
   }
 
-  // atom slug -> versions, sorted newest first.
-  const versionsByAtom = new Map<string, Version[]>();
-  for (const version of versions) {
-    for (const atomSlug of parentsWithPrefix(version.parents, ATOM_PREFIX)) {
-      const list = versionsByAtom.get(atomSlug) ?? [];
-      list.push(version);
-      versionsByAtom.set(atomSlug, list);
+  // bean slug -> sprouts, sorted newest first.
+  const sproutsByBean = new Map<string, Sprout[]>();
+  for (const sprout of sprouts) {
+    for (const beanSlug of parentsWithPrefix(sprout.parents, BEAN_PREFIX)) {
+      const list = sproutsByBean.get(beanSlug) ?? [];
+      list.push(sprout);
+      sproutsByBean.set(beanSlug, list);
     }
   }
-  for (const list of versionsByAtom.values()) {
+  for (const list of sproutsByBean.values()) {
     list.sort(byDateDesc);
   }
 
-  function domainForAtom(slug: string): Domain | null {
-    const atom = atomBySlug.get(slug);
-    if (!atom) return null;
-    for (const moleculeSlug of parentsWithPrefix(atom.parents, MOLECULE_PREFIX)) {
-      const molecule = moleculeBySlug.get(moleculeSlug);
-      if (molecule) return molecule.domain; // first resolvable molecule parent wins
+  function domainForBean(slug: string): Domain | null {
+    const bean = beanBySlug.get(slug);
+    if (!bean) return null;
+    for (const podSlug of parentsWithPrefix(bean.parents, POD_PREFIX)) {
+      const pod = podBySlug.get(podSlug);
+      if (pod) return pod.domain; // first resolvable pod parent wins
     }
     return null;
   }
 
-  const timeline: TimelineEntry[] = versions
-    .map((version) => {
-      const atomSlug = parentsWithPrefix(version.parents, ATOM_PREFIX)[0];
-      const atom = atomSlug ? (atomBySlug.get(atomSlug) ?? null) : null;
+  const timeline: TimelineEntry[] = sprouts
+    .map((sprout) => {
+      const beanSlug = parentsWithPrefix(sprout.parents, BEAN_PREFIX)[0];
+      const bean = beanSlug ? (beanBySlug.get(beanSlug) ?? null) : null;
       return {
-        version,
-        atom,
-        domain: atom ? domainForAtom(atom.slug) : null,
+        sprout,
+        bean,
+        domain: bean ? domainForBean(bean.slug) : null,
       };
     })
-    .sort((a, b) => byDateDesc(a.version, b.version));
+    .sort((a, b) => byDateDesc(a.sprout, b.sprout));
 
   return {
-    getMolecules: () => molecules,
-    atomsForMolecule: (slug) => atomsByMolecule.get(slug) ?? [],
-    standaloneAtoms: () => standalone,
-    getAtom: (slug) => atomBySlug.get(slug),
-    versionsForAtom: (slug) => versionsByAtom.get(slug) ?? [],
-    timelineVersions: () => timeline,
-    domainForAtom,
+    getPods: () => pods,
+    beansForPod: (slug) => beansByPod.get(slug) ?? [],
+    standaloneBeans: () => standalone,
+    getBean: (slug) => beanBySlug.get(slug),
+    sproutsForBean: (slug) => sproutsByBean.get(slug) ?? [],
+    timelineSprouts: () => timeline,
+    domainForBean,
   };
 }
 
@@ -242,69 +240,69 @@ export function composeText(en: string, fr: string): Text {
 }
 
 // Public projection of the vault. The security-sensitive rules live here:
-//  - a Version is public ONLY when state === "published" (missing state hides it);
-//  - a Molecule/Atom is visible unless explicitly visibility === "private";
-//  - privacy cascades DOWNWARD, fail-closed: an Atom whose every EXISTING molecule
-//    parent was filtered out is dropped, and a Version whose every EXISTING atom
+//  - a Sprout is public ONLY when state === "published" (missing state hides it);
+//  - a Pod/Bean is visible unless explicitly visibility === "private";
+//  - privacy cascades DOWNWARD, fail-closed: a Bean whose every EXISTING pod
+//    parent was filtered out is dropped, and a Sprout whose every EXISTING bean
 //    parent was filtered out is dropped. Dangling (nonexistent) parent refs are
 //    ignored, so standalone-by-dangling items are preserved (matches buildDataset);
-//  - each kept Version's relations[] is scrubbed to refs whose TARGET survives
-//    this same projection (kept version/atom/molecule) — draft, private,
+//  - each kept Sprout's relations[] is scrubbed to refs whose TARGET survives
+//    this same projection (kept sprout/bean/pod) — draft, private,
 //    cascaded-out, dangling, and unknown-prefix targets all drop, so a hidden
 //    slug can never leak through a property dump or the graph endpoint.
-// Pure: input objects are never mutated; scrubbing yields a fresh version object.
-export function filterPublic(raw: RawSeed): RawSeed {
-  const rawMolecules = raw.molecules ?? [];
-  const rawAtoms = raw.atoms ?? [];
-  const rawVersions = raw.versions ?? [];
+// Pure: input objects are never mutated; scrubbing yields a fresh sprout object.
+export function filterPublic(raw: RawGarden): RawGarden {
+  const rawPods = raw.pods ?? [];
+  const rawBeans = raw.beans ?? [];
+  const rawSprouts = raw.sprouts ?? [];
 
-  const molecules = rawMolecules.filter((m) => m.visibility !== "private");
-  const moleculeExists = new Set(rawMolecules.map((m) => m.slug));
-  const moleculeKept = new Set(molecules.map((m) => m.slug));
+  const pods = rawPods.filter((p) => p.visibility !== "private");
+  const podExists = new Set(rawPods.map((p) => p.slug));
+  const podKept = new Set(pods.map((p) => p.slug));
 
-  const atoms = rawAtoms.filter(
-    (a) =>
-      a.visibility !== "private" &&
-      !allExistingParentsFiltered(a.parents, MOLECULE_PREFIX, moleculeExists, moleculeKept),
+  const beans = rawBeans.filter(
+    (b) =>
+      b.visibility !== "private" &&
+      !allExistingParentsFiltered(b.parents, POD_PREFIX, podExists, podKept),
   );
-  const atomExists = new Set(rawAtoms.map((a) => a.slug));
-  const atomKept = new Set(atoms.map((a) => a.slug));
+  const beanExists = new Set(rawBeans.map((b) => b.slug));
+  const beanKept = new Set(beans.map((b) => b.slug));
 
-  const keptVersions = rawVersions.filter(
-    (v) =>
-      v.state === "published" &&
-      !allExistingParentsFiltered(v.parents, ATOM_PREFIX, atomExists, atomKept),
+  const keptSprouts = rawSprouts.filter(
+    (s) =>
+      s.state === "published" &&
+      !allExistingParentsFiltered(s.parents, BEAN_PREFIX, beanExists, beanKept),
   );
 
-  // Relations may point at versions, so the kept-version set must exist BEFORE
-  // any relation is judged — a version ref survives iff its target survived the
+  // Relations may point at sprouts, so the kept-sprout set must exist BEFORE
+  // any relation is judged — a sprout ref survives iff its target survived the
   // filter above.
-  const versionKept = new Set(keptVersions.map((v) => v.slug));
+  const sproutKept = new Set(keptSprouts.map((s) => s.slug));
   const refSurvives = (ref: string): boolean =>
-    ref.startsWith(VERSION_PREFIX)
-      ? versionKept.has(ref.slice(VERSION_PREFIX.length))
-      : ref.startsWith(ATOM_PREFIX)
-        ? atomKept.has(ref.slice(ATOM_PREFIX.length))
-        : ref.startsWith(MOLECULE_PREFIX) && moleculeKept.has(ref.slice(MOLECULE_PREFIX.length));
+    ref.startsWith(SPROUT_PREFIX)
+      ? sproutKept.has(ref.slice(SPROUT_PREFIX.length))
+      : ref.startsWith(BEAN_PREFIX)
+        ? beanKept.has(ref.slice(BEAN_PREFIX.length))
+        : ref.startsWith(POD_PREFIX) && podKept.has(ref.slice(POD_PREFIX.length));
 
-  const versions = keptVersions.map((v) => {
-    if (!v.relations) return v; // absent stays absent — never materialize []
+  const sprouts = keptSprouts.map((s) => {
+    if (!s.relations) return s; // absent stays absent — never materialize []
     // Tolerate malformed shapes from direct DB writes (the validator's
     // "moderate" level never re-checks pre-existing docs): a non-array field
     // and non-{kind,ref}-string entries drop fail-closed instead of throwing —
     // one bad doc must not 500 every public read.
-    if (!Array.isArray(v.relations)) return { ...v, relations: [] };
-    const scrubbed = v.relations.filter(
+    if (!Array.isArray(s.relations)) return { ...s, relations: [] };
+    const scrubbed = s.relations.filter(
       (rel) =>
         rel != null &&
         typeof rel.kind === "string" &&
         typeof rel.ref === "string" &&
         refSurvives(rel.ref),
     );
-    return scrubbed.length === v.relations.length ? v : { ...v, relations: scrubbed };
+    return scrubbed.length === s.relations.length ? s : { ...s, relations: scrubbed };
   });
 
-  return { molecules, atoms, versions };
+  return { pods, beans, sprouts };
 }
 
 // True when the item has parent refs that EXIST in the dataset and ALL such
@@ -320,112 +318,127 @@ function allExistingParentsFiltered(
 }
 
 // Upward publish cascade — the write-time mirror of filterPublic's downward
-// projection (spec §6.2). For the given version, returns the EXISTING atom parents
-// and their EXISTING molecule parents that must be made public so a published
-// version never dangles under a private parent. Dangling refs are ignored, exactly
+// projection (spec §6.2). For the given sprout, returns the EXISTING bean parents
+// and their EXISTING pod parents that must be made public so a published
+// sprout never dangles under a private parent. Dangling refs are ignored, exactly
 // as filterPublic ignores them. Pure; visibility is not consulted (idempotent flip).
 export function publishCascade(
-  raw: RawSeed,
-  versionSlug: string,
-): { moleculeSlugs: string[]; atomSlugs: string[] } {
-  const molecules = raw.molecules ?? [];
-  const atoms = raw.atoms ?? [];
-  const versions = raw.versions ?? [];
+  raw: RawGarden,
+  sproutSlug: string,
+): { podSlugs: string[]; beanSlugs: string[] } {
+  const pods = raw.pods ?? [];
+  const beans = raw.beans ?? [];
+  const sprouts = raw.sprouts ?? [];
 
-  const version = versions.find((v) => v.slug === versionSlug);
-  if (!version) return { moleculeSlugs: [], atomSlugs: [] };
+  const sprout = sprouts.find((s) => s.slug === sproutSlug);
+  if (!sprout) return { podSlugs: [], beanSlugs: [] };
 
-  const atomBySlug = new Map(atoms.map((a) => [a.slug, a]));
-  const moleculeExists = new Set(molecules.map((m) => m.slug));
+  const beanBySlug = new Map(beans.map((b) => [b.slug, b]));
+  const podExists = new Set(pods.map((p) => p.slug));
 
-  const atomSlugs = [
-    ...new Set(parentsWithPrefix(version.parents, ATOM_PREFIX).filter((s) => atomBySlug.has(s))),
+  const beanSlugs = [
+    ...new Set(parentsWithPrefix(sprout.parents, BEAN_PREFIX).filter((s) => beanBySlug.has(s))),
   ];
 
-  const moleculeSlugs = new Set<string>();
-  for (const atomSlug of atomSlugs) {
-    const atom = atomBySlug.get(atomSlug)!;
-    for (const m of parentsWithPrefix(atom.parents, MOLECULE_PREFIX)) {
-      if (moleculeExists.has(m)) moleculeSlugs.add(m);
+  const podSlugs = new Set<string>();
+  for (const beanSlug of beanSlugs) {
+    const bean = beanBySlug.get(beanSlug)!;
+    for (const p of parentsWithPrefix(bean.parents, POD_PREFIX)) {
+      if (podExists.has(p)) podSlugs.add(p);
     }
   }
 
-  return { moleculeSlugs: [...moleculeSlugs], atomSlugs };
+  return { podSlugs: [...podSlugs], beanSlugs };
 }
 
-// Atom-level core of the downward recompute (roadmap A1/A2). Given candidate atom
-// slugs, returns the EXISTING atoms left with NO published version, and their
-// EXISTING molecule parents left with NO public atom once those atoms flip. Callers
-// that still have the version (un-publish) adapt via unpublishCascade; callers that
-// no longer do (delete) pass the atom parents they captured BEFORE the write and
+// Bean-level core of the downward recompute (roadmap A1/A2). Given candidate bean
+// slugs, returns the EXISTING beans left with NO published sprout, and their
+// EXISTING pod parents left with NO public bean once those beans flip. Callers
+// that still have the sprout (un-publish) adapt via unpublishCascade; callers that
+// no longer do (delete) pass the bean parents they captured BEFORE the write and
 // evaluate against the post-write dataset. Dangling/unknown slugs are ignored and
 // flip-target visibility is not consulted (idempotent flip), exactly as publishCascade.
-export function unpublishCascadeForAtoms(
-  raw: RawSeed,
-  atomSlugs: string[],
-): { moleculeSlugs: string[]; atomSlugs: string[] } {
-  const molecules = raw.molecules ?? [];
-  const atoms = raw.atoms ?? [];
-  const versions = raw.versions ?? [];
+export function unpublishCascadeForBeans(
+  raw: RawGarden,
+  beanSlugs: string[],
+): { podSlugs: string[]; beanSlugs: string[] } {
+  const pods = raw.pods ?? [];
+  const beans = raw.beans ?? [];
+  const sprouts = raw.sprouts ?? [];
 
-  const atomBySlug = new Map(atoms.map((a) => [a.slug, a]));
-  const moleculeExists = new Set(molecules.map((m) => m.slug));
+  const beanBySlug = new Map(beans.map((b) => [b.slug, b]));
+  const podExists = new Set(pods.map((p) => p.slug));
 
-  // An atom is sheltered while ANY published version still points at it.
-  const shelteredAtoms = new Set<string>();
-  for (const v of versions) {
-    if (v.state !== "published") continue;
-    for (const s of parentsWithPrefix(v.parents, ATOM_PREFIX)) shelteredAtoms.add(s);
+  // A bean is sheltered while ANY published sprout still points at it.
+  const shelteredBeans = new Set<string>();
+  for (const s of sprouts) {
+    if (s.state !== "published") continue;
+    for (const b of parentsWithPrefix(s.parents, BEAN_PREFIX)) shelteredBeans.add(b);
   }
 
   const flipping = new Set(
-    atomSlugs.filter((s) => atomBySlug.has(s) && !shelteredAtoms.has(s)),
+    beanSlugs.filter((s) => beanBySlug.has(s) && !shelteredBeans.has(s)),
   );
 
-  const moleculeCandidates = new Set<string>();
-  for (const atomSlug of flipping) {
-    for (const m of parentsWithPrefix(atomBySlug.get(atomSlug)!.parents, MOLECULE_PREFIX)) {
-      if (moleculeExists.has(m)) moleculeCandidates.add(m);
+  const podCandidates = new Set<string>();
+  for (const beanSlug of flipping) {
+    for (const p of parentsWithPrefix(beanBySlug.get(beanSlug)!.parents, POD_PREFIX)) {
+      if (podExists.has(p)) podCandidates.add(p);
     }
   }
 
-  // A molecule is sheltered while any surviving public atom still points at it —
+  // A pod is sheltered while any surviving public bean still points at it —
   // the same "public unless explicitly private" rule filterPublic reads by.
-  const shelteredMolecules = new Set<string>();
-  for (const a of atoms) {
-    if (flipping.has(a.slug) || a.visibility === "private") continue;
-    for (const m of parentsWithPrefix(a.parents, MOLECULE_PREFIX)) shelteredMolecules.add(m);
+  const shelteredPods = new Set<string>();
+  for (const b of beans) {
+    if (flipping.has(b.slug) || b.visibility === "private") continue;
+    for (const p of parentsWithPrefix(b.parents, POD_PREFIX)) shelteredPods.add(p);
   }
 
   return {
-    moleculeSlugs: [...moleculeCandidates].filter((m) => !shelteredMolecules.has(m)),
-    atomSlugs: [...flipping],
+    podSlugs: [...podCandidates].filter((p) => !shelteredPods.has(p)),
+    beanSlugs: [...flipping],
   };
 }
 
 // Downward un-publish recompute — the inverse of publishCascade (roadmap A1). Thin
-// adapter over unpublishCascadeForAtoms keyed by the version's atom parents, read
-// from the dataset (unknown version slug → no-op). Evaluate against a dataset loaded
-// AFTER the version's state was saved, so its own state counts (still-published → no-op).
+// adapter over unpublishCascadeForBeans keyed by the sprout's bean parents, read
+// from the dataset (unknown sprout slug → no-op). Evaluate against a dataset loaded
+// AFTER the sprout's state was saved, so its own state counts (still-published → no-op).
 export function unpublishCascade(
-  raw: RawSeed,
-  versionSlug: string,
-): { moleculeSlugs: string[]; atomSlugs: string[] } {
-  const version = (raw.versions ?? []).find((v) => v.slug === versionSlug);
-  if (!version) return { moleculeSlugs: [], atomSlugs: [] };
-  return unpublishCascadeForAtoms(raw, parentsWithPrefix(version.parents, ATOM_PREFIX));
+  raw: RawGarden,
+  sproutSlug: string,
+): { podSlugs: string[]; beanSlugs: string[] } {
+  const sprout = (raw.sprouts ?? []).find((s) => s.slug === sproutSlug);
+  if (!sprout) return { podSlugs: [], beanSlugs: [] };
+  return unpublishCascadeForBeans(raw, parentsWithPrefix(sprout.parents, BEAN_PREFIX));
 }
 
 let cached: Dataset | null = null;
 
 // Reads data/seed.yml once at first call (build time), then caches.
+// (File becomes data/garden.yml in the data-migration task of this PR.)
 export function getDataset(): Dataset {
   if (!cached) {
     const file = readFileSync(join(process.cwd(), "data", "seed.yml"), "utf8");
     // CORE_SCHEMA omits js-yaml's !!timestamp type, so dates like `2025-09-28`
     // stay plain strings instead of becoming Date objects.
-    const parsed = yaml.load(file, { schema: yaml.CORE_SCHEMA }) as RawSeed;
+    const parsed = yaml.load(file, { schema: yaml.CORE_SCHEMA }) as RawGarden;
     cached = buildDataset(parsed ?? {});
   }
   return cached;
 }
+
+// ── TEMPORARY rename scaffolding — DELETED in the last task of this PR. ──
+// Lets un-migrated modules compile while clusters rename one commit at a time.
+/** @deprecated use Pod */ export type Molecule = Pod;
+/** @deprecated use Bean */ export type Atom = Bean;
+/** @deprecated use Sprout */ export type Version = Sprout;
+/** @deprecated use Seed */ export type Capture = Seed;
+/** @deprecated use SeedStatus */ export type CaptureStatus = SeedStatus;
+/** @deprecated use SeedSuggestion */ export type CaptureSuggestion = SeedSuggestion;
+/** @deprecated use SproutState */ export type VersionState = SproutState;
+/** @deprecated use RawGarden */ export type RawSeed = RawGarden;
+/** @deprecated */ export const MOLECULE_PREFIX = POD_PREFIX;
+/** @deprecated */ export const ATOM_PREFIX = BEAN_PREFIX;
+/** @deprecated */ export const VERSION_PREFIX = SPROUT_PREFIX;

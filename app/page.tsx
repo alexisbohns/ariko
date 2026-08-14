@@ -5,15 +5,15 @@ export const dynamic = "force-dynamic";
 
 export default async function DirectoryPage() {
   const data = await getPublicDataset();
-  const molecules = data.getMolecules();
-  const standalone = data.standaloneAtoms();
+  const molecules = data.getPods();
+  const standalone = data.standaloneBeans();
 
   return (
     <article>
       <h1>Directory</h1>
 
       {molecules.map((molecule) => {
-        const atoms = data.atomsForMolecule(molecule.slug);
+        const atoms = data.beansForPod(molecule.slug);
         return (
           <section key={molecule.slug}>
             <h2>{resolveText(molecule.name)}</h2>

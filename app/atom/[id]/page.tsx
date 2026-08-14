@@ -47,10 +47,10 @@ function dumpRows(version: Record<string, unknown>): ReactNode[] {
 export default async function AtomPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const data = await getPublicDataset();
-  const atom = data.getAtom(id);
+  const atom = data.getBean(id);
   if (!atom) notFound();
 
-  const versions = data.versionsForAtom(atom.slug);
+  const versions = data.sproutsForBean(atom.slug);
 
   return (
     <article>

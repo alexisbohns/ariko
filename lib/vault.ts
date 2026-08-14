@@ -21,17 +21,17 @@ export function filterVaultEntries(entries: TimelineEntry[], filters: VaultFilte
 
   return entries
     .filter((e) => {
-      if (state && e.version.state !== state) return false;
+      if (state && e.sprout.state !== state) return false;
       if (domain && e.domain !== domain) return false;
-      if (tag && !(e.version.tags ?? []).includes(tag)) return false;
+      if (tag && !(e.sprout.tags ?? []).includes(tag)) return false;
       return true;
     })
-    .map((e) => ({ ...e, version: { ...e.version, name: resolveText(e.version.name) } }));
+    .map((e) => ({ ...e, sprout: { ...e.sprout, name: resolveText(e.sprout.name) } }));
 }
 
 // Distinct tags across all entries, sorted — for the tag filter row.
 export function distinctTags(entries: TimelineEntry[]): string[] {
   const set = new Set<string>();
-  for (const e of entries) for (const t of e.version.tags ?? []) set.add(t);
+  for (const e of entries) for (const t of e.sprout.tags ?? []) set.add(t);
   return [...set].sort();
 }

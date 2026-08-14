@@ -45,7 +45,7 @@ test("buildVersionInput is WYSIWYG: blank boxes store blank (nothing resurrected
   assert.equal(v.type, "demo");
   assert.equal(v.date, "2025-02-02");
   assert.equal(v.state, "draft"); // default
-  assert.deepEqual(v.parents, ["atom:a1"]);
+  assert.deepEqual(v.parents, ["bean:a1"]);
   assert.deepEqual(v.media, capture.media);
   assert.deepEqual(v.source, capture.source);
 });

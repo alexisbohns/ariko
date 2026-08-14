@@ -7,7 +7,7 @@ import { buildCaptureBody } from "@/lib/capture-form";
 import { validateInboxPayload } from "@/lib/inbox";
 import { createOrUpdateCapture, getCapture, markCapturePromoted, discardCapture } from "@/lib/captures";
 import { loadRawSeed } from "@/lib/store";
-import { publishCascade, unpublishCascade, unpublishCascadeForAtoms, type Domain } from "@/lib/data";
+import { publishCascade, unpublishCascade, unpublishCascadeForBeans, type Domain } from "@/lib/data";
 import { resolveParentChoice, buildVersionInput, validateVersionInput } from "@/lib/promote";
 import { buildVersionPatch, validateVersionPatch } from "@/lib/version-edit";
 import {
@@ -88,11 +88,11 @@ export async function promoteCaptureAction(formData: FormData): Promise<void> {
   // the molecule orphaned — reject it rather than silently drop the intent.
   const molChoice = resolveParentChoice(
     String(formData.get("newMoleculeSlug") ?? ""),
-    String(formData.get("moleculeSlug") ?? ""),
+    String(formData.get("podSlug") ?? ""),
   );
   const atomChoice = resolveParentChoice(
     String(formData.get("newAtomSlug") ?? ""),
-    String(formData.get("atomSlug") ?? ""),
+    String(formData.get("beanSlug") ?? ""),
   );
   if (molChoice.mode === "create" && atomChoice.mode !== "create") {
     redirect(
@@ -106,7 +106,7 @@ export async function promoteCaptureAction(formData: FormData): Promise<void> {
   // anything else propagates. redirect() stays OUT of the try (it throws to control flow).
   let slugError: string | null = null;
   try {
-    let moleculeSlug: string | null = null;
+    let podSlug: string | null = null;
     if (molChoice.mode === "create") {
       const domainRaw = String(formData.get("newMoleculeDomain") ?? "");
       const domain: Domain = DOMAINS.includes(domainRaw as Domain) ? (domainRaw as Domain) : "music";
@@ -116,29 +116,29 @@ export async function promoteCaptureAction(formData: FormData): Promise<void> {
         domain,
         description: "",
       });
-      moleculeSlug = molChoice.slug;
+      podSlug = molChoice.slug;
     } else if (molChoice.mode === "existing") {
-      moleculeSlug = molChoice.slug;
+      podSlug = molChoice.slug;
     }
 
-    let atomSlug: string | null = null;
+    let beanSlug: string | null = null;
     if (atomChoice.mode === "create") {
       await createAtom({
         slug: atomChoice.slug,
         name: String(formData.get("newAtomName") ?? "").trim() || atomChoice.slug,
-        moleculeSlug,
+        podSlug,
       });
-      atomSlug = atomChoice.slug;
+      beanSlug = atomChoice.slug;
     } else if (atomChoice.mode === "existing") {
-      atomSlug = atomChoice.slug;
+      beanSlug = atomChoice.slug;
     }
 
-    const input = buildVersionInput(formData, capture, atomSlug);
+    const input = buildVersionInput(formData, capture, beanSlug);
     await createVersion(input);
 
     if (input.state === "published") {
-      const { moleculeSlugs, atomSlugs } = publishCascade(await loadRawSeed(), input.slug);
-      await setPublic(moleculeSlugs, atomSlugs);
+      const { podSlugs, beanSlugs } = publishCascade(await loadRawSeed(), input.slug);
+      await setPublic(podSlugs, beanSlugs);
     }
 
     await markCapturePromoted(captureId, input.slug);
@@ -178,18 +178,18 @@ export async function editVersionAction(formData: FormData): Promise<void> {
   // that has no published versions yet). Both branches load the dataset AFTER
   // updateVersion, so the cascade evaluates the just-saved state.
   if (patch.state === "published") {
-    const { moleculeSlugs, atomSlugs } = publishCascade(await loadRawSeed(), slug);
-    await setPublic(moleculeSlugs, atomSlugs);
+    const { podSlugs, beanSlugs } = publishCascade(await loadRawSeed(), slug);
+    await setPublic(podSlugs, beanSlugs);
   } else if (existing.state === "published") {
-    const { moleculeSlugs, atomSlugs } = unpublishCascade(await loadRawSeed(), slug);
-    await setPrivate(moleculeSlugs, atomSlugs);
+    const { podSlugs, beanSlugs } = unpublishCascade(await loadRawSeed(), slug);
+    await setPrivate(podSlugs, beanSlugs);
   }
 
   revalidatePath("/admin");
-  const atomSlug = (existing.parents ?? [])
-    .filter((p) => p.startsWith("atom:"))
-    .map((p) => p.slice("atom:".length))[0];
-  redirect(atomSlug ? `/admin/atom/${atomSlug}` : "/admin/vault");
+  const beanSlug = (existing.parents ?? [])
+    .filter((p) => p.startsWith("bean:"))
+    .map((p) => p.slice("bean:".length))[0];
+  redirect(beanSlug ? `/admin/atom/${beanSlug}` : "/admin/vault");
 }
 
 // Hard delete (roadmap A2). The atom parents and published state are captured BEFORE
@@ -216,21 +216,21 @@ export async function deleteVersionAction(formData: FormData): Promise<void> {
     );
   }
 
-  const atomSlugs = (existing.parents ?? [])
-    .filter((p) => p.startsWith("atom:"))
-    .map((p) => p.slice("atom:".length));
+  const beanSlugs = (existing.parents ?? [])
+    .filter((p) => p.startsWith("bean:"))
+    .map((p) => p.slice("bean:".length));
   const wasPublished = existing.state === "published";
 
   await deleteVersion(slug);
 
   if (wasPublished) {
-    const { moleculeSlugs, atomSlugs: flipAtoms } = unpublishCascadeForAtoms(
+    const { podSlugs, beanSlugs: flipAtoms } = unpublishCascadeForBeans(
       await loadRawSeed(),
-      atomSlugs,
+      beanSlugs,
     );
-    await setPrivate(moleculeSlugs, flipAtoms);
+    await setPrivate(podSlugs, flipAtoms);
   }
 
   revalidatePath("/admin");
-  redirect(atomSlugs[0] ? `/admin/atom/${atomSlugs[0]}` : "/admin/vault");
+  redirect(beanSlugs[0] ? `/admin/atom/${beanSlugs[0]}` : "/admin/vault");
 }

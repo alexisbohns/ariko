@@ -11,12 +11,12 @@ import {
 
 export async function loadRawSeed(): Promise<RawSeed> {
   const db = await getDb();
-  const [molecules, atoms, versions] = await Promise.all([
+  const [pods, beans, sprouts] = await Promise.all([
     db.collection<Molecule>("molecules").find({}, { projection: { _id: 0 } }).toArray(),
     db.collection<Atom>("atoms").find({}, { projection: { _id: 0 } }).toArray(),
     db.collection<Version>("versions").find({}, { projection: { _id: 0 } }).toArray(),
   ]);
-  return { molecules, atoms, versions };
+  return { pods, beans, sprouts };
 }
 
 // Public site: published-only.

@@ -55,7 +55,7 @@ export function buildVersionInput(
     date: get("date"),
     description: composeText(get("description"), get("descriptionFr")),
     state,
-    parents: atomParentSlug ? [`atom:${atomParentSlug}`] : [],
+    parents: atomParentSlug ? [`bean:${atomParentSlug}`] : [],
     media: capture.media,
     source: capture.source,
   };

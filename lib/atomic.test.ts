@@ -28,9 +28,9 @@ test("createMolecule/createAtom insert private-by-default", { skip: !hasDb }, as
   t.after(cleanup);
   const m = await createMolecule({ slug: "__test__m", name: "M", domain: "music", description: "" });
   assert.equal(m.visibility, "private");
-  const a = await createAtom({ slug: "__test__a", name: "A", moleculeSlug: "__test__m" });
+  const a = await createAtom({ slug: "__test__a", name: "A", podSlug: "__test__m" });
   assert.equal(a.visibility, "private");
-  assert.deepEqual(a.parents, ["molecule:__test__m"]);
+  assert.deepEqual(a.parents, ["pod:__test__m"]);
   const molecules = await listMolecules();
   const atoms = await listAtoms();
   assert.ok(molecules.some((x) => x.slug === "__test__m"));
@@ -39,7 +39,7 @@ test("createMolecule/createAtom insert private-by-default", { skip: !hasDb }, as
 
 test("createAtom with no molecule is parentless", { skip: !hasDb }, async (t) => {
   t.after(cleanup);
-  const a = await createAtom({ slug: "__test__solo", name: "Solo", moleculeSlug: null });
+  const a = await createAtom({ slug: "__test__solo", name: "Solo", podSlug: null });
   assert.deepEqual(a.parents, []);
 });
 
@@ -52,18 +52,18 @@ test("createVersion writes parents/state/media/source", { skip: !hasDb }, async 
     date: "2025-01-01",
     description: "d",
     state: "draft",
-    parents: ["atom:__test__a"],
+    parents: ["bean:__test__a"],
     media: [{ kind: "embed", provider: "youtube", url: "https://youtu.be/x", embedId: "x" }],
     source: { kind: "manual" },
   });
   assert.equal(v.state, "draft");
-  assert.deepEqual(v.parents, ["atom:__test__a"]);
+  assert.deepEqual(v.parents, ["bean:__test__a"]);
 });
 
 test("setPublic flips visibility to public", { skip: !hasDb }, async (t) => {
   t.after(cleanup);
   await createMolecule({ slug: "__test__pm", name: "M", domain: "music", description: "" });
-  await createAtom({ slug: "__test__pa", name: "A", moleculeSlug: "__test__pm" });
+  await createAtom({ slug: "__test__pa", name: "A", podSlug: "__test__pm" });
   await setPublic(["__test__pm"], ["__test__pa"]);
   const db = await getDb();
   const m = await db.collection("molecules").findOne({ slug: "__test__pm" });
@@ -79,7 +79,7 @@ test("setPublic is a no-op on empty arrays", { skip: !hasDb }, async () => {
 test("setPrivate flips visibility back to private", { skip: !hasDb }, async (t) => {
   t.after(cleanup);
   await createMolecule({ slug: "__test__qm", name: "M", domain: "music", description: "" });
-  await createAtom({ slug: "__test__qa", name: "A", moleculeSlug: "__test__qm" });
+  await createAtom({ slug: "__test__qa", name: "A", podSlug: "__test__qm" });
   await setPublic(["__test__qm"], ["__test__qa"]);
   await setPrivate(["__test__qm"], ["__test__qa"]);
   const db = await getDb();
