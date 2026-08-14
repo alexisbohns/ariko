@@ -342,29 +342,49 @@ export function composeText(en: string, fr: string): Text {
 
 // Public projection of the vault. The security-sensitive rules live here:
 //  - a Sprout is public ONLY when state === "published" (missing state hides it);
-//  - a Pod/Bean is visible unless explicitly visibility === "private";
-//  - privacy cascades DOWNWARD, fail-closed: a Bean whose every EXISTING pod
-//    parent was filtered out is dropped, and a Sprout whose every EXISTING bean
-//    parent was filtered out is dropped. Dangling (nonexistent) parent refs are
-//    ignored, so standalone-by-dangling items are preserved (matches buildDataset);
-//  - each kept Sprout's relations[] is scrubbed to refs whose TARGET survives
-//    this same projection (kept sprout/bean/pod) — draft, private,
-//    cascaded-out, dangling, and unknown-prefix targets all drop, so a hidden
-//    slug can never leak through a property dump or the graph endpoint.
-// Pure: input objects are never mutated; scrubbing yields a fresh sprout object.
+//  - a Plant/Pod/Bean is visible unless explicitly visibility === "private";
+//  - privacy cascades DOWNWARD, fail-closed, from the plant tier all the way
+//    down (plant → pod → bean → sprout): a Pod whose every EXISTING plant
+//    parent was filtered out is dropped, a Bean whose every EXISTING pod AND
+//    plant parent was filtered out is dropped (a kept parent in EITHER tier
+//    shelters it), and a Sprout whose every EXISTING bean parent was filtered
+//    out is dropped. Dangling (nonexistent) parent refs are ignored, so
+//    standalone-by-dangling items are preserved (matches buildDataset);
+//  - each kept Sprout's AND Plant's relations[] is scrubbed to refs whose
+//    TARGET survives this same projection (kept sprout/bean/pod/plant) —
+//    draft, private, cascaded-out, dangling, and unknown-prefix targets all
+//    drop, so a hidden slug can never leak through a property dump or the
+//    graph endpoint;
+//  - Bees are default-PRIVATE and cascade-exempt: only an explicit
+//    visibility === "public" survives, and each survivor's serves[] is
+//    scrubbed to kept plants.
+// Pure: input objects are never mutated; scrubbing yields a fresh object.
 export function filterPublic(raw: RawGarden): RawGarden {
+  const rawPlants = raw.plants ?? [];
   const rawPods = raw.pods ?? [];
   const rawBeans = raw.beans ?? [];
   const rawSprouts = raw.sprouts ?? [];
+  const rawBees = raw.bees ?? [];
 
-  const pods = rawPods.filter((p) => p.visibility !== "private");
+  const keptPlants = rawPlants.filter((p) => p.visibility !== "private");
+  const plantExists = new Set(rawPlants.map((p) => p.slug));
+  const plantKept = new Set(keptPlants.map((p) => p.slug));
+
+  const pods = rawPods.filter(
+    (p) =>
+      p.visibility !== "private" &&
+      !allExistingParentsFiltered(p.parents, [[PLANT_PREFIX, plantExists, plantKept]]),
+  );
   const podExists = new Set(rawPods.map((p) => p.slug));
   const podKept = new Set(pods.map((p) => p.slug));
 
   const beans = rawBeans.filter(
     (b) =>
       b.visibility !== "private" &&
-      !allExistingParentsFiltered(b.parents, POD_PREFIX, podExists, podKept),
+      !allExistingParentsFiltered(b.parents, [
+        [POD_PREFIX, podExists, podKept],
+        [PLANT_PREFIX, plantExists, plantKept],
+      ]),
   );
   const beanExists = new Set(rawBeans.map((b) => b.slug));
   const beanKept = new Set(beans.map((b) => b.slug));
@@ -372,50 +392,77 @@ export function filterPublic(raw: RawGarden): RawGarden {
   const keptSprouts = rawSprouts.filter(
     (s) =>
       s.state === "published" &&
-      !allExistingParentsFiltered(s.parents, BEAN_PREFIX, beanExists, beanKept),
+      !allExistingParentsFiltered(s.parents, [[BEAN_PREFIX, beanExists, beanKept]]),
   );
 
   // Relations may point at sprouts, so the kept-sprout set must exist BEFORE
-  // any relation is judged — a sprout ref survives iff its target survived the
-  // filter above.
+  // any relation (on sprouts OR plants) is judged.
   const sproutKept = new Set(keptSprouts.map((s) => s.slug));
   const refSurvives = (ref: string): boolean =>
     ref.startsWith(SPROUT_PREFIX)
       ? sproutKept.has(ref.slice(SPROUT_PREFIX.length))
       : ref.startsWith(BEAN_PREFIX)
         ? beanKept.has(ref.slice(BEAN_PREFIX.length))
-        : ref.startsWith(POD_PREFIX) && podKept.has(ref.slice(POD_PREFIX.length));
+        : ref.startsWith(POD_PREFIX)
+          ? podKept.has(ref.slice(POD_PREFIX.length))
+          : ref.startsWith(PLANT_PREFIX) && plantKept.has(ref.slice(PLANT_PREFIX.length));
 
-  const sprouts = keptSprouts.map((s) => {
-    if (!s.relations) return s; // absent stays absent — never materialize []
-    // Tolerate malformed shapes from direct DB writes (the validator's
-    // "moderate" level never re-checks pre-existing docs): a non-array field
-    // and non-{kind,ref}-string entries drop fail-closed instead of throwing —
-    // one bad doc must not 500 every public read.
-    if (!Array.isArray(s.relations)) return { ...s, relations: [] };
-    const scrubbed = s.relations.filter(
-      (rel) =>
-        rel != null &&
-        typeof rel.kind === "string" &&
-        typeof rel.ref === "string" &&
-        refSurvives(rel.ref),
-    );
-    return scrubbed.length === s.relations.length ? s : { ...s, relations: scrubbed };
-  });
+  const sprouts = keptSprouts.map((s) => scrubRelations(s, refSurvives));
+  const plants = keptPlants.map((p) => scrubRelations(p, refSurvives));
 
-  return { pods, beans, sprouts };
+  // Bees are default-PRIVATE (the opposite of every content tier) and sit
+  // outside the cascades: only an explicit "public" survives, and each
+  // survivor's serves[] is scrubbed to kept plants so a hidden plant slug can
+  // never leak through an operational doc.
+  const bees = rawBees
+    .filter((b) => b.visibility === "public")
+    .map((b) => {
+      const serves = (Array.isArray(b.serves) ? b.serves : []).filter(
+        (ref) => ref.startsWith(PLANT_PREFIX) && plantKept.has(ref.slice(PLANT_PREFIX.length)),
+      );
+      return Array.isArray(b.serves) && serves.length === b.serves.length ? b : { ...b, serves };
+    });
+
+  return { plants, pods, beans, sprouts, bees };
 }
 
-// True when the item has parent refs that EXIST in the dataset and ALL such
-// existing parents were filtered out. Dangling/nonexistent refs are ignored.
+// True when the item has parent refs that EXIST in the dataset (across every
+// given tier) and ALL such existing parents were filtered out. Dangling refs
+// are ignored; a single kept parent in ANY tier shelters the item.
 function allExistingParentsFiltered(
   parents: string[] | undefined,
-  prefix: string,
-  exists: Set<string>,
-  kept: Set<string>,
+  tiers: [prefix: string, exists: Set<string>, kept: Set<string>][],
 ): boolean {
-  const existingParents = parentsWithPrefix(parents, prefix).filter((s) => exists.has(s));
-  return existingParents.length > 0 && existingParents.every((s) => !kept.has(s));
+  let existing = 0;
+  for (const [prefix, exists, kept] of tiers) {
+    for (const slug of parentsWithPrefix(parents, prefix)) {
+      if (!exists.has(slug)) continue;
+      if (kept.has(slug)) return false;
+      existing++;
+    }
+  }
+  return existing > 0;
+}
+
+// Shared relations scrub for kept sprouts and plants. Tolerates malformed
+// shapes from direct DB writes (the validator's "moderate" level never
+// re-checks pre-existing docs): a non-array field and non-{kind,ref}-string
+// entries drop fail-closed instead of throwing — one bad doc must not 500
+// every public read.
+function scrubRelations<T extends { relations?: Relation[] }>(
+  item: T,
+  refSurvives: (ref: string) => boolean,
+): T {
+  if (!item.relations) return item; // absent stays absent — never materialize []
+  if (!Array.isArray(item.relations)) return { ...item, relations: [] };
+  const scrubbed = item.relations.filter(
+    (rel) =>
+      rel != null &&
+      typeof rel.kind === "string" &&
+      typeof rel.ref === "string" &&
+      refSurvives(rel.ref),
+  );
+  return scrubbed.length === item.relations.length ? item : { ...item, relations: scrubbed };
 }
 
 // Upward publish cascade — the write-time mirror of filterPublic's downward

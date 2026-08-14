@@ -145,6 +145,7 @@ function relSeed(): RawGarden {
           { kind: "featured-in", ref: "pod:rm-priv" }, // dropped: private molecule
           { kind: "related-to", ref: "sprout:ghost" }, // dropped: dangling
           { kind: "related-to", ref: "seed:x" }, // dropped: unknown prefix
+          { kind: "powered-by", ref: "bee:song-identifier" }, // dropped: bees are never public relation targets
         ],
       },
     ],
@@ -202,4 +203,75 @@ test("filterPublic never mutates the input seed when scrubbing relations (pure)"
   const snapshot = structuredClone(seed);
   filterPublic(seed);
   assert.deepEqual(seed, snapshot);
+});
+
+// --- Plant tier (PR2): the same fail-closed rules, one tier up. ---
+
+test("filterPublic drops a private plant and cascades out its pods, beans and sprouts", () => {
+  const seed: RawGarden = {
+    plants: [{ slug: "pl-priv", name: "P", natures: ["work"], description: "", visibility: "private" }],
+    pods: [{ slug: "m", name: "M", description: "", parents: ["plant:pl-priv"] }],
+    beans: [
+      { slug: "a", name: "A", parents: ["pod:m"] },
+      { slug: "direct", name: "D", parents: ["plant:pl-priv"] },
+    ],
+    sprouts: [{ slug: "v", name: "V", type: "song", date: "2026-01-01", description: "", parents: ["bean:a"], state: "published" }],
+  };
+  const out = filterPublic(seed);
+  assert.deepEqual((out.plants ?? []).map((p) => p.slug), []);
+  assert.deepEqual((out.pods ?? []).map((p) => p.slug), []);
+  assert.deepEqual((out.beans ?? []).map((b) => b.slug), []);
+  assert.deepEqual((out.sprouts ?? []).map((v) => v.slug), []);
+});
+
+test("filterPublic keeps a pod whose only plant-parent is a dangling ref (matches the pod-tier rule)", () => {
+  const seed: RawGarden = {
+    plants: [],
+    pods: [{ slug: "m", name: "M", description: "", parents: ["plant:ghost"] }],
+  };
+  assert.deepEqual((filterPublic(seed).pods ?? []).map((p) => p.slug), ["m"]);
+});
+
+test("filterPublic keeps a bean sheltered by a public parent in EITHER tier", () => {
+  const seed: RawGarden = {
+    plants: [{ slug: "pl", name: "P", natures: ["work"], description: "" }],
+    pods: [{ slug: "m-priv", name: "M", description: "", visibility: "private" }],
+    beans: [{ slug: "a", name: "A", parents: ["pod:m-priv", "plant:pl"] }],
+  };
+  assert.deepEqual((filterPublic(seed).beans ?? []).map((b) => b.slug), ["a"]);
+});
+
+test("filterPublic scrubs plant relations to surviving targets, exactly like sprout relations", () => {
+  const seed: RawGarden = {
+    plants: [
+      {
+        slug: "melogram", name: "Melogram", natures: ["work", "tool"], description: "",
+        relations: [
+          { kind: "distributes", ref: "plant:bohns-music" }, // kept
+          { kind: "chronicles", ref: "plant:hidden" }, // dropped: private target
+          { kind: "uses", ref: "pod:ghost" }, // dropped: dangling
+        ],
+      },
+      { slug: "bohns-music", name: "BM", natures: ["work"], description: "" },
+      { slug: "hidden", name: "H", natures: ["tool"], description: "", visibility: "private" },
+    ],
+  };
+  const melogram = (filterPublic(seed).plants ?? []).find((p) => p.slug === "melogram");
+  assert.deepEqual(melogram?.relations, [{ kind: "distributes", ref: "plant:bohns-music" }]);
+});
+
+test("filterPublic keeps only explicitly public bees (default is PRIVATE) and scrubs serves to kept plants", () => {
+  const seed: RawGarden = {
+    plants: [
+      { slug: "femfolk", name: "F", natures: ["work"], description: "" },
+      { slug: "secret", name: "S", natures: ["tool"], description: "", visibility: "private" },
+    ],
+    bees: [
+      { slug: "song-identifier", name: "SI", kind: "capability", status: "live", levers: [], serves: ["plant:femfolk", "plant:secret", "plant:ghost"], description: "", visibility: "public" },
+      { slug: "default-private", name: "DP", kind: "routine", status: "planned", levers: [], serves: ["plant:femfolk"], description: "" },
+    ],
+  };
+  const out = filterPublic(seed);
+  assert.deepEqual((out.bees ?? []).map((b) => b.slug), ["song-identifier"]);
+  assert.deepEqual(out.bees?.[0]?.serves, ["plant:femfolk"]); // private and dangling plants scrubbed
 });
