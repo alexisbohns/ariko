@@ -280,3 +280,28 @@ export function validateIntent(value: unknown): IntentResult {
     warnings: kindWarnings(kind, INTENT_KINDS),
   };
 }
+
+export interface FeedLineResult {
+  line: number; // 1-based, in the raw file
+  result: PollenResult;
+}
+
+// Validate a committed feed file (pollen/feed.ndjson): one envelope per
+// line, blank lines ignored. Pure — the CLI wraps this for exit codes.
+export function validateFeed(ndjson: string): FeedLineResult[] {
+  const out: FeedLineResult[] = [];
+  const lines = ndjson.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i].trim();
+    if (!raw) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      out.push({ line: i + 1, result: { ok: false, error: "invalid JSON" } });
+      continue;
+    }
+    out.push({ line: i + 1, result: validatePollen(parsed) });
+  }
+  return out;
+}

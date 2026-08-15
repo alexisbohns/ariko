@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CORE_KINDS, POLLEN_VERSION, validateIntent, validatePollen } from "./pollen";
+import { CORE_KINDS, POLLEN_VERSION, validateFeed, validateIntent, validatePollen } from "./pollen";
 
 // A minimal valid envelope; individual tests break one field at a time.
 function grain(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -192,4 +192,23 @@ test("non-provisional intent kind warns, never rejects", () => {
   const r = validateIntent(intent({ kind: "compose" }));
   assert.equal(r.ok, true);
   if (r.ok) assert.deepEqual(r.warnings, ['kind "compose" is not in the v1 core vocabulary']);
+});
+
+test("validateFeed reports 1-based line numbers, skips blank lines", () => {
+  const good = JSON.stringify(grain());
+  const feed = `${good}\n\n{not json}\n${JSON.stringify(grain({ id: "" }))}\n${good}\n`;
+  const results = validateFeed(feed);
+  assert.deepEqual(
+    results.map((r) => [r.line, r.result.ok]),
+    [[1, true], [3, false], [4, false], [5, true]],
+  );
+  const line3 = results[1].result;
+  if (!line3.ok) assert.equal(line3.error, "invalid JSON");
+  const line4 = results[2].result;
+  if (!line4.ok) assert.ok(line4.error.includes("id is required"));
+});
+
+test("validateFeed on empty input returns no results", () => {
+  assert.deepEqual(validateFeed(""), []);
+  assert.deepEqual(validateFeed("\n\n"), []);
 });
