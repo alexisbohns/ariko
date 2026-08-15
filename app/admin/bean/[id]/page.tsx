@@ -9,7 +9,7 @@ function isScalar(value: unknown): value is string | number | boolean {
   return typeof value === "string" || typeof value === "number" || typeof value === "boolean";
 }
 
-export default async function AdminAtomPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function AdminBeanPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   let view: BeanDetailView | null = null;
@@ -27,7 +27,7 @@ export default async function AdminAtomPage({ params }: { params: Promise<{ id: 
           <a href="/admin/vault">← vault</a>
         </p>
         <h1>Bean</h1>
-        <p role="alert">Couldn&apos;t load the atom.</p>
+        <p role="alert">Couldn&apos;t load the bean.</p>
       </article>
     );
   }
@@ -43,10 +43,10 @@ export default async function AdminAtomPage({ params }: { params: Promise<{ id: 
       </p>
       <h1>{resolveText(bean.name)}</h1>
       <ul>
-        <li>atom: {bean.slug}</li>
+        <li>bean: {bean.slug}</li>
         <li>visibility: {bean.visibility ?? "public (default)"}</li>
         <li>plant: {plant ?? "—"}</li>
-        <li>molecule: {podParents.join(", ") || "—"}</li>
+        <li>pod: {podParents.join(", ") || "—"}</li>
         <li>tags: {(bean.tags ?? []).join(", ") || "—"}</li>
       </ul>
 

@@ -17,8 +17,8 @@ import {
 } from "./data";
 
 // Synthetic seed exercising every edge case the directory/timeline must handle:
-// multi-parent atoms, standalone atoms, dangling molecule refs, and a version
-// whose atom has no molecule (domainless).
+// multi-parent beans, standalone beans, dangling pod refs, and a sprout whose
+// bean has no pod.
 const raw: RawGarden = {
   pods: [
     { slug: "m-music", name: "Music Mol", description: "" },
