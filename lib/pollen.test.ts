@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CORE_KINDS, POLLEN_VERSION, validatePollen } from "./pollen";
+import { CORE_KINDS, POLLEN_VERSION, validateIntent, validatePollen } from "./pollen";
 
 // A minimal valid envelope; individual tests break one field at a time.
 function grain(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -149,4 +149,47 @@ test("payload cap is inclusive at exactly 32 KiB", () => {
   assert.equal(exact.ok, true);
   const over = validatePollen(grain({ payload: { blob: "x".repeat(32 * 1024 - overhead + 1) } }));
   assert.equal(over.ok, false);
+});
+
+function intent(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    v: 1,
+    id: "ariko:intent-0001",
+    at: "2026-08-15T08:00:00Z",
+    target: "femfolk",
+    kind: "research",
+    brief: { en: "Research the song heard at the cafe" },
+    anchors: { plant: "plant:femfolk" },
+    ...overrides,
+  };
+}
+
+test("a valid intent passes; anchors are optional", () => {
+  assert.equal(validateIntent(intent()).ok, true);
+  const bare = validateIntent(intent({ anchors: undefined }));
+  assert.equal(bare.ok, true);
+  if (bare.ok) assert.ok(!("anchors" in bare.value));
+});
+
+test("intent rejections: target, brief, malformed anchors", () => {
+  const cases: [Record<string, unknown>, string][] = [
+    [{ target: "Femfolk" }, "target must be a lowercase slug"],
+    [{ target: undefined }, "target must be a lowercase slug"],
+    [{ brief: undefined }, "brief is required"],
+    [{ brief: { en: "" } }, "brief is required"],
+    [{ anchors: { plant: "femfolk" } }, 'anchors.plant must be a "plant:<slug>" ref'],
+    [{ v: 2 }, "newer than this validator"],
+    [{ kind: "Research!" }, "kind must be lowercase dotted words"],
+  ];
+  for (const [overrides, want] of cases) {
+    const r = validateIntent(intent(overrides));
+    assert.equal(r.ok, false, JSON.stringify(overrides));
+    if (!r.ok) assert.ok(r.error.includes(want), `got "${r.error}", want "${want}"`);
+  }
+});
+
+test("non-provisional intent kind warns, never rejects", () => {
+  const r = validateIntent(intent({ kind: "compose" }));
+  assert.equal(r.ok, true);
+  if (r.ok) assert.deepEqual(r.warnings, ['kind "compose" is not in the v1 core vocabulary']);
 });

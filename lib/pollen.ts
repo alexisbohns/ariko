@@ -238,3 +238,45 @@ export function validatePollen(value: unknown): PollenResult {
     warnings: kindWarnings(kind, CORE_KINDS),
   };
 }
+
+// The reverse envelope (spec §5). Delivery is project-native and outside
+// this contract; status returns through the target's ordinary report feed.
+export function validateIntent(value: unknown): IntentResult {
+  if (!isObject(value)) return { ok: false, error: "intent must be a JSON object" };
+  const vErr = checkV(value.v);
+  if (vErr) return { ok: false, error: vErr };
+  if (!nonEmptyString(value.id)) return { ok: false, error: "id is required" };
+  const atErr = checkAt(value.at);
+  if (atErr) return { ok: false, error: atErr };
+  if (!nonEmptyString(value.target) || !SLUG_PATTERN.test(value.target)) {
+    return { ok: false, error: "target must be a lowercase slug" };
+  }
+  const kindErr = checkKind(value.kind);
+  if (kindErr) return { ok: false, error: kindErr };
+  const kind = value.kind as string;
+  const brief = normalizeTextInput(value.brief);
+  if (brief === null) return { ok: false, error: "brief is required" };
+  let anchors: PollenAnchors | undefined;
+  if (value.anchors !== undefined) {
+    const checked = checkAnchors(value.anchors);
+    if (checked.error) return { ok: false, error: checked.error };
+    anchors = checked.anchors;
+  }
+  const refs = checkRefs(value.refs);
+  if (refs.error) return { ok: false, error: refs.error };
+
+  return {
+    ok: true,
+    value: {
+      v: POLLEN_VERSION,
+      id: value.id,
+      at: value.at as string,
+      target: value.target,
+      kind,
+      brief,
+      ...(anchors ? { anchors } : {}),
+      ...(refs.refs ? { refs: refs.refs } : {}),
+    },
+    warnings: kindWarnings(kind, INTENT_KINDS),
+  };
+}
