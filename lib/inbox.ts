@@ -59,14 +59,17 @@ function normalizeTextInput(v: unknown): Text | null {
 }
 
 // Boundary alias — the ONLY place legacy vocabulary survives the botanical
-// rename. Sibling repos' lab-note payloads send moleculeSlug/atomSlug over the
-// wire; internally we speak pod/bean. Canonical keys win when both are present.
+// rename. Sibling repos' lab-note payloads still send moleculeSlug/atomSlug
+// over the wire; the repo slugs it carries (pbbls, femfolk, …) are PLANTS
+// since the PR2 re-tiering, so the legacy molecule key maps to plantSlug.
+// Canonical keys win when both are present. Internal code never aliases.
 function normalizeSuggestion(s: unknown): SeedSuggestion | undefined {
   if (!isObject(s)) return undefined;
-  const pod = s.podSlug ?? s.moleculeSlug;
+  const plant = s.plantSlug ?? s.moleculeSlug;
   const bean = s.beanSlug ?? s.atomSlug;
   const out: SeedSuggestion = {
-    ...(nonEmptyString(pod) ? { podSlug: pod } : {}),
+    ...(nonEmptyString(plant) ? { plantSlug: plant } : {}),
+    ...(nonEmptyString(s.podSlug) ? { podSlug: s.podSlug } : {}),
     ...(nonEmptyString(bean) ? { beanSlug: bean } : {}),
     ...(nonEmptyString(s.type) ? { type: s.type } : {}),
   };

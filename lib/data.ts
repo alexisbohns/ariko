@@ -128,6 +128,7 @@ export interface RawGarden {
 export type SeedStatus = "inbox" | "promoted" | "discarded";
 
 export interface SeedSuggestion {
+  plantSlug?: string;
   podSlug?: string;
   beanSlug?: string;
   type?: string;
