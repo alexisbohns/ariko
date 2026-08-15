@@ -472,7 +472,9 @@ test("garden.yml parses into a garden with only botanical prefixes", () => {
   const raw = yaml.load(file, { schema: yaml.CORE_SCHEMA }) as RawGarden;
   assert.ok((raw.pods ?? []).length > 0);
   const refs = [
+    ...(raw.pods ?? []).flatMap((p) => p.parents ?? []),
     ...(raw.beans ?? []).flatMap((b) => b.parents ?? []),
+    ...(raw.plants ?? []).flatMap((p) => (p.relations ?? []).map((r) => r.ref)),
     ...(raw.sprouts ?? []).flatMap((s) => [
       ...(s.parents ?? []),
       ...(s.relations ?? []).map((r) => r.ref),
@@ -480,7 +482,7 @@ test("garden.yml parses into a garden with only botanical prefixes", () => {
   ];
   assert.ok(refs.length > 0);
   for (const ref of refs) {
-    assert.match(ref, /^(pod|bean|sprout):/, `legacy prefix survived: ${ref}`);
+    assert.match(ref, /^(plant|pod|bean|sprout):/, `legacy prefix survived: ${ref}`);
   }
 });
 
