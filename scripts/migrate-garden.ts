@@ -19,7 +19,18 @@ async function main() {
   await db.collection("pods").createIndex({ slug: 1 }, { unique: true });
   await db.collection("beans").createIndex({ slug: 1 }, { unique: true });
   await db.collection("sprouts").createIndex({ slug: 1 }, { unique: true });
+  await db.collection("plants").createIndex({ slug: 1 }, { unique: true });
+  await db.collection("bees").createIndex({ slug: 1 }, { unique: true });
 
+  for (const p of raw.plants ?? []) {
+    await db.collection("plants").updateOne(
+      { slug: p.slug },
+      p.visibility
+        ? { $set: { ...p } }
+        : { $set: { ...p }, $setOnInsert: { visibility: "public" } },
+      { upsert: true },
+    );
+  }
   for (const m of raw.pods ?? []) {
     await db.collection("pods").updateOne(
       { slug: m.slug },
@@ -45,9 +56,19 @@ async function main() {
       { upsert: true },
     );
   }
+  for (const b of raw.bees ?? []) {
+    await db.collection("bees").updateOne(
+      { slug: b.slug },
+      b.visibility
+        ? { $set: { ...b } }
+        : { $set: { ...b }, $setOnInsert: { visibility: "private" } },
+      { upsert: true },
+    );
+  }
 
   console.log(
-    `Migrated ${raw.pods?.length ?? 0} pods, ${raw.beans?.length ?? 0} beans, ${raw.sprouts?.length ?? 0} sprouts.`,
+    `Migrated ${raw.plants?.length ?? 0} plants, ${raw.pods?.length ?? 0} pods, ${raw.beans?.length ?? 0} beans, ` +
+      `${raw.sprouts?.length ?? 0} sprouts, ${raw.bees?.length ?? 0} bees.`,
   );
   process.exit(0);
 }
