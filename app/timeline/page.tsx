@@ -28,7 +28,7 @@ export default async function TimelinePage({
               {filter === active ? (
                 <strong>{filter}</strong>
               ) : (
-                <a href={filter === "all" ? "/timeline" : `/timeline?plant=${filter}`}>{filter}</a>
+                <a href={filter === "all" ? "/timeline" : `/timeline?plant=${encodeURIComponent(filter)}`}>{filter}</a>
               )}
             </li>
           ))}

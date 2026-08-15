@@ -28,6 +28,7 @@ export default async function DirectoryPage() {
           <h2>
             {resolveText(plant.name)} <small>({plant.natures.join(" · ")})</small>
           </h2>
+          {/* A bean parented to BOTH the plant and one of its pods appears in each list — multi-parent membership is by design. */}
           {data.beansForPlant(plant.slug).length > 0 && beanList(data.beansForPlant(plant.slug))}
           {data.podsForPlant(plant.slug).map((pod) => (
             <section key={pod.slug}>
