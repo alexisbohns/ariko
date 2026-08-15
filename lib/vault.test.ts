@@ -1,14 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { filterVaultEntries, distinctTags } from "./vault";
+import { filterVaultEntries, distinctPlants, distinctTags } from "./vault";
 import type { TimelineEntry } from "./data";
 
-function entry(slug: string, state: string | undefined, domain: string | null, tags?: string[]): TimelineEntry {
+function entry(slug: string, state: string | undefined, plantSlug: string | null, tags?: string[]): TimelineEntry {
   return {
     sprout: { slug, name: slug, type: "t", date: "2025-01-01", description: "", parents: [], ...(state ? { state: state as never } : {}), ...(tags ? { tags } : {}) },
-    bean: domain ? { slug: `bean-${slug}`, name: "a", parents: [] } : null,
-    plant: null,
-    domain: domain as never,
+    bean: plantSlug ? { slug: `bean-${slug}`, name: "a", parents: [] } : null,
+    plant: plantSlug ? { slug: plantSlug, name: plantSlug, natures: ["work" as const], description: "" } : null,
+    domain: null,
   };
 }
 
@@ -28,8 +28,8 @@ test("filters by state", () => {
   assert.deepEqual(r.map((e) => e.sprout.slug), ["v2", "v4"]);
 });
 
-test("filters by domain", () => {
-  const r = filterVaultEntries(ENTRIES, { domain: "music" });
+test("filters by plant", () => {
+  const r = filterVaultEntries(ENTRIES, { plant: "music" });
   assert.deepEqual(r.map((e) => e.sprout.slug), ["v1", "v2"]);
 });
 
@@ -39,7 +39,7 @@ test("filters by tag (membership)", () => {
 });
 
 test("combined filters intersect", () => {
-  const r = filterVaultEntries(ENTRIES, { state: "published", domain: "music" });
+  const r = filterVaultEntries(ENTRIES, { state: "published", plant: "music" });
   assert.deepEqual(r.map((e) => e.sprout.slug), ["v2"]);
 });
 
@@ -47,8 +47,8 @@ test("an unknown state value falls back to all", () => {
   assert.equal(filterVaultEntries(ENTRIES, { state: "bogus" }).length, 4);
 });
 
-test("an unknown domain value falls back to all", () => {
-  assert.equal(filterVaultEntries(ENTRIES, { domain: "nope" }).length, 4);
+test("a blank plant value falls back to all", () => {
+  assert.equal(filterVaultEntries(ENTRIES, { plant: "  " }).length, 4);
 });
 
 test("a blank tag falls back to all; an unmatched tag yields none", () => {
@@ -58,6 +58,26 @@ test("a blank tag falls back to all; an unmatched tag yields none", () => {
 
 test("empty input returns empty", () => {
   assert.deepEqual(filterVaultEntries([], { state: "draft" }), []);
+});
+
+test("filterVaultEntries filters by the resolved plant's slug; an unknown slug matches nothing", () => {
+  const plant = { slug: "pbbls", name: "P", natures: ["work" as const], description: "" };
+  const entries: TimelineEntry[] = [
+    { sprout: { slug: "v1", name: "V1", type: "t", date: "2026-01-01", description: "", parents: [] }, bean: null, plant, domain: null },
+    { sprout: { slug: "v2", name: "V2", type: "t", date: "2026-01-02", description: "", parents: [] }, bean: null, plant: null, domain: null },
+  ];
+  assert.deepEqual(filterVaultEntries(entries, { plant: "pbbls" }).map((e) => e.sprout.slug), ["v1"]);
+  assert.deepEqual(filterVaultEntries(entries, { plant: "nope" }), []);
+});
+
+test("distinctPlants returns sorted unique plant slugs", () => {
+  const p = (slug: string) => ({ slug, name: slug, natures: ["work" as const], description: "" });
+  const entries: TimelineEntry[] = [
+    { sprout: { slug: "a", name: "a", type: "t", date: "2026-01-01", description: "", parents: [] }, bean: null, plant: p("zeta"), domain: null },
+    { sprout: { slug: "b", name: "b", type: "t", date: "2026-01-02", description: "", parents: [] }, bean: null, plant: p("alpha"), domain: null },
+    { sprout: { slug: "c", name: "c", type: "t", date: "2026-01-03", description: "", parents: [] }, bean: null, plant: p("zeta"), domain: null },
+  ];
+  assert.deepEqual(distinctPlants(entries), ["alpha", "zeta"]);
 });
 
 test("distinctTags returns sorted unique tags across entries", () => {

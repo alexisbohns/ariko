@@ -5,39 +5,49 @@ export const dynamic = "force-dynamic";
 
 export default async function DirectoryPage() {
   const data = await getPublicDataset();
-  const molecules = data.getPods();
+  const plants = data.getPlants();
+  const unrooted = data.unrootedPods();
   const standalone = data.standaloneBeans();
+
+  const beanList = (beans: ReturnType<typeof data.beansForPod>) => (
+    <ul>
+      {beans.map((bean) => (
+        <li key={bean.slug}>
+          <a href={`/bean/${bean.slug}`}>{resolveText(bean.name)}</a>
+        </li>
+      ))}
+    </ul>
+  );
 
   return (
     <article>
       <h1>Directory</h1>
 
-      {molecules.map((molecule) => {
-        const atoms = data.beansForPod(molecule.slug);
-        return (
-          <section key={molecule.slug}>
-            <h2>{resolveText(molecule.name)}</h2>
-            <ul>
-              {atoms.map((atom) => (
-                <li key={atom.slug}>
-                  <a href={`/bean/${atom.slug}`}>{resolveText(atom.name)}</a>
-                </li>
-              ))}
-            </ul>
-          </section>
-        );
-      })}
+      {plants.map((plant) => (
+        <section key={plant.slug}>
+          <h2>
+            {resolveText(plant.name)} <small>({plant.natures.join(" · ")})</small>
+          </h2>
+          {data.beansForPlant(plant.slug).length > 0 && beanList(data.beansForPlant(plant.slug))}
+          {data.podsForPlant(plant.slug).map((pod) => (
+            <section key={pod.slug}>
+              <h3>{resolveText(pod.name)}</h3>
+              {beanList(data.beansForPod(pod.slug))}
+            </section>
+          ))}
+        </section>
+      ))}
 
-      {standalone.length > 0 && (
+      {(unrooted.length > 0 || standalone.length > 0) && (
         <section>
-          <h2>Standalone</h2>
-          <ul>
-            {standalone.map((atom) => (
-              <li key={atom.slug}>
-                <a href={`/bean/${atom.slug}`}>{resolveText(atom.name)}</a>
-              </li>
-            ))}
-          </ul>
+          <h2>Unrooted</h2>
+          {unrooted.map((pod) => (
+            <section key={pod.slug}>
+              <h3>{resolveText(pod.name)}</h3>
+              {beanList(data.beansForPod(pod.slug))}
+            </section>
+          ))}
+          {standalone.length > 0 && beanList(standalone)}
         </section>
       )}
     </article>

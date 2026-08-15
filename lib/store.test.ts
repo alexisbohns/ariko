@@ -10,11 +10,13 @@ after(async () => {
   await closeDb();
 });
 
-test("loadRawGarden returns arrays for all three collections", { skip: !hasDb }, async () => {
+test("loadRawGarden returns arrays for all five collections", { skip: !hasDb }, async () => {
   const raw = await loadRawGarden();
+  assert.ok(Array.isArray(raw.plants));
   assert.ok(Array.isArray(raw.pods));
   assert.ok(Array.isArray(raw.beans));
   assert.ok(Array.isArray(raw.sprouts));
+  assert.ok(Array.isArray(raw.bees));
 });
 
 // Insert a probe so this verifies the projection even when the DB is otherwise

@@ -34,7 +34,7 @@ export default async function AdminAtomPage({ params }: { params: Promise<{ id: 
 
   if (!view) notFound();
 
-  const { bean, domain, podParents, sprouts } = view;
+  const { bean, plant, podParents, sprouts } = view;
 
   return (
     <article>
@@ -45,7 +45,7 @@ export default async function AdminAtomPage({ params }: { params: Promise<{ id: 
       <ul>
         <li>atom: {bean.slug}</li>
         <li>visibility: {bean.visibility ?? "public (default)"}</li>
-        <li>domain: {domain ?? "—"}</li>
+        <li>plant: {plant ?? "—"}</li>
         <li>molecule: {podParents.join(", ") || "—"}</li>
         <li>tags: {(bean.tags ?? []).join(", ") || "—"}</li>
       </ul>

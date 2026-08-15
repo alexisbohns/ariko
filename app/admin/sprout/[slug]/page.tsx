@@ -35,7 +35,7 @@ export default async function EditVersionPage({
 
       <ul>
         <li>slug: {version.slug}</li>
-        <li>atom: {beanSlug ?? "—"}</li>
+        <li>bean: {beanSlug ?? "—"}</li>
       </ul>
 
       <form action={editVersionAction}>

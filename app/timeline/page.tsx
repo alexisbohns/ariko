@@ -1,23 +1,21 @@
-import { resolveText, type Domain } from "@/lib/data";
+import { resolveText } from "@/lib/data";
 import { getPublicDataset } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
-const DOMAINS: Domain[] = ["music", "design", "podcast"];
-const FILTERS: (Domain | "all")[] = ["all", ...DOMAINS];
-
 export default async function TimelinePage({
   searchParams,
 }: {
-  searchParams: Promise<{ domain?: string }>;
+  searchParams: Promise<{ plant?: string }>;
 }) {
-  const { domain } = await searchParams;
-  const active: Domain | "all" =
-    domain && (DOMAINS as string[]).includes(domain) ? (domain as Domain) : "all";
+  const { plant } = await searchParams;
+  const data = await getPublicDataset();
+  const plantSlugs = data.getPlants().map((p) => p.slug);
+  const active = plant && plantSlugs.includes(plant) ? plant : "all";
 
-  const entries = (await getPublicDataset())
+  const entries = data
     .timelineSprouts()
-    .filter((entry) => active === "all" || entry.domain === active);
+    .filter((entry) => active === "all" || entry.plant?.slug === active);
 
   return (
     <article>
@@ -25,12 +23,12 @@ export default async function TimelinePage({
 
       <nav>
         <ul>
-          {FILTERS.map((filter) => (
+          {["all", ...plantSlugs].map((filter) => (
             <li key={filter}>
               {filter === active ? (
                 <strong>{filter}</strong>
               ) : (
-                <a href={filter === "all" ? "/timeline" : `/timeline?domain=${filter}`}>{filter}</a>
+                <a href={filter === "all" ? "/timeline" : `/timeline?plant=${filter}`}>{filter}</a>
               )}
             </li>
           ))}
