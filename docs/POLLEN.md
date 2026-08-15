@@ -33,14 +33,17 @@ One event, one JSON object:
 |---|---|---|
 | `v` | ✓ | Contract version, integer `1`. Consumers refuse a `v` they don't know — loudly, never a silent partial parse. |
 | `id` | ✓ | Globally unique, **stable forever** — the idempotency key. Convention: `"<source>:<native-id>"`. Re-emitting an id is a no-op for every consumer. |
-| `at` | ✓ | When the event *happened* (source truth, not emission time). Strict ISO 8601 with seconds and explicit timezone; UTC `Z` recommended. |
+| `at` | ✓ | When the event *happened* (source truth, not emission time). Strict ISO 8601 with seconds and explicit timezone; UTC `Z` recommended. Shape `YYYY-MM-DDTHH:MM:SS[.fff](Z|±HH:MM)`; calendar-invalid values (Feb 30, hour 24) are rejected. |
 | `source` | ✓ | Slug of the emitting **tool** (`arkaik`, `melogram`, `femfolk`…) — not always the anchored plant (melogram emits for `plant:bohns-music`). |
 | `kind` | ✓ | See vocabulary below. |
-| `title` | ✓ | Human-grade one-liner. A non-empty string, or `{ "en"?, "fr"? }` with at least one non-empty part. |
+| `title` | ✓ | Human-grade one-liner. A non-empty string, or `{ "en"?, "fr"? }` with at least one non-empty part. Parts are trimmed; whitespace-only counts as empty. |
 | `anchors` | ✓ | What it concerns, in practice-graph refs: `plant` (required), `pod?`, `bean?` — prefixed (`plant:<slug>`). One anchor set per envelope; an event concerning two plants is two envelopes. Dangling anchors are the reader's problem (ignored fail-closed), not a schema error. |
 | `refs` | | Deep links / native ids: `{ label, url?, ref? }[]`, each with at least one of `url` \| `ref`. |
 | `visibility` | | `"private"` is **binding and fail-closed**: recorded, never published. `"public"` (or absent) is only a hint — publishing is always a human act on the ariko side. |
-| `payload` | | Optional native detail, schema owned by the source, opaque to ariko. Serialized size ≤ **32 KiB**; bigger detail belongs behind a `ref`. |
+| `payload` | | Optional native detail — a JSON **object** (not an array or scalar), schema owned by the source, opaque to ariko. Serialized size ≤ **32 KiB**; bigger detail belongs behind a `ref`. |
+
+Slugs — `source`, `target`, and the `<slug>` part of every anchor ref —
+match `^[a-z0-9][a-z0-9-]*$`: lowercase letters, digits, and hyphens only.
 
 Unknown top-level keys are **ignored** (forward compatibility).
 Envelopes are **immutable** once emitted: a correction is a new envelope
@@ -123,7 +126,9 @@ instead of `source`, required `brief` (Text) instead of `title`, and
 delivery is not part of this contract. **Status returns through the
 target's ordinary report feed**, never a second mechanism. The intent
 kind vocabulary (`research`, `draft`) is provisional until the dispatch
-pilot (slice 7); the shape is normative now.
+pilot (slice 7); the shape is normative now. Non-listed intent kinds
+follow the same rule as report kinds: accepted with a warning, never
+rejected.
 
 ## Security posture
 
