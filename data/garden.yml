@@ -1,47 +1,19 @@
 pods:
   - slug: wait-for-the-sun
     name: Wait for the Sun
-    domain: music
     description: A folk album
+    parents:
+      - plant:bohns-music
   - slug: celesta
     name: Celesta
-    domain: music
     description: An ethereal instrumental piano album
+    parents:
+      - plant:bohns-music
   - slug: republic-of-masquerade
     name: Republic of Masquerade
-    domain: music
     description: A dark and political alternative rock album
-  - slug: enerfip
-    name: Enerfip
-    domain: design
-    description: A platform for investing in renewable energy projects
-  - slug: teale
-    name: Teale
-    domain: design
-    description: A mental health and wellness app that provides personalized support and resources
-  - slug: femfolk
-    name: Femfolk
-    domain: podcast
-    description: >-
-      A platform that celebrates and promotes the work of female folk musicians, featuring
-      interviews, live performances, and curated playlists
-  - slug: pebblestones
-    name: Pebblestones
-    domain: design
-    description: >-
-      A blog that explores the intersection of design, psychology and philosophy, featuring
-      articles, interviews, and case studies on topics such as user experience, visual design, and
-      cognitive science
-  - slug: pbbls
-    name: Pebbles
-    domain: design
-    description: >-
-      A daily routine app to collect memories and moments, allowing users to create a digital
-      scrapbook of their lives
-  - slug: casa
-    name: CASA Podcast
-    domain: podcast
-    description: A podcast about life questions and debates with 3 friends
+    parents:
+      - plant:bohns-music
 beans:
   - slug: rom-act-of-war
     name: Act of War
@@ -66,39 +38,39 @@ beans:
   - slug: ef-rebranding
     name: Rebranding
     parents:
-      - pod:enerfip
+      - plant:enerfip
   - slug: teale-mindfulness
     name: Mindfulness
     parents:
-      - pod:teale
+      - plant:teale
   - slug: teale-therapists
     name: Therapists
     parents:
-      - pod:teale
+      - plant:teale
   - slug: teale-ios
     name: iOS App
     parents:
-      - pod:teale
+      - plant:teale
   - slug: teale-android
     name: Android App
     parents:
-      - pod:teale
+      - plant:teale
   - slug: teale-library
     name: Library
     parents:
-      - pod:teale
+      - plant:teale
   - slug: ff-paris-paloma
     name: Paris Paloma
     parents:
-      - pod:femfolk
+      - plant:femfolk
   - slug: casa-dating
     name: CASA Episode 1
     parents:
-      - pod:casa
+      - plant:casa
   - slug: casa-tolerance
     name: CASA Episode 2
     parents:
-      - pod:casa
+      - plant:casa
   - slug: celesta-uunngaelig
     name: Uunngåelig
     parents:
@@ -122,19 +94,19 @@ beans:
   - slug: pbbls-webapp
     name: Pebbles Webapp
     parents:
-      - pod:pbbls
+      - plant:pbbls
   - slug: pbbls-ios
     name: Pebbles iOS
     parents:
-      - pod:pbbls
+      - plant:pbbls
   - slug: pbbls-path
     name: Pebbles Path
     parents:
-      - pod:pbbls
+      - plant:pbbls
   - slug: pbbls-recorder
     name: Pebbles Recorder
     parents:
-      - pod:pbbls
+      - plant:pbbls
 sprouts:
   - slug: wait-for-the-sun-0
     name: Wait for the Sun
@@ -485,3 +457,139 @@ sprouts:
       experience and providing additional resources
     parents:
       - bean:teale-library
+plants:
+  - slug: pbbls
+    name: Pebbles
+    description: >-
+      A daily routine app to collect memories and moments, allowing users to create a digital
+      scrapbook of their lives
+    natures:
+      - work
+  - slug: femfolk
+    name: Femfolk
+    description: >-
+      A platform that celebrates and promotes the work of female folk musicians, featuring
+      interviews, live performances, and curated playlists
+    natures:
+      - work
+  - slug: teale
+    name: Teale
+    description: A mental health and wellness app that provides personalized support and resources
+    natures:
+      - work
+  - slug: casa
+    name: CASA Podcast
+    description: A podcast about life questions and debates with 3 friends
+    natures:
+      - work
+  - slug: pebblestones
+    name: Pebblestones
+    description: >-
+      A blog that explores the intersection of design, psychology and philosophy, featuring
+      articles, interviews, and case studies on topics such as user experience, visual design, and
+      cognitive science
+    natures:
+      - work
+  - slug: enerfip
+    name: Enerfip
+    description: A platform for investing in renewable energy projects
+    natures:
+      - work
+  - slug: bohns-music
+    name: Bohns Music
+    natures:
+      - work
+    description: The music practice — albums and songs published as Bohns Music.
+  - slug: melogram
+    name: Melogram
+    natures:
+      - work
+      - tool
+    description: Music release hub — the Arkaik of music; distributes Bohns Music.
+    relations:
+      - kind: distributes
+        ref: plant:bohns-music
+  - slug: arkaik
+    name: Arkaik
+    natures:
+      - tool
+    description: Journal of record for the code practice; chronicles Pebbles and Femfolk.
+    relations:
+      - kind: chronicles
+        ref: plant:pbbls
+      - kind: chronicles
+        ref: plant:femfolk
+  - slug: ariko
+    name: Ariko
+    natures:
+      - work
+      - tool
+    description: The central node — portfolio, practice graph and federation hub.
+  - slug: paulopus
+    name: Paulopus
+    natures:
+      - work
+    description: World Cup 2026 oracle — predictions, briefs and the writer routine.
+  - slug: oxymore
+    name: Oxymore
+    natures:
+      - tool
+    description: Third-party panel stack. Read-only in practice — no automation ever targets it.
+bees:
+  - slug: lab-note-pipeline
+    name: Lab Note pipeline
+    kind: workflow
+    status: live
+    engine: action
+    levers: []
+    serves:
+      - plant:ariko
+      - plant:pbbls
+      - plant:femfolk
+      - plant:arkaik
+      - plant:melogram
+    description: Posts Lab Notes from sibling repos' merged PRs into the Ariko inbox.
+    visibility: public
+  - slug: song-identifier
+    name: Song identifier
+    kind: capability
+    status: live
+    levers: []
+    serves:
+      - plant:femfolk
+    description: Identifies songs for Femfolk research.
+    visibility: public
+  - slug: arkaik-adapter
+    name: Arkaik adapter
+    kind: adapter
+    status: planned
+    levers: []
+    serves:
+      - plant:arkaik
+    description: Will ingest the Arkaik journal feed into the Ariko read model (slice 3).
+  - slug: melogram-feed
+    name: Melogram feed
+    kind: adapter
+    status: planned
+    levers: []
+    serves:
+      - plant:melogram
+    description: Will carry Melogram release events into the Ariko beanstalk.
+  - slug: femfolk-researcher
+    name: Femfolk researcher
+    kind: routine
+    status: planned
+    engine: claude-routine
+    levers: []
+    serves:
+      - plant:femfolk
+    description: Will research artists and prepare Femfolk episode material.
+  - slug: weekly-digest
+    name: Weekly digest
+    kind: routine
+    status: planned
+    engine: claude-routine
+    levers: []
+    serves:
+      - plant:ariko
+    description: Will write the weekly cross-plant digest of the beanstalk (slice 5).
