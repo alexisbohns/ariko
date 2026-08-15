@@ -54,7 +54,7 @@ test("toGraph maps a sprout to exactly {id, kind, name, type, date} — no conte
 
 test("toGraph resolves a localized name to a plain string — GraphNode.name stays string (B1)", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "m", name: { en: "M en", fr: "M fr" }, domain: "music", description: { fr: "notes" } }],
+    pods: [{ slug: "m", name: { en: "M en", fr: "M fr" }, description: { fr: "notes" } }],
     beans: [{ slug: "a", name: { fr: "A fr" }, parents: ["pod:m"] }],
     sprouts: [
       { slug: "v", name: { en: "V en", fr: "V fr" }, type: "song", date: "2026-01-01", description: "", parents: ["bean:a"], state: "published" },
@@ -76,7 +76,7 @@ test("toGraph resolves a localized name to a plain string — GraphNode.name sta
 
 test("toGraph includes tags only when non-empty", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "m", name: "M", domain: "design", description: "", tags: ["x", "y"] }],
+    pods: [{ slug: "m", name: "M", description: "", tags: ["x", "y"] }],
     beans: [{ slug: "a-empty", name: "A", parents: [], tags: [] }],
     sprouts: [
       { slug: "v-none", name: "V", type: "song", date: "2026-01-01", description: "", parents: [] },
@@ -101,7 +101,7 @@ test("toGraph includes tags only when non-empty", () => {
 
 test("toGraph emits containment edges pod→atom and bean→sprout, in child input order", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "m", name: "M", domain: "music", description: "" }],
+    pods: [{ slug: "m", name: "M", description: "" }],
     beans: [
       { slug: "a1", name: "A1", parents: ["pod:m"] },
       { slug: "a2", name: "A2", parents: ["pod:m"] },
@@ -127,8 +127,8 @@ test("toGraph emits containment edges pod→atom and bean→sprout, in child inp
 test("toGraph emits one edge per existing parent for a multi-parent bean", () => {
   const seed: RawGarden = {
     pods: [
-      { slug: "m1", name: "M1", domain: "music", description: "" },
-      { slug: "m2", name: "M2", domain: "design", description: "" },
+      { slug: "m1", name: "M1", description: "" },
+      { slug: "m2", name: "M2", description: "" },
     ],
     beans: [{ slug: "a", name: "A", parents: ["pod:m1", "pod:m2"] }],
   };
@@ -156,7 +156,7 @@ test("toGraph emits one edge per existing bean parent for a multi-parent sprout"
 
 test("toGraph dedupes duplicate (source, target) pairs", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "m", name: "M", domain: "music", description: "" }],
+    pods: [{ slug: "m", name: "M", description: "" }],
     beans: [{ slug: "a", name: "A", parents: ["pod:m", "pod:m"] }],
     sprouts: [
       { slug: "v", name: "V", type: "song", date: "2026-01-01", description: "", parents: ["bean:a", "bean:a"], state: "published" },
@@ -185,7 +185,7 @@ test("toGraph emits no edge for a dangling parent ref but keeps the node", () =>
 
 test("toGraph ignores parent refs outside the containment grammar", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "m", name: "M", domain: "music", description: "" }],
+    pods: [{ slug: "m", name: "M", description: "" }],
     sprouts: [
       // "pod:" is not a valid container for a version — no edge even though both nodes exist.
       { slug: "v", name: "V", type: "song", date: "2026-01-01", description: "", parents: ["pod:m"], state: "published" },
@@ -203,8 +203,8 @@ test("toGraph returns an empty graph for empty or absent collections", () => {
 // versions and privacy cascades must yield neither nodes nor edges.
 const mixed: RawGarden = {
   pods: [
-    { slug: "m-pub", name: "Pub", domain: "music", description: "" },
-    { slug: "m-priv", name: "Priv", domain: "music", description: "", visibility: "private" },
+    { slug: "m-pub", name: "Pub", description: "" },
+    { slug: "m-priv", name: "Priv", description: "", visibility: "private" },
   ],
   beans: [
     { slug: "a-pub", name: "A pub", parents: ["pod:m-pub"] },
@@ -236,7 +236,7 @@ test("toGraph(filterPublic(raw)) emits only published content", () => {
 // emitted AFTER all containment edges, gated on both ends being nodes.
 test("toGraph emits relation edges with their kind, after containment edges", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "m", name: "M", domain: "music", description: "" }],
+    pods: [{ slug: "m", name: "M", description: "" }],
     beans: [{ slug: "a", name: "A", parents: ["pod:m"] }],
     sprouts: [
       { slug: "v0", name: "V0", type: "song", date: "2026-01-01", description: "", parents: ["bean:a"], state: "published" },
@@ -321,7 +321,7 @@ test("toGraph dedupes relation edges on (source, target, kind) — same pair, tw
 // the serialized JSON.
 test("toGraph(filterPublic(raw)) keeps only relation edges to surviving targets, leaking no slug", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "g-m", name: "M", domain: "music", description: "" }],
+    pods: [{ slug: "g-m", name: "M", description: "" }],
     beans: [
       { slug: "g-a", name: "A", parents: ["pod:g-m"] },
       { slug: "g-a-hidden", name: "A hidden", parents: ["pod:g-m"], visibility: "private" },

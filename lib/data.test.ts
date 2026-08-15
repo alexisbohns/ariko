@@ -21,8 +21,8 @@ import {
 // whose atom has no molecule (domainless).
 const raw: RawGarden = {
   pods: [
-    { slug: "m-music", name: "Music Mol", domain: "music", description: "" },
-    { slug: "m-design", name: "Design Mol", domain: "design", description: "" },
+    { slug: "m-music", name: "Music Mol", description: "" },
+    { slug: "m-design", name: "Design Mol", description: "" },
   ],
   beans: [
     { slug: "a1", name: "A1", parents: ["pod:m-music"] },
@@ -44,17 +44,15 @@ test("timelineSprouts sorts all sprouts by date descending", () => {
   assert.deepEqual(slugs, ["v-new", "v-orphan", "v-mid", "v-old"]);
 });
 
-test("timeline entries tag each sprout with its bean and derived domain", () => {
+test("timeline entries tag each sprout with its bean", () => {
   const ds = buildDataset(raw);
   const bySlug = new Map(ds.timelineSprouts().map((e) => [e.sprout.slug, e]));
 
   const vNew = bySlug.get("v-new")!;
   assert.equal(vNew.bean?.slug, "a1");
-  assert.equal(vNew.domain, "music");
 
   const vOrphan = bySlug.get("v-orphan")!;
   assert.equal(vOrphan.bean?.slug, "a-standalone");
-  assert.equal(vOrphan.domain, null);
 });
 
 test("beansForPod indexes beans by pod, including multi-parent beans", () => {
@@ -66,14 +64,6 @@ test("beansForPod indexes beans by pod, including multi-parent beans", () => {
 test("standaloneBeans are beans with no resolvable pod parent", () => {
   const ds = buildDataset(raw);
   assert.deepEqual(ds.standaloneBeans().map((a) => a.slug), ["a-standalone", "a-dangling"]);
-});
-
-test("domain is derived from an bean's first pod parent", () => {
-  const ds = buildDataset(raw);
-  assert.equal(ds.domainForBean("a1"), "music");
-  assert.equal(ds.domainForBean("a2"), "music");
-  assert.equal(ds.domainForBean("a-standalone"), null);
-  assert.equal(ds.domainForBean("a-dangling"), null);
 });
 
 test("sproutsForBean returns that bean's sprouts sorted by date descending", () => {
@@ -96,7 +86,7 @@ test("getDataset keeps sprout dates as plain YYYY-MM-DD strings", () => {
 });
 
 const RAW = {
-  pods: [{ slug: "m1", name: "M1", domain: "music" as const, description: "" }],
+  pods: [{ slug: "m1", name: "M1", description: "" }],
   beans: [
     { slug: "a1", name: "A1", parents: ["pod:m1"] },
     { slug: "a2", name: "A2", parents: ["pod:m1", "pod:mX"] }, // mX dangling
@@ -135,7 +125,7 @@ test("an unknown sprout slug cascades nothing", () => {
 
 test("parents are returned regardless of current visibility (idempotent flip)", () => {
   const raw = {
-    pods: [{ slug: "m1", name: "M1", domain: "music" as const, description: "", visibility: "public" as const }],
+    pods: [{ slug: "m1", name: "M1", description: "", visibility: "public" as const }],
     beans: [{ slug: "a1", name: "A1", parents: ["pod:m1"], visibility: "public" as const }],
     sprouts: [{ slug: "v1", name: "V1", type: "t", date: "2025-01-01", description: "", parents: ["bean:a1"] }],
   };
@@ -147,8 +137,8 @@ test("parents are returned regardless of current visibility (idempotent flip)", 
 test("an bean with two real pod parents cascades both pods", () => {
   const raw = {
     pods: [
-      { slug: "m1", name: "M1", domain: "music" as const, description: "" },
-      { slug: "m2", name: "M2", domain: "design" as const, description: "" },
+      { slug: "m1", name: "M1", description: "" },
+      { slug: "m2", name: "M2", description: "" },
     ],
     beans: [{ slug: "a1", name: "A1", parents: ["pod:m1", "pod:m2"] }],
     sprouts: [
@@ -167,7 +157,7 @@ function ver(slug: string, parents: string[], state: SproutState) {
   return { slug, name: slug.toUpperCase(), type: "t", date: "2025-01-01", description: "", parents, state };
 }
 const mol = (slug: string, visibility: Visibility) => ({
-  slug, name: slug.toUpperCase(), domain: "music" as const, description: "", visibility,
+  slug, name: slug.toUpperCase(), description: "", visibility,
 });
 const atom = (slug: string, parents: string[], visibility: Visibility) => ({
   slug, name: slug.toUpperCase(), parents, visibility,

@@ -23,7 +23,7 @@ test("loadRawGarden returns arrays for all five collections", { skip: !hasDb }, 
 // empty (a loop over zero ambient docs would pass vacuously).
 test("loadRawGarden returns documents without Mongo _id", { skip: !hasDb }, async () => {
   const db = await getDb();
-  const probe = { slug: "__store_probe__", name: "Probe", domain: "music" as const, description: "" };
+  const probe = { slug: "__store_probe__", name: "Probe", description: "" };
   await db.collection("pods").updateOne({ slug: probe.slug }, { $set: probe }, { upsert: true });
   try {
     const found = (await loadRawGarden()).pods?.find((m) => m.slug === probe.slug);

@@ -21,8 +21,8 @@ test("resolveText falls through blank parts (a hand-authored empty en never blan
 
 const raw: RawGarden = {
   pods: [
-    { slug: "m-pub", name: "Pub", domain: "music", description: "" },
-    { slug: "m-priv", name: "Priv", domain: "music", description: "", visibility: "private" },
+    { slug: "m-pub", name: "Pub", description: "" },
+    { slug: "m-priv", name: "Priv", description: "", visibility: "private" },
   ],
   beans: [
     { slug: "a-pub", name: "A pub", parents: ["pod:m-pub"] },
@@ -56,7 +56,7 @@ test("filterPublic never leaks a draft, private, or stateless sprout", () => {
 
 test("filterPublic drops a published sprout whose only bean-parent is private", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "m", name: "M", domain: "music", description: "" }],
+    pods: [{ slug: "m", name: "M", description: "" }],
     beans: [{ slug: "a-priv", name: "A", parents: ["pod:m"], visibility: "private" }],
     sprouts: [{ slug: "v", name: "V", type: "song", date: "2026-01-01", description: "", parents: ["bean:a-priv"], state: "published" }],
   };
@@ -67,7 +67,7 @@ test("filterPublic drops a published sprout whose only bean-parent is private", 
 
 test("filterPublic drops an bean whose only pod-parent is private (no standalone leak)", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "m-priv", name: "M", domain: "music", description: "", visibility: "private" }],
+    pods: [{ slug: "m-priv", name: "M", description: "", visibility: "private" }],
     beans: [{ slug: "a", name: "A", parents: ["pod:m-priv"] }],
     sprouts: [],
   };
@@ -78,7 +78,7 @@ test("filterPublic drops an bean whose only pod-parent is private (no standalone
 
 test("filterPublic drops a published sprout transitively when its bean is cascaded out", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "m-priv", name: "M", domain: "music", description: "", visibility: "private" }],
+    pods: [{ slug: "m-priv", name: "M", description: "", visibility: "private" }],
     beans: [{ slug: "a", name: "A", parents: ["pod:m-priv"] }],
     sprouts: [{ slug: "v", name: "V", type: "song", date: "2026-01-01", description: "", parents: ["bean:a"], state: "published" }],
   };
@@ -88,8 +88,8 @@ test("filterPublic drops a published sprout transitively when its bean is cascad
 test("filterPublic keeps a multi-parent bean if at least one pod-parent is public", () => {
   const seed: RawGarden = {
     pods: [
-      { slug: "m-pub", name: "Pub", domain: "music", description: "" },
-      { slug: "m-priv", name: "Priv", domain: "music", description: "", visibility: "private" },
+      { slug: "m-pub", name: "Pub", description: "" },
+      { slug: "m-priv", name: "Priv", description: "", visibility: "private" },
     ],
     beans: [{ slug: "a", name: "A", parents: ["pod:m-priv", "pod:m-pub"] }],
     sprouts: [],
@@ -112,8 +112,8 @@ test("filterPublic keeps an bean whose only pod-parent is a dangling (nonexisten
 function relSeed(): RawGarden {
   return {
     pods: [
-      { slug: "rm-pub", name: "M pub", domain: "music", description: "" },
-      { slug: "rm-priv", name: "M priv", domain: "music", description: "", visibility: "private" },
+      { slug: "rm-pub", name: "M pub", description: "" },
+      { slug: "rm-priv", name: "M priv", description: "", visibility: "private" },
     ],
     beans: [
       { slug: "ra-pub", name: "A pub", parents: ["pod:rm-pub"] },
@@ -154,7 +154,7 @@ function relSeed(): RawGarden {
 
 test("filterPublic tolerates malformed relations fail-closed (one bad doc must not 500 the public site)", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "m", name: "M", domain: "music", description: "" }],
+    pods: [{ slug: "m", name: "M", description: "" }],
     beans: [{ slug: "a", name: "A", parents: ["pod:m"] }],
     sprouts: [
       { slug: "v-str", name: "V", type: "t", date: "2026-01-01", description: "", parents: ["bean:a"], state: "published", relations: "junk" as never },

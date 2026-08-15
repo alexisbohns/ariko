@@ -2,8 +2,6 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import yaml from "js-yaml";
 
-export type Domain = "music" | "design" | "podcast";
-
 export type Visibility = "private" | "public";
 export type SproutState = "draft" | "private" | "published";
 
@@ -86,7 +84,6 @@ export interface Bee {
 export interface Pod {
   slug: string;
   name: Text; // bilingual since B1; plain strings remain valid (no migration)
-  domain?: Domain; // TEMPORARY optional during PR2 — deleted in the Domain-retirement task
   parents?: string[]; // containment ONLY, e.g. ["plant:bohns-music"] (PR2)
   description: Text;
   visibility?: Visibility; // default treated as "public"
@@ -154,7 +151,6 @@ export interface TimelineEntry {
   sprout: Sprout;
   bean: Bean | null;
   plant: Plant | null;
-  domain: Domain | null; // TEMPORARY — deleted in the Domain-retirement task
 }
 
 export interface Dataset {
@@ -169,7 +165,6 @@ export interface Dataset {
   getBean(slug: string): Bean | undefined;
   sproutsForBean(slug: string): Sprout[];
   timelineSprouts(): TimelineEntry[];
-  domainForBean(slug: string): Domain | null; // TEMPORARY — deleted in the Domain-retirement task
 }
 
 // The prefixed-ref grammar, shared with the graph serializer (lib/graph.ts).
@@ -255,16 +250,6 @@ export function buildDataset(raw: RawGarden): Dataset {
     list.sort(byDateDesc);
   }
 
-  function domainForBean(slug: string): Domain | null {
-    const bean = beanBySlug.get(slug);
-    if (!bean) return null;
-    for (const podSlug of parentsWithPrefix(bean.parents, POD_PREFIX)) {
-      const pod = podBySlug.get(podSlug);
-      if (pod) return pod.domain ?? null; // first resolvable pod parent wins
-    }
-    return null;
-  }
-
   function plantForBean(slug: string): Plant | null {
     const bean = beanBySlug.get(slug);
     if (!bean) return null;
@@ -292,7 +277,6 @@ export function buildDataset(raw: RawGarden): Dataset {
         sprout,
         bean,
         plant: bean ? plantForBean(bean.slug) : null,
-        domain: bean ? domainForBean(bean.slug) : null,
       };
     })
     .sort((a, b) => byDateDesc(a.sprout, b.sprout));
@@ -309,7 +293,6 @@ export function buildDataset(raw: RawGarden): Dataset {
     getBean: (slug) => beanBySlug.get(slug),
     sproutsForBean: (slug) => sproutsByBean.get(slug) ?? [],
     timelineSprouts: () => timeline,
-    domainForBean,
   };
 }
 

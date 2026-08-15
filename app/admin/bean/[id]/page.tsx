@@ -26,7 +26,7 @@ export default async function AdminAtomPage({ params }: { params: Promise<{ id: 
         <p>
           <a href="/admin/vault">← vault</a>
         </p>
-        <h1>Atom</h1>
+        <h1>Bean</h1>
         <p role="alert">Couldn&apos;t load the atom.</p>
       </article>
     );
