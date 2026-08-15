@@ -129,6 +129,8 @@ async function main() {
   }
 
   // Stored seeds suggesting a now-promoted pod: the suggestion climbs a tier.
+  // $rename assumes no doc carries BOTH keys — pre-migration seeds cannot have
+  // plantSlug (the inbox only writes it post-PR2), so nothing canonical is overwritten.
   const catalog = [...PROMOTED.map((d) => d.slug), ...CREATED.map((d) => d.slug)];
   const filter = { "suggested.podSlug": { $in: catalog } };
   const n = await db.collection("seeds").countDocuments(filter);
