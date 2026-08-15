@@ -7,7 +7,7 @@ import { buildSeedBody } from "@/lib/seed-form";
 import { validateInboxPayload } from "@/lib/inbox";
 import { createOrUpdateSeed, getSeed, markSeedPromoted, discardSeed } from "@/lib/seeds";
 import { loadRawGarden } from "@/lib/store";
-import { publishCascade, unpublishCascade, unpublishCascadeForBeans, type Domain } from "@/lib/data";
+import { publishCascade, unpublishCascade, unpublishCascadeForBeans } from "@/lib/data";
 import { resolveParentChoice, buildSproutInput, validateSproutInput } from "@/lib/promote";
 import { buildSproutPatch, validateSproutPatch } from "@/lib/sprout-edit";
 import {
@@ -59,8 +59,6 @@ export async function createSeedAction(formData: FormData): Promise<void> {
   redirect("/admin");
 }
 
-const DOMAINS: Domain[] = ["music", "design", "podcast"];
-
 export async function discardSeedAction(formData: FormData): Promise<void> {
   await requireSession();
   const seedId = String(formData.get("seedId") ?? "");
@@ -108,12 +106,10 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
   try {
     let podSlug: string | null = null;
     if (molChoice.mode === "create") {
-      const domainRaw = String(formData.get("newMoleculeDomain") ?? "");
-      const domain: Domain = DOMAINS.includes(domainRaw as Domain) ? (domainRaw as Domain) : "music";
       await createPod({
         slug: molChoice.slug,
         name: String(formData.get("newMoleculeName") ?? "").trim() || molChoice.slug,
-        domain,
+        plantSlug: null,
         description: "",
       });
       podSlug = molChoice.slug;
@@ -127,6 +123,7 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
         slug: atomChoice.slug,
         name: String(formData.get("newAtomName") ?? "").trim() || atomChoice.slug,
         podSlug,
+        plantSlug: null,
       });
       beanSlug = atomChoice.slug;
     } else if (atomChoice.mode === "existing") {
@@ -137,8 +134,8 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
     await createSprout(input);
 
     if (input.state === "published") {
-      const { podSlugs, beanSlugs } = publishCascade(await loadRawGarden(), input.slug);
-      await setPublic(podSlugs, beanSlugs);
+      const { plantSlugs, podSlugs, beanSlugs } = publishCascade(await loadRawGarden(), input.slug);
+      await setPublic(plantSlugs, podSlugs, beanSlugs);
     }
 
     await markSeedPromoted(seedId, input.slug);
@@ -178,11 +175,11 @@ export async function editVersionAction(formData: FormData): Promise<void> {
   // that has no published versions yet). Both branches load the dataset AFTER
   // updateVersion, so the cascade evaluates the just-saved state.
   if (patch.state === "published") {
-    const { podSlugs, beanSlugs } = publishCascade(await loadRawGarden(), slug);
-    await setPublic(podSlugs, beanSlugs);
+    const { plantSlugs, podSlugs, beanSlugs } = publishCascade(await loadRawGarden(), slug);
+    await setPublic(plantSlugs, podSlugs, beanSlugs);
   } else if (existing.state === "published") {
-    const { podSlugs, beanSlugs } = unpublishCascade(await loadRawGarden(), slug);
-    await setPrivate(podSlugs, beanSlugs);
+    const { plantSlugs, podSlugs, beanSlugs } = unpublishCascade(await loadRawGarden(), slug);
+    await setPrivate(plantSlugs, podSlugs, beanSlugs);
   }
 
   revalidatePath("/admin");
@@ -224,11 +221,11 @@ export async function deleteVersionAction(formData: FormData): Promise<void> {
   await deleteVersion(slug);
 
   if (wasPublished) {
-    const { podSlugs, beanSlugs: flipAtoms } = unpublishCascadeForBeans(
+    const { plantSlugs, podSlugs, beanSlugs: flipAtoms } = unpublishCascadeForBeans(
       await loadRawGarden(),
       beanSlugs,
     );
-    await setPrivate(podSlugs, flipAtoms);
+    await setPrivate(plantSlugs, podSlugs, flipAtoms);
   }
 
   revalidatePath("/admin");
