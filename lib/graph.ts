@@ -18,12 +18,12 @@ export interface GraphNode {
   type?: string; // sprouts (sprout.type) and bees (bee.kind)
   date?: string; // sprouts only
   status?: string; // bees only
-  tags?: string[]; // any kind, only when non-empty
+  tags?: string[]; // content kinds (never bees), only when non-empty
 }
 
 export interface GraphEdge {
   source: string; // containment: container node id; relation: the declaring plant's or sprout's node id; serves: the bee's node id
-  target: string; // containment: contained node id; relation: rel.ref (already a prefixed node id)
+  target: string; // containment: contained node id; relation: rel.ref; serves: the served plant ref (all prefixed node ids)
   kind: string; // "contains" for containment; relation kinds are free strings (G2); "serves" for bee edges
 }
 

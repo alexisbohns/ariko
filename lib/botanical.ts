@@ -122,7 +122,7 @@ export async function updateVersion(slug: string, patch: SproutPatch): Promise<v
 
 // Hard delete (roadmap A2). Idempotent — deleting a missing slug is a no-op
 // (deleteOne matches 0). Callers needing the visibility recompute must seed the
-// version's atom parents and state BEFORE calling this; afterwards the version no
+// sprout's bean parents and state BEFORE calling this; afterwards the sprout no
 // longer exists for unpublishCascade to find. Dangling refs to the deleted slug
 // (seed promotedTo, future relations[]) are tolerated on all read paths.
 export async function deleteVersion(slug: string): Promise<void> {
