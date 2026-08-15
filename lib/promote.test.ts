@@ -37,7 +37,7 @@ test("buildSproutInput is WYSIWYG: blank boxes store blank (nothing resurrected 
   // The triage PAGE prefills the boxes (name from seed.title, descriptions per
   // language via textPart) — the builder itself never falls back, so clearing a
   // box genuinely clears that content and a blank name fails validation.
-  const v = buildSproutInput(form([["versionSlug", "v1"], ["type", "demo"], ["date", "2025-02-02"]]), seed, "a1");
+  const v = buildSproutInput(form([["sproutSlug", "v1"], ["type", "demo"], ["date", "2025-02-02"]]), seed, "a1");
   assert.equal(v.slug, "v1");
   assert.equal(v.name, "");
   assert.equal(v.description, "");
@@ -52,7 +52,7 @@ test("buildSproutInput is WYSIWYG: blank boxes store blank (nothing resurrected 
 
 test("buildSproutInput uses provided fields over prefill and parses state", () => {
   const v = buildSproutInput(
-    form([["versionSlug", "v1"], ["versionName", "Live cut"], ["type", "live"], ["date", "2025-02-02"], ["description", "at the club"], ["state", "published"]]),
+    form([["sproutSlug", "v1"], ["sproutName", "Live cut"], ["type", "live"], ["date", "2025-02-02"], ["description", "at the club"], ["state", "published"]]),
     seed,
     "a1",
   );
@@ -62,18 +62,18 @@ test("buildSproutInput uses provided fields over prefill and parses state", () =
 });
 
 test("buildSproutInput yields a parentless sprout when beanParentSlug is null", () => {
-  const v = buildSproutInput(form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), seed, null);
+  const v = buildSproutInput(form([["sproutSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), seed, null);
   assert.deepEqual(v.parents, []);
 });
 
 test("buildSproutInput coerces an unexpected state to draft", () => {
-  const v = buildSproutInput(form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"], ["state", "bogus"]]), seed, null);
+  const v = buildSproutInput(form([["sproutSlug", "v1"], ["type", "t"], ["date", "2025-02-02"], ["state", "bogus"]]), seed, null);
   assert.equal(v.state, "draft");
 });
 
 test("validateSproutInput rejects missing required fields", () => {
   const base = buildSproutInput(
-    form([["versionSlug", "v1"], ["versionName", "n"], ["type", "t"], ["date", "2025-02-02"]]),
+    form([["sproutSlug", "v1"], ["sproutName", "n"], ["type", "t"], ["date", "2025-02-02"]]),
     seed,
     null,
   );
@@ -84,7 +84,7 @@ test("validateSproutInput rejects missing required fields", () => {
 });
 
 test("validateSproutInput rejects a name cleared in both languages", () => {
-  const v = buildSproutInput(form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), seed, null);
+  const v = buildSproutInput(form([["sproutSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), seed, null);
   assert.equal(v.name, "");
   assert.equal(validateSproutInput(v).ok, false);
 });
@@ -95,7 +95,7 @@ test("validateSproutInput rejects a name cleared in both languages", () => {
 
 test("buildSproutInput composes a bilingual name from the paired fields", () => {
   const v = buildSproutInput(
-    form([["versionSlug", "v1"], ["versionName", "Live cut"], ["versionNameFr", "Prise live"], ["type", "t"], ["date", "2025-02-02"]]),
+    form([["sproutSlug", "v1"], ["sproutName", "Live cut"], ["sproutNameFr", "Prise live"], ["type", "t"], ["date", "2025-02-02"]]),
     seed,
     null,
   );
@@ -104,7 +104,7 @@ test("buildSproutInput composes a bilingual name from the paired fields", () => 
 
 test("buildSproutInput keeps an fr-only name (no seed-title fallback, no en borrowed)", () => {
   const v = buildSproutInput(
-    form([["versionSlug", "v1"], ["versionNameFr", "Prise live"], ["type", "t"], ["date", "2025-02-02"]]),
+    form([["sproutSlug", "v1"], ["sproutNameFr", "Prise live"], ["type", "t"], ["date", "2025-02-02"]]),
     seed,
     null,
   );
@@ -113,7 +113,7 @@ test("buildSproutInput keeps an fr-only name (no seed-title fallback, no en borr
 
 test("buildSproutInput composes a bilingual description — a typed pair wins over the note", () => {
   const v = buildSproutInput(
-    form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"], ["description", "at the club"], ["descriptionFr", "au club"]]),
+    form([["sproutSlug", "v1"], ["type", "t"], ["date", "2025-02-02"], ["description", "at the club"], ["descriptionFr", "au club"]]),
     seed,
     null,
   );
@@ -122,7 +122,7 @@ test("buildSproutInput composes a bilingual description — a typed pair wins ov
 
 test("buildSproutInput: an fr-only typed description also wins over the note", () => {
   const v = buildSproutInput(
-    form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"], ["descriptionFr", "au club"]]),
+    form([["sproutSlug", "v1"], ["type", "t"], ["date", "2025-02-02"], ["descriptionFr", "au club"]]),
     seed,
     null,
   );
@@ -131,7 +131,7 @@ test("buildSproutInput: an fr-only typed description also wins over the note", (
 
 test("buildSproutInput: blank description fields and no seed body yield an empty string", () => {
   const v = buildSproutInput(
-    form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]),
+    form([["sproutSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]),
     { ...seed, body: undefined },
     null,
   );
@@ -139,11 +139,11 @@ test("buildSproutInput: blank description fields and no seed body yield an empty
 });
 
 test("validateSproutInput accepts an fr-only name", () => {
-  const base = buildSproutInput(form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), seed, null);
+  const base = buildSproutInput(form([["sproutSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), seed, null);
   assert.equal(validateSproutInput({ ...base, name: { fr: "Nom" } }).ok, true);
 });
 
 test("validateSproutInput rejects a name with no language present, message unchanged", () => {
-  const base = buildSproutInput(form([["versionSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), seed, null);
+  const base = buildSproutInput(form([["sproutSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), seed, null);
   assert.deepEqual(validateSproutInput({ ...base, name: {} }), { ok: false, error: "sprout name is required" });
 });

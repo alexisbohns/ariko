@@ -36,12 +36,12 @@ export interface SproutInput {
 // seed.body via textPart), and what the boxes submit is exactly what is
 // stored — clearing a box clears that language, and a fully cleared name fails
 // validation instead of being silently resurrected. Carries the seed's media
-// and provenance. `atomParentSlug` (resolved by the action) wires the atom
+// and provenance. `beanParentSlug` (resolved by the action) wires the bean
 // parent ref.
 export function buildSproutInput(
   form: FormData,
   seed: Seed,
-  atomParentSlug: string | null,
+  beanParentSlug: string | null,
 ): SproutInput {
   const get = (k: string) => String(form.get(k) ?? "").trim();
   const stateRaw = get("state");
@@ -49,13 +49,13 @@ export function buildSproutInput(
     stateRaw === "published" || stateRaw === "private" ? stateRaw : "draft";
 
   return {
-    slug: get("versionSlug"),
-    name: composeText(get("versionName"), get("versionNameFr")),
+    slug: get("sproutSlug"),
+    name: composeText(get("sproutName"), get("sproutNameFr")),
     type: get("type"),
     date: get("date"),
     description: composeText(get("description"), get("descriptionFr")),
     state,
-    parents: atomParentSlug ? [`bean:${atomParentSlug}`] : [],
+    parents: beanParentSlug ? [`bean:${beanParentSlug}`] : [],
     media: seed.media,
     source: seed.source,
   };

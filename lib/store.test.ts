@@ -10,18 +10,20 @@ after(async () => {
   await closeDb();
 });
 
-test("loadRawGarden returns arrays for all three collections", { skip: !hasDb }, async () => {
+test("loadRawGarden returns arrays for all five collections", { skip: !hasDb }, async () => {
   const raw = await loadRawGarden();
+  assert.ok(Array.isArray(raw.plants));
   assert.ok(Array.isArray(raw.pods));
   assert.ok(Array.isArray(raw.beans));
   assert.ok(Array.isArray(raw.sprouts));
+  assert.ok(Array.isArray(raw.bees));
 });
 
 // Insert a probe so this verifies the projection even when the DB is otherwise
 // empty (a loop over zero ambient docs would pass vacuously).
 test("loadRawGarden returns documents without Mongo _id", { skip: !hasDb }, async () => {
   const db = await getDb();
-  const probe = { slug: "__store_probe__", name: "Probe", domain: "music" as const, description: "" };
+  const probe = { slug: "__store_probe__", name: "Probe", description: "" };
   await db.collection("pods").updateOne({ slug: probe.slug }, { $set: probe }, { upsert: true });
   try {
     const found = (await loadRawGarden()).pods?.find((m) => m.slug === probe.slug);

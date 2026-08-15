@@ -7,7 +7,7 @@ import { buildSeedBody } from "@/lib/seed-form";
 import { validateInboxPayload } from "@/lib/inbox";
 import { createOrUpdateSeed, getSeed, markSeedPromoted, discardSeed } from "@/lib/seeds";
 import { loadRawGarden } from "@/lib/store";
-import { publishCascade, unpublishCascade, unpublishCascadeForBeans, type Domain } from "@/lib/data";
+import { publishCascade, unpublishCascade, unpublishCascadeForBeans } from "@/lib/data";
 import { resolveParentChoice, buildSproutInput, validateSproutInput } from "@/lib/promote";
 import { buildSproutPatch, validateSproutPatch } from "@/lib/sprout-edit";
 import {
@@ -59,8 +59,6 @@ export async function createSeedAction(formData: FormData): Promise<void> {
   redirect("/admin");
 }
 
-const DOMAINS: Domain[] = ["music", "design", "podcast"];
-
 export async function discardSeedAction(formData: FormData): Promise<void> {
   await requireSession();
   const seedId = String(formData.get("seedId") ?? "");
@@ -76,28 +74,31 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
   if (!seed) redirect("/admin");
 
   // Validate the version's own fields BEFORE any write, so an invalid version never
-  // leaves orphan molecule/atom docs behind.
+  // leaves orphan pod/bean docs behind.
   const precheck = validateSproutInput(buildSproutInput(formData, seed, null));
   if (!precheck.ok) {
     redirect(`/admin/triage/${seedId}?error=${encodeURIComponent(precheck.error)}`);
   }
 
-  // Resolve parent choices up front (pure) so we can guard invalid combinations
-  // BEFORE any write. A newly created molecule is only ever linked from a newly
-  // created atom in this flow, so "new molecule + (existing/no) atom" would leave
-  // the molecule orphaned — reject it rather than silently drop the intent.
-  const molChoice = resolveParentChoice(
-    String(formData.get("newMoleculeSlug") ?? ""),
+  // Resolve parent choices up front (pure) so invalid combinations are guarded
+  // BEFORE any write. A newly created pod is only ever linked from a newly
+  // created bean in this flow — reject "new pod + (existing/no) bean" rather
+  // than silently drop the intent. The plant select applies to whichever parent
+  // is created: a new pod roots under it; a new bean with NO pod roots directly
+  // under it (simple projects skip the pod tier).
+  const plantSlug = String(formData.get("plantSlug") ?? "").trim() || null;
+  const podChoice = resolveParentChoice(
+    String(formData.get("newPodSlug") ?? ""),
     String(formData.get("podSlug") ?? ""),
   );
-  const atomChoice = resolveParentChoice(
-    String(formData.get("newAtomSlug") ?? ""),
+  const beanChoice = resolveParentChoice(
+    String(formData.get("newBeanSlug") ?? ""),
     String(formData.get("beanSlug") ?? ""),
   );
-  if (molChoice.mode === "create" && atomChoice.mode !== "create") {
+  if (podChoice.mode === "create" && beanChoice.mode !== "create") {
     redirect(
       `/admin/triage/${seedId}?error=${encodeURIComponent(
-        "a new molecule must be paired with a new atom under it",
+        "a new pod must be paired with a new bean under it",
       )}`,
     );
   }
@@ -107,38 +108,37 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
   let slugError: string | null = null;
   try {
     let podSlug: string | null = null;
-    if (molChoice.mode === "create") {
-      const domainRaw = String(formData.get("newMoleculeDomain") ?? "");
-      const domain: Domain = DOMAINS.includes(domainRaw as Domain) ? (domainRaw as Domain) : "music";
+    if (podChoice.mode === "create") {
       await createPod({
-        slug: molChoice.slug,
-        name: String(formData.get("newMoleculeName") ?? "").trim() || molChoice.slug,
-        domain,
+        slug: podChoice.slug,
+        name: String(formData.get("newPodName") ?? "").trim() || podChoice.slug,
+        plantSlug,
         description: "",
       });
-      podSlug = molChoice.slug;
-    } else if (molChoice.mode === "existing") {
-      podSlug = molChoice.slug;
+      podSlug = podChoice.slug;
+    } else if (podChoice.mode === "existing") {
+      podSlug = podChoice.slug;
     }
 
     let beanSlug: string | null = null;
-    if (atomChoice.mode === "create") {
+    if (beanChoice.mode === "create") {
       await createBean({
-        slug: atomChoice.slug,
-        name: String(formData.get("newAtomName") ?? "").trim() || atomChoice.slug,
+        slug: beanChoice.slug,
+        name: String(formData.get("newBeanName") ?? "").trim() || beanChoice.slug,
         podSlug,
+        plantSlug: podSlug ? null : plantSlug,
       });
-      beanSlug = atomChoice.slug;
-    } else if (atomChoice.mode === "existing") {
-      beanSlug = atomChoice.slug;
+      beanSlug = beanChoice.slug;
+    } else if (beanChoice.mode === "existing") {
+      beanSlug = beanChoice.slug;
     }
 
     const input = buildSproutInput(formData, seed, beanSlug);
     await createSprout(input);
 
     if (input.state === "published") {
-      const { podSlugs, beanSlugs } = publishCascade(await loadRawGarden(), input.slug);
-      await setPublic(podSlugs, beanSlugs);
+      const { plantSlugs, podSlugs, beanSlugs } = publishCascade(await loadRawGarden(), input.slug);
+      await setPublic(plantSlugs, podSlugs, beanSlugs);
     }
 
     await markSeedPromoted(seedId, input.slug);
@@ -174,15 +174,15 @@ export async function editVersionAction(formData: FormData): Promise<void> {
   // un-publish — the version WAS published and no longer is — runs the downward
   // recompute (A1): re-privatize parents left sheltering no published version.
   // Gated on the transition (existing = pre-save state) so a routine draft save can
-  // never flip visibility somebody authored directly (e.g. a seeded public atom
+  // never flip visibility somebody authored directly (e.g. a seeded public bean
   // that has no published versions yet). Both branches load the dataset AFTER
   // updateVersion, so the cascade evaluates the just-saved state.
   if (patch.state === "published") {
-    const { podSlugs, beanSlugs } = publishCascade(await loadRawGarden(), slug);
-    await setPublic(podSlugs, beanSlugs);
+    const { plantSlugs, podSlugs, beanSlugs } = publishCascade(await loadRawGarden(), slug);
+    await setPublic(plantSlugs, podSlugs, beanSlugs);
   } else if (existing.state === "published") {
-    const { podSlugs, beanSlugs } = unpublishCascade(await loadRawGarden(), slug);
-    await setPrivate(podSlugs, beanSlugs);
+    const { plantSlugs, podSlugs, beanSlugs } = unpublishCascade(await loadRawGarden(), slug);
+    await setPrivate(plantSlugs, podSlugs, beanSlugs);
   }
 
   revalidatePath("/admin");
@@ -192,11 +192,11 @@ export async function editVersionAction(formData: FormData): Promise<void> {
   redirect(beanSlug ? `/admin/bean/${beanSlug}` : "/admin/vault");
 }
 
-// Hard delete (roadmap A2). The atom parents and published state are captured BEFORE
+// Hard delete (roadmap A2). The bean parents and published state are captured BEFORE
 // the delete — afterwards the version is gone from the dataset, so the slug-keyed
 // unpublishCascade would silently no-op. The recompute (only when the deleted version
 // WAS published; a draft/private delete cannot change the public projection) runs the
-// atom-keyed core against the dataset loaded AFTER the delete, so the deleted version
+// bean-keyed core against the dataset loaded AFTER the delete, so the deleted version
 // cannot shelter anything.
 export async function deleteVersionAction(formData: FormData): Promise<void> {
   await requireSession();
@@ -224,11 +224,11 @@ export async function deleteVersionAction(formData: FormData): Promise<void> {
   await deleteVersion(slug);
 
   if (wasPublished) {
-    const { podSlugs, beanSlugs: flipAtoms } = unpublishCascadeForBeans(
+    const { plantSlugs, podSlugs, beanSlugs: flipBeans } = unpublishCascadeForBeans(
       await loadRawGarden(),
       beanSlugs,
     );
-    await setPrivate(podSlugs, flipAtoms);
+    await setPrivate(plantSlugs, podSlugs, flipBeans);
   }
 
   revalidatePath("/admin");

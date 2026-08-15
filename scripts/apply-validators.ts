@@ -79,11 +79,51 @@ async function main() {
     properties: { visibility: { enum: ["private", "public"] } },
   });
 
+  await applyValidator("plants", {
+    bsonType: "object",
+    properties: {
+      visibility: { enum: ["private", "public"] },
+      natures: { bsonType: "array", items: { enum: ["work", "tool"] } },
+      relations: {
+        bsonType: "array",
+        items: {
+          bsonType: "object",
+          required: ["kind", "ref"],
+          properties: { kind: { bsonType: "string" }, ref: { bsonType: "string" } },
+        },
+      },
+    },
+  });
+
+  await applyValidator("bees", {
+    bsonType: "object",
+    required: ["slug", "kind", "status"],
+    properties: {
+      slug: { bsonType: "string" },
+      kind: { enum: ["adapter", "routine", "workflow", "capability"] },
+      status: { enum: ["planned", "live", "paused", "broken"] },
+      visibility: { enum: ["private", "public"] },
+      serves: { bsonType: "array", items: { bsonType: "string" } },
+      levers: {
+        bsonType: "array",
+        items: {
+          bsonType: "object",
+          required: ["label"],
+          properties: {
+            label: { bsonType: "string" },
+            url: { bsonType: "string" },
+            ref: { bsonType: "string" },
+          },
+        },
+      },
+    },
+  });
+
   await ensureSeedIndexes();
-  console.log("capture indexes ensured");
+  console.log("seed indexes ensured");
 
   await ensureBotanicalIndexes();
-  console.log("atomic indexes ensured");
+  console.log("botanical indexes ensured");
 
   await closeDb();
   process.exit(0);

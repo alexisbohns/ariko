@@ -26,9 +26,9 @@ async function cleanup() {
 test("createPod/createBean insert private-by-default", { skip: !hasDb }, async (t) => {
   await ensureBotanicalIndexes();
   t.after(cleanup);
-  const m = await createPod({ slug: "__test__m", name: "M", domain: "music", description: "" });
+  const m = await createPod({ slug: "__test__m", name: "M", plantSlug: null, description: "" });
   assert.equal(m.visibility, "private");
-  const a = await createBean({ slug: "__test__a", name: "A", podSlug: "__test__m" });
+  const a = await createBean({ slug: "__test__a", name: "A", podSlug: "__test__m", plantSlug: null });
   assert.equal(a.visibility, "private");
   assert.deepEqual(a.parents, ["pod:__test__m"]);
   const molecules = await listPods();
@@ -39,7 +39,7 @@ test("createPod/createBean insert private-by-default", { skip: !hasDb }, async (
 
 test("createBean with no pod is parentless", { skip: !hasDb }, async (t) => {
   t.after(cleanup);
-  const a = await createBean({ slug: "__test__solo", name: "Solo", podSlug: null });
+  const a = await createBean({ slug: "__test__solo", name: "Solo", podSlug: null, plantSlug: null });
   assert.deepEqual(a.parents, []);
 });
 
@@ -62,9 +62,9 @@ test("createSprout writes parents/state/media/source", { skip: !hasDb }, async (
 
 test("setPublic flips visibility to public", { skip: !hasDb }, async (t) => {
   t.after(cleanup);
-  await createPod({ slug: "__test__pm", name: "M", domain: "music", description: "" });
-  await createBean({ slug: "__test__pa", name: "A", podSlug: "__test__pm" });
-  await setPublic(["__test__pm"], ["__test__pa"]);
+  await createPod({ slug: "__test__pm", name: "M", plantSlug: null, description: "" });
+  await createBean({ slug: "__test__pa", name: "A", podSlug: "__test__pm", plantSlug: null });
+  await setPublic([], ["__test__pm"], ["__test__pa"]);
   const db = await getDb();
   const m = await db.collection("pods").findOne({ slug: "__test__pm" });
   const a = await db.collection("beans").findOne({ slug: "__test__pa" });
@@ -73,15 +73,15 @@ test("setPublic flips visibility to public", { skip: !hasDb }, async (t) => {
 });
 
 test("setPublic is a no-op on empty arrays", { skip: !hasDb }, async () => {
-  await setPublic([], []); // must not throw
+  await setPublic([], [], []); // must not throw
 });
 
 test("setPrivate flips visibility back to private", { skip: !hasDb }, async (t) => {
   t.after(cleanup);
-  await createPod({ slug: "__test__qm", name: "M", domain: "music", description: "" });
-  await createBean({ slug: "__test__qa", name: "A", podSlug: "__test__qm" });
-  await setPublic(["__test__qm"], ["__test__qa"]);
-  await setPrivate(["__test__qm"], ["__test__qa"]);
+  await createPod({ slug: "__test__qm", name: "M", plantSlug: null, description: "" });
+  await createBean({ slug: "__test__qa", name: "A", podSlug: "__test__qm", plantSlug: null });
+  await setPublic([], ["__test__qm"], ["__test__qa"]);
+  await setPrivate([], ["__test__qm"], ["__test__qa"]);
   const db = await getDb();
   const m = await db.collection("pods").findOne({ slug: "__test__qm" });
   const a = await db.collection("beans").findOne({ slug: "__test__qa" });
@@ -90,7 +90,7 @@ test("setPrivate flips visibility back to private", { skip: !hasDb }, async (t) 
 });
 
 test("setPrivate is a no-op on empty arrays", { skip: !hasDb }, async () => {
-  await setPrivate([], []); // must not throw
+  await setPrivate([], [], []); // must not throw
 });
 
 test("deleteVersion removes only the targeted sprout doc", { skip: !hasDb }, async (t) => {
@@ -120,9 +120,9 @@ test("deleteVersion on a missing slug does not throw", { skip: !hasDb }, async (
 
 test("a duplicate slug throws SlugExistsError", { skip: !hasDb }, async (t) => {
   t.after(cleanup);
-  await createPod({ slug: "__test__dup", name: "M", domain: "music", description: "" });
+  await createPod({ slug: "__test__dup", name: "M", plantSlug: null, description: "" });
   await assert.rejects(
-    () => createPod({ slug: "__test__dup", name: "M2", domain: "music", description: "" }),
+    () => createPod({ slug: "__test__dup", name: "M2", plantSlug: null, description: "" }),
     (err) => err instanceof SlugExistsError && err.slug === "__test__dup",
   );
 });

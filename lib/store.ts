@@ -3,7 +3,9 @@ import {
   buildDataset,
   filterPublic,
   type Bean,
+  type Bee,
   type Dataset,
+  type Plant,
   type Pod,
   type RawGarden,
   type Sprout,
@@ -11,12 +13,14 @@ import {
 
 export async function loadRawGarden(): Promise<RawGarden> {
   const db = await getDb();
-  const [pods, beans, sprouts] = await Promise.all([
+  const [plants, pods, beans, sprouts, bees] = await Promise.all([
+    db.collection<Plant>("plants").find({}, { projection: { _id: 0 } }).toArray(),
     db.collection<Pod>("pods").find({}, { projection: { _id: 0 } }).toArray(),
     db.collection<Bean>("beans").find({}, { projection: { _id: 0 } }).toArray(),
     db.collection<Sprout>("sprouts").find({}, { projection: { _id: 0 } }).toArray(),
+    db.collection<Bee>("bees").find({}, { projection: { _id: 0 } }).toArray(),
   ]);
-  return { pods, beans, sprouts };
+  return { plants, pods, beans, sprouts, bees };
 }
 
 // Public site: published-only.

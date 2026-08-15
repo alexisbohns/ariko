@@ -25,8 +25,8 @@ function displayValue(key: string, value: unknown): string | number | boolean | 
 // One dump row per property — plus, for relations (G2), one row PER edge:
 // "relation: kind → ref". The dataset is post-scrub (filterPublic), so every
 // ref rendered here points at something public.
-function dumpRows(version: Record<string, unknown>): ReactNode[] {
-  return Object.entries(version).flatMap(([key, value]) => {
+function dumpRows(sprout: Record<string, unknown>): ReactNode[] {
+  return Object.entries(sprout).flatMap(([key, value]) => {
     if (key === "relations" && Array.isArray(value)) {
       return (value as Relation[]).map((rel, i) => (
         <li key={`relation-${i}`}>
@@ -44,22 +44,22 @@ function dumpRows(version: Record<string, unknown>): ReactNode[] {
   });
 }
 
-export default async function AtomPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function BeanPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const data = await getPublicDataset();
-  const atom = data.getBean(id);
-  if (!atom) notFound();
+  const bean = data.getBean(id);
+  if (!bean) notFound();
 
-  const versions = data.sproutsForBean(atom.slug);
+  const sprouts = data.sproutsForBean(bean.slug);
 
   return (
     <article>
-      <h1>{resolveText(atom.name)}</h1>
+      <h1>{resolveText(bean.name)}</h1>
 
-      {versions.map((version) => (
-        <section key={version.slug}>
-          <h2>{resolveText(version.name)}</h2>
-          <ul>{dumpRows(version)}</ul>
+      {sprouts.map((sprout) => (
+        <section key={sprout.slug}>
+          <h2>{resolveText(sprout.name)}</h2>
+          <ul>{dumpRows(sprout)}</ul>
         </section>
       ))}
     </article>

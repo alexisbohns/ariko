@@ -1,20 +1,19 @@
 import { getFullDataset } from "@/lib/store";
 import { resolveText, type TimelineEntry } from "@/lib/data";
-import { filterVaultEntries, distinctTags } from "@/lib/vault";
+import { filterVaultEntries, distinctPlants, distinctTags } from "@/lib/vault";
 
 export const dynamic = "force-dynamic";
 
 const STATE_OPTIONS = ["all", "draft", "private", "published"];
-const DOMAIN_OPTIONS = ["all", "music", "design", "podcast"];
 
-type Active = { state?: string; domain?: string; tag?: string };
+type Active = { state?: string; plant?: string; tag?: string };
 
 // Build a filter link that sets one dimension to `value` (or clears it when "all")
 // while preserving the other active filters. Zero-JS — plain hrefs.
 function vaultHref(active: Active, key: keyof Active, value: string): string {
   const merged: Active = { ...active, [key]: value };
   const params = new URLSearchParams();
-  for (const k of ["state", "domain", "tag"] as const) {
+  for (const k of ["state", "plant", "tag"] as const) {
     const v = merged[k];
     if (v && v !== "all") params.set(k, v);
   }
@@ -25,7 +24,7 @@ function vaultHref(active: Active, key: keyof Active, value: string): string {
 export default async function VaultPage({
   searchParams,
 }: {
-  searchParams: Promise<{ state?: string; domain?: string; tag?: string }>;
+  searchParams: Promise<{ state?: string; plant?: string; tag?: string }>;
 }) {
   const active = await searchParams;
 
@@ -49,6 +48,7 @@ export default async function VaultPage({
   }
 
   const entries = filterVaultEntries(all, active);
+  const plantOptions = ["all", ...distinctPlants(all)];
   const tagOptions = ["all", ...distinctTags(all)];
 
   const filterRow = (label: string, key: keyof Active, options: string[]) => {
@@ -73,7 +73,7 @@ export default async function VaultPage({
       <h1>Vault</h1>
 
       {filterRow("state", "state", STATE_OPTIONS)}
-      {filterRow("domain", "domain", DOMAIN_OPTIONS)}
+      {filterRow("plant", "plant", plantOptions)}
       {filterRow("tag", "tag", tagOptions)}
 
       <p>
@@ -81,15 +81,15 @@ export default async function VaultPage({
       </p>
 
       {entries.length === 0 ? (
-        <p>No matching versions.</p>
+        <p>No matching sprouts.</p>
       ) : (
         <table>
           <thead>
             <tr>
-              <th>version</th>
+              <th>sprout</th>
               <th>state</th>
-              <th>domain</th>
-              <th>atom</th>
+              <th>plant</th>
+              <th>bean</th>
               <th>date</th>
               <th>tags</th>
             </tr>
@@ -105,7 +105,7 @@ export default async function VaultPage({
                   )}
                 </td>
                 <td>{e.sprout.state ?? "—"}</td>
-                <td>{e.domain ?? "—"}</td>
+                <td>{e.plant?.slug ?? "—"}</td>
                 <td>{e.bean?.slug ?? "—"}</td>
                 <td>{e.sprout.date}</td>
                 <td>{(e.sprout.tags ?? []).join(", ") || "—"}</td>

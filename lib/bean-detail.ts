@@ -1,8 +1,8 @@
-import { resolveText, type Bean, type Dataset, type Domain, type Sprout } from "./data";
+import { resolveText, type Bean, type Dataset, type Sprout } from "./data";
 
 export interface BeanDetailView {
   bean: Bean; // name resolved to a display string at build time (B1)
-  domain: Domain | null;
+  plant: string | null; // resolved plant slug (direct parent wins, then via pod)
   podParents: string[]; // bean.parents entries with the "pod:" prefix, as-is (incl. dangling)
   sprouts: Sprout[]; // newest-first (dataset.sproutsForBean is already sorted); name/description resolved at build time (B1)
 }
@@ -15,7 +15,7 @@ export function beanDetail(dataset: Dataset, slug: string): BeanDetailView | nul
   if (!bean) return null;
   return {
     bean: { ...bean, name: resolveText(bean.name) },
-    domain: dataset.domainForBean(slug),
+    plant: dataset.plantForBean(slug)?.slug ?? null,
     podParents: (bean.parents ?? []).filter((p) => p.startsWith("pod:")),
     sprouts: dataset
       .sproutsForBean(slug)

@@ -3,13 +3,15 @@ import assert from "node:assert/strict";
 import { filterPublic, type RawGarden } from "./data";
 import { toGraph } from "./graph";
 
-test("toGraph maps a pod to exactly {id, kind, name, domain}", () => {
+test("toGraph maps a pod to exactly {id, kind, name}", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "m", name: "M", domain: "music", description: "secret notes" }],
+    pods: [{ slug: "m", name: "M", description: "secret notes", parents: ["plant:ghost"] }],
   };
   const { nodes } = toGraph(seed);
-  assert.deepEqual(nodes, [{ id: "pod:m", kind: "pod", name: "M", domain: "music" }]);
-  assert.equal("description" in nodes[0], false);
+  assert.deepEqual(nodes, [{ id: "pod:m", kind: "pod", name: "M" }]);
+  for (const key of ["description", "parents", "domain"]) {
+    assert.equal(key in nodes[0], false, `${key} must not leak into the node`);
+  }
 });
 
 test("toGraph maps an bean to exactly {id, kind, name} — no visibility/parents leakage", () => {
@@ -52,7 +54,7 @@ test("toGraph maps a sprout to exactly {id, kind, name, type, date} — no conte
 
 test("toGraph resolves a localized name to a plain string — GraphNode.name stays string (B1)", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "m", name: { en: "M en", fr: "M fr" }, domain: "music", description: { fr: "notes" } }],
+    pods: [{ slug: "m", name: { en: "M en", fr: "M fr" }, description: { fr: "notes" } }],
     beans: [{ slug: "a", name: { fr: "A fr" }, parents: ["pod:m"] }],
     sprouts: [
       { slug: "v", name: { en: "V en", fr: "V fr" }, type: "song", date: "2026-01-01", description: "", parents: ["bean:a"], state: "published" },
@@ -61,7 +63,7 @@ test("toGraph resolves a localized name to a plain string — GraphNode.name sta
   const byId = new Map(toGraph(seed).nodes.map((n) => [n.id, n]));
   // Shape unchanged at ALL three kinds: the resolved string sits where the plain
   // string always did, and localized inputs leak no extra fields onto the node.
-  assert.deepEqual(byId.get("pod:m"), { id: "pod:m", kind: "pod", name: "M en", domain: "music" });
+  assert.deepEqual(byId.get("pod:m"), { id: "pod:m", kind: "pod", name: "M en" });
   assert.deepEqual(byId.get("bean:a"), { id: "bean:a", kind: "bean", name: "A fr" }); // en missing → display fallback
   assert.deepEqual(byId.get("sprout:v"), {
     id: "sprout:v",
@@ -74,7 +76,7 @@ test("toGraph resolves a localized name to a plain string — GraphNode.name sta
 
 test("toGraph includes tags only when non-empty", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "m", name: "M", domain: "design", description: "", tags: ["x", "y"] }],
+    pods: [{ slug: "m", name: "M", description: "", tags: ["x", "y"] }],
     beans: [{ slug: "a-empty", name: "A", parents: [], tags: [] }],
     sprouts: [
       { slug: "v-none", name: "V", type: "song", date: "2026-01-01", description: "", parents: [] },
@@ -99,7 +101,7 @@ test("toGraph includes tags only when non-empty", () => {
 
 test("toGraph emits containment edges pod→atom and bean→sprout, in child input order", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "m", name: "M", domain: "music", description: "" }],
+    pods: [{ slug: "m", name: "M", description: "" }],
     beans: [
       { slug: "a1", name: "A1", parents: ["pod:m"] },
       { slug: "a2", name: "A2", parents: ["pod:m"] },
@@ -125,8 +127,8 @@ test("toGraph emits containment edges pod→atom and bean→sprout, in child inp
 test("toGraph emits one edge per existing parent for a multi-parent bean", () => {
   const seed: RawGarden = {
     pods: [
-      { slug: "m1", name: "M1", domain: "music", description: "" },
-      { slug: "m2", name: "M2", domain: "design", description: "" },
+      { slug: "m1", name: "M1", description: "" },
+      { slug: "m2", name: "M2", description: "" },
     ],
     beans: [{ slug: "a", name: "A", parents: ["pod:m1", "pod:m2"] }],
   };
@@ -154,7 +156,7 @@ test("toGraph emits one edge per existing bean parent for a multi-parent sprout"
 
 test("toGraph dedupes duplicate (source, target) pairs", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "m", name: "M", domain: "music", description: "" }],
+    pods: [{ slug: "m", name: "M", description: "" }],
     beans: [{ slug: "a", name: "A", parents: ["pod:m", "pod:m"] }],
     sprouts: [
       { slug: "v", name: "V", type: "song", date: "2026-01-01", description: "", parents: ["bean:a", "bean:a"], state: "published" },
@@ -183,7 +185,7 @@ test("toGraph emits no edge for a dangling parent ref but keeps the node", () =>
 
 test("toGraph ignores parent refs outside the containment grammar", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "m", name: "M", domain: "music", description: "" }],
+    pods: [{ slug: "m", name: "M", description: "" }],
     sprouts: [
       // "pod:" is not a valid container for a version — no edge even though both nodes exist.
       { slug: "v", name: "V", type: "song", date: "2026-01-01", description: "", parents: ["pod:m"], state: "published" },
@@ -201,8 +203,8 @@ test("toGraph returns an empty graph for empty or absent collections", () => {
 // versions and privacy cascades must yield neither nodes nor edges.
 const mixed: RawGarden = {
   pods: [
-    { slug: "m-pub", name: "Pub", domain: "music", description: "" },
-    { slug: "m-priv", name: "Priv", domain: "music", description: "", visibility: "private" },
+    { slug: "m-pub", name: "Pub", description: "" },
+    { slug: "m-priv", name: "Priv", description: "", visibility: "private" },
   ],
   beans: [
     { slug: "a-pub", name: "A pub", parents: ["pod:m-pub"] },
@@ -234,7 +236,7 @@ test("toGraph(filterPublic(raw)) emits only published content", () => {
 // emitted AFTER all containment edges, gated on both ends being nodes.
 test("toGraph emits relation edges with their kind, after containment edges", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "m", name: "M", domain: "music", description: "" }],
+    pods: [{ slug: "m", name: "M", description: "" }],
     beans: [{ slug: "a", name: "A", parents: ["pod:m"] }],
     sprouts: [
       { slug: "v0", name: "V0", type: "song", date: "2026-01-01", description: "", parents: ["bean:a"], state: "published" },
@@ -319,7 +321,7 @@ test("toGraph dedupes relation edges on (source, target, kind) — same pair, tw
 // the serialized JSON.
 test("toGraph(filterPublic(raw)) keeps only relation edges to surviving targets, leaking no slug", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "g-m", name: "M", domain: "music", description: "" }],
+    pods: [{ slug: "g-m", name: "M", description: "" }],
     beans: [
       { slug: "g-a", name: "A", parents: ["pod:g-m"] },
       { slug: "g-a-hidden", name: "A hidden", parents: ["pod:g-m"], visibility: "private" },
@@ -372,4 +374,76 @@ test("toGraph(filterPublic(raw)) never emits a filtered id as a node OR an edge 
   ]) {
     assert.equal(emitted.has(filtered), false, `${filtered} must not be public`);
   }
+});
+
+// --- Plant + bee projection (PR2). ---
+
+test("toGraph maps a plant to exactly {id, kind, name, natures} — relations/description never leak", () => {
+  const seed: RawGarden = {
+    plants: [{ slug: "melogram", name: "Melogram", natures: ["work", "tool"], description: "secret", relations: [{ kind: "distributes", ref: "plant:bohns-music" }] }],
+  };
+  const { nodes } = toGraph(seed);
+  assert.deepEqual(nodes, [{ id: "plant:melogram", kind: "plant", name: "Melogram", natures: ["work", "tool"] }]);
+  for (const key of ["description", "relations", "visibility"]) {
+    assert.equal(key in nodes[0], false, `${key} must not leak into the node`);
+  }
+});
+
+test("toGraph maps a bee to exactly {id, kind, name, type, status} — levers/serves/engine never leak", () => {
+  const seed: RawGarden = {
+    bees: [{ slug: "si", name: "Song identifier", kind: "capability", status: "live", engine: "x", schedule: "daily", levers: [{ label: "l" }], serves: ["plant:femfolk"], description: "d", visibility: "public" }],
+  };
+  const { nodes } = toGraph(seed);
+  assert.deepEqual(nodes, [{ id: "bee:si", kind: "bee", name: "Song identifier", type: "capability", status: "live" }]);
+  for (const key of ["levers", "serves", "engine", "schedule", "description", "visibility"]) {
+    assert.equal(key in nodes[0], false, `${key} must not leak into the node`);
+  }
+});
+
+test("toGraph emits plant containment for pods and direct beans", () => {
+  const seed: RawGarden = {
+    plants: [{ slug: "pl", name: "P", natures: ["work"], description: "" }],
+    pods: [{ slug: "m", name: "M", description: "", parents: ["plant:pl", "plant:ghost"] }],
+    beans: [{ slug: "direct", name: "D", parents: ["plant:pl"] }],
+  };
+  const { edges } = toGraph(seed);
+  assert.deepEqual(edges, [
+    { source: "plant:pl", target: "pod:m", kind: "contains" },
+    { source: "plant:pl", target: "bean:direct", kind: "contains" },
+  ]);
+});
+
+test("toGraph renders plant relation edges (distributes/chronicles) with both-ends prune", () => {
+  const seed: RawGarden = {
+    plants: [
+      { slug: "melogram", name: "Mg", natures: ["work", "tool"], description: "", relations: [{ kind: "distributes", ref: "plant:bohns-music" }, { kind: "chronicles", ref: "plant:ghost" }] },
+      { slug: "bohns-music", name: "BM", natures: ["work"], description: "" },
+    ],
+  };
+  assert.deepEqual(toGraph(seed).edges, [
+    { source: "plant:melogram", target: "plant:bohns-music", kind: "distributes" },
+  ]);
+});
+
+test("toGraph renders bee serves edges with both-ends prune", () => {
+  const seed: RawGarden = {
+    plants: [{ slug: "femfolk", name: "F", natures: ["work"], description: "" }],
+    bees: [{ slug: "si", name: "SI", kind: "capability", status: "live", levers: [], serves: ["plant:femfolk", "plant:ghost"], description: "" }],
+  };
+  assert.deepEqual(toGraph(seed).edges, [
+    { source: "bee:si", target: "plant:femfolk", kind: "serves" },
+  ]);
+});
+
+test("toGraph composed with filterPublic shows only public bees (the /api/graph contract)", () => {
+  const seed: RawGarden = {
+    plants: [{ slug: "pl", name: "P", natures: ["work"], description: "" }],
+    bees: [
+      { slug: "pub", name: "Pub", kind: "workflow", status: "live", levers: [], serves: ["plant:pl"], description: "", visibility: "public" },
+      { slug: "hidden", name: "H", kind: "adapter", status: "planned", levers: [], serves: ["plant:pl"], description: "" },
+    ],
+  };
+  const ids = toGraph(filterPublic(seed)).nodes.map((n) => n.id);
+  assert.ok(ids.includes("bee:pub"));
+  assert.equal(ids.includes("bee:hidden"), false);
 });

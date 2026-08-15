@@ -1,5 +1,5 @@
 import { getDb } from "./db";
-import type { Bean, Domain, Pod, Sprout, Visibility } from "./data";
+import type { Bean, Plant, Pod, Sprout, Visibility } from "./data";
 import type { SproutInput } from "./promote";
 import type { SproutPatch } from "./sprout-edit";
 
@@ -26,6 +26,13 @@ export async function ensureBotanicalIndexes(): Promise<void> {
   await db.collection("pods").createIndex({ slug: 1 }, { unique: true });
   await db.collection("beans").createIndex({ slug: 1 }, { unique: true });
   await db.collection("sprouts").createIndex({ slug: 1 }, { unique: true });
+  await db.collection("plants").createIndex({ slug: 1 }, { unique: true });
+  await db.collection("bees").createIndex({ slug: 1 }, { unique: true });
+}
+
+export async function listPlants(): Promise<Plant[]> {
+  const db = await getDb();
+  return db.collection<Plant>("plants").find({}, { projection: { _id: 0 } }).sort({ slug: 1 }).toArray();
 }
 
 export async function listPods(): Promise<Pod[]> {
@@ -41,13 +48,19 @@ export async function listBeans(): Promise<Bean[]> {
 export interface NewPod {
   slug: string;
   name: string;
-  domain: Domain;
+  plantSlug: string | null;
   description: string;
 }
 
 export async function createPod(input: NewPod): Promise<Pod> {
   const db = await getDb();
-  const doc: Pod = { ...input, visibility: "private" };
+  const doc: Pod = {
+    slug: input.slug,
+    name: input.name,
+    parents: input.plantSlug ? [`plant:${input.plantSlug}`] : [],
+    description: input.description,
+    visibility: "private",
+  };
   try {
     await db.collection<Pod>("pods").insertOne({ ...doc });
   } catch (err) {
@@ -61,6 +74,7 @@ export interface NewBean {
   slug: string;
   name: string;
   podSlug: string | null;
+  plantSlug: string | null; // used ONLY when podSlug is null — the pod carries the plant otherwise
 }
 
 export async function createBean(input: NewBean): Promise<Bean> {
@@ -68,7 +82,7 @@ export async function createBean(input: NewBean): Promise<Bean> {
   const doc: Bean = {
     slug: input.slug,
     name: input.name,
-    parents: input.podSlug ? [`pod:${input.podSlug}`] : [],
+    parents: input.podSlug ? [`pod:${input.podSlug}`] : input.plantSlug ? [`plant:${input.plantSlug}`] : [],
     visibility: "private",
   };
   try {
@@ -108,7 +122,7 @@ export async function updateVersion(slug: string, patch: SproutPatch): Promise<v
 
 // Hard delete (roadmap A2). Idempotent — deleting a missing slug is a no-op
 // (deleteOne matches 0). Callers needing the visibility recompute must seed the
-// version's atom parents and state BEFORE calling this; afterwards the version no
+// sprout's bean parents and state BEFORE calling this; afterwards the sprout no
 // longer exists for unpublishCascade to find. Dangling refs to the deleted slug
 // (seed promotedTo, future relations[]) are tolerated on all read paths.
 export async function deleteVersion(slug: string): Promise<void> {
@@ -118,11 +132,15 @@ export async function deleteVersion(slug: string): Promise<void> {
 
 // Shared write half of the visibility cascades. No-op on empty arrays.
 async function setVisibility(
+  plantSlugs: string[],
   podSlugs: string[],
   beanSlugs: string[],
   visibility: Visibility,
 ): Promise<void> {
   const db = await getDb();
+  if (plantSlugs.length > 0) {
+    await db.collection("plants").updateMany({ slug: { $in: plantSlugs } }, { $set: { visibility } });
+  }
   if (podSlugs.length > 0) {
     await db.collection("pods").updateMany({ slug: { $in: podSlugs } }, { $set: { visibility } });
   }
@@ -131,12 +149,12 @@ async function setVisibility(
   }
 }
 
-// The write half of the publish cascade.
-export async function setPublic(podSlugs: string[], beanSlugs: string[]): Promise<void> {
-  return setVisibility(podSlugs, beanSlugs, "public");
+// The write half of the publish cascade — spans all three content tiers (plants included).
+export async function setPublic(plantSlugs: string[], podSlugs: string[], beanSlugs: string[]): Promise<void> {
+  return setVisibility(plantSlugs, podSlugs, beanSlugs, "public");
 }
 
 // The write half of the un-publish cascade — the exact mirror of setPublic.
-export async function setPrivate(podSlugs: string[], beanSlugs: string[]): Promise<void> {
-  return setVisibility(podSlugs, beanSlugs, "private");
+export async function setPrivate(plantSlugs: string[], podSlugs: string[], beanSlugs: string[]): Promise<void> {
+  return setVisibility(plantSlugs, podSlugs, beanSlugs, "private");
 }

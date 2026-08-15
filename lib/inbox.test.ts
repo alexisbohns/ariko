@@ -113,7 +113,7 @@ test("rejects junk titles", () => {
   }
 });
 
-test("suggestion accepts legacy wire keys moleculeSlug/atomSlug as podSlug/beanSlug", () => {
+test("suggestion accepts legacy wire keys moleculeSlug/atomSlug as plantSlug/beanSlug", () => {
   const legacy = validateInboxPayload({
     title: "t",
     source: { kind: "github", externalId: "o/r#1" },
@@ -121,7 +121,7 @@ test("suggestion accepts legacy wire keys moleculeSlug/atomSlug as podSlug/beanS
   });
   assert.ok(legacy.ok);
   assert.deepEqual(legacy.ok && legacy.value.suggested, {
-    podSlug: "pbbls",
+    plantSlug: "pbbls",
     beanSlug: "ios",
     type: "feature",
   });
@@ -131,4 +131,36 @@ test("suggestion accepts legacy wire keys moleculeSlug/atomSlug as podSlug/beanS
     suggested: { podSlug: "pbbls" },
   });
   assert.deepEqual(canonical.ok && canonical.value.suggested, { podSlug: "pbbls" });
+});
+
+test("suggested.moleculeSlug maps to plantSlug — repo slugs are plants since the re-tiering", () => {
+  const r = validateInboxPayload({
+    title: "t",
+    source: { kind: "manual" },
+    suggested: { moleculeSlug: "pbbls", atomSlug: "pbbls-webapp" },
+  });
+  assert.ok(r.ok);
+  if (r.ok) assert.deepEqual(r.value.suggested, { plantSlug: "pbbls", beanSlug: "pbbls-webapp" });
+});
+
+test("a blank canonical plantSlug shadows the legacy moleculeSlug (?? keeps the empty string)", () => {
+  const r = validateInboxPayload({
+    title: "t",
+    source: { kind: "manual" },
+    suggested: { plantSlug: "", moleculeSlug: "x" },
+  });
+  assert.ok(r.ok);
+  // "" is not nullish, so ?? never reaches moleculeSlug; the blank then fails the
+  // non-empty filter and NOTHING survives — suggested itself normalizes away.
+  if (r.ok) assert.equal(r.value.suggested, undefined);
+});
+
+test("canonical plantSlug wins over the legacy moleculeSlug; podSlug passes through untouched", () => {
+  const r = validateInboxPayload({
+    title: "t",
+    source: { kind: "manual" },
+    suggested: { plantSlug: "ariko", moleculeSlug: "ignored", podSlug: "celesta" },
+  });
+  assert.ok(r.ok);
+  if (r.ok) assert.deepEqual(r.value.suggested, { plantSlug: "ariko", podSlug: "celesta" });
 });

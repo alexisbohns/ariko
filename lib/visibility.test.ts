@@ -21,8 +21,8 @@ test("resolveText falls through blank parts (a hand-authored empty en never blan
 
 const raw: RawGarden = {
   pods: [
-    { slug: "m-pub", name: "Pub", domain: "music", description: "" },
-    { slug: "m-priv", name: "Priv", domain: "music", description: "", visibility: "private" },
+    { slug: "m-pub", name: "Pub", description: "" },
+    { slug: "m-priv", name: "Priv", description: "", visibility: "private" },
   ],
   beans: [
     { slug: "a-pub", name: "A pub", parents: ["pod:m-pub"] },
@@ -56,7 +56,7 @@ test("filterPublic never leaks a draft, private, or stateless sprout", () => {
 
 test("filterPublic drops a published sprout whose only bean-parent is private", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "m", name: "M", domain: "music", description: "" }],
+    pods: [{ slug: "m", name: "M", description: "" }],
     beans: [{ slug: "a-priv", name: "A", parents: ["pod:m"], visibility: "private" }],
     sprouts: [{ slug: "v", name: "V", type: "song", date: "2026-01-01", description: "", parents: ["bean:a-priv"], state: "published" }],
   };
@@ -67,7 +67,7 @@ test("filterPublic drops a published sprout whose only bean-parent is private", 
 
 test("filterPublic drops an bean whose only pod-parent is private (no standalone leak)", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "m-priv", name: "M", domain: "music", description: "", visibility: "private" }],
+    pods: [{ slug: "m-priv", name: "M", description: "", visibility: "private" }],
     beans: [{ slug: "a", name: "A", parents: ["pod:m-priv"] }],
     sprouts: [],
   };
@@ -78,7 +78,7 @@ test("filterPublic drops an bean whose only pod-parent is private (no standalone
 
 test("filterPublic drops a published sprout transitively when its bean is cascaded out", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "m-priv", name: "M", domain: "music", description: "", visibility: "private" }],
+    pods: [{ slug: "m-priv", name: "M", description: "", visibility: "private" }],
     beans: [{ slug: "a", name: "A", parents: ["pod:m-priv"] }],
     sprouts: [{ slug: "v", name: "V", type: "song", date: "2026-01-01", description: "", parents: ["bean:a"], state: "published" }],
   };
@@ -88,8 +88,8 @@ test("filterPublic drops a published sprout transitively when its bean is cascad
 test("filterPublic keeps a multi-parent bean if at least one pod-parent is public", () => {
   const seed: RawGarden = {
     pods: [
-      { slug: "m-pub", name: "Pub", domain: "music", description: "" },
-      { slug: "m-priv", name: "Priv", domain: "music", description: "", visibility: "private" },
+      { slug: "m-pub", name: "Pub", description: "" },
+      { slug: "m-priv", name: "Priv", description: "", visibility: "private" },
     ],
     beans: [{ slug: "a", name: "A", parents: ["pod:m-priv", "pod:m-pub"] }],
     sprouts: [],
@@ -112,8 +112,8 @@ test("filterPublic keeps an bean whose only pod-parent is a dangling (nonexisten
 function relSeed(): RawGarden {
   return {
     pods: [
-      { slug: "rm-pub", name: "M pub", domain: "music", description: "" },
-      { slug: "rm-priv", name: "M priv", domain: "music", description: "", visibility: "private" },
+      { slug: "rm-pub", name: "M pub", description: "" },
+      { slug: "rm-priv", name: "M priv", description: "", visibility: "private" },
     ],
     beans: [
       { slug: "ra-pub", name: "A pub", parents: ["pod:rm-pub"] },
@@ -145,6 +145,7 @@ function relSeed(): RawGarden {
           { kind: "featured-in", ref: "pod:rm-priv" }, // dropped: private molecule
           { kind: "related-to", ref: "sprout:ghost" }, // dropped: dangling
           { kind: "related-to", ref: "seed:x" }, // dropped: unknown prefix
+          { kind: "powered-by", ref: "bee:song-identifier" }, // dropped: bees are never public relation targets
         ],
       },
     ],
@@ -153,7 +154,7 @@ function relSeed(): RawGarden {
 
 test("filterPublic tolerates malformed relations fail-closed (one bad doc must not 500 the public site)", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "m", name: "M", domain: "music", description: "" }],
+    pods: [{ slug: "m", name: "M", description: "" }],
     beans: [{ slug: "a", name: "A", parents: ["pod:m"] }],
     sprouts: [
       { slug: "v-str", name: "V", type: "t", date: "2026-01-01", description: "", parents: ["bean:a"], state: "published", relations: "junk" as never },
@@ -199,6 +200,115 @@ test("filterPublic keeps a present-but-empty relations array as-is", () => {
 
 test("filterPublic never mutates the input seed when scrubbing relations (pure)", () => {
   const seed = relSeed();
+  const snapshot = structuredClone(seed);
+  filterPublic(seed);
+  assert.deepEqual(seed, snapshot);
+});
+
+// --- Plant tier (PR2): the same fail-closed rules, one tier up. ---
+
+test("filterPublic drops a private plant and cascades out its pods, beans and sprouts", () => {
+  const seed: RawGarden = {
+    plants: [{ slug: "pl-priv", name: "P", natures: ["work"], description: "", visibility: "private" }],
+    pods: [{ slug: "m", name: "M", description: "", parents: ["plant:pl-priv"] }],
+    beans: [
+      { slug: "a", name: "A", parents: ["pod:m"] },
+      { slug: "direct", name: "D", parents: ["plant:pl-priv"] },
+    ],
+    sprouts: [{ slug: "v", name: "V", type: "song", date: "2026-01-01", description: "", parents: ["bean:a"], state: "published" }],
+  };
+  const out = filterPublic(seed);
+  assert.deepEqual((out.plants ?? []).map((p) => p.slug), []);
+  assert.deepEqual((out.pods ?? []).map((p) => p.slug), []);
+  assert.deepEqual((out.beans ?? []).map((b) => b.slug), []);
+  assert.deepEqual((out.sprouts ?? []).map((v) => v.slug), []);
+});
+
+test("filterPublic keeps a pod whose only plant-parent is a dangling ref (matches the pod-tier rule)", () => {
+  const seed: RawGarden = {
+    plants: [],
+    pods: [{ slug: "m", name: "M", description: "", parents: ["plant:ghost"] }],
+  };
+  assert.deepEqual((filterPublic(seed).pods ?? []).map((p) => p.slug), ["m"]);
+});
+
+test("filterPublic keeps a bean sheltered by a public parent in EITHER tier", () => {
+  const seed: RawGarden = {
+    plants: [{ slug: "pl", name: "P", natures: ["work"], description: "" }],
+    pods: [{ slug: "m-priv", name: "M", description: "", visibility: "private" }],
+    beans: [{ slug: "a", name: "A", parents: ["pod:m-priv", "plant:pl"] }],
+  };
+  assert.deepEqual((filterPublic(seed).beans ?? []).map((b) => b.slug), ["a"]);
+});
+
+test("filterPublic scrubs plant relations to surviving targets, exactly like sprout relations", () => {
+  const seed: RawGarden = {
+    plants: [
+      {
+        slug: "melogram", name: "Melogram", natures: ["work", "tool"], description: "",
+        relations: [
+          { kind: "distributes", ref: "plant:bohns-music" }, // kept
+          { kind: "chronicles", ref: "plant:hidden" }, // dropped: private target
+          { kind: "uses", ref: "pod:ghost" }, // dropped: dangling
+        ],
+      },
+      { slug: "bohns-music", name: "BM", natures: ["work"], description: "" },
+      { slug: "hidden", name: "H", natures: ["tool"], description: "", visibility: "private" },
+    ],
+  };
+  const melogram = (filterPublic(seed).plants ?? []).find((p) => p.slug === "melogram");
+  assert.deepEqual(melogram?.relations, [{ kind: "distributes", ref: "plant:bohns-music" }]);
+});
+
+test("filterPublic keeps only explicitly public bees (default is PRIVATE) and scrubs serves to kept plants", () => {
+  const seed: RawGarden = {
+    plants: [
+      { slug: "femfolk", name: "F", natures: ["work"], description: "" },
+      { slug: "secret", name: "S", natures: ["tool"], description: "", visibility: "private" },
+    ],
+    bees: [
+      { slug: "song-identifier", name: "SI", kind: "capability", status: "live", levers: [], serves: ["plant:femfolk", "plant:secret", "plant:ghost"], description: "", visibility: "public" },
+      { slug: "default-private", name: "DP", kind: "routine", status: "planned", levers: [], serves: ["plant:femfolk"], description: "" },
+    ],
+  };
+  const out = filterPublic(seed);
+  assert.deepEqual((out.bees ?? []).map((b) => b.slug), ["song-identifier"]);
+  assert.deepEqual(out.bees?.[0]?.serves, ["plant:femfolk"]); // private and dangling plants scrubbed
+});
+
+test("filterPublic tolerates malformed bee serves entries fail-closed (one bad doc must not 500 the public site)", () => {
+  const seed: RawGarden = {
+    plants: [{ slug: "femfolk", name: "F", natures: ["work"], description: "" }],
+    bees: [
+      {
+        slug: "b", name: "B", kind: "routine", status: "live", levers: [], description: "", visibility: "public",
+        serves: [null, 5, "plant:femfolk"] as unknown as string[],
+      },
+    ],
+  };
+  const out = filterPublic(seed); // must not throw
+  assert.deepEqual(out.bees?.[0]?.serves, ["plant:femfolk"]);
+});
+
+test("filterPublic never mutates the input when scrubbing plant relations or bee serves (pure)", () => {
+  const seed: RawGarden = {
+    plants: [
+      {
+        slug: "pl", name: "P", natures: ["work"], description: "",
+        relations: [
+          { kind: "uses", ref: "plant:other" }, // kept
+          { kind: "uses", ref: "pod:ghost" }, // dropped: dangling — forces a scrub
+        ],
+      },
+      { slug: "other", name: "O", natures: ["tool"], description: "" },
+    ],
+    bees: [
+      {
+        slug: "b", name: "B", kind: "routine", status: "live", levers: [], description: "", visibility: "public",
+        serves: ["plant:pl", "plant:ghost"], // dangling entry forces a scrub
+      },
+    ],
+  };
   const snapshot = structuredClone(seed);
   filterPublic(seed);
   assert.deepEqual(seed, snapshot);

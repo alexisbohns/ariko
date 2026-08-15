@@ -2,8 +2,6 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import yaml from "js-yaml";
 
-export type Domain = "music" | "design" | "podcast";
-
 export type Visibility = "private" | "public";
 export type SproutState = "draft" | "private" | "published";
 
@@ -46,10 +44,47 @@ export interface Relation {
   ref: string;
 }
 
+export type PlantNature = "work" | "tool";
+
+// Top tier of the practice graph (slice 1 PR2). Plants are roots — they carry
+// no parents[]; pods and beans parent INTO them. relations[] carries the
+// articulation vocabulary (distributes | chronicles | uses | publishes-to |
+// monitors) as free strings, same G2 rule as sprout relations.
+export interface Plant {
+  slug: string;
+  name: Text;
+  natures: PlantNature[]; // array: melogram is both work AND tool
+  description: Text;
+  visibility?: Visibility; // default treated as "public", same rule as pods
+  relations?: Relation[];
+  tags?: string[];
+}
+
+// Operational species (slice 1 PR2): integration bricks, NOT content. Outside
+// the publish cascades entirely, and default-PRIVATE (the opposite of every
+// content tier) — public exhibition is an explicit per-bee opt-in.
+export interface BeeLever {
+  label: string;
+  url?: string;
+  ref?: string; // workflow file path, routine id, …
+}
+export interface Bee {
+  slug: string;
+  name: Text;
+  kind: "adapter" | "routine" | "workflow" | "capability";
+  status: "planned" | "live" | "paused" | "broken";
+  engine?: string; // claude-routine | gemini-action | action | …
+  schedule?: string; // human-readable or cron
+  levers: BeeLever[];
+  serves: string[]; // ["plant:femfolk", …]
+  description: Text;
+  visibility?: Visibility; // default treated as "private"
+}
+
 export interface Pod {
   slug: string;
   name: Text; // bilingual since B1; plain strings remain valid (no migration)
-  domain: Domain;
+  parents?: string[]; // containment ONLY, e.g. ["plant:bohns-music"] (PR2)
   description: Text;
   visibility?: Visibility; // default treated as "public"
   tags?: string[];
@@ -58,7 +93,7 @@ export interface Pod {
 export interface Bean {
   slug: string;
   name: Text; // bilingual since B1; plain strings remain valid (no migration)
-  parents: string[]; // containment ONLY, e.g. ["pod:republic-of-masquerade"] — non-containment links belong in a future relations[] (graph runway)
+  parents: string[]; // containment ONLY: "pod:…" and/or "plant:…" refs — a bean may skip the pod tier
   visibility?: Visibility; // default treated as "public"
   tags?: string[];
 }
@@ -80,14 +115,17 @@ export interface Sprout {
 }
 
 export interface RawGarden {
+  plants?: Plant[];
   pods?: Pod[];
   beans?: Bean[];
   sprouts?: Sprout[];
+  bees?: Bee[];
 }
 
 export type SeedStatus = "inbox" | "promoted" | "discarded";
 
 export interface SeedSuggestion {
+  plantSlug?: string;
   podSlug?: string;
   beanSlug?: string;
   type?: string;
@@ -112,25 +150,32 @@ export interface Seed {
 export interface TimelineEntry {
   sprout: Sprout;
   bean: Bean | null;
-  domain: Domain | null;
+  plant: Plant | null;
 }
 
 export interface Dataset {
+  getPlants(): Plant[];
+  podsForPlant(slug: string): Pod[];
+  beansForPlant(slug: string): Bean[]; // beans parented DIRECTLY to the plant
+  unrootedPods(): Pod[]; // pods with no resolvable plant parent
+  plantForBean(slug: string): Plant | null;
   getPods(): Pod[];
   beansForPod(slug: string): Bean[];
-  standaloneBeans(): Bean[];
+  standaloneBeans(): Bean[]; // no resolvable pod NOR plant parent
   getBean(slug: string): Bean | undefined;
   sproutsForBean(slug: string): Sprout[];
   timelineSprouts(): TimelineEntry[];
-  domainForBean(slug: string): Domain | null;
 }
 
 // The prefixed-ref grammar, shared with the graph serializer (lib/graph.ts).
-// parents[] uses pod:/bean: only; sprout: appears in relations[] refs
-// (and as graph node ids) — nothing is ever contained BY a sprout.
+// parents[] uses plant:/pod:/bean: only; sprout: and bee: appear in
+// relations[] refs (and as graph node ids) — nothing is ever contained BY a
+// sprout or a bee.
+export const PLANT_PREFIX = "plant:";
 export const POD_PREFIX = "pod:";
 export const BEAN_PREFIX = "bean:";
 export const SPROUT_PREFIX = "sprout:";
+export const BEE_PREFIX = "bee:";
 
 export function parentsWithPrefix(parents: string[] | undefined, prefix: string): string[] {
   return (parents ?? []).filter((p) => p.startsWith(prefix)).map((p) => p.slice(prefix.length));
@@ -149,12 +194,34 @@ export function buildDataset(raw: RawGarden): Dataset {
   const podBySlug = new Map(pods.map((p) => [p.slug, p]));
   const beanBySlug = new Map(beans.map((b) => [b.slug, b]));
 
-  // pod slug -> beans (in garden order); only resolvable pod refs.
+  const plants = raw.plants ?? [];
+  const plantBySlug = new Map(plants.map((p) => [p.slug, p]));
+
+  // plant slug -> pods (in garden order); only resolvable plant refs.
+  const podsByPlant = new Map<string, Pod[]>();
+  const unrooted: Pod[] = [];
+  for (const pod of pods) {
+    const plantSlugs = parentsWithPrefix(pod.parents, PLANT_PREFIX).filter((s) => plantBySlug.has(s));
+    if (plantSlugs.length === 0) {
+      unrooted.push(pod);
+      continue;
+    }
+    for (const p of plantSlugs) {
+      const list = podsByPlant.get(p) ?? [];
+      list.push(pod);
+      podsByPlant.set(p, list);
+    }
+  }
+
+  // pod/plant slug -> beans (in garden order); only resolvable refs. A bean is
+  // standalone only when NEITHER tier resolves (a direct plant parent counts).
   const beansByPod = new Map<string, Bean[]>();
+  const beansByPlant = new Map<string, Bean[]>();
   const standalone: Bean[] = [];
   for (const bean of beans) {
     const podSlugs = parentsWithPrefix(bean.parents, POD_PREFIX).filter((s) => podBySlug.has(s));
-    if (podSlugs.length === 0) {
+    const plantSlugs = parentsWithPrefix(bean.parents, PLANT_PREFIX).filter((s) => plantBySlug.has(s));
+    if (podSlugs.length === 0 && plantSlugs.length === 0) {
       standalone.push(bean); // no parent, or only dangling refs
       continue;
     }
@@ -162,6 +229,11 @@ export function buildDataset(raw: RawGarden): Dataset {
       const list = beansByPod.get(p) ?? [];
       list.push(bean);
       beansByPod.set(p, list);
+    }
+    for (const p of plantSlugs) {
+      const list = beansByPlant.get(p) ?? [];
+      list.push(bean);
+      beansByPlant.set(p, list);
     }
   }
 
@@ -178,12 +250,21 @@ export function buildDataset(raw: RawGarden): Dataset {
     list.sort(byDateDesc);
   }
 
-  function domainForBean(slug: string): Domain | null {
+  function plantForBean(slug: string): Plant | null {
     const bean = beanBySlug.get(slug);
     if (!bean) return null;
+    // A direct plant parent wins; then the first resolvable pod's first plant.
+    for (const p of parentsWithPrefix(bean.parents, PLANT_PREFIX)) {
+      const plant = plantBySlug.get(p);
+      if (plant) return plant;
+    }
     for (const podSlug of parentsWithPrefix(bean.parents, POD_PREFIX)) {
       const pod = podBySlug.get(podSlug);
-      if (pod) return pod.domain; // first resolvable pod parent wins
+      if (!pod) continue;
+      for (const pl of parentsWithPrefix(pod.parents, PLANT_PREFIX)) {
+        const plant = plantBySlug.get(pl);
+        if (plant) return plant;
+      }
     }
     return null;
   }
@@ -195,19 +276,23 @@ export function buildDataset(raw: RawGarden): Dataset {
       return {
         sprout,
         bean,
-        domain: bean ? domainForBean(bean.slug) : null,
+        plant: bean ? plantForBean(bean.slug) : null,
       };
     })
     .sort((a, b) => byDateDesc(a.sprout, b.sprout));
 
   return {
+    getPlants: () => plants,
+    podsForPlant: (slug) => podsByPlant.get(slug) ?? [],
+    beansForPlant: (slug) => beansByPlant.get(slug) ?? [],
+    unrootedPods: () => unrooted,
+    plantForBean,
     getPods: () => pods,
     beansForPod: (slug) => beansByPod.get(slug) ?? [],
     standaloneBeans: () => standalone,
     getBean: (slug) => beanBySlug.get(slug),
     sproutsForBean: (slug) => sproutsByBean.get(slug) ?? [],
     timelineSprouts: () => timeline,
-    domainForBean,
   };
 }
 
@@ -241,29 +326,49 @@ export function composeText(en: string, fr: string): Text {
 
 // Public projection of the vault. The security-sensitive rules live here:
 //  - a Sprout is public ONLY when state === "published" (missing state hides it);
-//  - a Pod/Bean is visible unless explicitly visibility === "private";
-//  - privacy cascades DOWNWARD, fail-closed: a Bean whose every EXISTING pod
-//    parent was filtered out is dropped, and a Sprout whose every EXISTING bean
-//    parent was filtered out is dropped. Dangling (nonexistent) parent refs are
-//    ignored, so standalone-by-dangling items are preserved (matches buildDataset);
-//  - each kept Sprout's relations[] is scrubbed to refs whose TARGET survives
-//    this same projection (kept sprout/bean/pod) — draft, private,
-//    cascaded-out, dangling, and unknown-prefix targets all drop, so a hidden
-//    slug can never leak through a property dump or the graph endpoint.
-// Pure: input objects are never mutated; scrubbing yields a fresh sprout object.
+//  - a Plant/Pod/Bean is visible unless explicitly visibility === "private";
+//  - privacy cascades DOWNWARD, fail-closed, from the plant tier all the way
+//    down (plant → pod → bean → sprout): a Pod whose every EXISTING plant
+//    parent was filtered out is dropped, a Bean whose every EXISTING pod AND
+//    plant parent was filtered out is dropped (a kept parent in EITHER tier
+//    shelters it), and a Sprout whose every EXISTING bean parent was filtered
+//    out is dropped. Dangling (nonexistent) parent refs are ignored, so
+//    standalone-by-dangling items are preserved (matches buildDataset);
+//  - each kept Sprout's AND Plant's relations[] is scrubbed to refs whose
+//    TARGET survives this same projection (kept sprout/bean/pod/plant) —
+//    draft, private, cascaded-out, dangling, and unknown-prefix targets all
+//    drop, so a hidden slug can never leak through a property dump or the
+//    graph endpoint;
+//  - Bees are default-PRIVATE and cascade-exempt: only an explicit
+//    visibility === "public" survives, and each survivor's serves[] is
+//    scrubbed to kept plants.
+// Pure: input objects are never mutated; scrubbing yields a fresh object.
 export function filterPublic(raw: RawGarden): RawGarden {
+  const rawPlants = raw.plants ?? [];
   const rawPods = raw.pods ?? [];
   const rawBeans = raw.beans ?? [];
   const rawSprouts = raw.sprouts ?? [];
+  const rawBees = raw.bees ?? [];
 
-  const pods = rawPods.filter((p) => p.visibility !== "private");
+  const keptPlants = rawPlants.filter((p) => p.visibility !== "private");
+  const plantExists = new Set(rawPlants.map((p) => p.slug));
+  const plantKept = new Set(keptPlants.map((p) => p.slug));
+
+  const pods = rawPods.filter(
+    (p) =>
+      p.visibility !== "private" &&
+      !allExistingParentsFiltered(p.parents, [[PLANT_PREFIX, plantExists, plantKept]]),
+  );
   const podExists = new Set(rawPods.map((p) => p.slug));
   const podKept = new Set(pods.map((p) => p.slug));
 
   const beans = rawBeans.filter(
     (b) =>
       b.visibility !== "private" &&
-      !allExistingParentsFiltered(b.parents, POD_PREFIX, podExists, podKept),
+      !allExistingParentsFiltered(b.parents, [
+        [POD_PREFIX, podExists, podKept],
+        [PLANT_PREFIX, plantExists, plantKept],
+      ]),
   );
   const beanExists = new Set(rawBeans.map((b) => b.slug));
   const beanKept = new Set(beans.map((b) => b.slug));
@@ -271,84 +376,127 @@ export function filterPublic(raw: RawGarden): RawGarden {
   const keptSprouts = rawSprouts.filter(
     (s) =>
       s.state === "published" &&
-      !allExistingParentsFiltered(s.parents, BEAN_PREFIX, beanExists, beanKept),
+      !allExistingParentsFiltered(s.parents, [[BEAN_PREFIX, beanExists, beanKept]]),
   );
 
   // Relations may point at sprouts, so the kept-sprout set must exist BEFORE
-  // any relation is judged — a sprout ref survives iff its target survived the
-  // filter above.
+  // any relation (on sprouts OR plants) is judged.
   const sproutKept = new Set(keptSprouts.map((s) => s.slug));
   const refSurvives = (ref: string): boolean =>
     ref.startsWith(SPROUT_PREFIX)
       ? sproutKept.has(ref.slice(SPROUT_PREFIX.length))
       : ref.startsWith(BEAN_PREFIX)
         ? beanKept.has(ref.slice(BEAN_PREFIX.length))
-        : ref.startsWith(POD_PREFIX) && podKept.has(ref.slice(POD_PREFIX.length));
+        : ref.startsWith(POD_PREFIX)
+          ? podKept.has(ref.slice(POD_PREFIX.length))
+          : ref.startsWith(PLANT_PREFIX) && plantKept.has(ref.slice(PLANT_PREFIX.length));
 
-  const sprouts = keptSprouts.map((s) => {
-    if (!s.relations) return s; // absent stays absent — never materialize []
-    // Tolerate malformed shapes from direct DB writes (the validator's
-    // "moderate" level never re-checks pre-existing docs): a non-array field
-    // and non-{kind,ref}-string entries drop fail-closed instead of throwing —
-    // one bad doc must not 500 every public read.
-    if (!Array.isArray(s.relations)) return { ...s, relations: [] };
-    const scrubbed = s.relations.filter(
-      (rel) =>
-        rel != null &&
-        typeof rel.kind === "string" &&
-        typeof rel.ref === "string" &&
-        refSurvives(rel.ref),
-    );
-    return scrubbed.length === s.relations.length ? s : { ...s, relations: scrubbed };
-  });
+  const sprouts = keptSprouts.map((s) => scrubRelations(s, refSurvives));
+  const plants = keptPlants.map((p) => scrubRelations(p, refSurvives));
 
-  return { pods, beans, sprouts };
+  // Bees are default-PRIVATE (the opposite of every content tier) and sit
+  // outside the cascades: only an explicit "public" survives, and each
+  // survivor's serves[] is scrubbed to kept plants so a hidden plant slug can
+  // never leak through an operational doc.
+  const bees = rawBees
+    .filter((b) => b.visibility === "public")
+    .map((b) => {
+      const serves = (Array.isArray(b.serves) ? b.serves : []).filter(
+        (ref) =>
+          typeof ref === "string" &&
+          ref.startsWith(PLANT_PREFIX) &&
+          plantKept.has(ref.slice(PLANT_PREFIX.length)),
+      );
+      return Array.isArray(b.serves) && serves.length === b.serves.length ? b : { ...b, serves };
+    });
+
+  return { plants, pods, beans, sprouts, bees };
 }
 
-// True when the item has parent refs that EXIST in the dataset and ALL such
-// existing parents were filtered out. Dangling/nonexistent refs are ignored.
+// True when the item has parent refs that EXIST in the dataset (across every
+// given tier) and ALL such existing parents were filtered out. Dangling refs
+// are ignored; a single kept parent in ANY tier shelters the item.
 function allExistingParentsFiltered(
   parents: string[] | undefined,
-  prefix: string,
-  exists: Set<string>,
-  kept: Set<string>,
+  tiers: [prefix: string, exists: Set<string>, kept: Set<string>][],
 ): boolean {
-  const existingParents = parentsWithPrefix(parents, prefix).filter((s) => exists.has(s));
-  return existingParents.length > 0 && existingParents.every((s) => !kept.has(s));
+  let existing = 0;
+  for (const [prefix, exists, kept] of tiers) {
+    for (const slug of parentsWithPrefix(parents, prefix)) {
+      if (!exists.has(slug)) continue;
+      if (kept.has(slug)) return false;
+      existing++;
+    }
+  }
+  return existing > 0;
+}
+
+// Shared relations scrub for kept sprouts and plants. Tolerates malformed
+// shapes from direct DB writes (the validator's "moderate" level never
+// re-checks pre-existing docs): a non-array field and non-{kind,ref}-string
+// entries drop fail-closed instead of throwing — one bad doc must not 500
+// every public read.
+function scrubRelations<T extends { relations?: Relation[] }>(
+  item: T,
+  refSurvives: (ref: string) => boolean,
+): T {
+  if (!item.relations) return item; // absent stays absent — never materialize []
+  if (!Array.isArray(item.relations)) return { ...item, relations: [] };
+  const scrubbed = item.relations.filter(
+    (rel) =>
+      rel != null &&
+      typeof rel.kind === "string" &&
+      typeof rel.ref === "string" &&
+      refSurvives(rel.ref),
+  );
+  return scrubbed.length === item.relations.length ? item : { ...item, relations: scrubbed };
 }
 
 // Upward publish cascade — the write-time mirror of filterPublic's downward
 // projection (spec §6.2). For the given sprout, returns the EXISTING bean parents
 // and their EXISTING pod parents that must be made public so a published
-// sprout never dangles under a private parent. Dangling refs are ignored, exactly
+// sprout never dangles under a private parent. The cascade now climbs one tier
+// further — through pod parents to their plants, and through a bean's direct
+// plant parents. Dangling refs are ignored, exactly
 // as filterPublic ignores them. Pure; visibility is not consulted (idempotent flip).
 export function publishCascade(
   raw: RawGarden,
   sproutSlug: string,
-): { podSlugs: string[]; beanSlugs: string[] } {
+): { plantSlugs: string[]; podSlugs: string[]; beanSlugs: string[] } {
+  const plants = raw.plants ?? [];
   const pods = raw.pods ?? [];
   const beans = raw.beans ?? [];
   const sprouts = raw.sprouts ?? [];
 
   const sprout = sprouts.find((s) => s.slug === sproutSlug);
-  if (!sprout) return { podSlugs: [], beanSlugs: [] };
+  if (!sprout) return { plantSlugs: [], podSlugs: [], beanSlugs: [] };
 
   const beanBySlug = new Map(beans.map((b) => [b.slug, b]));
-  const podExists = new Set(pods.map((p) => p.slug));
+  const podBySlug = new Map(pods.map((p) => [p.slug, p]));
+  const plantExists = new Set(plants.map((p) => p.slug));
 
   const beanSlugs = [
     ...new Set(parentsWithPrefix(sprout.parents, BEAN_PREFIX).filter((s) => beanBySlug.has(s))),
   ];
 
   const podSlugs = new Set<string>();
+  const plantSlugs = new Set<string>();
   for (const beanSlug of beanSlugs) {
     const bean = beanBySlug.get(beanSlug)!;
+    for (const p of parentsWithPrefix(bean.parents, PLANT_PREFIX)) {
+      if (plantExists.has(p)) plantSlugs.add(p);
+    }
     for (const p of parentsWithPrefix(bean.parents, POD_PREFIX)) {
-      if (podExists.has(p)) podSlugs.add(p);
+      const pod = podBySlug.get(p);
+      if (!pod) continue;
+      podSlugs.add(p);
+      for (const pl of parentsWithPrefix(pod.parents, PLANT_PREFIX)) {
+        if (plantExists.has(pl)) plantSlugs.add(pl);
+      }
     }
   }
 
-  return { podSlugs: [...podSlugs], beanSlugs };
+  return { plantSlugs: [...plantSlugs], podSlugs: [...podSlugs], beanSlugs };
 }
 
 // Bean-level core of the downward recompute (roadmap A1/A2). Given candidate bean
@@ -356,18 +504,23 @@ export function publishCascade(
 // EXISTING pod parents left with NO public bean once those beans flip. Callers
 // that still have the sprout (un-publish) adapt via unpublishCascade; callers that
 // no longer do (delete) pass the bean parents they captured BEFORE the write and
-// evaluate against the post-write dataset. Dangling/unknown slugs are ignored and
+// evaluate against the post-write dataset. One tier up, same shape: plant
+// candidates come from flipping pods and flipping directly-parented beans, and
+// a plant flips when no surviving public pod or surviving public direct bean
+// still points at it. Dangling/unknown slugs are ignored and
 // flip-target visibility is not consulted (idempotent flip), exactly as publishCascade.
 export function unpublishCascadeForBeans(
   raw: RawGarden,
   beanSlugs: string[],
-): { podSlugs: string[]; beanSlugs: string[] } {
+): { plantSlugs: string[]; podSlugs: string[]; beanSlugs: string[] } {
+  const plants = raw.plants ?? [];
   const pods = raw.pods ?? [];
   const beans = raw.beans ?? [];
   const sprouts = raw.sprouts ?? [];
 
   const beanBySlug = new Map(beans.map((b) => [b.slug, b]));
-  const podExists = new Set(pods.map((p) => p.slug));
+  const podBySlug = new Map(pods.map((p) => [p.slug, p]));
+  const plantExists = new Set(plants.map((p) => p.slug));
 
   // A bean is sheltered while ANY published sprout still points at it.
   const shelteredBeans = new Set<string>();
@@ -383,7 +536,7 @@ export function unpublishCascadeForBeans(
   const podCandidates = new Set<string>();
   for (const beanSlug of flipping) {
     for (const p of parentsWithPrefix(beanBySlug.get(beanSlug)!.parents, POD_PREFIX)) {
-      if (podExists.has(p)) podCandidates.add(p);
+      if (podBySlug.has(p)) podCandidates.add(p);
     }
   }
 
@@ -394,9 +547,35 @@ export function unpublishCascadeForBeans(
     if (flipping.has(b.slug) || b.visibility === "private") continue;
     for (const p of parentsWithPrefix(b.parents, POD_PREFIX)) shelteredPods.add(p);
   }
+  const flippingPods = new Set([...podCandidates].filter((p) => !shelteredPods.has(p)));
+
+  // One tier up, same shape: candidates come from flipping pods and flipping
+  // directly-parented beans; a plant is sheltered while any surviving public
+  // pod or surviving public direct bean still points at it.
+  const plantCandidates = new Set<string>();
+  for (const beanSlug of flipping) {
+    for (const pl of parentsWithPrefix(beanBySlug.get(beanSlug)!.parents, PLANT_PREFIX)) {
+      if (plantExists.has(pl)) plantCandidates.add(pl);
+    }
+  }
+  for (const podSlug of flippingPods) {
+    for (const pl of parentsWithPrefix(podBySlug.get(podSlug)!.parents, PLANT_PREFIX)) {
+      if (plantExists.has(pl)) plantCandidates.add(pl);
+    }
+  }
+  const shelteredPlants = new Set<string>();
+  for (const p of pods) {
+    if (flippingPods.has(p.slug) || p.visibility === "private") continue;
+    for (const pl of parentsWithPrefix(p.parents, PLANT_PREFIX)) shelteredPlants.add(pl);
+  }
+  for (const b of beans) {
+    if (flipping.has(b.slug) || b.visibility === "private") continue;
+    for (const pl of parentsWithPrefix(b.parents, PLANT_PREFIX)) shelteredPlants.add(pl);
+  }
 
   return {
-    podSlugs: [...podCandidates].filter((p) => !shelteredPods.has(p)),
+    plantSlugs: [...plantCandidates].filter((p) => !shelteredPlants.has(p)),
+    podSlugs: [...flippingPods],
     beanSlugs: [...flipping],
   };
 }
@@ -408,9 +587,9 @@ export function unpublishCascadeForBeans(
 export function unpublishCascade(
   raw: RawGarden,
   sproutSlug: string,
-): { podSlugs: string[]; beanSlugs: string[] } {
+): { plantSlugs: string[]; podSlugs: string[]; beanSlugs: string[] } {
   const sprout = (raw.sprouts ?? []).find((s) => s.slug === sproutSlug);
-  if (!sprout) return { podSlugs: [], beanSlugs: [] };
+  if (!sprout) return { plantSlugs: [], podSlugs: [], beanSlugs: [] };
   return unpublishCascadeForBeans(raw, parentsWithPrefix(sprout.parents, BEAN_PREFIX));
 }
 
