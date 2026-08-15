@@ -31,7 +31,7 @@ export const MAX_PAYLOAD_BYTES = 32 * 1024;
 const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 // Strict ISO 8601 with explicit timezone: seconds required, optional
 // fraction, Z or ±hh:mm. `at` is when the event happened, source truth.
-const AT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+const AT_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 
 export interface PollenAnchors {
   plant: string; // "plant:<slug>"
@@ -86,9 +86,16 @@ function checkV(v: unknown): string | null {
 }
 
 function checkAt(at: unknown): string | null {
-  if (!nonEmptyString(at) || !AT_PATTERN.test(at) || Number.isNaN(Date.parse(at))) {
-    return "at must be a strict ISO 8601 timestamp with timezone";
-  }
+  const err = "at must be a strict ISO 8601 timestamp with timezone";
+  if (!nonEmptyString(at)) return err;
+  const m = AT_PATTERN.exec(at);
+  if (!m || Number.isNaN(Date.parse(at))) return err;
+  // Date.parse rolls over out-of-range days/hours instead of failing;
+  // round-trip the date part and bound the hour to reject Feb 30 & hour 24.
+  const [year, month, day, hour] = [+m[1], +m[2], +m[3], +m[4]];
+  const d = new Date(Date.UTC(year, month - 1, day));
+  if (d.getUTCFullYear() !== year || d.getUTCMonth() !== month - 1 || d.getUTCDate() !== day) return err;
+  if (hour > 23) return err;
   return null;
 }
 
@@ -165,7 +172,13 @@ function checkRefs(r: unknown): { error?: string; refs?: PollenRef[] } {
 function checkPayload(p: unknown): { error?: string; payload?: Record<string, unknown> } {
   if (p === undefined) return {};
   if (!isObject(p)) return { error: "payload must be an object" };
-  if (Buffer.byteLength(JSON.stringify(p), "utf8") > MAX_PAYLOAD_BYTES) {
+  let serialized: string;
+  try {
+    serialized = JSON.stringify(p);
+  } catch {
+    return { error: "payload must be JSON-serializable" };
+  }
+  if (Buffer.byteLength(serialized, "utf8") > MAX_PAYLOAD_BYTES) {
     return { error: "payload exceeds 32 KiB serialized — put detail behind a ref" };
   }
   return { payload: p };

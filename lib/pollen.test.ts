@@ -126,3 +126,27 @@ test("timezone offsets other than Z are accepted", () => {
   const r = validatePollen(grain({ at: "2026-08-10T20:12:00.500+02:00" }));
   assert.equal(r.ok, true);
 });
+
+test("calendar-invalid timestamps that Date.parse rolls over are rejected", () => {
+  for (const at of ["2026-02-30T00:00:00Z", "2026-08-10T24:00:00Z", "2026-13-01T00:00:00Z"]) {
+    const r = validatePollen(grain({ at }));
+    assert.equal(r.ok, false, at);
+    if (!r.ok) assert.ok(r.error.includes("ISO 8601"), at);
+  }
+});
+
+test("non-JSON-serializable payload is rejected, not thrown", () => {
+  const circular: Record<string, unknown> = {};
+  circular.self = circular;
+  const r = validatePollen(grain({ payload: circular }));
+  assert.equal(r.ok, false);
+  if (!r.ok) assert.ok(r.error.includes("JSON-serializable"));
+});
+
+test("payload cap is inclusive at exactly 32 KiB", () => {
+  const overhead = Buffer.byteLength(JSON.stringify({ blob: "" }), "utf8");
+  const exact = validatePollen(grain({ payload: { blob: "x".repeat(32 * 1024 - overhead) } }));
+  assert.equal(exact.ok, true);
+  const over = validatePollen(grain({ payload: { blob: "x".repeat(32 * 1024 - overhead + 1) } }));
+  assert.equal(over.ok, false);
+});
