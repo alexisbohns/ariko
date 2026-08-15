@@ -176,6 +176,18 @@ gh run watch --repo alexisbohns/ariko   # dry_run prints the payload it would po
 
 Passing `-f dry_run=false` instead performs a real, dedup-safe post (backfill): posting upserts on `owner/repo#N`, so re-runs update the same capture. Note that `workflow_dispatch` exists only on ariko's own copy of the workflow and resolves `pr_number` against **this repo's** PRs — sibling repos' stubs run on merge only and cannot be dispatched.
 
+## Pollen (federation contract)
+
+Every project of the practice reports activity to Ariko as **pollen** —
+one envelope, three verbs (report / read / initiate), carried by bees
+between plants. The normative contract lives in
+[`docs/POLLEN.md`](docs/POLLEN.md); the reference validator is
+`lib/pollen.ts`, and `data/pollen/` is the conformance fixture suite
+sibling repos copy to test their adapters. Dry-run any feed with
+`npm run pollen:validate -- path/to/feed.ndjson`. Slice 2 of the
+federation umbrella (`docs/superpowers/specs/2026-08-14-ariko-federation-design.md`);
+ingestion of pollen into the read model is slice 4.
+
 ## Admin zone
 
 As of Plan 2b-i, a password-gated admin zone lets you capture into the inbox from the browser and review it — no curl needed. It is intentionally **bare functional HTML** (no CSS, no client JavaScript) until the project's artistic direction is set; triage/promote/publish (2b-ii) and the vault browser (2b-iii) come next.
