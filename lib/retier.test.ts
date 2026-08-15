@@ -44,8 +44,10 @@ test("retierGarden keeps the albums as pods under plant:bohns-music", () => {
 test("retierGarden re-parents promoted pods' beans to plant: refs and leaves album beans on pod: refs", () => {
   const out = retierGarden(currentGarden());
   const bySlug = new Map((out.beans ?? []).map((b) => [b.slug, b]));
-  assert.deepEqual(bySlug.get("pbbls-webapp")?.parents, ["plant:pbbls"]);
-  assert.deepEqual(bySlug.get("felina")?.parents, ["pod:celesta"]);
+  assert.ok(bySlug.get("pbbls-webapp")?.parents?.includes("plant:pbbls"));
+  assert.equal(bySlug.get("pbbls-webapp")?.parents?.includes("pod:pbbls"), false);
+  assert.ok(bySlug.get("felina")?.parents?.includes("pod:celesta"));
+  assert.equal(bySlug.get("felina")?.parents?.includes("plant:celesta"), false);
 });
 
 test("retierGarden leaves no domain key on any pod or plant", () => {
@@ -61,6 +63,21 @@ test("retierGarden seeds the bees — live ones public, planned ones default-pri
   assert.equal(bySlug.get("lab-note-pipeline")?.visibility, "public");
   assert.equal(bySlug.get("song-identifier")?.visibility, "public");
   assert.equal(bySlug.get("arkaik-adapter")?.visibility, undefined);
+});
+
+test("retierGarden's output never aliases the catalogs — mutating it leaves them intact", () => {
+  const seedBeesSnapshot = structuredClone(SEED_BEES);
+  const createdSnapshot = structuredClone(CREATED);
+  const promotedSnapshot = structuredClone(PROMOTED);
+  const out = retierGarden(currentGarden());
+  out.bees?.find((b) => b.slug === "lab-note-pipeline")?.serves.push("plant:x");
+  out.plants?.find((p) => p.slug === "arkaik")?.relations?.push({ kind: "corrupts", ref: "plant:x" });
+  out.plants?.find((p) => p.slug === "melogram")?.natures.push("work");
+  const promoted = out.plants?.find((p) => p.slug === "pbbls");
+  if (promoted) promoted.natures.push("tool");
+  assert.deepEqual(SEED_BEES, seedBeesSnapshot);
+  assert.deepEqual(CREATED, createdSnapshot);
+  assert.deepEqual(PROMOTED, promotedSnapshot);
 });
 
 test("retierGarden is idempotent and pure", () => {

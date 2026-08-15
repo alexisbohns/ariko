@@ -152,8 +152,9 @@ export function retierGarden(raw: RawGarden): RawGarden {
     const pod = podBySlug.get(slug);
     if (pod) absorbed.add(slug);
     if (plantSlugs.has(slug) || !pod) continue; // already promoted, or nothing to promote
+    // parents dropped deliberately: plants are roots; containment is re-expressed by the beans climbing.
     const { parents: _parents, ...rest } = stripDomain(pod);
-    plants.push({ ...rest, natures });
+    plants.push({ ...rest, natures: [...natures] });
     plantSlugs.add(slug);
   }
 
@@ -161,8 +162,9 @@ export function retierGarden(raw: RawGarden): RawGarden {
     const pod = podBySlug.get(def.slug);
     if (pod) absorbed.add(def.slug);
     if (plantSlugs.has(def.slug)) continue;
+    const plant = structuredClone(def); // never alias the catalog into the output
     plants.push({
-      ...def,
+      ...plant,
       ...(pod?.visibility ? { visibility: pod.visibility } : {}),
       ...(pod?.tags ? { tags: pod.tags } : {}),
     });
@@ -197,15 +199,23 @@ export function retierGarden(raw: RawGarden): RawGarden {
   });
 
   const sprouts = (raw.sprouts ?? []).map((s) => {
-    if (!s.relations) return s;
-    const relations = s.relations.map((r) => ({ ...r, ref: promoteRef(r.ref) }));
-    return JSON.stringify(relations) === JSON.stringify(s.relations) ? s : { ...s, relations };
+    const parents = (s.parents ?? []).map(promoteRef);
+    const parentsChanged = JSON.stringify(parents) !== JSON.stringify(s.parents ?? []);
+    const relations = s.relations?.map((r) => ({ ...r, ref: promoteRef(r.ref) }));
+    const relationsChanged = s.relations != null && JSON.stringify(relations) !== JSON.stringify(s.relations);
+    if (!parentsChanged && !relationsChanged) return s;
+    return {
+      ...s,
+      ...(parentsChanged ? { parents } : {}),
+      ...(relationsChanged ? { relations } : {}),
+    };
   });
 
   const beeSlugs = new Set(bees.map((b) => b.slug));
   for (const bee of SEED_BEES) {
-    if (!beeSlugs.has(bee.slug)) bees.push(bee);
+    if (!beeSlugs.has(bee.slug)) bees.push(structuredClone(bee)); // never alias the catalog into the output
   }
 
-  return { plants, pods, beans, sprouts, bees };
+  // Spread raw first so unknown top-level keys pass through untouched.
+  return { ...raw, plants, pods, beans, sprouts, bees };
 }
