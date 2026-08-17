@@ -20,7 +20,7 @@ export function exhibitedPollen(
   const ex = new Set(exhibit);
   return pollen.filter(
     (p) =>
-      p.visibility !== "private" &&
+      (p.visibility === undefined || p.visibility === "public") &&
       ex.has(p.anchors.plant) &&
       publicPlantSlugs.has(p.anchors.plant.slice(PLANT_PREFIX.length)),
   );

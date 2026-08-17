@@ -44,6 +44,7 @@ test("exhibition: a filterPublic-hidden plant loses even when exhibited", () => 
 
 test("exhibition: exhibited + public plant passes", () => {
   assert.equal(exhibitedPollen([doc({})], ["plant:pbbls"], PUBLIC_PLANTS).length, 1);
+  assert.equal(exhibitedPollen([doc({ visibility: "public" })], ["plant:pbbls"], PUBLIC_PLANTS).length, 1);
 });
 
 test("merge sorts newest first by date part, sprout before pollen on ties", () => {
