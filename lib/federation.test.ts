@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseFederation } from "./federation";
+import { getFederation, parseFederation } from "./federation";
+
+// The committed config deploys on merge — a typo must fail HERE, not at sync
+// time in production.
+test("the committed data/federation.yml parses", () => {
+  const cfg = getFederation();
+  assert.ok(cfg.feeds.length >= 1);
+});
 
 const FEED = {
   id: "arkaik-pbbls",
