@@ -541,14 +541,14 @@ bees:
     kind: workflow
     status: live
     engine: action
-    levers: []
+    levers:
+      - label: reusable workflow
+        ref: .github/workflows/lab-note.yml
     serves:
       - plant:ariko
-      - plant:pbbls
       - plant:femfolk
-      - plant:arkaik
       - plant:melogram
-    description: Posts Lab Notes from sibling repos' merged PRs into the Ariko inbox.
+    description: Posts Lab Notes from sibling repos' merged PRs into the Ariko inbox. Pbbls and Arkaik now report through the arkaik journal instead (slice 3).
     visibility: public
   - slug: song-identifier
     name: Song identifier
@@ -563,10 +563,18 @@ bees:
     name: Arkaik adapter
     kind: adapter
     status: planned
-    levers: []
+    engine: hosted-api
+    levers:
+      - label: pbbls feed
+        url: https://arkaik.app/api/graph/projects/prj_5dDiZc-G6lseF3cb/pollen
+      - label: arkaik feed
+        url: https://arkaik.app/api/graph/projects/prj_-p3xhVj7e3EvBksO/pollen
+      - label: lab-note webhook
+        ref: arkaik app/api/github/webhook
     serves:
       - plant:arkaik
-    description: Will ingest the Arkaik journal feed into the Ariko read model (slice 3).
+      - plant:pbbls
+    description: Serves the arkaik journal as a pollen feed (slice 3, live producer-side); the Ariko read model ingests it in slice 4 — status flips to live then.
   - slug: melogram-feed
     name: Melogram feed
     kind: adapter
