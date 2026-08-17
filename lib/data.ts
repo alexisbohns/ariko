@@ -96,6 +96,9 @@ export interface Bean {
   parents: string[]; // containment ONLY: "pod:…" and/or "plant:…" refs — a bean may skip the pod tier
   visibility?: Visibility; // default treated as "public"
   tags?: string[];
+  // Machine-created from a pollen feed (slice 4): read-only in the admin,
+  // source-owned, rebuildable. Absent on every authored bean.
+  projected?: { source: string; feedId: string; firstPollenId: string };
 }
 
 export interface Sprout {
