@@ -23,7 +23,9 @@ export function makeTransport(
         const res = await fetchImpl(url, { headers: { authorization: `Bearer ${token}` } });
         if (res.status === 410) return "gone";
         if (!res.ok) throw new Error(`feed "${feed.id}": HTTP ${res.status}`);
-        const body: unknown = await res.json();
+        const body: unknown = await res.json().catch(() => {
+          throw new Error(`feed "${feed.id}": response is not JSON`);
+        });
         if (!isObject(body) || !Array.isArray(body.pollen)) {
           throw new Error(`feed "${feed.id}": response is not { pollen: [...] }`);
         }
