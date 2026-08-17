@@ -231,7 +231,7 @@ test("every valid conformance fixture flows through process → merge cleanly", 
     .map((f) => JSON.parse(readFileSync(join(dir, f), "utf8")) as unknown);
   assert.ok(fixtures.length > 0, "no valid fixtures found");
   const { valid, refusals } = processEnvelopes(fixtures);
-  assert.equal(refusals.length, 0);
+  assert.deepEqual(refusals.map((r) => r.reason), []); // names what drifted
   assert.equal(valid.length, fixtures.length);
   const docs: PollenDoc[] = valid.map((v) => ({ ...v, feedId: "fixture", syncedAt: "2026-08-17T00:00:00Z" }));
   const entries = mergeBeanstalk([], docs, new Set());
@@ -243,7 +243,8 @@ test("every invalid conformance fixture becomes a refusal, none throw", () => {
   const fixtures = readdirSync(dir)
     .filter((f) => f.endsWith(".json") && f !== "manifest.json")
     .map((f) => JSON.parse(readFileSync(join(dir, f), "utf8")) as unknown);
+  assert.ok(fixtures.length > 0, "no invalid fixtures found");
   const { valid, refusals } = processEnvelopes(fixtures);
-  assert.equal(valid.length, 0);
+  assert.deepEqual(valid.map((v) => v.id), []); // names any fixture that unexpectedly validates
   assert.equal(refusals.length, fixtures.length);
 });
