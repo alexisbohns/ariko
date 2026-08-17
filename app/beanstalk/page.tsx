@@ -15,12 +15,13 @@ export default async function BeanstalkPage({
   searchParams: Promise<{ plant?: string }>;
 }) {
   const { plant } = await searchParams;
-  const pub = filterPublic(await loadRawGarden());
+  const [raw, allPollen] = await Promise.all([loadRawGarden(), listPollen()]);
+  const pub = filterPublic(raw);
   const data = buildDataset(pub);
   const plantSlugs = data.getPlants().map((p) => p.slug);
   const active = plant && plantSlugs.includes(plant) ? plant : "all";
 
-  const pollen = exhibitedPollen(await listPollen(), getFederation().exhibit, new Set(plantSlugs));
+  const pollen = exhibitedPollen(allPollen, getFederation().exhibit, new Set(plantSlugs));
   const keptBeanSlugs = new Set((pub.beans ?? []).map((b) => b.slug));
   const entries = mergeBeanstalk(data.timelineSprouts(), pollen, keptBeanSlugs).filter(
     (e) => active === "all" || plantSlugOf(e) === active,

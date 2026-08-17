@@ -120,6 +120,8 @@ export function makeSink(exhibit: string[]): PollenSink {
 
 export async function listPollen(): Promise<PollenDoc[]> {
   const db = await getDb();
+  // The at:-1 sort is load-bearing: mergeBeanstalk's stable sort inherits
+  // intra-day tie order from it.
   return db.collection<PollenDoc>("pollen").find({}, { projection: { _id: 0 } }).sort({ at: -1 }).toArray();
 }
 
