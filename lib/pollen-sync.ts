@@ -95,3 +95,87 @@ export function lastEnvelopeId(envelopes: unknown[]): string | null {
   }
   return null;
 }
+
+// One page from a transport. done:true ends the loop after processing (file
+// transport is single-page); http transports set done when the page is empty
+// ("empty array ⇒ caught up"). "gone" = upstream 410 / vanished file cursor.
+export type FeedPage =
+  | { envelopes: unknown[]; extraRefusals?: StoredRefusal[]; done: boolean }
+  | "gone";
+
+export interface FeedTransport {
+  fetchPage(cursor: string | null): Promise<FeedPage>;
+}
+
+export interface PollenSink {
+  getCursor(feedId: string): Promise<string | null>;
+  setCursor(feedId: string, cursor: string | null, status: string, error?: string): Promise<void>;
+  insertNew(feedId: string, envelopes: Pollen[]): Promise<number>; // write-once; returns newly stored
+  recordRefusals(feedId: string, refusals: StoredRefusal[]): Promise<void>;
+  projectBeans(feedId: string, envelopes: Pollen[]): Promise<number>;
+}
+
+export interface FeedResult {
+  feedId: string;
+  stored: number;
+  refused: number;
+  status: "ok" | "error";
+  error?: string;
+}
+
+// Cursor-synced ingest of one feed. Idempotent by construction: write-once
+// inserts converge on replay, the cursor advances per page (a crashed run
+// re-covers at most one page — latency, never correctness), and a 410/gone
+// resets the cursor exactly once per run. One feed's failure never throws:
+// it lands on the cursor doc and in the result (umbrella §11, no silent loss).
+export async function syncFeed(
+  feedId: string,
+  transport: FeedTransport,
+  sink: PollenSink,
+): Promise<FeedResult> {
+  let stored = 0;
+  let refused = 0;
+  try {
+    let cursor = await sink.getCursor(feedId);
+    let rebuilt = false;
+    for (;;) {
+      const page = await transport.fetchPage(cursor);
+      if (page === "gone") {
+        if (rebuilt) throw new Error("cursor gone again after rebuild");
+        rebuilt = true;
+        cursor = null;
+        await sink.setCursor(feedId, null, "rebuilding");
+        continue;
+      }
+      const { valid, refusals, warnings } = processEnvelopes(page.envelopes);
+      for (const w of warnings) console.warn(`[pollen:${feedId}] ${w}`);
+      const allRefusals = [...(page.extraRefusals ?? []), ...refusals];
+      if (valid.length > 0) {
+        stored += await sink.insertNew(feedId, valid);
+        await sink.projectBeans(feedId, valid);
+      }
+      if (allRefusals.length > 0) {
+        refused += allRefusals.length;
+        await sink.recordRefusals(feedId, allRefusals);
+      }
+      const next = lastEnvelopeId(page.envelopes) ?? cursor;
+      if (page.envelopes.length > 0 && next === cursor && !page.done) {
+        throw new Error("cursor failed to advance — page carries no usable id");
+      }
+      cursor = next;
+      await sink.setCursor(feedId, cursor, "ok");
+      if (page.done || page.envelopes.length === 0) break;
+    }
+    return { feedId, stored, refused, status: "ok" };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    // Best effort: surface the failure on the cursor doc without clobbering
+    // the cursor itself (the next run resumes where this one stopped).
+    try {
+      await sink.setCursor(feedId, await sink.getCursor(feedId), "error", error);
+    } catch {
+      // the sink itself is down — the FeedResult still carries the error
+    }
+    return { feedId, stored, refused, status: "error", error };
+  }
+}

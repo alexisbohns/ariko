@@ -5,6 +5,10 @@ import {
   sliceFeedFile,
   lastEnvelopeId,
   MAX_REFUSAL_RAW_BYTES,
+  syncFeed,
+  type FeedPage,
+  type FeedTransport,
+  type PollenSink,
 } from "./pollen-sync";
 
 function envelope(over: Record<string, unknown> = {}): Record<string, unknown> {
@@ -79,4 +83,134 @@ test("lastEnvelopeId takes the last string id, skipping junk", () => {
   assert.equal(lastEnvelopeId([envelope({ id: "a:1" }), { junk: true }]), "a:1");
   assert.equal(lastEnvelopeId([{ junk: true }]), null);
   assert.equal(lastEnvelopeId([]), null);
+});
+
+// In-memory sink capturing every call — no DB in unit tests, house style.
+function memorySink(initialCursor: string | null = null) {
+  const calls = {
+    inserted: [] as string[],
+    refused: [] as string[],
+    cursors: [] as (string | null)[],
+    statuses: [] as string[],
+    projected: 0,
+  };
+  let cursor = initialCursor;
+  const sink: PollenSink = {
+    getCursor: async () => cursor,
+    setCursor: async (_feedId, c, status) => {
+      cursor = c;
+      calls.cursors.push(c);
+      calls.statuses.push(status);
+    },
+    insertNew: async (_feedId, envelopes) => {
+      calls.inserted.push(...envelopes.map((e) => e.id));
+      return envelopes.length;
+    },
+    recordRefusals: async (_feedId, refusals) => {
+      calls.refused.push(...refusals.map((r) => r.reason));
+    },
+    projectBeans: async (_feedId, envelopes) => {
+      calls.projected += envelopes.length;
+      return 0;
+    },
+  };
+  return { sink, calls };
+}
+
+function pageTransport(pages: FeedPage[]): FeedTransport {
+  let i = 0;
+  return { fetchPage: async () => pages[Math.min(i++, pages.length - 1)] };
+}
+
+test("syncFeed pages until the empty page, advancing the cursor per page", async () => {
+  const { sink, calls } = memorySink();
+  const result = await syncFeed(
+    "f1",
+    pageTransport([
+      { envelopes: [envelope({ id: "a:1" }), envelope({ id: "a:2" })], done: false },
+      { envelopes: [envelope({ id: "a:3" })], done: false },
+      { envelopes: [], done: true },
+    ]),
+    sink,
+  );
+  assert.deepEqual(result, { feedId: "f1", stored: 3, refused: 0, status: "ok" });
+  assert.deepEqual(calls.inserted, ["a:1", "a:2", "a:3"]);
+  assert.deepEqual(calls.cursors, ["a:2", "a:3", "a:3"]);
+  assert.equal(calls.projected, 3);
+});
+
+test("a refused envelope is recorded and still advances the cursor", async () => {
+  const { sink, calls } = memorySink();
+  const result = await syncFeed(
+    "f1",
+    pageTransport([
+      { envelopes: [envelope({ id: "a:1" }), { id: "a:2", junk: true }], done: false },
+      { envelopes: [], done: true },
+    ]),
+    sink,
+  );
+  assert.equal(result.stored, 1);
+  assert.equal(result.refused, 1);
+  assert.equal(result.status, "ok");
+  assert.equal(calls.cursors[0], "a:2");
+});
+
+test("gone resets the cursor once and replays from the start", async () => {
+  const { sink, calls } = memorySink("a:404");
+  const result = await syncFeed(
+    "f1",
+    pageTransport(["gone", { envelopes: [envelope({ id: "a:1" })], done: true }]),
+    sink,
+  );
+  assert.equal(result.status, "ok");
+  assert.equal(result.stored, 1);
+  assert.deepEqual(calls.cursors, [null, "a:1"]);
+  assert.equal(calls.statuses[0], "rebuilding");
+});
+
+test("gone twice is an error, not a loop", async () => {
+  const { sink } = memorySink("a:404");
+  const result = await syncFeed("f1", pageTransport(["gone", "gone"]), sink);
+  assert.equal(result.status, "error");
+  assert.match(result.error ?? "", /gone again/);
+});
+
+test("a non-empty page that cannot advance the cursor is an error", async () => {
+  const { sink } = memorySink("a:1");
+  const result = await syncFeed(
+    "f1",
+    pageTransport([{ envelopes: [{ junk: true }], done: false }]),
+    sink,
+  );
+  assert.equal(result.status, "error");
+  assert.match(result.error ?? "", /failed to advance/);
+});
+
+test("a transport throw becomes an error result, never an exception", async () => {
+  const { sink } = memorySink();
+  const boom: FeedTransport = {
+    fetchPage: async () => {
+      throw new Error("HTTP 503");
+    },
+  };
+  const result = await syncFeed("f1", boom, sink);
+  assert.equal(result.status, "error");
+  assert.match(result.error ?? "", /503/);
+});
+
+test("file-transport extraRefusals are counted and recorded", async () => {
+  const { sink, calls } = memorySink();
+  const result = await syncFeed(
+    "f1",
+    pageTransport([
+      {
+        envelopes: [envelope({ id: "a:1" })],
+        extraRefusals: [{ reason: "unparseable ndjson line", raw: "not json" }],
+        done: true,
+      },
+    ]),
+    sink,
+  );
+  assert.equal(result.refused, 1);
+  assert.deepEqual(calls.refused, ["unparseable ndjson line"]);
 });
