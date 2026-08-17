@@ -21,7 +21,7 @@ test("bean anchor on an unknown slug materializes a projected bean", () => {
     [pollen({ anchors: { plant: "plant:bohns-music", pod: "pod:celesta", bean: "bean:damned-thoughts" } })],
     new Set(),
     new Set(["plant:bohns-music"]),
-    "melogram",
+    "melogram-feed", // differs from source on purpose: pins which field is which
   );
   assert.equal(beans.length, 1);
   assert.deepEqual(beans[0], {
@@ -29,7 +29,7 @@ test("bean anchor on an unknown slug materializes a projected bean", () => {
     name: "damned-thoughts",
     parents: ["plant:bohns-music", "pod:celesta"],
     visibility: "public",
-    projected: { source: "melogram", feedId: "melogram", firstPollenId: "melogram:e1" },
+    projected: { source: "melogram", feedId: "melogram-feed", firstPollenId: "melogram:e1" },
   });
 });
 
