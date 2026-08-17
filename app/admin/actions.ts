@@ -237,9 +237,16 @@ export async function deleteVersionAction(formData: FormData): Promise<void> {
 }
 
 // Manual pull of every configured feed — same core the cron Action calls.
+// Failed feeds surface via ?error= — a transport-construction failure (missing
+// token env var) never reaches a cursor doc, so the redirect must carry it.
 export async function syncNowAction(): Promise<void> {
   await requireSession();
-  await runSync();
+  const results = await runSync();
   revalidatePath("/admin/beanstalk");
-  redirect("/admin/beanstalk");
+  const failed = results.filter((r) => r.status === "error");
+  redirect(
+    failed.length > 0
+      ? `/admin/beanstalk?error=${encodeURIComponent(failed.map((f) => `${f.feedId}: ${f.error ?? "unknown"}`).join(" · "))}`
+      : "/admin/beanstalk",
+  );
 }

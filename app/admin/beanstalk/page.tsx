@@ -10,7 +10,12 @@ export const dynamic = "force-dynamic";
 // Admin beanstalk (spec §6): EVERYTHING — every sprout state, every cached
 // envelope (private and non-exhibited included), each line with provenance —
 // plus the sync operations surface (cursors, refusals, Sync now).
-export default async function AdminBeanstalkPage() {
+export default async function AdminBeanstalkPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
   const [raw, pollen, cursors, refusals] = await Promise.all([
     loadRawGarden(),
     listPollen(),
@@ -30,6 +35,7 @@ export default async function AdminBeanstalkPage() {
       </p>
 
       <h2>Feeds</h2>
+      {error ? <p role="alert">Sync failed — {error}</p> : null}
       <form action={syncNowAction}>
         <button type="submit">Sync now</button>
       </form>
@@ -62,7 +68,7 @@ export default async function AdminBeanstalkPage() {
 
       {refusals.length > 0 ? (
         <>
-          <h2>Refusals</h2>
+          <h2>Refusals (latest {refusals.length})</h2>
           <ul>
             {refusals.map((r) => (
               <li key={`${r.feedId}:${r.rawHash}`}>
