@@ -34,7 +34,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 <a href="/">Directory</a>
               </li>
               <li>
-                <a href="/timeline">Timeline</a>
+                <a href="/beanstalk">Beanstalk</a>
               </li>
             </ul>
           </nav>

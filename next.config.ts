@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   // shared links keep working. Admin paths get no redirects (private).
   redirects: async () => [
     { source: "/atom/:id", destination: "/bean/:id", permanent: true },
+    // Slice 4: the timeline is the beanstalk — the cosmology reaches the URL.
+    { source: "/timeline", destination: "/beanstalk", permanent: true },
   ],
 };
 
