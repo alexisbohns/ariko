@@ -1,6 +1,7 @@
 import { getDb, closeDb } from "../lib/db";
 import { ensureSeedIndexes } from "../lib/seeds";
 import { ensureBotanicalIndexes } from "../lib/botanical";
+import { ensurePollenIndexes } from "../lib/pollen-store";
 
 // Applies a $jsonSchema validator to a collection, creating it if absent.
 // Idempotent: safe to re-run. validationLevel "moderate" only validates inserts
@@ -119,11 +120,57 @@ async function main() {
     },
   });
 
+  // Read-model cache (slice 4). Moderate level, like everything else: the
+  // cache is disposable, so a validator here is a tripwire, not a migration.
+  await applyValidator("pollen", {
+    bsonType: "object",
+    required: ["v", "id", "at", "source", "kind", "title", "anchors", "feedId", "syncedAt"],
+    properties: {
+      v: { bsonType: "number" },
+      id: { bsonType: "string" },
+      at: { bsonType: "string" },
+      source: { bsonType: "string" },
+      kind: { bsonType: "string" },
+      anchors: {
+        bsonType: "object",
+        required: ["plant"],
+        properties: { plant: { bsonType: "string" } },
+      },
+      visibility: { enum: ["public", "private"] },
+      feedId: { bsonType: "string" },
+      syncedAt: { bsonType: "string" },
+    },
+  });
+  await applyValidator("pollen_cursors", {
+    bsonType: "object",
+    required: ["feedId", "lastSyncAt", "lastStatus"],
+    properties: {
+      feedId: { bsonType: "string" },
+      cursor: { bsonType: ["string", "null"] },
+      lastSyncAt: { bsonType: "string" },
+      lastStatus: { bsonType: "string" },
+    },
+  });
+  await applyValidator("pollen_refusals", {
+    bsonType: "object",
+    required: ["feedId", "at", "reason", "raw", "rawHash"],
+    properties: {
+      feedId: { bsonType: "string" },
+      at: { bsonType: "string" },
+      reason: { bsonType: "string" },
+      raw: { bsonType: "string" },
+      rawHash: { bsonType: "string" },
+    },
+  });
+
   await ensureSeedIndexes();
   console.log("seed indexes ensured");
 
   await ensureBotanicalIndexes();
   console.log("botanical indexes ensured");
+
+  await ensurePollenIndexes();
+  console.log("pollen indexes ensured");
 
   await closeDb();
   process.exit(0);
