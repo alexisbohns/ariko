@@ -10,6 +10,7 @@ import { loadRawGarden } from "@/lib/store";
 import { publishCascade, unpublishCascade, unpublishCascadeForBeans } from "@/lib/data";
 import { resolveParentChoice, buildSproutInput, validateSproutInput } from "@/lib/promote";
 import { buildSproutPatch, validateSproutPatch } from "@/lib/sprout-edit";
+import { runSync } from "@/lib/pollen-run";
 import {
   createPod,
   createBean,
@@ -233,4 +234,12 @@ export async function deleteVersionAction(formData: FormData): Promise<void> {
 
   revalidatePath("/admin");
   redirect(beanSlugs[0] ? `/admin/bean/${beanSlugs[0]}` : "/admin/vault");
+}
+
+// Manual pull of every configured feed — same core the cron Action calls.
+export async function syncNowAction(): Promise<void> {
+  await requireSession();
+  await runSync();
+  revalidatePath("/admin/beanstalk");
+  redirect("/admin/beanstalk");
 }

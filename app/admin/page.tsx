@@ -51,7 +51,7 @@ export default async function AdminPage({
       </form>
 
       <p>
-        <a href="/admin/vault">vault →</a>
+        <a href="/admin/vault">vault →</a> · <a href="/admin/beanstalk">beanstalk →</a>
       </p>
 
       <h1>Seed</h1>
