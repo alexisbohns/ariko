@@ -1,0 +1,18 @@
+# Federation read model config (slice 4). Feeds the sync door pulls, and the
+# plants whose feed events render on the PUBLIC beanstalk. Secrets stay in
+# env vars — this file names them, never holds them. Merging is deploying.
+feeds:
+  - id: arkaik-pbbls
+    source: arkaik
+    transport: http
+    url: https://arkaik.app/api/graph/projects/prj_5dDiZc-G6lseF3cb/pollen
+    tokenEnv: ARKAIK_API_TOKEN
+  - id: arkaik-arkaik
+    source: arkaik
+    transport: http
+    url: https://arkaik.app/api/graph/projects/prj_-p3xhVj7e3EvBksO/pollen
+    tokenEnv: ARKAIK_API_TOKEN
+
+exhibit:
+  - plant:pbbls
+  - plant:arkaik
