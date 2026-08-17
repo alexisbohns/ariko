@@ -1,7 +1,7 @@
 import { resolveText, buildDataset } from "@/lib/data";
 import { loadRawGarden } from "@/lib/store";
 import { getFederation } from "@/lib/federation";
-import { listCursors, listPollen, listRefusals } from "@/lib/pollen-store";
+import { countRefusalsByFeed, listCursors, listPollen, listRefusals } from "@/lib/pollen-store";
 import { mergeBeanstalk } from "@/lib/beanstalk";
 import { syncNowAction } from "../actions";
 
@@ -16,11 +16,12 @@ export default async function AdminBeanstalkPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { error } = await searchParams;
-  const [raw, pollen, cursors, refusals] = await Promise.all([
+  const [raw, pollen, cursors, refusals, refusalCounts] = await Promise.all([
     loadRawGarden(),
     listPollen(),
     listCursors(),
     listRefusals(),
+    countRefusalsByFeed(),
   ]);
   const data = buildDataset(raw);
   const allBeanSlugs = new Set((raw.beans ?? []).map((b) => b.slug));
@@ -46,6 +47,7 @@ export default async function AdminBeanstalkPage({
             <th>cursor</th>
             <th>last sync</th>
             <th>status</th>
+            <th>refusals</th>
           </tr>
         </thead>
         <tbody>
@@ -60,6 +62,7 @@ export default async function AdminBeanstalkPage({
                   {c?.lastStatus ?? "—"}
                   {c?.lastError ? ` (${c.lastError})` : ""}
                 </td>
+                <td>{refusalCounts[f.id] ?? 0}</td>
               </tr>
             );
           })}
@@ -68,7 +71,7 @@ export default async function AdminBeanstalkPage({
 
       {refusals.length > 0 ? (
         <>
-          <h2>Refusals (latest {refusals.length})</h2>
+          <h2>Refusals (latest {refusals.length} of {Object.values(refusalCounts).reduce((a, b) => a + b, 0)})</h2>
           <ul>
             {refusals.map((r) => (
               <li key={`${r.feedId}:${r.rawHash}`}>

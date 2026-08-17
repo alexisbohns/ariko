@@ -24,7 +24,10 @@ export function deriveProjectedBeans(
       slug,
       name: slug,
       parents: [p.anchors.plant, ...(p.anchors.pod ? [p.anchors.pod] : [])],
-      visibility: exhibit.has(p.anchors.plant) ? "public" : "private",
+      // A "private" envelope is binding fail-closed (spec §4): it must not
+      // materialize a publicly reachable bean even on an exhibited plant.
+      visibility:
+        p.visibility !== "private" && exhibit.has(p.anchors.plant) ? "public" : "private",
       projected: { source: p.source, feedId, firstPollenId: p.id },
     });
   }

@@ -23,7 +23,7 @@
 ## Pages
 
 * `/` — Directory. For each pod (+ a "Standalone" group for orphan beans): `<h2>` pod name, `<ul>` of bean names as links to /bean/[id].
-* `/timeline` — Timeline. All sprouts sorted by date descending. Above the list: a `<ul>` of domain filter buttons (`all | music | design | podcast`). Below: a `<ul>` of filtered results.
+* `/beanstalk` — The beanstalk (formerly `/timeline`, which 308-redirects). Authored sprouts and exhibited pollen feed events, sorted by date descending. Above the list: a `<ul>` of domain filter buttons (`all | music | design | podcast`). Below: a `<ul>` of filtered results.
 * `/bean/[id]` — Bean detail. `<h1>` bean name, then for each sprout: `<h2>` sprout name, `<ul>` of all key-value properties.
 
 ## Constraints
@@ -41,7 +41,7 @@ As of the Vault Spine slice, content lives in **MongoDB** (not the static seed).
 
 * Set `MONGODB_URI` and `MONGODB_DB` in `.env.local` (gitignored).
 * `npm run migrate` — one-time import of `data/seed.yml` into Mongo (idempotent).
-* `npm run dev` — needs `MONGODB_URI` set and the cluster reachable (pages query Mongo at request time). The public pages (`/`, `/timeline`, `/bean/[id]`) are `force-dynamic`, so they read published-only from Mongo on every request and reflect a publish immediately — and `npm run build` no longer needs DB reachability to prerender them.
+* `npm run dev` — needs `MONGODB_URI` set and the cluster reachable (pages query Mongo at request time). The public pages (`/`, `/beanstalk`, `/bean/[id]`) are `force-dynamic`, so they read published-only from Mongo on every request and reflect a publish immediately — and `npm run build` no longer needs DB reachability to prerender them.
 * `npm test` — pure unit tests; DB-backed integration tests auto-skip unless `MONGODB_URI` is set (run them with `node --env-file=.env.local --import tsx --test "lib/**/*.test.ts"`).
 
 ## Ingestion spine
@@ -231,7 +231,7 @@ Turns a captured item into a first-class `Version` in the atomic model (or disca
 A read-only browser of the **whole** archive — every molecule/atom/version regardless of state or visibility (the counterpart to the inbox; linked from `/admin`).
 
 * Version-centric table (name, state, domain, atom, date, tags), newest first.
-* Filter by `state` / `domain` / `tag` via query-param links (zero-JS, like `/timeline`); an unrecognized filter value falls back to "all".
+* Filter by `state` / `domain` / `tag` via query-param links (zero-JS, like `/beanstalk`); an unrecognized filter value falls back to "all".
 * Read-only — a row's version name links to its atom-detail page, where each version has an `edit` link (see `/admin/version/[slug]` below).
 
 ### /admin/atom/[id]

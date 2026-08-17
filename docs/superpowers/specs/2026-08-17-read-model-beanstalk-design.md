@@ -190,7 +190,7 @@ feed, read-only in ariko, source-owned, rebuildable. Mechanics:
   authored *or* previously projected — is never touched; the collision is
   logged. Corrections flow through rebuild, never mutation.
 - Projected beans are **read-only in the admin** (no edit affordance;
-  they carry a "projected from <source>" marker in the vault/bean views)
+  they carry a "projected from <source>" marker in the admin bean detail view)
   but are perfectly legal anchor targets for authored sprouts — that is
   exactly how meta-prose attaches to federated showcase nodes.
 - Reality check: the slice-3 arkaik mapping anchors at **plant depth

@@ -130,6 +130,17 @@ export async function listCursors(): Promise<CursorDoc[]> {
   return db.collection<CursorDoc>("pollen_cursors").find({}, { projection: { _id: 0 } }).sort({ feedId: 1 }).toArray();
 }
 
+// Per-feed refusal totals, derived at render time — the cursor doc keeps no
+// counter (spec §3): one less thing to keep consistent.
+export async function countRefusalsByFeed(): Promise<Record<string, number>> {
+  const db = await getDb();
+  const rows = await db
+    .collection<RefusalDoc>("pollen_refusals")
+    .aggregate<{ _id: string; count: number }>([{ $group: { _id: "$feedId", count: { $sum: 1 } } }])
+    .toArray();
+  return Object.fromEntries(rows.map((r) => [r._id, r.count]));
+}
+
 export async function listRefusals(limit = 20): Promise<RefusalDoc[]> {
   const db = await getDb();
   return db

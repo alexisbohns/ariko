@@ -33,6 +33,16 @@ test("bean anchor on an unknown slug materializes a projected bean", () => {
   });
 });
 
+test("a private envelope projects a PRIVATE bean even on an exhibited plant", () => {
+  const beans = deriveProjectedBeans(
+    [pollen({ visibility: "private", anchors: { plant: "plant:bohns-music", bean: "bean:hush" } })],
+    new Set(),
+    new Set(["plant:bohns-music"]),
+    "melogram",
+  );
+  assert.equal(beans[0].visibility, "private");
+});
+
 test("non-exhibited plant projects a PRIVATE bean", () => {
   const beans = deriveProjectedBeans(
     [pollen({ anchors: { plant: "plant:bohns-music", bean: "bean:x" } })],
