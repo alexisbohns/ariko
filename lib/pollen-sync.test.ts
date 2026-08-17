@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   processEnvelopes,
   sliceFeedFile,
@@ -9,7 +11,9 @@ import {
   type FeedPage,
   type FeedTransport,
   type PollenSink,
+  type PollenDoc,
 } from "./pollen-sync";
+import { mergeBeanstalk } from "./beanstalk";
 
 function envelope(over: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -213,4 +217,33 @@ test("file-transport extraRefusals are counted and recorded", async () => {
   );
   assert.equal(result.refused, 1);
   assert.deepEqual(calls.refused, ["unparseable ndjson line"]);
+});
+
+// Conformance: the pollen contract's fixtures (data/pollen/{valid,invalid}/)
+// flow through the actual read-model pipeline, not just validatePollen.
+// intent-*.json fixtures are Intent envelopes (validated by validateIntent,
+// see lib/pollen-fixtures.test.ts) — the reverse-direction envelope, never
+// ingested by this Pollen-only read model — so they're excluded here.
+test("every valid conformance fixture flows through process → merge cleanly", () => {
+  const dir = join(process.cwd(), "data", "pollen", "valid");
+  const fixtures = readdirSync(dir)
+    .filter((f) => f.endsWith(".json") && f !== "manifest.json" && !f.startsWith("intent-"))
+    .map((f) => JSON.parse(readFileSync(join(dir, f), "utf8")) as unknown);
+  assert.ok(fixtures.length > 0, "no valid fixtures found");
+  const { valid, refusals } = processEnvelopes(fixtures);
+  assert.equal(refusals.length, 0);
+  assert.equal(valid.length, fixtures.length);
+  const docs: PollenDoc[] = valid.map((v) => ({ ...v, feedId: "fixture", syncedAt: "2026-08-17T00:00:00Z" }));
+  const entries = mergeBeanstalk([], docs, new Set());
+  assert.equal(entries.length, fixtures.length);
+});
+
+test("every invalid conformance fixture becomes a refusal, none throw", () => {
+  const dir = join(process.cwd(), "data", "pollen", "invalid");
+  const fixtures = readdirSync(dir)
+    .filter((f) => f.endsWith(".json") && f !== "manifest.json")
+    .map((f) => JSON.parse(readFileSync(join(dir, f), "utf8")) as unknown);
+  const { valid, refusals } = processEnvelopes(fixtures);
+  assert.equal(valid.length, 0);
+  assert.equal(refusals.length, fixtures.length);
 });
