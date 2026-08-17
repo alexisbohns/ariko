@@ -23,7 +23,7 @@
 ## Pages
 
 * `/` — Directory. For each pod (+ a "Standalone" group for orphan beans): `<h2>` pod name, `<ul>` of bean names as links to /bean/[id].
-* `/timeline` — Timeline. All sprouts sorted by date descending. Above the list: a `<ul>` of domain filter buttons (`all | music | design | podcast`). Below: a `<ul>` of filtered results.
+* `/beanstalk` — The beanstalk (formerly `/timeline`, which 308-redirects). Authored sprouts and exhibited pollen feed events, sorted by date descending. Above the list: a `<ul>` of domain filter buttons (`all | music | design | podcast`). Below: a `<ul>` of filtered results.
 * `/bean/[id]` — Bean detail. `<h1>` bean name, then for each sprout: `<h2>` sprout name, `<ul>` of all key-value properties.
 
 ## Constraints
@@ -41,7 +41,7 @@ As of the Vault Spine slice, content lives in **MongoDB** (not the static seed).
 
 * Set `MONGODB_URI` and `MONGODB_DB` in `.env.local` (gitignored).
 * `npm run migrate` — one-time import of `data/seed.yml` into Mongo (idempotent).
-* `npm run dev` — needs `MONGODB_URI` set and the cluster reachable (pages query Mongo at request time). The public pages (`/`, `/timeline`, `/bean/[id]`) are `force-dynamic`, so they read published-only from Mongo on every request and reflect a publish immediately — and `npm run build` no longer needs DB reachability to prerender them.
+* `npm run dev` — needs `MONGODB_URI` set and the cluster reachable (pages query Mongo at request time). The public pages (`/`, `/beanstalk`, `/bean/[id]`) are `force-dynamic`, so they read published-only from Mongo on every request and reflect a publish immediately — and `npm run build` no longer needs DB reachability to prerender them.
 * `npm test` — pure unit tests; DB-backed integration tests auto-skip unless `MONGODB_URI` is set (run them with `node --env-file=.env.local --import tsx --test "lib/**/*.test.ts"`).
 
 ## Ingestion spine
@@ -188,6 +188,19 @@ sibling repos copy to test their adapters. Dry-run any feed with
 federation umbrella (`docs/superpowers/specs/2026-08-14-ariko-federation-design.md`);
 ingestion of pollen into the read model is slice 4.
 
+## Federation read model (slice 4)
+
+Ariko syncs every feed in `data/federation.yml` into a disposable Mongo
+cache (`pollen`, `pollen_cursors`, `pollen_refusals`) through one guarded
+door: `POST /api/pollen/sync` (bearer `SYNC_TOKEN`; cron:
+`.github/workflows/pollen-sync.yml`, every 6 h, secret `ARIKO_SYNC_TOKEN`).
+Upstream feed tokens live in Vercel env vars named by each feed's
+`tokenEnv` (today: `ARKAIK_API_TOKEN`). The public `/beanstalk` merges
+authored sprouts with feed events for plants in the config's `exhibit`
+list; `/admin/beanstalk` shows everything plus sync status and refusals.
+Rebuild one feed from scratch: `npm run pollen:rebuild -- <feedId>`.
+Contract: [`docs/POLLEN.md`](docs/POLLEN.md) §Read.
+
 ## Admin zone
 
 As of Plan 2b-i, a password-gated admin zone lets you capture into the inbox from the browser and review it — no curl needed. It is intentionally **bare functional HTML** (no CSS, no client JavaScript) until the project's artistic direction is set; triage/promote/publish (2b-ii) and the vault browser (2b-iii) come next.
@@ -218,7 +231,7 @@ Turns a captured item into a first-class `Version` in the atomic model (or disca
 A read-only browser of the **whole** archive — every molecule/atom/version regardless of state or visibility (the counterpart to the inbox; linked from `/admin`).
 
 * Version-centric table (name, state, domain, atom, date, tags), newest first.
-* Filter by `state` / `domain` / `tag` via query-param links (zero-JS, like `/timeline`); an unrecognized filter value falls back to "all".
+* Filter by `state` / `domain` / `tag` via query-param links (zero-JS, like `/beanstalk`); an unrecognized filter value falls back to "all".
 * Read-only — a row's version name links to its atom-detail page, where each version has an `edit` link (see `/admin/version/[slug]` below).
 
 ### /admin/atom/[id]

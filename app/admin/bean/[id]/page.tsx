@@ -42,6 +42,14 @@ export default async function AdminBeanPage({ params }: { params: Promise<{ id: 
         <a href="/admin/vault">← vault</a>
       </p>
       <h1>{resolveText(bean.name)}</h1>
+      {bean.projected ? (
+        <p>
+          <em>
+            projected from {bean.projected.source} (feed {bean.projected.feedId}) — read-only,
+            rebuilt from the feed
+          </em>
+        </p>
+      ) : null}
       <ul>
         <li>bean: {bean.slug}</li>
         <li>visibility: {bean.visibility ?? "public (default)"}</li>

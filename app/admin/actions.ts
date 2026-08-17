@@ -10,6 +10,7 @@ import { loadRawGarden } from "@/lib/store";
 import { publishCascade, unpublishCascade, unpublishCascadeForBeans } from "@/lib/data";
 import { resolveParentChoice, buildSproutInput, validateSproutInput } from "@/lib/promote";
 import { buildSproutPatch, validateSproutPatch } from "@/lib/sprout-edit";
+import { runSync } from "@/lib/pollen-run";
 import {
   createPod,
   createBean,
@@ -233,4 +234,19 @@ export async function deleteVersionAction(formData: FormData): Promise<void> {
 
   revalidatePath("/admin");
   redirect(beanSlugs[0] ? `/admin/bean/${beanSlugs[0]}` : "/admin/vault");
+}
+
+// Manual pull of every configured feed — same core the cron Action calls.
+// Failed feeds surface via ?error= — a transport-construction failure (missing
+// token env var) never reaches a cursor doc, so the redirect must carry it.
+export async function syncNowAction(): Promise<void> {
+  await requireSession();
+  const results = await runSync();
+  revalidatePath("/admin/beanstalk");
+  const failed = results.filter((r) => r.status === "error");
+  redirect(
+    failed.length > 0
+      ? `/admin/beanstalk?error=${encodeURIComponent(failed.map((f) => `${f.feedId}: ${f.error ?? "unknown"}`).join(" · "))}`
+      : "/admin/beanstalk",
+  );
 }

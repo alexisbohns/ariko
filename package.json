@@ -10,6 +10,7 @@
     "migrate": "node --env-file=.env.local --import tsx scripts/migrate-garden.ts",
     "validators": "node --env-file=.env.local --import tsx scripts/apply-validators.ts",
     "pollen:validate": "node --import tsx scripts/pollen-validate.ts",
+    "pollen:rebuild": "node --env-file=.env.local --import tsx scripts/pollen-rebuild.ts",
     "migrate:botanical": "node --env-file=.env.local --import tsx scripts/migrate-botanical.ts",
     "migrate:retier": "node --env-file=.env.local --import tsx scripts/migrate-retier.ts"
   },
