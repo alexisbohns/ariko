@@ -562,7 +562,7 @@ bees:
   - slug: arkaik-adapter
     name: Arkaik adapter
     kind: adapter
-    status: planned
+    status: live
     engine: hosted-api
     levers:
       - label: pbbls feed
@@ -574,7 +574,23 @@ bees:
     serves:
       - plant:arkaik
       - plant:pbbls
-    description: Serves the arkaik journal as a pollen feed (slice 3, live producer-side); the Ariko read model ingests it in slice 4 — status flips to live then.
+    description: Serves the arkaik journal as a pollen feed (slice 3); ingested by the slice-4 read model into the beanstalk.
+  - slug: pollen-sync
+    name: Pollen sync
+    kind: workflow
+    status: live
+    engine: action
+    schedule: every 6h
+    levers:
+      - label: workflow
+        ref: .github/workflows/pollen-sync.yml
+      - label: sync door
+        ref: app/api/pollen/sync
+      - label: feed config
+        ref: data/federation.yml
+    serves:
+      - plant:ariko
+    description: Pulls every configured pollen feed into the read model through the guarded sync door (slice 4); the beanstalk renders the result.
   - slug: melogram-feed
     name: Melogram feed
     kind: adapter

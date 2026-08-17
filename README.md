@@ -188,6 +188,19 @@ sibling repos copy to test their adapters. Dry-run any feed with
 federation umbrella (`docs/superpowers/specs/2026-08-14-ariko-federation-design.md`);
 ingestion of pollen into the read model is slice 4.
 
+## Federation read model (slice 4)
+
+Ariko syncs every feed in `data/federation.yml` into a disposable Mongo
+cache (`pollen`, `pollen_cursors`, `pollen_refusals`) through one guarded
+door: `POST /api/pollen/sync` (bearer `SYNC_TOKEN`; cron:
+`.github/workflows/pollen-sync.yml`, every 6 h, secret `ARIKO_SYNC_TOKEN`).
+Upstream feed tokens live in Vercel env vars named by each feed's
+`tokenEnv` (today: `ARKAIK_API_TOKEN`). The public `/beanstalk` merges
+authored sprouts with feed events for plants in the config's `exhibit`
+list; `/admin/beanstalk` shows everything plus sync status and refusals.
+Rebuild one feed from scratch: `npm run pollen:rebuild -- <feedId>`.
+Contract: [`docs/POLLEN.md`](docs/POLLEN.md) §Read.
+
 ## Admin zone
 
 As of Plan 2b-i, a password-gated admin zone lets you capture into the inbox from the browser and review it — no curl needed. It is intentionally **bare functional HTML** (no CSS, no client JavaScript) until the project's artistic direction is set; triage/promote/publish (2b-ii) and the vault browser (2b-iii) come next.

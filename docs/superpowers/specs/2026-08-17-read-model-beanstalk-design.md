@@ -77,7 +77,8 @@ Three shapes were weighed:
   (envelope immutability — corrections arrive as new envelopes with a
   `corrects` ref, and render as their own beanstalk lines in v1).
 - **`pollen_cursors`** — one document per feed:
-  `{ feedId, cursor, lastSyncAt, lastStatus, lastError?, refusalCount }`.
+  `{ feedId, cursor, lastSyncAt, lastStatus, lastError? }` (refusal counts
+  are derived from `pollen_refusals` at render time, not stored).
   `cursor` is the last processed envelope id (POLLEN.md semantics).
 - **`pollen_refusals`** — no silent loss (umbrella §11): an envelope that
   fails `validatePollen` is recorded, not dropped:

@@ -99,7 +99,9 @@ only as a coordinated event: consumers drop cursors and rebuild.
 
 ## Read — guarantees
 
-Implemented ariko-side (read model, slice 4); stated here because
+Implemented ariko-side by the slice-4 read model
+(`docs/superpowers/specs/2026-08-17-read-model-beanstalk-design.md`);
+stated here because
 producers and consumers both rely on them: idempotent by `id`; cursor =
 last processed id per source; full rebuild possible at any time from the
 feed itself; ariko's copy is a disposable projection, never a live
