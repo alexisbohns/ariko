@@ -107,9 +107,11 @@ export interface FeedTransport {
   fetchPage(cursor: string | null): Promise<FeedPage>;
 }
 
+export type SyncStatus = "ok" | "rebuilding" | "error";
+
 export interface PollenSink {
   getCursor(feedId: string): Promise<string | null>;
-  setCursor(feedId: string, cursor: string | null, status: string, error?: string): Promise<void>;
+  setCursor(feedId: string, cursor: string | null, status: SyncStatus, error?: string): Promise<void>;
   insertNew(feedId: string, envelopes: Pollen[]): Promise<number>; // write-once; returns newly stored
   // MUST dedupe by content: id-less refusals (malformed feed-file lines) sit
   // past the cursor and are re-presented on every run.

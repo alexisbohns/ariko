@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { UpdateFilter } from "mongodb";
 import { getDb } from "./db";
 import type { Bean } from "./data";
 import type { PollenDoc, PollenSink, StoredRefusal } from "./pollen-sync";
@@ -11,7 +12,7 @@ export interface CursorDoc {
   feedId: string;
   cursor: string | null;
   lastSyncAt: string;
-  lastStatus: string; // "ok" | "rebuilding" | "error"
+  lastStatus: "ok" | "rebuilding" | "error";
   lastError?: string;
 }
 
@@ -30,6 +31,9 @@ export async function ensurePollenIndexes(): Promise<void> {
   await db.collection("pollen").createIndex({ "anchors.plant": 1 });
   await db.collection("pollen_cursors").createIndex({ feedId: 1 }, { unique: true });
   await db.collection("pollen_refusals").createIndex({ feedId: 1, rawHash: 1 }, { unique: true });
+  // projectBeans' race-safety rides this unique index; own it here instead of
+  // inheriting it from the one-off migrate-garden script.
+  await db.collection("beans").createIndex({ slug: 1 }, { unique: true });
 }
 
 export function makeSink(exhibit: string[]): PollenSink {
@@ -41,7 +45,7 @@ export function makeSink(exhibit: string[]): PollenSink {
     },
     async setCursor(feedId, cursor, status, error) {
       const db = await getDb();
-      const update: Record<string, unknown> = {
+      const update: UpdateFilter<CursorDoc> = {
         $set: {
           cursor,
           lastSyncAt: new Date().toISOString(),
@@ -49,10 +53,10 @@ export function makeSink(exhibit: string[]): PollenSink {
           ...(error ? { lastError: error } : {}),
         },
         $setOnInsert: { feedId },
+        // Clearing on recovery matters: without it a feed that errored once
+        // would show a stale lastError in the admin forever.
+        ...(error ? {} : { $unset: { lastError: "" } }),
       };
-      if (!error) update.$unset = { lastError: "" };
-      // If the driver's typings reject the loose shape, cast:
-      // `update as UpdateFilter<CursorDoc>` (import type { UpdateFilter } from "mongodb").
       await db.collection<CursorDoc>("pollen_cursors").updateOne({ feedId }, update, { upsert: true });
     },
     async insertNew(feedId, envelopes) {
@@ -93,6 +97,8 @@ export function makeSink(exhibit: string[]): PollenSink {
     },
     async projectBeans(feedId, envelopes) {
       const db = await getDb();
+      // Full slug scan is deliberate: fresh per page, so page N sees page
+      // N-1's projections and cross-page batches converge.
       const existing = new Set(
         (await db.collection<Bean>("beans").find({}, { projection: { _id: 0, slug: 1 } }).toArray()).map(
           (b) => b.slug,
