@@ -51,8 +51,11 @@ export async function listDigestBeanSlugs(): Promise<Set<string>> {
   return new Set(beans.map((b) => b.slug));
 }
 
-// All-or-nothing draft upsert. Pre-checks every slug's stored state, then
-// writes; refusals abort the whole batch (spec §3 idempotency).
+// Refusal checking is all-or-nothing: every slug's stored state is
+// pre-checked before any write, and refusals abort the whole batch (spec §3
+// idempotency). The write phase itself is not transactional, but every write
+// is an idempotent draft upsert, so a re-POST after a mid-batch error
+// converges.
 export async function upsertDigestDrafts(
   drafts: DraftSprout[],
 ): Promise<{ ok: true; written: number } | { ok: false; refused: string[] }> {
@@ -67,9 +70,14 @@ export async function upsertDigestDrafts(
   if (refused.length > 0) return { ok: false, refused };
   for (const d of drafts) {
     // $set never includes `state`: a fresh insert has none (draft), and a
-    // re-run leaves an existing (absent) state untouched.
+    // re-run leaves an existing (absent) state untouched. The pre-check above
+    // reads states once; re-asserting state-absence in the filter here makes
+    // the write collide loudly on the sprouts.slug unique index if a human
+    // publish lands mid-batch (upsert then tries to insert a duplicate slug
+    // and throws, aborting the batch) instead of silently clobbering a
+    // reviewed sprout.
     await db.collection("sprouts").updateOne(
-      { slug: d.slug },
+      { slug: d.slug, state: { $exists: false } },
       {
         $set: {
           name: d.name,
