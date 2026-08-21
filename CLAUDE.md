@@ -2,8 +2,21 @@
 
 Ariko is a personal "central node": a portfolio on a botanical content model
 (`Pod → Bean → Sprout`, with inbox `Seed`s), Next.js 15 / React 19 / TypeScript / MongoDB.
-The admin and public zones are intentionally **zero-CSS, no client JS, no UI
-framework** until an artistic direction is set. Orientation lives in
+
+The **public zone** runs on the design system: Tailwind v4 + shadcn on Base UI
+(`components.json`, preset `b3vqDobYF1` — style `base-nova`, neutral/green,
+large radius, lucide). Body face is Inclusive Sans, display face Geist Mono;
+both are wired through `--font-inclusive-sans` / `--font-geist-mono` in
+`app/globals.css`. Primitives live in `components/ui/` — add more with
+`npx shadcn@latest add <name>`, never hand-roll one that exists in the registry.
+
+The **admin zone** stays deliberately **zero-CSS, no client JS, no UI
+framework** until an artistic direction is set. `app/admin/layout.tsx` wraps it
+in `.admin-zone`, which reverts Tailwind's global preflight back to user-agent
+styles. Don't add design-system components under `app/admin/` without deciding
+to lift that rule first.
+
+Orientation lives in
 [`README.md`](README.md); the sequenced plan lives in
 [`docs/superpowers/ROADMAP.md`](docs/superpowers/ROADMAP.md).
 
