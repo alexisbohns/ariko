@@ -148,3 +148,14 @@ export function validateDigestBatch(
   }
   return { ok: true };
 }
+
+// Pure. incoming slugs → the subset that must NOT be overwritten because the
+// stored sprout has ANY state set (reviewed is a human act; spec §3).
+export function refusedOverwrites(
+  incoming: string[],
+  existingStates: Map<string, string | undefined>,
+): string[] {
+  return incoming.filter(
+    (slug) => existingStates.has(slug) && existingStates.get(slug) !== undefined,
+  );
+}

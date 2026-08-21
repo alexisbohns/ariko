@@ -144,3 +144,16 @@ test("validateDigestBatch: rejections name the offending sprout", () => {
   assert.match(bad([draft({ name: " " })]), /name/);
   assert.match(bad([draft(), draft()]), /duplicate/);
 });
+
+import { refusedOverwrites } from "./synthesis";
+
+test("refusedOverwrites: any existing state refuses; absent state is overwritable", () => {
+  const existing = new Map<string, string | undefined>([
+    ["digest-pbbls-2026-w34", undefined], // draft → overwritable
+    ["weekly-wrap-2026-w34", "published"], // reviewed → refuse
+  ]);
+  assert.deepEqual(
+    refusedOverwrites(["digest-pbbls-2026-w34", "weekly-wrap-2026-w34", "digest-ariko-2026-w34"], existing),
+    ["weekly-wrap-2026-w34"],
+  );
+});
