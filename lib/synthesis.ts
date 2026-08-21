@@ -2,6 +2,9 @@
 // bucketing and batch validation. No I/O — Mongo glue lives in
 // synthesis-store.ts, the doors in app/api/synthesis/.
 
+import type { PollenDoc } from "./pollen-sync";
+import { PLANT_PREFIX } from "./data";
+
 const WEEK_RE = /^(\d{4})-W(\d{2})$/;
 
 export function isValidWeekId(week: string): boolean {
@@ -52,4 +55,48 @@ export function digestSlug(plantSlug: string, week: string): string {
 
 export function wrapSlug(week: string): string {
   return `weekly-wrap-${week.toLowerCase()}`;
+}
+
+export const DIGEST_TYPE = "digest";
+
+// The store's flattening of a TimelineEntry — just what narration needs.
+export interface WindowSprout {
+  slug: string;
+  type: string;
+  date: string;
+  plantSlug: string | null;
+  name: string;
+  description: string;
+}
+
+export interface WeekBuckets {
+  plants: Record<string, { envelopes: PollenDoc[]; sprouts: WindowSprout[] }>;
+  quiet: string[];
+}
+
+// Pure. Date-part comparison on both sides (pollen `at` is a timestamp,
+// sprout dates are date-only — same convention as mergeBeanstalk). Sprouts
+// of DIGEST_TYPE are excluded: the digest never narrates itself (spec §4).
+export function bucketWeek(
+  pollen: PollenDoc[],
+  sprouts: WindowSprout[],
+  roster: string[],
+  bounds: { start: string; end: string },
+): WeekBuckets {
+  const inWindow = (day: string) => day >= bounds.start && day <= bounds.end;
+  const plants: WeekBuckets["plants"] = {};
+  const bucket = (slug: string) =>
+    (plants[slug] ??= { envelopes: [], sprouts: [] });
+
+  for (const p of pollen) {
+    if (!inWindow(p.at.slice(0, 10))) continue;
+    bucket(p.anchors.plant.slice(PLANT_PREFIX.length)).envelopes.push(p);
+  }
+  for (const s of sprouts) {
+    if (s.type === DIGEST_TYPE) continue;
+    if (!s.plantSlug || !inWindow(s.date.slice(0, 10))) continue;
+    bucket(s.plantSlug).sprouts.push(s);
+  }
+  const quiet = roster.filter((slug) => !(slug in plants));
+  return { plants, quiet };
 }

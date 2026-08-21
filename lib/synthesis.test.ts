@@ -43,3 +43,56 @@ test("digest slugs are lowercase and deterministic", () => {
   assert.equal(digestSlug("pbbls", "2026-W34"), "digest-pbbls-2026-w34");
   assert.equal(wrapSlug("2026-W34"), "weekly-wrap-2026-w34");
 });
+
+import { bucketWeek, DIGEST_TYPE, type WindowSprout } from "./synthesis";
+import type { PollenDoc } from "./pollen-sync";
+
+function env(id: string, at: string, plant: string): PollenDoc {
+  return {
+    v: 1,
+    id,
+    at,
+    source: "arkaik",
+    anchors: { plant: `plant:${plant}` },
+    kind: "deliverable.shipped",
+    title: `t-${id}`,
+  } as PollenDoc;
+}
+function ws(slug: string, date: string, plant: string | null, type = "note"): WindowSprout {
+  return { slug, type, date, plantSlug: plant, name: slug, description: "" };
+}
+
+test("bucketWeek: window-filters, groups per plant, derives quiet", () => {
+  const bounds = { start: "2026-08-17", end: "2026-08-23" };
+  const out = bucketWeek(
+    [
+      env("p1", "2026-08-18T10:00:00Z", "pbbls"),
+      env("p2", "2026-08-16T10:00:00Z", "pbbls"), // before window
+      env("p3", "2026-08-23T23:59:00Z", "arkaik"), // Sunday counts
+    ],
+    [
+      ws("s1", "2026-08-19", "ariko"),
+      ws("s2", "2026-08-25", "ariko"), // after window
+      ws("s3", "2026-08-19", null), // unresolvable plant → dropped
+    ],
+    ["pbbls", "arkaik", "ariko", "femfolk"],
+    bounds,
+  );
+  assert.deepEqual(Object.keys(out.plants).sort(), ["ariko", "arkaik", "pbbls"].sort());
+  assert.equal(out.plants["pbbls"].envelopes.length, 1);
+  assert.equal(out.plants["arkaik"].envelopes.length, 1);
+  assert.equal(out.plants["ariko"].sprouts.length, 1);
+  assert.deepEqual(out.quiet, ["femfolk"]);
+});
+
+test("bucketWeek: digest sprouts never narrate themselves", () => {
+  const bounds = { start: "2026-08-17", end: "2026-08-23" };
+  const out = bucketWeek(
+    [],
+    [ws("digest-pbbls-2026-w33", "2026-08-17", "pbbls", DIGEST_TYPE)],
+    ["pbbls"],
+    bounds,
+  );
+  assert.deepEqual(out.plants, {});
+  assert.deepEqual(out.quiet, ["pbbls"]);
+});
