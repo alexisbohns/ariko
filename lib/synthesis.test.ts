@@ -39,6 +39,12 @@ test("week id grammar", () => {
   assert.ok(!isValidWeekId("garbage"));
 });
 
+test("week 53 only exists in 53-week years", () => {
+  assert.ok(isValidWeekId("2026-W53")); // 2026 has 53 ISO weeks
+  assert.ok(!isValidWeekId("2027-W53")); // 2027 has 52
+  assert.throws(() => weekBounds("2027-W53"), /invalid week/);
+});
+
 test("digest slugs are lowercase and deterministic", () => {
   assert.equal(digestSlug("pbbls", "2026-W34"), "digest-pbbls-2026-w34");
   assert.equal(wrapSlug("2026-W34"), "weekly-wrap-2026-w34");

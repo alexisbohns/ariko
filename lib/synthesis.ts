@@ -11,7 +11,9 @@ export function isValidWeekId(week: string): boolean {
   const m = WEEK_RE.exec(week);
   if (!m) return false;
   const n = Number(m[2]);
-  return n >= 1 && n <= 53;
+  if (n < 1 || n > 53) return false;
+  // Week 53 only exists in 53-week years; Dec 28 is always in the last week.
+  return n < 53 || isoWeekId(`${m[1]}-12-28`) === `${m[1]}-W53`;
 }
 
 // Date-only strings throughout ("YYYY-MM-DD"); computed in UTC, which is
@@ -110,7 +112,7 @@ export interface DraftSprout {
   description?: string;
 }
 
-const CONTENT_CAP = 32 * 1024;
+const MAX_CONTENT_BYTES = 32 * 1024;
 
 // Pure, all-or-nothing (spec §4): first failure names the sprout and rejects
 // the batch. `state` is checked on the RAW object — the door structurally
@@ -124,12 +126,12 @@ export function validateDigestBatch(
   const seen = new Set<string>();
   for (const s of sprouts) {
     const who = s.slug || "(missing slug)";
-    if ("state" in (s as Record<string, unknown>))
+    if ("state" in s)
       return { ok: false, error: `${who}: state is not accepted on this door` };
     if (seen.has(s.slug)) return { ok: false, error: `duplicate slug: ${who}` };
     seen.add(s.slug);
     if (!s.name?.trim()) return { ok: false, error: `${who}: name is required` };
-    if (typeof s.content !== "string" || s.content.length > CONTENT_CAP)
+    if (typeof s.content !== "string" || s.content.length > MAX_CONTENT_BYTES)
       return { ok: false, error: `${who}: content must be a string of at most 32KiB` };
     if (s.parents?.length !== 1 || !s.parents[0].startsWith(BEAN_PREFIX))
       return { ok: false, error: `${who}: parents must be exactly one bean ref` };
