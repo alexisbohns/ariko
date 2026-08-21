@@ -131,17 +131,3 @@
     @apply font-sans;
     }
 }
-/* The admin zone stays intentionally bare-functional HTML (see CLAUDE.md) —
-   no CSS, no framework, until an artistic direction is set. Tailwind's
-   preflight is global, so it would strip the browser defaults the admin
-   relies on (list markers, heading scale, native form controls). Revert them
-   back to user-agent styles inside `.admin-zone` only; the design system is
-   for the public shell for now. */
-@layer base {
-  .admin-zone :where(h1, h2, h3, h4, h5, h6, p, ul, ol, li, dl, dt, dd, blockquote, hr, table, thead, tbody, tr, th, td, fieldset, legend, pre, code, small, strong, em) {
-    all: revert;
-  }
-  .admin-zone :where(input, button, select, textarea, label, a) {
-    all: revert;
-  }
-}

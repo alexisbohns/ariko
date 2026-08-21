@@ -3,18 +3,22 @@
 Ariko is a personal "central node": a portfolio on a botanical content model
 (`Pod → Bean → Sprout`, with inbox `Seed`s), Next.js 15 / React 19 / TypeScript / MongoDB.
 
-The **public zone** runs on the design system: Tailwind v4 + shadcn on Base UI
-(`components.json`, preset `b3vqDobYF1` — style `base-nova`, neutral/green,
-large radius, lucide). Body face is Inclusive Sans, display face Geist Mono;
-both are wired through `--font-inclusive-sans` / `--font-geist-mono` in
-`app/globals.css`. Primitives live in `components/ui/` — add more with
-`npx shadcn@latest add <name>`, never hand-roll one that exists in the registry.
+Both zones run on the design system: Tailwind v4 + shadcn on **Base UI**
+(`components.json`, preset `b3vqDobYF1` — style `base-nova`, neutral base /
+green theme, large radius, lucide). Body face is Inclusive Sans, display face
+Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
+`app/globals.css`.
 
-The **admin zone** stays deliberately **zero-CSS, no client JS, no UI
-framework** until an artistic direction is set. `app/admin/layout.tsx` wraps it
-in `.admin-zone`, which reverts Tailwind's global preflight back to user-agent
-styles. Don't add design-system components under `app/admin/` without deciding
-to lift that rule first.
+- Primitives live in `components/ui/`. Add more with
+  `npx shadcn@latest add <name>` — never hand-roll one the registry already has.
+- Chrome belongs to the zones, not the root layout: `app/(public)/layout.tsx`
+  (site header) and `app/admin/layout.tsx` + `app/admin/_components/admin-bar.tsx`
+  (tooling bar). The root layout owns only the document shell and the fonts.
+- **The admin forms stay zero-client-JS**: they post to server actions and must
+  work without script. Use the styled *native* controls in
+  `components/ui/native-controls.tsx` (`NativeSelect`, `NativeRadio`,
+  `NativeCheckbox`) rather than the Base UI Select/RadioGroup/Checkbox
+  composites, which submit through a script-populated hidden input.
 
 Orientation lives in
 [`README.md`](README.md); the sequenced plan lives in

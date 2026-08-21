@@ -1,11 +1,10 @@
 import type { ReactNode } from "react";
 
 /**
- * The admin zone opts OUT of the design system: it stays bare-functional HTML
- * (see CLAUDE.md) until an artistic direction is set. `.admin-zone` reverts
- * Tailwind's global preflight back to user-agent styles — see
- * `app/globals.css`.
+ * The admin/tooling zone. It shares the design system with the public zone
+ * but not its chrome: pages render their own `<AdminBar />` (the login page
+ * deliberately doesn't).
  */
 export default function AdminLayout({ children }: { children: ReactNode }) {
-  return <div className="admin-zone">{children}</div>;
+  return <main className="mx-auto max-w-5xl px-6 py-8">{children}</main>;
 }

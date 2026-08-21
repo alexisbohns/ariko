@@ -2,11 +2,25 @@ import { notFound } from "next/navigation";
 import { resolveText } from "@/lib/data";
 import { getFullDataset } from "@/lib/store";
 import { beanDetail, type BeanDetailView } from "@/lib/bean-detail";
+import { AdminBar } from "../../_components/admin-bar";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const dynamic = "force-dynamic";
 
 function isScalar(value: unknown): value is string | number | boolean {
   return typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+}
+
+/** One `key / value` line of the property dump. */
+function DumpRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <li className="flex gap-2">
+      <span className="w-24 shrink-0 text-muted-foreground">{label}</span>
+      <span className="min-w-0 break-words">{children}</span>
+    </li>
+  );
 }
 
 export default async function AdminBeanPage({ params }: { params: Promise<{ id: string }> }) {
@@ -23,11 +37,11 @@ export default async function AdminBeanPage({ params }: { params: Promise<{ id: 
   if (failed) {
     return (
       <article>
-        <p>
-          <a href="/admin/vault">← vault</a>
-        </p>
-        <h1>Bean</h1>
-        <p role="alert">Couldn&apos;t load the bean.</p>
+        <AdminBar current="/admin/vault" />
+        <h1 className="mb-4 font-heading text-2xl font-medium tracking-tight">Bean</h1>
+        <Alert variant="destructive" role="alert">
+          <AlertDescription>Couldn&apos;t load the bean.</AlertDescription>
+        </Alert>
       </article>
     );
   }
@@ -38,50 +52,76 @@ export default async function AdminBeanPage({ params }: { params: Promise<{ id: 
 
   return (
     <article>
-      <p>
-        <a href="/admin/vault">← vault</a>
-      </p>
-      <h1>{resolveText(bean.name)}</h1>
-      {bean.projected ? (
-        <p>
-          <em>
-            projected from {bean.projected.source} (feed {bean.projected.feedId}) — read-only,
-            rebuilt from the feed
-          </em>
-        </p>
-      ) : null}
-      <ul>
-        <li>bean: {bean.slug}</li>
-        <li>visibility: {bean.visibility ?? "public (default)"}</li>
-        <li>plant: {plant ?? "—"}</li>
-        <li>pod: {podParents.join(", ") || "—"}</li>
-        <li>tags: {(bean.tags ?? []).join(", ") || "—"}</li>
-      </ul>
+      <AdminBar current="/admin/vault" />
 
-      <h2>Versions ({sprouts.length})</h2>
-      {sprouts.length === 0 ? (
-        <p>No versions.</p>
-      ) : (
-        sprouts.map((version) => (
-          <section key={version.slug}>
-            <h3>{resolveText(version.name)}</h3>
-            <p>
-              <a href={`/admin/sprout/${version.slug}`}>edit</a>
-            </p>
-            <p>state: {version.state ?? "—"}</p>
-            <ul>
-              {Object.entries(version)
-                .filter(([, value]) => isScalar(value))
-                .map(([key, value]) => (
-                  <li key={key}>
-                    {key}: {String(value)}
-                  </li>
-                ))}
-            </ul>
-            <p>tags: {(version.tags ?? []).join(", ") || "—"}</p>
-          </section>
-        ))
-      )}
+      <div className="flex flex-col gap-8">
+        <div className="flex flex-col gap-3">
+          <a
+            href="/admin/vault"
+            className="text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+          >
+            ← vault
+          </a>
+          <h1 className="font-heading text-2xl font-medium tracking-tight">
+            {resolveText(bean.name)}
+          </h1>
+          {bean.projected ? (
+            <Alert role="note">
+              <AlertDescription>
+                Projected from {bean.projected.source} (feed {bean.projected.feedId}) — read-only,
+                rebuilt from the feed.
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          <ul className="flex flex-col gap-1 font-heading text-xs">
+            <DumpRow label="bean">{bean.slug}</DumpRow>
+            <DumpRow label="visibility">{bean.visibility ?? "public (default)"}</DumpRow>
+            <DumpRow label="plant">{plant ?? "—"}</DumpRow>
+            <DumpRow label="pod">{podParents.join(", ") || "—"}</DumpRow>
+            <DumpRow label="tags">{(bean.tags ?? []).join(", ") || "—"}</DumpRow>
+          </ul>
+        </div>
+
+        <section className="flex flex-col gap-4">
+          <h2 className="font-heading text-lg tracking-tight">
+            Versions <span className="text-muted-foreground">({sprouts.length})</span>
+          </h2>
+          {sprouts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No versions.</p>
+          ) : (
+            sprouts.map((version) => (
+              <Card key={version.slug}>
+                <CardHeader>
+                  <CardTitle className="font-heading text-base tracking-tight">
+                    {resolveText(version.name)}
+                  </CardTitle>
+                  <div className="flex items-center gap-3">
+                    <Badge variant="secondary">{version.state ?? "—"}</Badge>
+                    <a
+                      href={`/admin/sprout/${version.slug}`}
+                      className="text-sm underline-offset-4 transition-colors hover:underline"
+                    >
+                      edit
+                    </a>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <ul className="flex flex-col gap-1 font-heading text-xs">
+                    {Object.entries(version)
+                      .filter(([, value]) => isScalar(value))
+                      .map(([key, value]) => (
+                        <DumpRow key={key} label={key}>
+                          {String(value)}
+                        </DumpRow>
+                      ))}
+                    <DumpRow label="tags">{(version.tags ?? []).join(", ") || "—"}</DumpRow>
+                  </ul>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </section>
+      </div>
     </article>
   );
 }
