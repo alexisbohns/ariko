@@ -17,19 +17,25 @@ You are ariko's weekly-digest bee. Draft last week's digest and wrap, then stop.
    so last week ended yesterday). Call it WEEK, e.g. `2026-W34`.
 2. Read the window:
    `curl -fsS -H "Authorization: Bearer $SYNTHESIS_TOKEN" "https://www.ariko.app/api/synthesis/week?week=WEEK"`
-3. For each plant in `plants` (skip empty buckets), write one digest sprout:
+3. For each plant in `plants` whose `digest-<plant>` appears in the
+   response's `digestBeans`, write one digest sprout:
    - slug `digest-<plant>-<week lowercase>`, parents `["bean:digest-<plant>"]`,
      date = the week's Sunday, name "Week NN".
    - content: concise markdown narrating that plant's week from its envelopes
      and sprouts — milestones first, then notable work; every claim links down
      into a source (PR URL from the envelope refs when present). No filler; a
      two-line week is a two-line digest.
+   A plant with material but no `digest-<plant>` in `digestBeans` has no
+   container to draft into — mention it in the wrap's quiet/skipped line
+   instead (step 4), don't draft a sprout for it.
 4. Write the wrap sprout: slug `weekly-wrap-<week lowercase>`, parents
    `["bean:weekly-wrap"]`, same date. Content, in order: a one-sentence
    cross-plant lede (the week's thesis); a tally line (envelopes per plant,
-   active plant count); the quiet plants from `quiet`; a one-line "next" if
-   the material suggests one. Reference the plant digests — never restate
-   their content.
+   active plant count); the quiet plants from `quiet` PLUS any plant skipped
+   in step 3 for lacking a digest bean (call these out distinctly — quiet
+   means nothing happened, skipped means it did but has no container yet); a
+   one-line "next" if the material suggests one. Reference the plant digests
+   — never restate their content.
 5. POST everything in ONE batch:
    `curl -fsS -X POST -H "Authorization: Bearer $SYNTHESIS_TOKEN" -H "content-type: application/json" -d @batch.json "https://www.ariko.app/api/synthesis"`
    with `batch.json` = `{"week": "WEEK", "sprouts": [ ...all drafts... ]}`.
