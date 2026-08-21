@@ -3,7 +3,7 @@
 // synthesis-store.ts, the doors in app/api/synthesis/.
 
 import type { PollenDoc } from "./pollen-sync";
-import { PLANT_PREFIX } from "./data";
+import { BEAN_PREFIX, PLANT_PREFIX } from "./data";
 
 const WEEK_RE = /^(\d{4})-W(\d{2})$/;
 
@@ -99,4 +99,50 @@ export function bucketWeek(
   }
   const quiet = roster.filter((slug) => !(slug in plants));
   return { plants, quiet };
+}
+
+export interface DraftSprout {
+  slug: string;
+  name: string;
+  date: string;
+  parents: string[]; // exactly one "bean:digest-…" / "bean:weekly-wrap" ref
+  content: string;
+  description?: string;
+}
+
+const CONTENT_CAP = 32 * 1024;
+
+// Pure, all-or-nothing (spec §4): first failure names the sprout and rejects
+// the batch. `state` is checked on the RAW object — the door structurally
+// cannot publish, so any state key at all is a refusal, whatever its value.
+export function validateDigestBatch(
+  week: string,
+  sprouts: DraftSprout[],
+  digestBeanSlugs: Set<string>,
+): { ok: true } | { ok: false; error: string } {
+  if (!isValidWeekId(week)) return { ok: false, error: `invalid week id: ${week}` };
+  const seen = new Set<string>();
+  for (const s of sprouts) {
+    const who = s.slug || "(missing slug)";
+    if ("state" in (s as Record<string, unknown>))
+      return { ok: false, error: `${who}: state is not accepted on this door` };
+    if (seen.has(s.slug)) return { ok: false, error: `duplicate slug: ${who}` };
+    seen.add(s.slug);
+    if (!s.name?.trim()) return { ok: false, error: `${who}: name is required` };
+    if (typeof s.content !== "string" || s.content.length > CONTENT_CAP)
+      return { ok: false, error: `${who}: content must be a string of at most 32KiB` };
+    if (s.parents?.length !== 1 || !s.parents[0].startsWith(BEAN_PREFIX))
+      return { ok: false, error: `${who}: parents must be exactly one bean ref` };
+    const beanSlug = s.parents[0].slice(BEAN_PREFIX.length);
+    if (!digestBeanSlugs.has(beanSlug))
+      return { ok: false, error: `${who}: unknown digest bean ${beanSlug}` };
+    // Slug grammar must match the parent bean AND the batch's week.
+    const expected =
+      beanSlug === "weekly-wrap"
+        ? wrapSlug(week)
+        : digestSlug(beanSlug.replace(/^digest-/, ""), week);
+    if (s.slug !== expected)
+      return { ok: false, error: `${who}: slug must be ${expected}` };
+  }
+  return { ok: true };
 }

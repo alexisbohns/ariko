@@ -96,3 +96,45 @@ test("bucketWeek: digest sprouts never narrate themselves", () => {
   assert.deepEqual(out.plants, {});
   assert.deepEqual(out.quiet, ["pbbls"]);
 });
+
+import { validateDigestBatch, type DraftSprout } from "./synthesis";
+
+const BEANS = new Set(["digest-pbbls", "digest-ariko", "weekly-wrap"]);
+function draft(over: Partial<DraftSprout> = {}): DraftSprout {
+  return {
+    slug: "digest-pbbls-2026-w34",
+    name: "Week 34",
+    date: "2026-08-23",
+    parents: ["bean:digest-pbbls"],
+    content: "The week in pbbls…",
+    ...over,
+  };
+}
+
+test("validateDigestBatch: accepts a well-formed batch", () => {
+  const r = validateDigestBatch("2026-W34", [
+    draft(),
+    draft({ slug: "weekly-wrap-2026-w34", parents: ["bean:weekly-wrap"] }),
+  ], BEANS);
+  assert.deepEqual(r, { ok: true });
+});
+
+test("validateDigestBatch: rejections name the offending sprout", () => {
+  const bad = (sprouts: DraftSprout[], week = "2026-W34") => {
+    const r = validateDigestBatch(week, sprouts, BEANS);
+    assert.equal(r.ok, false);
+    return r.ok === false ? r.error : "";
+  };
+  assert.match(bad([draft()], "garbage"), /invalid week/);
+  assert.match(bad([draft({ slug: "digest-pbbls-2026-w33" })]), /2026-w33/); // week mismatch
+  assert.match(bad([draft({ slug: "renamed-thing" })]), /renamed-thing/); // grammar
+  assert.match(bad([draft({ parents: ["bean:nope"] })]), /nope/); // unknown bean
+  assert.match(bad([draft({ parents: ["bean:digest-ariko"] })]), /digest-pbbls-2026-w34/); // slug/parent mismatch
+  assert.match(
+    bad([draft({ state: "published" } as unknown as DraftSprout)]),
+    /state/,
+  ); // the door cannot publish
+  assert.match(bad([draft({ content: "x".repeat(32769) })]), /32KiB/);
+  assert.match(bad([draft({ name: " " })]), /name/);
+  assert.match(bad([draft(), draft()]), /duplicate/);
+});
