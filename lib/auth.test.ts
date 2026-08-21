@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseTokens, authorize, hasValidToken } from "./auth";
+import { parseTokens, authorize, hasValidToken, singleToken } from "./auth";
 
 const env = "*:tok_master,github:tok_gh";
 
@@ -67,4 +67,9 @@ test("tokens of different lengths compare safely", () => {
   assert.equal(authorize("Bearer short_but_longer", "manual", t), "unauthorized");
   assert.equal(hasValidToken("Bearer a_much_longer_token_value_here", t), true);
   assert.equal(hasValidToken("Bearer nope", t), false);
+});
+
+test("singleToken builds a wildcard-scoped map, or an empty one when unset", () => {
+  assert.equal(hasValidToken("Bearer tok_x", singleToken("tok_x")), true);
+  assert.equal(hasValidToken("Bearer tok_x", singleToken(undefined)), false);
 });

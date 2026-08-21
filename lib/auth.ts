@@ -22,6 +22,12 @@ export function parseTokens(env: string | undefined): Map<string, Set<string>> {
   return map;
 }
 
+// One static bearer token with full scope — the shape every guarded door
+// (SYNC_TOKEN, SYNTHESIS_TOKEN) builds; unset env → empty map → fail closed.
+export function singleToken(env: string | undefined): Map<string, Set<string>> {
+  return env ? new Map([[env, new Set(["*"])]]) : new Map<string, Set<string>>();
+}
+
 function bearer(header: string | null): string | null {
   if (!header) return null;
   const prefix = "Bearer ";

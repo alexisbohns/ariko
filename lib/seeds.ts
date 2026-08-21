@@ -19,6 +19,11 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+// Shared duplicate-key detection (Mongo error 11000) — see withDuplicateKeyRetry.
+export function isDuplicateKeyError(err: unknown): boolean {
+  return typeof err === "object" && err !== null && (err as { code?: number }).code === 11000;
+}
+
 // Retries fn exactly once when it rejects with a Mongo duplicate-key error
 // (code 11000); anything else — and a second consecutive 11000 — propagates
 // unchanged. Safe for the dedup upsert below because one retry converges: the
@@ -28,7 +33,7 @@ export async function withDuplicateKeyRetry<T>(fn: () => Promise<T>): Promise<T>
   try {
     return await fn();
   } catch (err) {
-    if (typeof err === "object" && err !== null && (err as { code?: number }).code === 11000) return fn();
+    if (isDuplicateKeyError(err)) return fn();
     throw err;
   }
 }

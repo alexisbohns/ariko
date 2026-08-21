@@ -24,6 +24,7 @@ export default async function EditVersionPage({
     .filter((p) => p.startsWith(ATOM_PREFIX))
     .map((p) => p.slice(ATOM_PREFIX.length))[0];
   const backHref = beanSlug ? `/admin/bean/${beanSlug}` : "/admin/vault";
+  const content = resolveText(version.content);
 
   return (
     <article>
@@ -37,6 +38,13 @@ export default async function EditVersionPage({
         <li>slug: {version.slug}</li>
         <li>bean: {beanSlug ?? "—"}</li>
       </ul>
+
+      {content ? (
+        <section>
+          <h2>Content</h2>
+          <pre>{content}</pre>
+        </section>
+      ) : null}
 
       <form action={editVersionAction}>
         <input type="hidden" name="slug" value={version.slug} />
