@@ -145,6 +145,13 @@ test("validateDigestBatch: rejections name the offending sprout", () => {
   assert.match(bad([draft(), draft()]), /duplicate/);
 });
 
+test("validateDigestBatch: non-object entries are refused, not thrown", () => {
+  for (const junk of [null, 42, "x", []]) {
+    const r = validateDigestBatch("2026-W34", [junk as unknown as DraftSprout], BEANS);
+    assert.equal(r.ok, false);
+  }
+});
+
 import { refusedOverwrites } from "./synthesis";
 
 test("refusedOverwrites: any existing state refuses; absent state is overwritable", () => {

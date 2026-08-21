@@ -125,6 +125,8 @@ export function validateDigestBatch(
   if (!isValidWeekId(week)) return { ok: false, error: `invalid week id: ${week}` };
   const seen = new Set<string>();
   for (const s of sprouts) {
+    if (typeof s !== "object" || s === null || Array.isArray(s))
+      return { ok: false, error: "every sprout must be an object" };
     const who = s.slug || "(missing slug)";
     if ("state" in s)
       return { ok: false, error: `${who}: state is not accepted on this door` };

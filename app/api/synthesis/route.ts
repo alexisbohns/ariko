@@ -1,4 +1,5 @@
-import { hasValidToken } from "../../../lib/auth";
+import { hasValidToken, singleToken } from "../../../lib/auth";
+import { isDuplicateKeyError } from "../../../lib/seeds";
 import {
   isValidWeekId,
   validateDigestBatch,
@@ -14,10 +15,7 @@ import {
 // against the curated digest beans → upsert, which itself refuses to touch
 // any sprout whose state is set (409). The door structurally cannot publish.
 export async function POST(request: Request): Promise<Response> {
-  const token = process.env.SYNTHESIS_TOKEN;
-  const tokens = token
-    ? new Map([[token, new Set(["*"])]])
-    : new Map<string, Set<string>>();
+  const tokens = singleToken(process.env.SYNTHESIS_TOKEN);
   if (!hasValidToken(request.headers.get("authorization"), tokens)) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -28,7 +26,11 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: "body must be JSON" }, { status: 400 });
   }
   const week = typeof body.week === "string" ? body.week : "";
-  if (!isValidWeekId(week) || !Array.isArray(body.sprouts)) {
+  if (
+    !isValidWeekId(week) ||
+    !Array.isArray(body.sprouts) ||
+    !body.sprouts.every((s) => typeof s === "object" && s !== null && !Array.isArray(s))
+  ) {
     return Response.json(
       { error: "body must be { week: 'YYYY-Wnn', sprouts: [...] }" },
       { status: 400 },
@@ -38,7 +40,18 @@ export async function POST(request: Request): Promise<Response> {
   const beans = await listDigestBeanSlugs();
   const check = validateDigestBatch(week, sprouts, beans);
   if (!check.ok) return Response.json({ error: check.error }, { status: 400 });
-  const result = await upsertDigestDrafts(sprouts);
+  let result;
+  try {
+    result = await upsertDigestDrafts(sprouts);
+  } catch (err) {
+    if (isDuplicateKeyError(err)) {
+      return Response.json(
+        { error: "refused: a sprout was reviewed mid-write; nothing clobbered — re-read and retry" },
+        { status: 409 },
+      );
+    }
+    throw err;
+  }
   if (!result.ok) {
     return Response.json(
       { error: "refused: reviewed sprouts are not overwritable", refused: result.refused },

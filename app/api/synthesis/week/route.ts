@@ -1,4 +1,4 @@
-import { hasValidToken } from "../../../../lib/auth";
+import { hasValidToken, singleToken } from "../../../../lib/auth";
 import { bucketWeek, isValidWeekId, weekBounds } from "../../../../lib/synthesis";
 import { loadWeekMaterial } from "../../../../lib/synthesis-store";
 
@@ -6,10 +6,7 @@ import { loadWeekMaterial } from "../../../../lib/synthesis-store";
 // the beanstalk union, UNFILTERED — private envelopes and unpublished sprouts
 // included, which is exactly why the token is not optional. Fail closed.
 export async function GET(request: Request): Promise<Response> {
-  const token = process.env.SYNTHESIS_TOKEN;
-  const tokens = token
-    ? new Map([[token, new Set(["*"])]])
-    : new Map<string, Set<string>>();
+  const tokens = singleToken(process.env.SYNTHESIS_TOKEN);
   if (!hasValidToken(request.headers.get("authorization"), tokens)) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }

@@ -28,6 +28,8 @@ test("week door: bad week id is 400 (before any DB touch)", async () => {
   try {
     const res = await GET(req("garbage", "Bearer tok_syn_test"));
     assert.equal(res.status, 400);
+    const noWeek = new Request("http://localhost/api/synthesis/week", { headers: { authorization: "Bearer tok_syn_test" } });
+    assert.equal((await GET(noWeek)).status, 400);
   } finally {
     delete process.env.SYNTHESIS_TOKEN;
   }

@@ -39,6 +39,7 @@ test("write door: malformed body and bad week are 400 before any DB touch", asyn
     assert.equal((await POST(raw)).status, 400);
     assert.equal((await POST(req({ week: "garbage", sprouts: [] }, "Bearer tok_syn_test"))).status, 400);
     assert.equal((await POST(req({ week: "2026-W34" }, "Bearer tok_syn_test"))).status, 400); // sprouts missing
+    assert.equal((await POST(req({ week: "2026-W34", sprouts: [null] }, "Bearer tok_syn_test"))).status, 400); // non-object sprout
   } finally {
     delete process.env.SYNTHESIS_TOKEN;
   }
