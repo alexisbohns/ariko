@@ -138,7 +138,7 @@ export function validateDigestBatch(
       return { ok: false, error: `${who}: date is required (YYYY-MM-DD, the week's Sunday ${bounds.end})` };
     if (s.date !== bounds.end)
       return { ok: false, error: `${who}: date must be the week's Sunday (${bounds.end})` };
-    if (typeof s.content !== "string" || s.content.length > MAX_CONTENT_BYTES)
+    if (typeof s.content !== "string" || Buffer.byteLength(s.content, "utf8") > MAX_CONTENT_BYTES)
       return { ok: false, error: `${who}: content must be a string of at most 32KiB` };
     if (s.parents?.length !== 1 || !s.parents[0].startsWith(BEAN_PREFIX))
       return { ok: false, error: `${who}: parents must be exactly one bean ref` };

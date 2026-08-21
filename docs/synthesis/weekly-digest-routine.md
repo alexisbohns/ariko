@@ -45,6 +45,21 @@ You are ariko's weekly-digest bee. Draft last week's digest and wrap, then stop.
 7. Never include a `state` field. Drafts are reviewed and published by a
    human in the admin.
 
+## Failure notes
+
+- **409 (refused).** Any admin-touched sprout — even just re-saved as a
+  draft — locks its slug against re-runs: the write door refuses to
+  overwrite a sprout whose `state` key is set at all, whatever its value
+  (spec §3, idempotency). If a re-run 409s, either drop that sprout's slug
+  from the batch and re-POST, or finish the week's remaining drafts by hand
+  in the admin — the batch is all-or-nothing, so one locked slug blocks
+  every other sprout in the same POST.
+- **Silent field drop.** The door allow-lists sprout fields on write:
+  `slug`, `name`, `date`, `parents`, `content`, `description`. Anything
+  beyond that — `relations` included — is accepted in the request body but
+  silently dropped, never persisted. Don't rely on any other field surviving
+  the round trip.
+
 ## Provisioning (one-time, manual)
 
 1. `openssl rand -hex 32` → the token.

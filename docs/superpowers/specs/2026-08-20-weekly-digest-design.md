@@ -150,3 +150,7 @@ Near-zero by design (zero-CSS hold intact):
 - **Alerting/health surface** beyond bee status.
 - **Multi-agent synthesis** — the door does not care whether one routine or
   an orchestra produced the payload (umbrella spec §8 seam).
+- **Wrap `relations` edges** to the week's plant digests — v1 wraps reference
+  by prose link only; the door allow-lists fields and drops `relations`
+  silently. Revisit when the monthly review (brick 2) needs machine-readable
+  edges.

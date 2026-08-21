@@ -6,7 +6,14 @@ import {
   digestSlug,
   wrapSlug,
   isValidWeekId,
+  bucketWeek,
+  DIGEST_TYPE,
+  validateDigestBatch,
+  refusedOverwrites,
+  type WindowSprout,
+  type DraftSprout,
 } from "./synthesis";
+import type { PollenDoc } from "./pollen-sync";
 
 test("isoWeekId: maps dates to ISO weeks incl. year boundaries", () => {
   assert.equal(isoWeekId("2026-08-17"), "2026-W34"); // a Monday
@@ -49,9 +56,6 @@ test("digest slugs are lowercase and deterministic", () => {
   assert.equal(digestSlug("pbbls", "2026-W34"), "digest-pbbls-2026-w34");
   assert.equal(wrapSlug("2026-W34"), "weekly-wrap-2026-w34");
 });
-
-import { bucketWeek, DIGEST_TYPE, type WindowSprout } from "./synthesis";
-import type { PollenDoc } from "./pollen-sync";
 
 function env(id: string, at: string, plant: string): PollenDoc {
   return {
@@ -103,8 +107,6 @@ test("bucketWeek: digest sprouts never narrate themselves", () => {
   assert.deepEqual(out.quiet, ["pbbls"]);
 });
 
-import { validateDigestBatch, type DraftSprout } from "./synthesis";
-
 const BEANS = new Set(["digest-pbbls", "digest-ariko", "weekly-wrap"]);
 function draft(over: Partial<DraftSprout> = {}): DraftSprout {
   return {
@@ -141,6 +143,10 @@ test("validateDigestBatch: rejections name the offending sprout", () => {
     /state/,
   ); // the door cannot publish
   assert.match(bad([draft({ content: "x".repeat(32769) })]), /32KiB/);
+  // Multi-byte chars: 20000 "€" is under the UTF-16 .length cap (32769) but
+  // well over 32KiB of UTF-8 bytes (3 bytes each) — the cap must be measured
+  // in bytes, not string units.
+  assert.match(bad([draft({ content: "€".repeat(20000) })]), /32KiB/);
   assert.match(bad([draft({ name: " " })]), /name/);
   assert.match(bad([draft(), draft()]), /duplicate/);
   assert.match(bad([draft({ date: undefined as unknown as string })]), /date/);
@@ -153,8 +159,6 @@ test("validateDigestBatch: non-object entries are refused, not thrown", () => {
     assert.equal(r.ok, false);
   }
 });
-
-import { refusedOverwrites } from "./synthesis";
 
 test("refusedOverwrites: any existing state refuses; absent state is overwritable", () => {
   const existing = new Map<string, string | undefined>([

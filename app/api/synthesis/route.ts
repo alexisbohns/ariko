@@ -10,6 +10,8 @@ import {
   upsertDigestDrafts,
 } from "../../../lib/synthesis-store";
 
+export const dynamic = "force-dynamic";
+
 // Guarded synthesis write door (slice 5 spec §4): drafts only, all-or-nothing.
 // Validation order: token → shape → week grammar (no DB yet) → batch guard
 // against the curated digest beans → upsert, which itself refuses to touch

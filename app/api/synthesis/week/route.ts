@@ -2,6 +2,8 @@ import { hasValidToken, singleToken } from "../../../../lib/auth";
 import { bucketWeek, isValidWeekId, weekBounds } from "../../../../lib/synthesis";
 import { loadWeekMaterial, listDigestBeanSlugs } from "../../../../lib/synthesis-store";
 
+export const dynamic = "force-dynamic";
+
 // Guarded synthesis read door (slice 5 spec §4): the machine-readable twin of
 // the beanstalk union, UNFILTERED — private envelopes and unpublished sprouts
 // included, which is exactly why the token is not optional. Fail closed.
