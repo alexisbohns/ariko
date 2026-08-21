@@ -1,6 +1,17 @@
 import { getFullDataset } from "@/lib/store";
 import { resolveText, type TimelineEntry } from "@/lib/data";
 import { filterVaultEntries, distinctPlants, distinctTags } from "@/lib/vault";
+import { AdminBar } from "../_components/admin-bar";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export const dynamic = "force-dynamic";
 
@@ -38,11 +49,11 @@ export default async function VaultPage({
   if (all === null) {
     return (
       <article>
-        <p>
-          <a href="/admin">← inbox</a>
-        </p>
-        <h1>Vault</h1>
-        <p role="alert">Couldn&apos;t load the vault.</p>
+        <AdminBar current="/admin/vault" />
+        <h1 className="mb-4 font-heading text-2xl font-medium tracking-tight">Vault</h1>
+        <Alert variant="destructive" role="alert">
+          <AlertDescription>Couldn&apos;t load the vault.</AlertDescription>
+        </Alert>
       </article>
     );
   }
@@ -54,66 +65,86 @@ export default async function VaultPage({
   const filterRow = (label: string, key: keyof Active, options: string[]) => {
     const current = active[key] ?? "all";
     return (
-      <p>
-        {label}:{" "}
-        {options.map((opt) => (
-          <span key={opt}>
-            {opt === current ? <strong>{opt}</strong> : <a href={vaultHref(active, key, opt)}>{opt}</a>}{" "}
-          </span>
-        ))}
-      </p>
+      <div className="flex flex-wrap items-baseline gap-2">
+        <span className="w-12 shrink-0 font-heading text-xs uppercase tracking-widest text-muted-foreground">
+          {label}
+        </span>
+        {options.map((opt) =>
+          opt === current ? (
+            <Badge key={opt}>{opt}</Badge>
+          ) : (
+            <a key={opt} href={vaultHref(active, key, opt)}>
+              <Badge variant="outline" className="transition-colors hover:bg-accent">
+                {opt}
+              </Badge>
+            </a>
+          ),
+        )}
+      </div>
     );
   };
 
   return (
     <article>
-      <p>
-        <a href="/admin">← inbox</a>
-      </p>
-      <h1>Vault</h1>
+      <AdminBar current="/admin/vault" />
 
-      {filterRow("state", "state", STATE_OPTIONS)}
-      {filterRow("plant", "plant", plantOptions)}
-      {filterRow("tag", "tag", tagOptions)}
+      <div className="flex flex-col gap-6">
+        <h1 className="font-heading text-2xl font-medium tracking-tight">Vault</h1>
 
-      <p>
-        showing {entries.length} of {all.length}
-      </p>
+        <div className="flex flex-col gap-3">
+          {filterRow("state", "state", STATE_OPTIONS)}
+          {filterRow("plant", "plant", plantOptions)}
+          {filterRow("tag", "tag", tagOptions)}
+        </div>
 
-      {entries.length === 0 ? (
-        <p>No matching sprouts.</p>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>sprout</th>
-              <th>state</th>
-              <th>plant</th>
-              <th>bean</th>
-              <th>date</th>
-              <th>tags</th>
-            </tr>
-          </thead>
-          <tbody>
-            {entries.map((e) => (
-              <tr key={e.sprout.slug}>
-                <td>
-                  {e.bean ? (
-                    <a href={`/admin/bean/${e.bean.slug}`}>{resolveText(e.sprout.name)}</a>
-                  ) : (
-                    resolveText(e.sprout.name)
-                  )}
-                </td>
-                <td>{e.sprout.state ?? "—"}</td>
-                <td>{e.plant?.slug ?? "—"}</td>
-                <td>{e.bean?.slug ?? "—"}</td>
-                <td>{e.sprout.date}</td>
-                <td>{(e.sprout.tags ?? []).join(", ") || "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+        <p className="text-sm text-muted-foreground">
+          showing {entries.length} of {all.length}
+        </p>
+
+        {entries.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No matching sprouts.</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>sprout</TableHead>
+                <TableHead>state</TableHead>
+                <TableHead>plant</TableHead>
+                <TableHead>bean</TableHead>
+                <TableHead>date</TableHead>
+                <TableHead>tags</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {entries.map((e) => (
+                <TableRow key={e.sprout.slug}>
+                  <TableCell>
+                    {e.bean ? (
+                      <a
+                        href={`/admin/bean/${e.bean.slug}`}
+                        className="underline-offset-4 transition-colors hover:underline"
+                      >
+                        {resolveText(e.sprout.name)}
+                      </a>
+                    ) : (
+                      resolveText(e.sprout.name)
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="secondary">{e.sprout.state ?? "—"}</Badge>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{e.plant?.slug ?? "—"}</TableCell>
+                  <TableCell className="text-muted-foreground">{e.bean?.slug ?? "—"}</TableCell>
+                  <TableCell className="text-muted-foreground">{e.sprout.date}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {(e.sprout.tags ?? []).join(", ") || "—"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </div>
     </article>
   );
 }

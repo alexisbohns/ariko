@@ -2,6 +2,14 @@ import { notFound } from "next/navigation";
 import { resolveText, textPart } from "@/lib/data";
 import { getSprout } from "@/lib/botanical";
 import { editVersionAction, deleteVersionAction } from "../../actions";
+import { AdminBar } from "../../_components/admin-bar";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { ChoiceLabel, NativeCheckbox, NativeRadio } from "@/components/ui/native-controls";
 
 export const dynamic = "force-dynamic";
 
@@ -28,101 +36,163 @@ export default async function EditVersionPage({
 
   return (
     <article>
-      <p>
-        <a href={backHref}>← back</a>
-      </p>
-      <h1>Edit version</h1>
-      {error ? <p role="alert">{error}</p> : null}
+      <AdminBar current="/admin/vault" />
 
-      <ul>
-        <li>slug: {version.slug}</li>
-        <li>bean: {beanSlug ?? "—"}</li>
-      </ul>
+      <div className="flex flex-col gap-8">
+        <div className="flex flex-col gap-3">
+          <a
+            href={backHref}
+            className="text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+          >
+            ← back
+          </a>
+          <h1 className="font-heading text-2xl font-medium tracking-tight">Edit version</h1>
+          <ul className="flex flex-col gap-1 font-heading text-xs">
+            <li className="flex gap-2">
+              <span className="w-16 shrink-0 text-muted-foreground">slug</span>
+              <span>{version.slug}</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="w-16 shrink-0 text-muted-foreground">bean</span>
+              <span>{beanSlug ?? "—"}</span>
+            </li>
+          </ul>
+        </div>
 
-      {content ? (
-        <section>
-          <h2>Content</h2>
-          <pre>{content}</pre>
-        </section>
-      ) : null}
+        {error ? (
+          <Alert variant="destructive" role="alert">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
 
-      <form action={editVersionAction}>
-        <input type="hidden" name="slug" value={version.slug} />
-        {/* Prefills use the STRICT textPart — resolveText's fallback would copy en
-            into the fr box and corrupt the data on save. The name inputs carry no
-            `required`: the name is required as a whole (either language), enforced
-            server-side, and an fr-only name is valid. */}
-        <p>
-          <label>
-            Name <input type="text" name="name" defaultValue={textPart(version.name, "en")} />
-          </label>
-        </p>
-        <p>
-          <label>
-            Name (fr) <input type="text" name="nameFr" defaultValue={textPart(version.name, "fr")} />
-          </label>
-        </p>
-        <p>
-          <label>
-            Type <input type="text" name="type" defaultValue={version.type} required />
-          </label>
-        </p>
-        <p>
-          <label>
-            Date <input type="date" name="date" defaultValue={version.date} required />
-          </label>
-        </p>
-        <p>
-          <label>
-            Description <textarea name="description" defaultValue={textPart(version.description, "en")} />
-          </label>
-        </p>
-        <p>
-          <label>
-            Description (fr) <textarea name="descriptionFr" defaultValue={textPart(version.description, "fr")} />
-          </label>
-        </p>
-        <fieldset>
-          <legend>State</legend>
-          <label>
-            <input
-              type="radio"
-              name="state"
-              value="draft"
-              defaultChecked={version.state === "draft" || version.state == null}
-            />{" "}
-            draft
-          </label>
-          <label>
-            <input type="radio" name="state" value="private" defaultChecked={version.state === "private"} />{" "}
-            private
-          </label>
-          <label>
-            <input type="radio" name="state" value="published" defaultChecked={version.state === "published"} />{" "}
-            published
-          </label>
-        </fieldset>
-        <p>
-          <button type="submit">Save</button>
-        </p>
-      </form>
+        {content ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-heading text-base tracking-tight">Content</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <pre className="overflow-x-auto rounded-lg bg-muted p-3 font-heading text-xs whitespace-pre-wrap">
+                {content}
+              </pre>
+            </CardContent>
+          </Card>
+        ) : null}
 
-      <hr />
-      <section>
-        <h2>Danger zone</h2>
-        <form action={deleteVersionAction}>
-          <input type="hidden" name="slug" value={version.slug} />
-          <p>
-            <label>
-              <input type="checkbox" name="confirm" required /> Yes, permanently delete the version
-              “{resolveText(version.name)}” — this cannot be undone.
-            </label>
-          </p>
-          <p>
-            <button type="submit">Delete version</button>
-          </p>
-        </form>
-      </section>
+        <Card>
+          <CardContent>
+            <form action={editVersionAction} className="flex flex-col gap-4">
+              <input type="hidden" name="slug" value={version.slug} />
+              {/* Prefills use the STRICT textPart — resolveText's fallback would copy en
+                  into the fr box and corrupt the data on save. The name inputs carry no
+                  `required`: the name is required as a whole (either language), enforced
+                  server-side, and an fr-only name is valid. */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="name">Name</Label>
+                  <Input
+                    id="name"
+                    type="text"
+                    name="name"
+                    defaultValue={textPart(version.name, "en")}
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="nameFr">Name (fr)</Label>
+                  <Input
+                    id="nameFr"
+                    type="text"
+                    name="nameFr"
+                    defaultValue={textPart(version.name, "fr")}
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="type">Type</Label>
+                  <Input id="type" type="text" name="type" defaultValue={version.type} required />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="date">Date</Label>
+                  <Input id="date" type="date" name="date" defaultValue={version.date} required />
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    name="description"
+                    defaultValue={textPart(version.description, "en")}
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="descriptionFr">Description (fr)</Label>
+                  <Textarea
+                    id="descriptionFr"
+                    name="descriptionFr"
+                    defaultValue={textPart(version.description, "fr")}
+                  />
+                </div>
+              </div>
+              <fieldset className="flex flex-col gap-2">
+                <legend className="text-sm font-medium">State</legend>
+                <div className="flex flex-wrap items-center gap-4 pt-1">
+                  <ChoiceLabel>
+                    <NativeRadio
+                      name="state"
+                      value="draft"
+                      defaultChecked={version.state === "draft" || version.state == null}
+                    />{" "}
+                    draft
+                  </ChoiceLabel>
+                  <ChoiceLabel>
+                    <NativeRadio
+                      name="state"
+                      value="private"
+                      defaultChecked={version.state === "private"}
+                    />{" "}
+                    private
+                  </ChoiceLabel>
+                  <ChoiceLabel>
+                    <NativeRadio
+                      name="state"
+                      value="published"
+                      defaultChecked={version.state === "published"}
+                    />{" "}
+                    published
+                  </ChoiceLabel>
+                </div>
+              </fieldset>
+              <div>
+                <Button type="submit">Save</Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card className="ring-destructive/30">
+          <CardHeader>
+            <CardTitle className="font-heading text-base tracking-tight text-destructive">
+              Danger zone
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form action={deleteVersionAction} className="flex flex-col gap-4">
+              <input type="hidden" name="slug" value={version.slug} />
+              <ChoiceLabel className="items-start leading-normal">
+                <NativeCheckbox name="confirm" required className="mt-0.5" />
+                <span>
+                  Yes, permanently delete the version “{resolveText(version.name)}” — this cannot
+                  be undone.
+                </span>
+              </ChoiceLabel>
+              <div>
+                <Button type="submit" variant="destructive">
+                  Delete version
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </article>
   );
 }

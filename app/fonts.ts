@@ -17,6 +17,7 @@ export const inclusiveSans = localFont({
       style: "italic",
     },
   ],
+  variable: "--font-inclusive-sans",
   display: "swap",
   fallback: ["system-ui", "sans-serif"],
 });

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { resolveText, type Relation, type Text } from "@/lib/data";
 import { getPublicDataset } from "@/lib/store";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const dynamic = "force-dynamic";
 
@@ -29,16 +30,20 @@ function dumpRows(sprout: Record<string, unknown>): ReactNode[] {
   return Object.entries(sprout).flatMap(([key, value]) => {
     if (key === "relations" && Array.isArray(value)) {
       return (value as Relation[]).map((rel, i) => (
-        <li key={`relation-${i}`}>
-          relation: {rel.kind} → {rel.ref}
+        <li key={`relation-${i}`} className="flex gap-2">
+          <span className="shrink-0 text-muted-foreground">relation</span>
+          <span>
+            {rel.kind} → {rel.ref}
+          </span>
         </li>
       ));
     }
     const display = displayValue(key, value);
     if (display === null) return [];
     return [
-      <li key={key}>
-        {key}: {String(display)}
+      <li key={key} className="flex gap-2">
+        <span className="shrink-0 text-muted-foreground">{key}</span>
+        <span>{String(display)}</span>
       </li>,
     ];
   });
@@ -53,14 +58,20 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
   const sprouts = data.sproutsForBean(bean.slug);
 
   return (
-    <article>
-      <h1>{resolveText(bean.name)}</h1>
+    <article className="flex flex-col gap-8">
+      <h1 className="font-heading text-2xl font-medium tracking-tight">{resolveText(bean.name)}</h1>
 
       {sprouts.map((sprout) => (
-        <section key={sprout.slug}>
-          <h2>{resolveText(sprout.name)}</h2>
-          <ul>{dumpRows(sprout)}</ul>
-        </section>
+        <Card key={sprout.slug}>
+          <CardHeader>
+            <CardTitle className="font-heading text-base tracking-tight">
+              {resolveText(sprout.name)}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="flex flex-col gap-1 font-heading text-xs">{dumpRows(sprout)}</ul>
+          </CardContent>
+        </Card>
       ))}
     </article>
   );

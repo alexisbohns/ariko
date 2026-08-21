@@ -2,8 +2,25 @@
 
 Ariko is a personal "central node": a portfolio on a botanical content model
 (`Pod → Bean → Sprout`, with inbox `Seed`s), Next.js 15 / React 19 / TypeScript / MongoDB.
-The admin and public zones are intentionally **zero-CSS, no client JS, no UI
-framework** until an artistic direction is set. Orientation lives in
+
+Both zones run on the design system: Tailwind v4 + shadcn on **Base UI**
+(`components.json`, preset `b3vqDobYF1` — style `base-nova`, neutral base /
+green theme, large radius, lucide). Body face is Inclusive Sans, display face
+Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
+`app/globals.css`.
+
+- Primitives live in `components/ui/`. Add more with
+  `npx shadcn@latest add <name>` — never hand-roll one the registry already has.
+- Chrome belongs to the zones, not the root layout: `app/(public)/layout.tsx`
+  (site header) and `app/admin/layout.tsx` + `app/admin/_components/admin-bar.tsx`
+  (tooling bar). The root layout owns only the document shell and the fonts.
+- **The admin forms stay zero-client-JS**: they post to server actions and must
+  work without script. Use the styled *native* controls in
+  `components/ui/native-controls.tsx` (`NativeSelect`, `NativeRadio`,
+  `NativeCheckbox`) rather than the Base UI Select/RadioGroup/Checkbox
+  composites, which submit through a script-populated hidden input.
+
+Orientation lives in
 [`README.md`](README.md); the sequenced plan lives in
 [`docs/superpowers/ROADMAP.md`](docs/superpowers/ROADMAP.md).
 

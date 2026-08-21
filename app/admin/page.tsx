@@ -1,6 +1,22 @@
 import { type Seed, resolveText } from "@/lib/data";
 import { listSeeds } from "@/lib/seeds";
-import { createSeedAction, logoutAction } from "./actions";
+import { createSeedAction } from "./actions";
+import { AdminBar } from "./_components/admin-bar";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { ChoiceLabel, NativeRadio } from "@/components/ui/native-controls";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export const dynamic = "force-dynamic";
 
@@ -46,82 +62,105 @@ export default async function AdminPage({
 
   return (
     <article>
-      <form action={logoutAction}>
-        <button type="submit">Log out</button>
-      </form>
+      <AdminBar current="/admin" />
 
-      <p>
-        <a href="/admin/vault">vault →</a> · <a href="/admin/beanstalk">beanstalk →</a>
-      </p>
+      <div className="flex flex-col gap-8">
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-heading text-lg tracking-tight">Seed</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {error ? (
+              <Alert variant="destructive" role="alert" className="mb-4">
+                <AlertDescription>Could not save: {error}</AlertDescription>
+              </Alert>
+            ) : null}
+            <form action={createSeedAction} className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="seed-title">Title</Label>
+                <Input id="seed-title" type="text" name="title" required />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="seed-note">Note</Label>
+                <Textarea id="seed-note" name="note" rows={2} />
+              </div>
+              <fieldset className="flex flex-col gap-2">
+                <legend className="text-sm font-medium">Note language</legend>
+                <div className="flex items-center gap-4 pt-1">
+                  <ChoiceLabel>
+                    <NativeRadio name="lang" value="en" defaultChecked /> en
+                  </ChoiceLabel>
+                  <ChoiceLabel>
+                    <NativeRadio name="lang" value="fr" /> fr
+                  </ChoiceLabel>
+                </div>
+              </fieldset>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="seed-link-1">Link</Label>
+                <Input id="seed-link-1" type="url" name="link" placeholder="paste a URL" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="seed-link-2">Link</Label>
+                <Input
+                  id="seed-link-2"
+                  type="url"
+                  name="link"
+                  placeholder="another URL (optional)"
+                />
+              </div>
+              <div>
+                <Button type="submit">Add to inbox</Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
 
-      <h1>Seed</h1>
-      {error ? <p role="alert">Could not save: {error}</p> : null}
-      <form action={createSeedAction}>
-        <p>
-          <label>
-            Title <input type="text" name="title" required />
-          </label>
-        </p>
-        <p>
-          <label>
-            Note <textarea name="note" rows={2} />
-          </label>
-        </p>
-        <fieldset>
-          <legend>Note language</legend>
-          <label>
-            <input type="radio" name="lang" value="en" defaultChecked /> en
-          </label>
-          <label>
-            <input type="radio" name="lang" value="fr" /> fr
-          </label>
-        </fieldset>
-        <p>
-          <label>
-            Link <input type="url" name="link" placeholder="paste a URL" />
-          </label>
-        </p>
-        <p>
-          <label>
-            Link <input type="url" name="link" placeholder="another URL (optional)" />
-          </label>
-        </p>
-        <p>
-          <button type="submit">Add to inbox</button>
-        </p>
-      </form>
-
-      <h2>Inbox {seeds ? `(${seeds.length})` : ""}</h2>
-      {seeds === null ? (
-        <p role="alert">Couldn&apos;t load the inbox.</p>
-      ) : seeds.length === 0 ? (
-        <p>Inbox empty.</p>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>source</th>
-              <th>title</th>
-              <th>note</th>
-              <th>media</th>
-              <th>age</th>
-            </tr>
-          </thead>
-          <tbody>
-            {seeds.map((c) => (
-              <tr key={c.id}>
-                <td>{c.source.kind}</td>
-                <td>
-                  <a href={`/admin/triage/${c.id}`}>{resolveText(c.title)}</a>
-                </td>
-                <td>{noteSnippet(c.body)}</td>
-                <td>{mediaLabel(c.media)}</td>
-                <td>{ageLabel(c.createdAt, now)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+        <section className="flex flex-col gap-4">
+          <h2 className="font-heading text-lg tracking-tight">
+            Inbox{" "}
+            {seeds ? <span className="text-muted-foreground">({seeds.length})</span> : null}
+          </h2>
+          {seeds === null ? (
+            <Alert variant="destructive" role="alert">
+              <AlertDescription>Couldn&apos;t load the inbox.</AlertDescription>
+            </Alert>
+          ) : seeds.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Inbox empty.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>source</TableHead>
+                  <TableHead>title</TableHead>
+                  <TableHead>note</TableHead>
+                  <TableHead>media</TableHead>
+                  <TableHead>age</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {seeds.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell className="text-muted-foreground">{c.source.kind}</TableCell>
+                    <TableCell>
+                      <a
+                        href={`/admin/triage/${c.id}`}
+                        className="underline-offset-4 transition-colors hover:underline"
+                      >
+                        {resolveText(c.title)}
+                      </a>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{noteSnippet(c.body)}</TableCell>
+                    <TableCell className="text-muted-foreground">{mediaLabel(c.media)}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {ageLabel(c.createdAt, now)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </section>
+      </div>
     </article>
   );
 }
