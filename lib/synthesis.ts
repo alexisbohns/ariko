@@ -123,6 +123,7 @@ export function validateDigestBatch(
   digestBeanSlugs: Set<string>,
 ): { ok: true } | { ok: false; error: string } {
   if (!isValidWeekId(week)) return { ok: false, error: `invalid week id: ${week}` };
+  const bounds = weekBounds(week);
   const seen = new Set<string>();
   for (const s of sprouts) {
     if (typeof s !== "object" || s === null || Array.isArray(s))
@@ -133,6 +134,10 @@ export function validateDigestBatch(
     if (seen.has(s.slug)) return { ok: false, error: `duplicate slug: ${who}` };
     seen.add(s.slug);
     if (!s.name?.trim()) return { ok: false, error: `${who}: name is required` };
+    if (typeof s.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(s.date))
+      return { ok: false, error: `${who}: date is required (YYYY-MM-DD, the week's Sunday ${bounds.end})` };
+    if (s.date !== bounds.end)
+      return { ok: false, error: `${who}: date must be the week's Sunday (${bounds.end})` };
     if (typeof s.content !== "string" || s.content.length > MAX_CONTENT_BYTES)
       return { ok: false, error: `${who}: content must be a string of at most 32KiB` };
     if (s.parents?.length !== 1 || !s.parents[0].startsWith(BEAN_PREFIX))

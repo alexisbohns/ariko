@@ -143,6 +143,8 @@ test("validateDigestBatch: rejections name the offending sprout", () => {
   assert.match(bad([draft({ content: "x".repeat(32769) })]), /32KiB/);
   assert.match(bad([draft({ name: " " })]), /name/);
   assert.match(bad([draft(), draft()]), /duplicate/);
+  assert.match(bad([draft({ date: undefined as unknown as string })]), /date/);
+  assert.match(bad([draft({ date: "2026-08-22" })]), /Sunday/); // week's Sunday is 2026-08-23
 });
 
 test("validateDigestBatch: non-object entries are refused, not thrown", () => {
