@@ -638,9 +638,18 @@ bees:
   - slug: weekly-digest
     name: Weekly digest
     kind: routine
-    status: planned
+    status: live
     engine: claude-routine
-    levers: []
+    schedule: "Mondays 07:00 Europe/Paris"
+    levers:
+      - label: routine
+        ref: trig_01LSgDZJA2wMhvn91LpgQLod
+      - label: read door
+        ref: app/api/synthesis/week
+      - label: write door
+        ref: app/api/synthesis
+      - label: prompt
+        ref: docs/synthesis/weekly-digest-routine.md
     serves:
       - plant:ariko
-    description: Will write the weekly cross-plant digest of the beanstalk (slice 5).
+    description: Writes the weekly cross-plant digest of the beanstalk (slice 5) — one draft sprout per plant plus the wrap, through the guarded synthesis door.
