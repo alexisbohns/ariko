@@ -1,5 +1,6 @@
 import type { Text, SproutState } from "./data";
 import { composeText, resolveText } from "./data";
+import { DIGEST_TYPE } from "./synthesis";
 
 // The editable subset of a Version. Structurally the $set payload for updateVersion.
 export interface SproutPatch {
@@ -38,4 +39,13 @@ export function validateSproutPatch(
   if (!p.type) return { ok: false, error: "sprout type is required" };
   if (!p.date) return { ok: false, error: "sprout date is required" };
   return { ok: true };
+}
+
+// Pure gate for the publish→visibility cascade (final review C1). Digest
+// publication (spec §3) marks review sign-off, not public exhibition: the
+// digest beans/plants are curated private containers, and flipping them
+// public is a separate human act on the bean/plant itself. Every other
+// sprout type keeps cascading on publish (existing behavior).
+export function shouldCascadePublish(type: string): boolean {
+  return type !== DIGEST_TYPE;
 }

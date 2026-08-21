@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildSproutPatch, validateSproutPatch } from "./sprout-edit";
+import { buildSproutPatch, validateSproutPatch, shouldCascadePublish } from "./sprout-edit";
+import { DIGEST_TYPE } from "./synthesis";
 
 function form(entries: Array<[string, string]>): FormData {
   const fd = new FormData();
@@ -84,6 +85,16 @@ test("validateSproutPatch rejects a name with no language present, message uncha
     ok: false,
     error: "sprout name is required",
   });
+});
+
+// --- Publish cascade gate (final review C1): a digest sprout's publish never
+// flips its bean/plant public — review sign-off is not public exhibition.
+
+test("shouldCascadePublish: digest sprouts are exempt; every other type cascades", () => {
+  assert.equal(shouldCascadePublish(DIGEST_TYPE), false);
+  assert.equal(shouldCascadePublish("song"), true);
+  assert.equal(shouldCascadePublish("note"), true);
+  assert.equal(shouldCascadePublish(""), true);
 });
 
 test("validateSproutPatch: missing name / type / date are each rejected with their message", () => {

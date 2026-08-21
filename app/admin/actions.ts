@@ -9,7 +9,7 @@ import { createOrUpdateSeed, getSeed, markSeedPromoted, discardSeed } from "@/li
 import { loadRawGarden } from "@/lib/store";
 import { publishCascade, unpublishCascade, unpublishCascadeForBeans } from "@/lib/data";
 import { resolveParentChoice, buildSproutInput, validateSproutInput } from "@/lib/promote";
-import { buildSproutPatch, validateSproutPatch } from "@/lib/sprout-edit";
+import { buildSproutPatch, validateSproutPatch, shouldCascadePublish } from "@/lib/sprout-edit";
 import { runSync } from "@/lib/pollen-run";
 import {
   createPod,
@@ -178,7 +178,10 @@ export async function editVersionAction(formData: FormData): Promise<void> {
   // never flip visibility somebody authored directly (e.g. a seeded public bean
   // that has no published versions yet). Both branches load the dataset AFTER
   // updateVersion, so the cascade evaluates the just-saved state.
-  if (patch.state === "published") {
+  // Further gated on the type being SAVED (final review C1): digest publication
+  // marks review sign-off, not public exhibition — visibility of digest-*/
+  // weekly-wrap beans and their plants stays a separate human act.
+  if (patch.state === "published" && shouldCascadePublish(patch.type)) {
     const { plantSlugs, podSlugs, beanSlugs } = publishCascade(await loadRawGarden(), slug);
     await setPublic(plantSlugs, podSlugs, beanSlugs);
   } else if (existing.state === "published") {
