@@ -107,6 +107,33 @@ beans:
     name: Pebbles Recorder
     parents:
       - plant:pbbls
+  # Slice 5 — digest containers (spec §3). Private: the shelter cascade keeps
+  # even PUBLISHED digest sprouts off the public beanstalk; publish here means
+  # reviewed-and-final. The machine writes sprouts only, never beans.
+  - slug: digest-pbbls
+    name: Weekly digests — pbbls
+    parents:
+      - plant:pbbls
+    visibility: private
+    description: One machine-drafted digest sprout per week of pbbls activity.
+  - slug: digest-arkaik
+    name: Weekly digests — arkaik
+    parents:
+      - plant:arkaik
+    visibility: private
+    description: One machine-drafted digest sprout per week of arkaik activity.
+  - slug: digest-ariko
+    name: Weekly digests — ariko
+    parents:
+      - plant:ariko
+    visibility: private
+    description: One machine-drafted digest sprout per week of ariko activity.
+  - slug: weekly-wrap
+    name: Weekly wrap
+    parents:
+      - plant:ariko
+    visibility: private
+    description: The cross-plant weekly wrap — lede, tally, quiet plants, next. References the per-plant digests, never restates them.
 sprouts:
   - slug: wait-for-the-sun-0
     name: Wait for the Sun
