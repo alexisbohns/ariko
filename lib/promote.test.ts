@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { resolveParentChoice, buildSproutInput, validateSproutInput } from "./promote";
+import { resolveParentChoice, buildSproutInput, buildNewBean, validateSproutInput } from "./promote";
 import type { Seed } from "./data";
 
 const seed: Seed = {
@@ -146,4 +146,28 @@ test("validateSproutInput accepts an fr-only name", () => {
 test("validateSproutInput rejects a name with no language present, message unchanged", () => {
   const base = buildSproutInput(form([["sproutSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), seed, null);
   assert.deepEqual(validateSproutInput({ ...base, name: {} }), { ok: false, error: "sprout name is required" });
+});
+
+test("buildNewBean composes paired en/fr name and description", () => {
+  const form = new FormData();
+  form.set("newBeanName", "Karma");
+  form.set("newBeanNameFr", "Karma");
+  form.set("newBeanDescription", "How the octopus keeps score.");
+  form.set("newBeanDescriptionFr", "Comment le poulpe compte les points.");
+  assert.deepEqual(buildNewBean(form, "karma"), {
+    slug: "karma",
+    name: { en: "Karma", fr: "Karma" },
+    description: {
+      en: "How the octopus keeps score.",
+      fr: "Comment le poulpe compte les points.",
+    },
+  });
+});
+
+test("buildNewBean falls back to the slug when the name is blank", () => {
+  assert.equal(buildNewBean(new FormData(), "karma").name, "karma");
+});
+
+test("buildNewBean returns a blank description when both boxes are empty", () => {
+  assert.equal(buildNewBean(new FormData(), "karma").description, "");
 });
