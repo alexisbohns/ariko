@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ChoiceLabel, NativeCheckbox, NativeRadio } from "@/components/ui/native-controls";
+import { Prose } from "@/components/markdown";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +64,17 @@ export default async function EditVersionPage({
           <Alert variant="destructive" role="alert">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
+        ) : null}
+
+        {content ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-heading text-base tracking-tight">Preview</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Prose content={version.content} />
+            </CardContent>
+          </Card>
         ) : null}
 
         {content ? (
