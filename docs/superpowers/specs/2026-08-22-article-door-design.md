@@ -63,6 +63,16 @@ it is that door's first payload.
 7. **`rehype-slug` joins the pipeline.** Six of the Paulopus cross-links point at drawer anchors
    (`#execution`), and rendered headings carry no `id` today, so those links currently land at the
    top of the page. The sanitize schema widens to allow `id` on headings only.
+
+   A decision made during implementation, reviewed afterwards: `rehype-sanitize`'s default (GitHub)
+   schema applies `clobberPrefix: "user-content-"` to `id`, which rewrote heading ids to
+   `#user-content-execution` and broke the deep links this slice needs. The implementation sets
+   `clobberPrefix: ""`. That is safe **specifically because** there is no raw-HTML path —
+   `rehype-raw` is deliberately absent, so the only id the pipeline ever mints is `rehype-slug`'s
+   own heading slug, and a hostile heading like `## <img src=x onerror=alert(1)>` renders as
+   `<h2 id="">` with the HTML dropped. The alternative — pointing authored deep links at the
+   prefixed id — was rejected because it pushes a sanitizer implementation detail into authored
+   prose. This protection must be reconsidered if `rehype-raw` is ever added.
 8. **Refs mirror on this write path too**, via the same `extractRefs`/`mergeMirrored` the other three
    writers use.
 
