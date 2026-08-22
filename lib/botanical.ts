@@ -1,5 +1,5 @@
 import { getDb } from "./db";
-import type { Bean, Plant, Pod, Sprout, Visibility } from "./data";
+import { resolveText, type Bean, type Plant, type Pod, type Sprout, type Text, type Visibility } from "./data";
 import type { SproutInput } from "./promote";
 import type { SproutPatch } from "./sprout-edit";
 
@@ -72,17 +72,22 @@ export async function createPod(input: NewPod): Promise<Pod> {
 
 export interface NewBean {
   slug: string;
-  name: string;
+  name: Text;
+  description: Text;
   podSlug: string | null;
   plantSlug: string | null; // used ONLY when podSlug is null — the pod carries the plant otherwise
 }
 
 export async function createBean(input: NewBean): Promise<Bean> {
   const db = await getDb();
+  // A blank description is omitted rather than stored as "" — the field is
+  // optional, and an empty one would render as a dangling line (slice 2).
+  const described = resolveText(input.description).trim();
   const doc: Bean = {
     slug: input.slug,
     name: input.name,
     parents: input.podSlug ? [`pod:${input.podSlug}`] : input.plantSlug ? [`plant:${input.plantSlug}`] : [],
+    ...(described ? { description: input.description } : {}),
     visibility: "private",
   };
   try {
