@@ -24,6 +24,7 @@
 
 * `/` — Directory. For each plant (+ its pods, + an "Unrooted" group for orphan pods and beans): name, natures, description, and the beans beneath it — each bean a link to /bean/[id] with its own one-line description.
 * `/beanstalk` — The beanstalk (formerly `/timeline`, which 308-redirects). Authored sprouts and exhibited pollen feed events, sorted by date descending. Above the list: a `<ul>` of domain filter buttons (`all | music | design | podcast`). Below: a `<ul>` of filtered results.
+* `/plant/[slug]` and `/pod/[slug]` — Container pages: name, description, the container's own `content` narrative (entity refs resolved live), then a mechanical index of what is inside.
 * `/bean/[id]` — Bean detail. `<h1>` bean name, then for each sprout: `<h2>` sprout name, `<ul>` of all key-value properties.
 
 ## Rich content
@@ -37,7 +38,13 @@ Sprouts carry optional markdown in `content` (localizable — `Text`, like `name
   markdown is inert; the sanitizer is belt-and-braces on top of that.
 * GFM tables render through the design system's `Table` primitives; everything else through
   `@tailwindcss/typography`.
-* Not yet rendered: media embeds, syntax highlighting, and entity blocks (slice 3). Design:
+* **Entity blocks** — content can embed other entities: `::entity{ref=bean:karma}` as a block card,
+  `:entity[label]{ref=plant:paulopus}` inline. The `ref` is the same prefixed grammar `parents[]`,
+  `relations[]` and pollen anchors use. Blocks resolve **fail-closed**: a ref whose target did not
+  survive `filterPublic` renders nothing at all in public, and renders visibly as unresolved in the
+  admin. Refs mirror into `relations[]` at write time under the kinds `embeds` / `mentions` — derived
+  state, re-derived on every write, so the graph reads stored refs and never parses prose.
+* Not yet rendered: media embeds and syntax highlighting. Design:
   [`docs/superpowers/specs/2026-08-22-content-composition-design.md`](docs/superpowers/specs/2026-08-22-content-composition-design.md).
 
 ## Constraints

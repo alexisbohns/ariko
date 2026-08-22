@@ -104,6 +104,10 @@ matters to the north star) and an **explanation** (what it entails / where it or
     Slice 2 (describe) followed the same day: `Bean.description`, descriptions rendered on the
     Directory and both bean pages, `description` in the `/api/graph` payload (reversing G1's
     withholding — the route already projects), and projected beans named from their envelope's title.
+    Slice 3 (compose) closed the umbrella: the `::entity{ref=…}` directive, `/plant/[slug]` and
+    `/pod/[slug]`, fail-closed block resolution, refs mirrored into `relations[]` on write, and a fix
+    for promote silently dropping a capture's body. **The cover moved to B2** — it needs the images
+    B2 creates. Media/embed rendering and the host-matching hardening are all that remain of B3.
 
 ### Track C — Ingestion & automation
 
