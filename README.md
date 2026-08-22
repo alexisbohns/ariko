@@ -15,14 +15,14 @@
 ### Architecture
 
 * **Pod**: has a name, domain (`music | design | podcast`), and contains beans
-* **Bean**: has a name, belongs to a pod (optional — can be standalone), and contains sprouts
+* **Bean**: has a name, an optional description (one bilingual line — what the Directory, the graph and future preview cards show), belongs to a pod (optional — can be standalone), and contains sprouts
 * **Sprout**: has a name, type, date, description, state (`draft | private | published`), carried media/source, tags, and flexible per-type properties. `parents` refs (`pod:slug` / `bean:slug`) express **containment only** — future non-containment links (lineage, "featured in") will live in a separate `relations[]`.
 * **Bilingual (B1)**: `name`/`description` accept the `Text` type (`string | { en?, fr? }`); plain strings remain valid (no migration). Every surface renders via `resolveText` (en-first, blank parts fall through); the triage/edit forms author both languages via paired en/fr inputs (WYSIWYG — the boxes are prefilled per language and what they submit is what is stored).
 * **Relations (G2)**: sprouts carry optional non-containment edges `relations: [{ kind, ref }]` (`ref` in the prefixed grammar incl. `sprout:`; `kind` free, e.g. `evolves-from`, `featured-in`). `filterPublic` scrubs each published sprout's relations to targets that survive the projection (fail-closed, malformed shapes tolerated), so private/draft slugs can never leak; deletes need no cascade — hidden targets simply drop their edges. Authoring UI comes later; relations enter via seed or DB for now.
 
 ## Pages
 
-* `/` — Directory. For each pod (+ a "Standalone" group for orphan beans): `<h2>` pod name, `<ul>` of bean names as links to /bean/[id].
+* `/` — Directory. For each plant (+ its pods, + an "Unrooted" group for orphan pods and beans): name, natures, description, and the beans beneath it — each bean a link to /bean/[id] with its own one-line description.
 * `/beanstalk` — The beanstalk (formerly `/timeline`, which 308-redirects). Authored sprouts and exhibited pollen feed events, sorted by date descending. Above the list: a `<ul>` of domain filter buttons (`all | music | design | podcast`). Below: a `<ul>` of filtered results.
 * `/bean/[id]` — Bean detail. `<h1>` bean name, then for each sprout: `<h2>` sprout name, `<ul>` of all key-value properties.
 

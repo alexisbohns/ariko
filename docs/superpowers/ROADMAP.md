@@ -101,6 +101,9 @@ matters to the north star) and an **explanation** (what it entails / where it or
     `components/markdown.tsx`, bean page + admin preview) as slice 1 of the Content & Composition
     umbrella (`docs/superpowers/specs/2026-08-22-content-composition-design.md`). Media/embed
     rendering and the host-matching hardening remain open; entity blocks are that umbrella's slice 3.
+    Slice 2 (describe) followed the same day: `Bean.description`, descriptions rendered on the
+    Directory and both bean pages, `description` in the `/api/graph` payload (reversing G1's
+    withholding — the route already projects), and projected beans named from their envelope's title.
 
 ### Track C — Ingestion & automation
 
