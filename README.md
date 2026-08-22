@@ -44,6 +44,7 @@ Sprouts carry optional markdown in `content` (localizable — `Text`, like `name
   survive `filterPublic` renders nothing at all in public, and renders visibly as unresolved in the
   admin. Refs mirror into `relations[]` at write time under the kinds `embeds` / `mentions` — derived
   state, re-derived on every write, so the graph reads stored refs and never parses prose.
+  `POST /api/articles` (below) is one of those write paths.
 * Not yet rendered: media embeds and syntax highlighting. Design:
   [`docs/superpowers/specs/2026-08-22-content-composition-design.md`](docs/superpowers/specs/2026-08-22-content-composition-design.md).
 
@@ -71,6 +72,7 @@ As of the Ingestion Spine slice, content can be captured into Mongo via API inst
 
 * Set `INBOX_TOKENS` in `.env.local` — comma-separated `kind:token` pairs, e.g. `*:tok_master,github:tok_gh`. A `kind` of `*` accepts the token for any source kind; otherwise the token is only valid for that specific `source.kind`.
 * Set `CLOUDINARY_URL` in `.env.local` (from the Cloudinary dashboard, e.g. `cloudinary://<key>:<secret>@<cloud_name>`) — required for `/api/upload` to store images.
+* Set `ARTICLES_TOKEN` in `.env.local` — a single bearer token for `POST /api/articles`; unset means the door is closed (fails closed, `401` on every request).
 * `npm run validators` — applies the DB-side `$jsonSchema` validators and seed indexes. Run once after pulling this change, and again after any validator edit.
 
 ### `POST /api/inbox`
@@ -92,6 +94,51 @@ Bearer-authenticated Cloudinary image upload: `Authorization: Bearer <token>`, b
 * `401` when the bearer token is missing/unknown, `400` when the `file` field is absent, `502` if the upload to Cloudinary itself fails (e.g. a placeholder/invalid `CLOUDINARY_URL`).
 
 The admin UI builds on these endpoints. Connectors post to `/api/inbox` with a bearer token; the browser capture bar (below) reaches the same ingestion path through a session-authenticated server action.
+
+### `POST /api/articles`
+
+Bearer-authenticated long-form write door: `Authorization: Bearer <token>`. Content of this kind
+should not live in a repo, and until this door existed `Plant.content` / `Pod.content` had no
+authoring path at all except editing `data/garden.yml` and running `npm run migrate`.
+
+Body: `{ container, narrative?, articles?: [{ slug, name, description?, date, content }] }`, e.g.:
+
+```json
+{
+  "container": "plant:paulopus",
+  "narrative": "## Context\n…",
+  "articles": [
+    { "slug": "karma-accountability", "name": "Karma & Accountability", "date": "2026-07-24", "content": "…" }
+  ]
+}
+```
+
+* `container` is a `plant:`/`pod:` ref; a `bean:` ref is refused — a bean's narrative is its
+  sprout's content, not a field. `narrative` and `articles` are each optional on their own, but
+  the payload must carry at least one.
+* `narrative` and each article's `content` are capped at **64 KiB**.
+* Sprout slugs are derived as `<article-slug>-0`, so re-posting an unreviewed article corrects it
+  in place.
+
+**The door structurally cannot publish.** Any `state` key on an article is refused whatever its
+value, beans are created private, and no visibility is ever changed — publication stays a human
+act in the admin.
+
+Two refusals, both pre-checked before anything is written and either one aborting the whole
+batch: an article whose stored sprout already carries any `state` (a human has reviewed it), and
+a container that is already public **and** carries non-blank prose.
+
+* `401` when the bearer token is missing, wrong, or `ARTICLES_TOKEN` is unset.
+* `400` on malformed JSON or a payload that fails validation (the validator's message is returned).
+* `409` on refusal — either the pre-check kind above, or a sprout reviewed in the gap between the
+  pre-check and the write itself.
+* `200` with `{ ok: true, written, narrative }` on success.
+
+**Operating sequence.** Keep the container private while its narrative and articles are posted
+and reviewed: posting a narrative to an already-public container would put live prose on the site
+whose entity cards all resolve to nothing while the articles are still drafts. Review and publish
+the sprouts from the admin; `publishCascade` — untouched — then flips the beans and the container
+public together, so the narrative, the cards and the articles all go live in the same act.
 
 ### Lab Note pipeline (C1 · GitHub connector)
 

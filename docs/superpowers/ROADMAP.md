@@ -108,6 +108,12 @@ matters to the north star) and an **explanation** (what it entails / where it or
     `/pod/[slug]`, fail-closed block resolution, refs mirrored into `relations[]` on write, and a fix
     for promote silently dropping a capture's body. **The cover moved to B2** — it needs the images
     B2 creates. Media/embed rendering and the host-matching hardening are all that remain of B3.
+    Slice 4 (the article door) shipped 2026-08-22: `POST /api/articles`, a guarded write door
+    through which an agent or routine posts long-form content, giving `Plant.content`/`Pod.content`
+    an authoring path for the first time — previously the only way to fill a container's narrative
+    was editing `data/garden.yml` and running `npm run migrate`. Track A still owes an admin surface
+    for *editing* a container's narrative: today, correcting a published one means re-privatizing
+    the container or editing the database directly.
 
 ### Track C — Ingestion & automation
 
