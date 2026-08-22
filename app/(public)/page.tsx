@@ -33,7 +33,9 @@ export default async function DirectoryPage() {
   const podSection = (pod: ReturnType<typeof data.podsForPlant>[number]) => (
     <section key={pod.slug} className="flex flex-col gap-2">
       <h3 className="font-heading text-xs uppercase tracking-widest text-muted-foreground">
-        {resolveText(pod.name)}
+        <a href={`/pod/${pod.slug}`} className="underline-offset-4 hover:underline">
+          {resolveText(pod.name)}
+        </a>
       </h3>
       {resolveText(pod.description ?? "").trim() ? (
         <p className="text-xs text-muted-foreground/80">{resolveText(pod.description)}</p>
@@ -50,7 +52,9 @@ export default async function DirectoryPage() {
         <Card key={plant.slug}>
           <CardHeader>
             <CardTitle className="font-heading text-lg tracking-tight">
-              {resolveText(plant.name)}
+              <a href={`/plant/${plant.slug}`} className="underline-offset-4 hover:underline">
+                {resolveText(plant.name)}
+              </a>
             </CardTitle>
             <div className="flex flex-wrap gap-1.5">
               {plant.natures.map((nature) => (
