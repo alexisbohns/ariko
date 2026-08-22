@@ -2,6 +2,7 @@
 import { getDb } from "./db";
 import { buildDataset, resolveText, type Sprout } from "./data";
 import { loadRawGarden } from "./store";
+import { extractRefs, mergeMirrored } from "./entity-refs";
 import { listPollen } from "./pollen-store";
 import {
   DIGEST_TYPE,
@@ -85,6 +86,9 @@ export async function upsertDigestDrafts(
           date: d.date,
           parents: d.parents,
           content: d.content,
+          // Derived on every draft write (slice 3): the digest bee's prose can
+          // embed entities, and the graph must see those edges without parsing.
+          relations: mergeMirrored(undefined, extractRefs(d.content)),
           description: d.description ?? "",
         },
         $unset: { state: "" },

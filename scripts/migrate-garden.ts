@@ -9,6 +9,7 @@ import { join } from "node:path";
 import yaml from "js-yaml";
 import { getDb } from "../lib/db";
 import type { RawGarden } from "../lib/data";
+import { extractRefs, mergeMirrored } from "../lib/entity-refs";
 
 async function main() {
   const file = readFileSync(join(process.cwd(), "data", "garden.yml"), "utf8");
@@ -22,12 +23,22 @@ async function main() {
   await db.collection("plants").createIndex({ slug: 1 }, { unique: true });
   await db.collection("bees").createIndex({ slug: 1 }, { unique: true });
 
+  // Entity refs in a container's or sprout's content mirror into relations[] on
+  // every write, so the graph reads stored refs and never parses prose.
+  const mirrored = <T extends { content?: unknown; relations?: unknown }>(doc: T) => {
+    const relations = mergeMirrored(
+      doc.relations as Parameters<typeof mergeMirrored>[0],
+      extractRefs(doc.content as Parameters<typeof extractRefs>[0]),
+    );
+    return relations.length > 0 ? { ...doc, relations } : doc;
+  };
+
   for (const p of raw.plants ?? []) {
     await db.collection("plants").updateOne(
       { slug: p.slug },
       p.visibility
-        ? { $set: { ...p } }
-        : { $set: { ...p }, $setOnInsert: { visibility: "public" } },
+        ? { $set: { ...mirrored(p) } }
+        : { $set: { ...mirrored(p) }, $setOnInsert: { visibility: "public" } },
       { upsert: true },
     );
   }
@@ -35,8 +46,8 @@ async function main() {
     await db.collection("pods").updateOne(
       { slug: m.slug },
       m.visibility
-        ? { $set: { ...m } }
-        : { $set: { ...m }, $setOnInsert: { visibility: "public" } },
+        ? { $set: { ...mirrored(m) } }
+        : { $set: { ...mirrored(m) }, $setOnInsert: { visibility: "public" } },
       { upsert: true },
     );
   }
@@ -52,7 +63,9 @@ async function main() {
   for (const v of raw.sprouts ?? []) {
     await db.collection("sprouts").updateOne(
       { slug: v.slug },
-      v.state ? { $set: { ...v } } : { $set: { ...v }, $setOnInsert: { state: "published" } },
+      v.state
+        ? { $set: { ...mirrored(v) } }
+        : { $set: { ...mirrored(v) }, $setOnInsert: { state: "published" } },
       { upsert: true },
     );
   }
