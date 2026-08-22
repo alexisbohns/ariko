@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { resolveText, type Relation, type Text } from "@/lib/data";
 import { getPublicDataset } from "@/lib/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { articleFor } from "@/lib/article";
+import { Prose } from "@/components/markdown";
 
 export const dynamic = "force-dynamic";
 
@@ -56,10 +58,15 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
   if (!bean) notFound();
 
   const sprouts = data.sproutsForBean(bean.slug);
+  // The newest published sprout carrying content (spec §4). Older sprouts stay
+  // as the property-dump rows below — they have no public URL to link to yet.
+  const article = articleFor(sprouts);
 
   return (
     <article className="flex flex-col gap-8">
       <h1 className="font-heading text-2xl font-medium tracking-tight">{resolveText(bean.name)}</h1>
+
+      {article ? <Prose content={article.content} /> : null}
 
       {sprouts.map((sprout) => (
         <Card key={sprout.slug}>

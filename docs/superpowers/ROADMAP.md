@@ -97,6 +97,10 @@ matters to the north star) and an **explanation** (what it entails / where it or
     lands, **harden embed host-matching** from substring (`host.includes("vimeo.com")`) to exact
     (`host === h || host.endsWith("." + h)`) — provider becomes a trust signal once iframed. *(Origin:
     2a deferred follow-ups; ties into public exhibition.)*
+  - *Status:* the **render half** shipped 2026-08-22 (`lib/markdown.ts`, `lib/article.ts`,
+    `components/markdown.tsx`, bean page + admin preview) as slice 1 of the Content & Composition
+    umbrella (`docs/superpowers/specs/2026-08-22-content-composition-design.md`). Media/embed
+    rendering and the host-matching hardening remain open; entity blocks are that umbrella's slice 3.
 
 ### Track C — Ingestion & automation
 
