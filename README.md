@@ -26,6 +26,20 @@
 * `/beanstalk` — The beanstalk (formerly `/timeline`, which 308-redirects). Authored sprouts and exhibited pollen feed events, sorted by date descending. Above the list: a `<ul>` of domain filter buttons (`all | music | design | podcast`). Below: a `<ul>` of filtered results.
 * `/bean/[id]` — Bean detail. `<h1>` bean name, then for each sprout: `<h2>` sprout name, `<ul>` of all key-value properties.
 
+## Rich content
+
+Sprouts carry optional markdown in `content` (localizable — `Text`, like `name`/`description`).
+
+* It renders as prose on `/bean/[id]` (the newest published sprout carrying content, `lib/article.ts`)
+  and as a **Preview** card on `/admin/sprout/[slug]`, beside the raw source.
+* The pipeline is configured in exactly one place, `lib/markdown.ts`: `remark-gfm` for tables and
+  fenced code, `rehype-sanitize` **last**. `rehype-raw` is deliberately absent, so HTML embedded in
+  markdown is inert; the sanitizer is belt-and-braces on top of that.
+* GFM tables render through the design system's `Table` primitives; everything else through
+  `@tailwindcss/typography`.
+* Not yet rendered: media embeds, syntax highlighting, and entity blocks (slice 3). Design:
+  [`docs/superpowers/specs/2026-08-22-content-composition-design.md`](docs/superpowers/specs/2026-08-22-content-composition-design.md).
+
 ## Constraints
 
 * Zero CSS.
