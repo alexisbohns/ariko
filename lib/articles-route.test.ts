@@ -65,6 +65,26 @@ test("write door: malformed JSON body is 400", async () => {
   }
 });
 
+test("write door: bad token wins over malformed JSON — 401, not 400 (body is never read)", async () => {
+  process.env.ARTICLES_TOKEN = "tok_art_test";
+  try {
+    const raw = new Request("http://localhost/api/articles", {
+      method: "POST",
+      headers: { authorization: "Bearer wrong" },
+      body: "not json",
+    });
+    assert.equal((await POST(raw)).status, 401);
+
+    const rawNoAuth = new Request("http://localhost/api/articles", {
+      method: "POST",
+      body: "not json",
+    });
+    assert.equal((await POST(rawNoAuth)).status, 401);
+  } finally {
+    delete process.env.ARTICLES_TOKEN;
+  }
+});
+
 test("write door: a payload failing pure validation is 400 and names the offender", async () => {
   process.env.ARTICLES_TOKEN = "tok_art_test";
   try {
