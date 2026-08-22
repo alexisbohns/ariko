@@ -464,11 +464,117 @@ Run: `node --import tsx --test lib/markdown-conformance.test.ts lib/markdown.tes
 Expected: `# fail 0`. The two pre-existing suites must still pass — the fix changes only the
 ref-less path.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Close the third implementation's gap in the same grammar**
+
+Task 2's code-quality review found that `lib/entity-refs.ts` — the scanner that mirrors prose refs
+into `relations[]` — does not recognise the **labeled** block form. So
+`::entity[Some Label]{ref=bean:x}` renders as a card on the page but mints **no graph edge**. Give
+its `BLOCK` the same optional-label group Task 2 gave the tokenizer:
+
+```ts
+const BLOCK = /^ {0,3}::entity(?:\[[^\]\n]*\])?\{[^}]*\bref=([^\s}]+)/gm;
+```
+
+Add to `lib/entity-refs.test.ts`:
+
+```ts
+test("a labeled block card mints an embeds edge, like the unlabeled form", () => {
+  // Found by the slice-5 conformance work: the renderer draws a card for this
+  // and the graph had no edge for it.
+  assert.deepEqual(extractRefs("::entity[Some Label]{ref=bean:x}"), [
+    { kind: "embeds", ref: "bean:x" },
+  ]);
+});
+```
+
+- [ ] **Step 6: Pin all three implementations against one fixture table**
+
+This is the artifact that actually prevents drift, and it is the review's own recommendation. There
+are **three** implementations of this grammar — remark (renders the page), the marked tokenizer
+(the editor writes), and `extractRefs` (feeds the graph) — and until now no test drove more than two.
+
+Create `lib/entity-fixtures.ts`:
+
+```ts
+/**
+ * One corpus, three readers. This grammar is implemented three times — remark
+ * renders it (lib/markdown.ts), the marked tokenizer writes it
+ * (lib/entity-markdown.ts), and extractRefs mirrors it into the graph
+ * (lib/entity-refs.ts). Every row below is a case where all three MUST agree.
+ *
+ * Cases where they legitimately differ are NOT here: they live as named,
+ * commented tests in lib/markdown-conformance.test.ts, so a divergence is
+ * always either forbidden (this file) or deliberate (a named test).
+ */
+export interface EntityFixture {
+  md: string;
+  expect: "card" | "mention" | "none";
+}
+
+export const ENTITY_FIXTURES: EntityFixture[] = [
+  { md: "::entity{ref=bean:x}", expect: "card" },
+  { md: "::entity[Some Label]{ref=bean:x}", expect: "card" },
+  { md: "   ::entity{ref=bean:x}", expect: "card" },
+  { md: "Before.\n\n::entity{ref=bean:x}", expect: "card" },
+  { md: "see :entity[Label]{ref=bean:x} here", expect: "mention" },
+  { md: "    ::entity{ref=bean:x}", expect: "none" },
+  { md: "```\n::entity{ref=bean:x}\n```", expect: "none" },
+  { md: "literal `::entity{ref=bean:x}` here", expect: "none" },
+  { md: "::entity{foo=bar}", expect: "none" },
+  { md: "::entity{ref=}", expect: "none" },
+  { md: "x::entity{ref=bean:x}", expect: "none" },
+];
+```
+
+Append to `lib/markdown-conformance.test.ts`:
+
+```ts
+import { extractRefs } from "./entity-refs";
+import { ENTITY_FIXTURES } from "./entity-fixtures";
+
+// Reads what each implementation believes the fixture contains.
+const remarkVerdict = (md: string): "card" | "mention" | "none" => {
+  const html = render(md);
+  if (html.includes("<entity-card")) return "card";
+  if (html.includes("<entity-link")) return "mention";
+  return "none";
+};
+
+const editorVerdict = (md: string): "card" | "mention" | "none" => {
+  const json = JSON.stringify(manager.parse(md));
+  if (json.includes('"entityCard"')) return "card";
+  if (json.includes('"entityMention"')) return "mention";
+  return "none";
+};
+
+const refsVerdict = (md: string): "card" | "mention" | "none" => {
+  const kinds = extractRefs(md).map((r) => r.kind);
+  if (kinds.includes("embeds")) return "card";
+  if (kinds.includes("mentions")) return "mention";
+  return "none";
+};
+
+for (const { md, expect } of ENTITY_FIXTURES) {
+  test(`all three readers agree on ${JSON.stringify(md)}`, () => {
+    assert.equal(remarkVerdict(md), expect, "remark (renders the page)");
+    assert.equal(editorVerdict(md), expect, "marked tokenizer (the editor writes)");
+    assert.equal(refsVerdict(md), expect, "extractRefs (feeds the graph)");
+  });
+}
+```
+
+- [ ] **Step 7: Run everything**
+
+Run: `npm test 2>&1 | tail -6`
+Expected: `fail 0`. If a fixture row fails, **do not weaken the row** — one of the three
+implementations is wrong, and the row is the point.
+
+- [ ] **Step 8: Commit**
 
 ```bash
-git add lib/markdown.ts lib/markdown-conformance.test.ts
-git commit -m "test: cross-parser conformance; fix ref-less directives rendering as a bare <div>"
+git add lib/markdown.ts lib/entity-refs.ts lib/entity-refs.test.ts \
+        lib/entity-fixtures.ts lib/markdown-conformance.test.ts
+git commit -m "test: one grammar corpus, three readers; fix ref-less <div> and the labeled-block gap"
 ```
 
 ---
@@ -2140,6 +2246,16 @@ suggested:
   over tested pure functions, consistent with `editVersionAction` before it.
 - **The known parser divergence** on malformed inline directives (Task 3). Asserted, narrow, and
   unreachable from the editor; revisit only if `/api/articles` starts receiving such input.
+- **A card inside a blockquote mints no graph edge.** `> ::entity{ref=…}` renders as a card in both
+  remark and the editor, but `extractRefs`'s `BLOCK` is anchored to line start and does not see
+  through the `> ` prefix. Pre-existing, unreachable from the editor (which never nests a card in a
+  quote), and left out of the fixture table deliberately. *(Task 2 review.)*
+- **A quoted ref keeps its quotes.** `::entity{ref="bean:x"}` yields the ref `"bean:x"` including the
+  quotes, in both the tokenizer and `extractRefs`, while remark strips them. Hand-authored input only
+  — the picker cannot produce it. *(Task 2 review.)*
+- **Marks around an inline mention are dropped**, and a card inside a loose list item makes the list
+  tight. Both are upstream in `@tiptap/markdown`'s serializer, pinned by a test in
+  `lib/entity-markdown.test.ts` rather than worked around. *(Task 2 review.)*
 - **`@tiptap/markdown` version drift.** Its peer dependencies pin `@tiptap/core` and `@tiptap/pm` to
   an exact version, so upgrading any Tiptap package means upgrading all of them and re-running
   `lib/markdown-conformance.test.ts` — which is the test that would catch a serializer change.
