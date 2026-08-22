@@ -74,3 +74,13 @@ test("a non-entity directive is left alone", () => {
   const html = render("::note{ref=bean:x}");
   assert.doesNotMatch(html, /entity-card/);
 });
+
+test("headings get an id so deep links can land on them", () => {
+  const html = render("## Execution\n\ntext");
+  assert.match(html, /<h2 id="execution">/);
+});
+
+test("an author-supplied id on other elements is still stripped", () => {
+  const html = render('<p id="sneaky">hi</p>');
+  assert.doesNotMatch(html, /sneaky/);
+});

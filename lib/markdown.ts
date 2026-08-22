@@ -2,6 +2,7 @@ import remarkGfm from "remark-gfm";
 import remarkDirective from "remark-directive";
 import { visit } from "unist-util-visit";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import rehypeSlug from "rehype-slug";
 import type { PluggableList } from "unified";
 
 // The one place the markdown pipeline is configured (spec §3). Exported as
@@ -49,8 +50,17 @@ function remarkEntity() {
 export const sanitizeSchema = {
   ...defaultSchema,
   tagNames: [...(defaultSchema.tagNames ?? []), "entity-card", "entity-link"],
+  // The GitHub schema clobber-prefixes "id" (and name/aria-*) to
+  // "user-content-id" to stop DOM clobbering from attacker-controlled raw
+  // HTML. There is no raw-HTML path here (rehype-raw is deliberately absent,
+  // see below), so the only id this pipeline ever mints is rehype-slug's own
+  // heading slug — safe to leave unprefixed so #execution deep links resolve.
+  clobberPrefix: "",
   attributes: {
     ...defaultSchema.attributes,
+    // rehype-slug mints these; without them the ids are stripped and every deep
+    // link into a narrative lands at the top of the page instead.
+    h1: ["id"], h2: ["id"], h3: ["id"], h4: ["id"], h5: ["id"], h6: ["id"],
     // The property key is the literal one remarkEntity sets in hProperties —
     // NOT the camelCased "dataRef" that hast derives when parsing HTML.
     "entity-card": ["data-ref"],
@@ -64,4 +74,4 @@ export const remarkPlugins: PluggableList = [remarkGfm, remarkDirective, remarkE
 // transform runs BEFORE this one and widens sanitizeSchema — a custom node
 // absent from the schema is silently stripped, which is a confusing failure to
 // debug from scratch.
-export const rehypePlugins: PluggableList = [[rehypeSanitize, sanitizeSchema]];
+export const rehypePlugins: PluggableList = [rehypeSlug, [rehypeSanitize, sanitizeSchema]];
