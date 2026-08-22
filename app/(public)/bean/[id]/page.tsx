@@ -5,6 +5,7 @@ import { getPublicDataset } from "@/lib/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { articleFor } from "@/lib/article";
 import { Prose } from "@/components/markdown";
+import { resolveEntity } from "@/lib/entity-resolve";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,9 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
         <p className="text-base text-muted-foreground">{resolveText(bean.description)}</p>
       ) : null}
 
-      {article ? <Prose content={article.content} /> : null}
+      {article ? (
+        <Prose content={article.content} resolve={(ref) => resolveEntity(data, ref)} />
+      ) : null}
 
       {sprouts.map((sprout) => (
         <Card key={sprout.slug}>

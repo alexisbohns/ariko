@@ -582,3 +582,14 @@ test("an explicitly-private direct bean does not shelter a plant", () => {
   };
   assert.deepEqual(unpublishCascade(raw, "v"), { plantSlugs: ["pl"], podSlugs: [], beanSlugs: ["flipping"] });
 });
+
+test("getPlant and getPod look a container up by slug", () => {
+  const data = buildDataset({
+    plants: [{ slug: "p", name: "P", natures: ["work"], description: "" }],
+    pods: [{ slug: "m", name: "M", description: "", parents: ["plant:p"] }],
+  });
+  assert.equal(data.getPlant("p")?.slug, "p");
+  assert.equal(data.getPod("m")?.slug, "m");
+  assert.equal(data.getPlant("ghost"), undefined);
+  assert.equal(data.getPod("ghost"), undefined);
+});

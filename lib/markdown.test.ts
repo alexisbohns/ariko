@@ -47,3 +47,30 @@ test("drops a javascript: href", () => {
 test("renders nothing for blank content", () => {
   assert.equal(render(""), "");
 });
+
+test("a block entity directive mints an entity-card carrying its ref", () => {
+  const html = render("::entity{ref=bean:karma-accountability}");
+  assert.match(html, /<entity-card/);
+  assert.match(html, /bean:karma-accountability/);
+});
+
+test("an inline entity directive mints an entity-link", () => {
+  const html = render("see :entity[the karma page]{ref=bean:karma} for detail");
+  assert.match(html, /<entity-link/);
+  assert.match(html, /the karma page/);
+});
+
+test("a directive with no ref mints no card", () => {
+  const html = render("::entity{}");
+  assert.doesNotMatch(html, /entity-card/);
+});
+
+test("a directive cannot smuggle an event handler past the widened schema", () => {
+  const html = render('::entity{ref=bean:x onclick="alert(1)"}');
+  assert.doesNotMatch(html, /onclick/);
+});
+
+test("a non-entity directive is left alone", () => {
+  const html = render("::note{ref=bean:x}");
+  assert.doesNotMatch(html, /entity-card/);
+});
