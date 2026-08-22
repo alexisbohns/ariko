@@ -1,4 +1,4 @@
-import { BEAN_PREFIX, type Bean } from "./data";
+import { BEAN_PREFIX, resolveText, type Bean } from "./data";
 import type { Pollen } from "./pollen";
 
 // Pure derivation of projected beans (spec §5): envelopes carrying a bean
@@ -22,7 +22,10 @@ export function deriveProjectedBeans(
     claimed.add(slug);
     out.push({
       slug,
-      name: slug,
+      // The envelope's title is the only human-written name a source gives us;
+      // the slug is the fallback when it resolves blank. Name only — the
+      // envelope has no summary, so a projected bean carries no description.
+      name: resolveText(p.title).trim() ? p.title : slug,
       parents: [p.anchors.plant, ...(p.anchors.pod ? [p.anchors.pod] : [])],
       // A "private" envelope is binding fail-closed (spec §4): it must not
       // materialize a publicly reachable bean even on an exhibited plant.
