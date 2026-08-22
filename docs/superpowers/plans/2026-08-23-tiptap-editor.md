@@ -1617,18 +1617,34 @@ export function ProseEditor({
 }
 ```
 
-- [ ] **Step 2: Verify it type-checks**
+- [ ] **Step 2: Guarantee no insertion can create a ref-less node**
+
+Task 2's review established that a ref-less `entityCard` serializes to `""`, which is harmless in a
+flat document and **destroys a list** when the node is a list item's only child. Task 2 pinned that
+behaviour with tests; this task is what makes it unreachable. Both insert paths above take `item.id`
+from the picker, so a ref is always present — add the guard anyway, because the cost is one line and
+the failure is silent data loss:
+
+```ts
+// In the `@` handler, before insertContent:
+if (!item.id) return;
+// In the `/` handler's card branch, before insertContent:
+const ref = item.id.slice("card:".length);
+if (!ref) return;
+```
+
+- [ ] **Step 3: Verify it type-checks**
 
 Run: `npx tsc --noEmit 2>&1 | head -30`
 Expected: no output. If `BubbleMenu` cannot be found, confirm the subpath: in Tiptap 3 it is
 `@tiptap/react/menus`, **not** `@tiptap/react`.
 
-- [ ] **Step 3: Verify the app builds**
+- [ ] **Step 4: Verify the app builds**
 
 Run: `npm run build 2>&1 | tail -20`
 Expected: `Compiled successfully`.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add components/editor/prose-editor.tsx
@@ -2250,6 +2266,10 @@ suggested:
   remark and the editor, but `extractRefs`'s `BLOCK` is anchored to line start and does not see
   through the `> ` prefix. Pre-existing, unreachable from the editor (which never nests a card in a
   quote), and left out of the fixture table deliberately. *(Task 2 review.)*
+- **A bracketed label on a block card diverges.** `::entity[[L]]{ref=bean:x}` renders as a card in
+  remark but is literal text to the editor, which re-serializes it escaped — so opening and saving
+  such a document mangles a valid card. One bracket deeper than the labeled-block case Task 2 fixed,
+  and not reachable from the editor or from any payload the article door has sent. *(Task 2 review.)*
 - **A quoted ref keeps its quotes.** `::entity{ref="bean:x"}` yields the ref `"bean:x"` including the
   quotes, in both the tokenizer and `extractRefs`, while remark strips them. Hand-authored input only
   — the picker cannot produce it. *(Task 2 review.)*
