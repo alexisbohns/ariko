@@ -8,7 +8,7 @@ import { validateInboxPayload } from "@/lib/inbox";
 import { createOrUpdateSeed, getSeed, markSeedPromoted, discardSeed } from "@/lib/seeds";
 import { loadRawGarden } from "@/lib/store";
 import { publishCascade, unpublishCascade, unpublishCascadeForBeans } from "@/lib/data";
-import { resolveParentChoice, buildSproutInput, validateSproutInput } from "@/lib/promote";
+import { resolveParentChoice, buildSproutInput, buildNewBean, validateSproutInput } from "@/lib/promote";
 import { buildSproutPatch, validateSproutPatch, shouldCascadePublish } from "@/lib/sprout-edit";
 import { runSync } from "@/lib/pollen-run";
 import {
@@ -124,8 +124,7 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
     let beanSlug: string | null = null;
     if (beanChoice.mode === "create") {
       await createBean({
-        slug: beanChoice.slug,
-        name: String(formData.get("newBeanName") ?? "").trim() || beanChoice.slug,
+        ...buildNewBean(formData, beanChoice.slug),
         podSlug,
         plantSlug: podSlug ? null : plantSlug,
       });

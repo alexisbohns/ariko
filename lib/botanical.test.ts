@@ -28,7 +28,7 @@ test("createPod/createBean insert private-by-default", { skip: !hasDb }, async (
   t.after(cleanup);
   const m = await createPod({ slug: "__test__m", name: "M", plantSlug: null, description: "" });
   assert.equal(m.visibility, "private");
-  const a = await createBean({ slug: "__test__a", name: "A", podSlug: "__test__m", plantSlug: null });
+  const a = await createBean({ slug: "__test__a", name: "A", description: "", podSlug: "__test__m", plantSlug: null });
   assert.equal(a.visibility, "private");
   assert.deepEqual(a.parents, ["pod:__test__m"]);
   const molecules = await listPods();
@@ -39,7 +39,7 @@ test("createPod/createBean insert private-by-default", { skip: !hasDb }, async (
 
 test("createBean with no pod is parentless", { skip: !hasDb }, async (t) => {
   t.after(cleanup);
-  const a = await createBean({ slug: "__test__solo", name: "Solo", podSlug: null, plantSlug: null });
+  const a = await createBean({ slug: "__test__solo", name: "Solo", description: "", podSlug: null, plantSlug: null });
   assert.deepEqual(a.parents, []);
 });
 
@@ -63,7 +63,7 @@ test("createSprout writes parents/state/media/source", { skip: !hasDb }, async (
 test("setPublic flips visibility to public", { skip: !hasDb }, async (t) => {
   t.after(cleanup);
   await createPod({ slug: "__test__pm", name: "M", plantSlug: null, description: "" });
-  await createBean({ slug: "__test__pa", name: "A", podSlug: "__test__pm", plantSlug: null });
+  await createBean({ slug: "__test__pa", name: "A", description: "", podSlug: "__test__pm", plantSlug: null });
   await setPublic([], ["__test__pm"], ["__test__pa"]);
   const db = await getDb();
   const m = await db.collection("pods").findOne({ slug: "__test__pm" });
@@ -79,7 +79,7 @@ test("setPublic is a no-op on empty arrays", { skip: !hasDb }, async () => {
 test("setPrivate flips visibility back to private", { skip: !hasDb }, async (t) => {
   t.after(cleanup);
   await createPod({ slug: "__test__qm", name: "M", plantSlug: null, description: "" });
-  await createBean({ slug: "__test__qa", name: "A", podSlug: "__test__qm", plantSlug: null });
+  await createBean({ slug: "__test__qa", name: "A", description: "", podSlug: "__test__qm", plantSlug: null });
   await setPublic([], ["__test__qm"], ["__test__qa"]);
   await setPrivate([], ["__test__qm"], ["__test__qa"]);
   const db = await getDb();

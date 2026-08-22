@@ -94,6 +94,7 @@ export interface Bean {
   slug: string;
   name: Text; // bilingual since B1; plain strings remain valid (no migration)
   parents: string[]; // containment ONLY: "pod:…" and/or "plant:…" refs — a bean may skip the pod tier
+  description?: Text; // optional — every existing bean predates it (slice 2); Pod/Plant require theirs
   visibility?: Visibility; // default treated as "public"
   tags?: string[];
   // Machine-created from a pollen feed (slice 4): read-only in the admin,

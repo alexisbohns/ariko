@@ -65,6 +65,9 @@ export default async function AdminBeanPage({ params }: { params: Promise<{ id: 
           <h1 className="font-heading text-2xl font-medium tracking-tight">
             {resolveText(bean.name)}
           </h1>
+          {resolveText(bean.description ?? "").trim() ? (
+            <p className="text-sm text-muted-foreground">{resolveText(bean.description)}</p>
+          ) : null}
           {bean.projected ? (
             <Alert role="note">
               <AlertDescription>

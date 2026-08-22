@@ -26,7 +26,7 @@ test("bean anchor on an unknown slug materializes a projected bean", () => {
   assert.equal(beans.length, 1);
   assert.deepEqual(beans[0], {
     slug: "damned-thoughts",
-    name: "damned-thoughts",
+    name: "Celesta is out", // slice 2: the envelope's title, not the slug
     parents: ["plant:bohns-music", "pod:celesta"],
     visibility: "public",
     projected: { source: "melogram", feedId: "melogram-feed", firstPollenId: "melogram:e1" },
@@ -79,4 +79,48 @@ test("first envelope wins within a batch", () => {
 
 test("plant-only envelopes project nothing", () => {
   assert.deepEqual(deriveProjectedBeans([pollen({})], new Set(), new Set(), "f"), []);
+});
+
+test("a projected bean takes the materializing envelope's title", () => {
+  const beans = deriveProjectedBeans(
+    [pollen({ anchors: { plant: "plant:p", bean: "bean:webapp" }, title: "Pebbles Webapp" })],
+    new Set(),
+    new Set(["plant:p"]),
+    "feed",
+  );
+  assert.equal(beans[0].name, "Pebbles Webapp");
+});
+
+test("the first envelope wins the name, like it wins the bean", () => {
+  const beans = deriveProjectedBeans(
+    [
+      pollen({ id: "s:1", anchors: { plant: "plant:p", bean: "bean:webapp" }, title: "First" }),
+      pollen({ id: "s:2", anchors: { plant: "plant:p", bean: "bean:webapp" }, title: "Second" }),
+    ],
+    new Set(),
+    new Set(["plant:p"]),
+    "feed",
+  );
+  assert.equal(beans.length, 1);
+  assert.equal(beans[0].name, "First");
+});
+
+test("a localized title is carried through as Text, not flattened", () => {
+  const beans = deriveProjectedBeans(
+    [pollen({ anchors: { plant: "plant:p", bean: "bean:webapp" }, title: { en: "Webapp", fr: "Appli web" } })],
+    new Set(),
+    new Set(["plant:p"]),
+    "feed",
+  );
+  assert.deepEqual(beans[0].name, { en: "Webapp", fr: "Appli web" });
+});
+
+test("a blank title falls back to the slug", () => {
+  const beans = deriveProjectedBeans(
+    [pollen({ anchors: { plant: "plant:p", bean: "bean:webapp" }, title: { en: "" } })],
+    new Set(),
+    new Set(["plant:p"]),
+    "feed",
+  );
+  assert.equal(beans[0].name, "webapp");
 });

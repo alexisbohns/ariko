@@ -66,6 +66,10 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
     <article className="flex flex-col gap-8">
       <h1 className="font-heading text-2xl font-medium tracking-tight">{resolveText(bean.name)}</h1>
 
+      {resolveText(bean.description ?? "").trim() ? (
+        <p className="text-base text-muted-foreground">{resolveText(bean.description)}</p>
+      ) : null}
+
       {article ? <Prose content={article.content} /> : null}
 
       {sprouts.map((sprout) => (

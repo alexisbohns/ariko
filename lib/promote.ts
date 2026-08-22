@@ -30,6 +30,24 @@ export interface SproutInput {
   source: Source;
 }
 
+// Pure. The new-bean half of the triage form: name and description compose from
+// their paired en/fr boxes exactly like the sprout's do (WYSIWYG — what the
+// boxes submit is what is stored). A blank name falls back to the slug, which is
+// what the action did inline before this existed; a blank description composes
+// to "" and createBean omits the field rather than storing an empty string.
+export function buildNewBean(
+  form: FormData,
+  slug: string,
+): { slug: string; name: Text; description: Text } {
+  const get = (k: string) => String(form.get(k) ?? "").trim();
+  const name = composeText(get("newBeanName"), get("newBeanNameFr"));
+  return {
+    slug,
+    name: resolveText(name).trim() ? name : slug,
+    description: composeText(get("newBeanDescription"), get("newBeanDescriptionFr")),
+  };
+}
+
 // Pure. Maps the triage form + the source seed into a SproutInput. name and
 // description compose from paired en/fr fields (B1), WYSIWYG: the triage page
 // prefills the boxes per-language (name from seed.title, descriptions from

@@ -12,15 +12,19 @@ export default async function DirectoryPage() {
   const standalone = data.standaloneBeans();
 
   const beanList = (beans: ReturnType<typeof data.beansForPod>) => (
-    <ul className="flex flex-col gap-1">
+    <ul className="flex flex-col gap-2">
       {beans.map((bean) => (
-        <li key={bean.slug}>
+        <li key={bean.slug} className="flex flex-col gap-0.5">
           <a
             href={`/bean/${bean.slug}`}
             className="text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
           >
             {resolveText(bean.name)}
           </a>
+          {/* One muted line, never markdown: descriptions are one-liners, content is not (spec §5). */}
+          {resolveText(bean.description ?? "").trim() ? (
+            <p className="text-xs text-muted-foreground/80">{resolveText(bean.description)}</p>
+          ) : null}
         </li>
       ))}
     </ul>
@@ -31,6 +35,9 @@ export default async function DirectoryPage() {
       <h3 className="font-heading text-xs uppercase tracking-widest text-muted-foreground">
         {resolveText(pod.name)}
       </h3>
+      {resolveText(pod.description ?? "").trim() ? (
+        <p className="text-xs text-muted-foreground/80">{resolveText(pod.description)}</p>
+      ) : null}
       {beanList(data.beansForPod(pod.slug))}
     </section>
   );
@@ -52,6 +59,9 @@ export default async function DirectoryPage() {
                 </Badge>
               ))}
             </div>
+            {resolveText(plant.description ?? "").trim() ? (
+              <p className="text-sm text-muted-foreground">{resolveText(plant.description)}</p>
+            ) : null}
           </CardHeader>
           <CardContent className="flex flex-col gap-6">
             {/* A bean parented to BOTH the plant and one of its pods appears in each list — multi-parent membership is by design. */}
