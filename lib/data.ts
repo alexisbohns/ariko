@@ -55,6 +55,7 @@ export interface Plant {
   name: Text;
   natures: PlantNature[]; // array: melogram is both work AND tool
   description: Text;
+  content?: Text; // optional narrative — the container's own page (slice 3)
   visibility?: Visibility; // default treated as "public", same rule as pods
   relations?: Relation[];
   tags?: string[];
@@ -86,6 +87,7 @@ export interface Pod {
   name: Text; // bilingual since B1; plain strings remain valid (no migration)
   parents?: string[]; // containment ONLY, e.g. ["plant:bohns-music"] (PR2)
   description: Text;
+  content?: Text; // optional narrative — the container's own page (slice 3)
   visibility?: Visibility; // default treated as "public"
   tags?: string[];
 }
@@ -166,6 +168,8 @@ export interface Dataset {
   getPods(): Pod[];
   beansForPod(slug: string): Bean[];
   standaloneBeans(): Bean[]; // no resolvable pod NOR plant parent
+  getPlant(slug: string): Plant | undefined;
+  getPod(slug: string): Pod | undefined;
   getBean(slug: string): Bean | undefined;
   sproutsForBean(slug: string): Sprout[];
   timelineSprouts(): TimelineEntry[];
@@ -294,6 +298,8 @@ export function buildDataset(raw: RawGarden): Dataset {
     getPods: () => pods,
     beansForPod: (slug) => beansByPod.get(slug) ?? [],
     standaloneBeans: () => standalone,
+    getPlant: (slug) => plantBySlug.get(slug),
+    getPod: (slug) => podBySlug.get(slug),
     getBean: (slug) => beanBySlug.get(slug),
     sproutsForBean: (slug) => sproutsByBean.get(slug) ?? [],
     timelineSprouts: () => timeline,
