@@ -53,7 +53,10 @@ it is that door's first payload.
 4. **It refuses to overwrite reviewed work.** An article whose stored sprout has **any** `state` set
    is refused, and one refusal aborts the whole batch. A container is refused when it is already
    **public and carries a non-blank narrative** — the closest available proxy for "a human has
-   published this prose", since containers have visibility but no state.
+   published this prose", since containers have visibility but no state. An article whose bean
+   already exists and is **public** is refused the same way — beans, like containers, carry
+   visibility but no state, and this door only ever creates one private, so an existing public bean
+   can only mean a human published it.
 5. **The door never changes visibility.** It creates beans private (as `createBean` already does) and
    leaves the container's visibility exactly as it found it. Publication stays a human act performed
    in the admin, where the existing `publishCascade` lifts bean and container together.

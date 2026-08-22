@@ -7,7 +7,7 @@
 // synthesis-store.ts — pre-check every refusal before writing anything.
 
 import { getDb } from "./db";
-import { resolveText, PLANT_PREFIX, POD_PREFIX, type Plant, type Pod, type Sprout } from "./data";
+import { resolveText, PLANT_PREFIX, POD_PREFIX, type Bean, type Plant, type Pod, type Sprout } from "./data";
 import { extractRefs, mergeMirrored } from "./entity-refs";
 import { sproutSlugFor, type ArticlesPayload } from "./articles";
 
@@ -76,6 +76,23 @@ export async function writeArticles(payload: ArticlesPayload): Promise<WriteResu
   }
 
   if (articles.length > 0) {
+    const beanSlugs = articles.map((a) => a.slug);
+    const existingBeans = await db
+      .collection<Bean>("beans")
+      .find({ slug: { $in: beanSlugs } }, { projection: { _id: 0, slug: 1, visibility: 1 } })
+      .toArray();
+    const visibilityBySlug = new Map(existingBeans.map((b) => [b.slug, b.visibility]));
+    for (const slug of beanSlugs) {
+      // Same proxy as the container rule: a bean this door creates is always
+      // private ($setOnInsert below), so an existing bean that is PUBLIC can
+      // only have gotten that way through a human act (the admin's
+      // publishCascade, or a hand-authored bean promoted public). Refuse
+      // rather than silently rewrite its name/description — the same
+      // "existence + public = reviewed" signal the container check already
+      // uses, since beans, like containers, carry visibility but no state.
+      if (visibilityBySlug.get(slug) === "public") refused.push(`bean:${slug}`);
+    }
+
     const sproutSlugs = articles.map((a) => sproutSlugFor(a.slug));
     const existing = await db
       .collection<Sprout>("sprouts")
@@ -118,14 +135,13 @@ export async function writeArticles(payload: ArticlesPayload): Promise<WriteResu
   }
 
   for (const a of articles) {
-    // Bean upsert has no refusal check, unlike the sprout and container
-    // paths — deliberately: the fields this door writes to a bean (name,
-    // description) are machine-owned narrative metadata, not reviewed
-    // editorial state. What a human COULD have changed — parents,
-    // visibility — is written $setOnInsert only, set once at creation and
-    // never re-asserted, so a later re-post of the same article can't undo a
-    // human re-parenting or publishing the bean. There's nothing left for a
-    // refusal check to protect.
+    // Bean upsert: the pre-check above already refused any existing PUBLIC
+    // bean, so every bean reaching this write is either brand new or private
+    // — this door's own earlier draft, or an unpublished hand-authored one —
+    // and updating its name/description in place is correct, not a clobber.
+    // parents/visibility are $setOnInsert only regardless: set once at
+    // creation and never re-asserted, so a later re-post can't undo a human
+    // re-parenting or publishing the bean that happens after this write.
     const beanSet: Record<string, unknown> = { name: a.name };
     if (a.description && a.description.trim() !== "") beanSet.description = a.description;
     await db.collection("beans").updateOne(

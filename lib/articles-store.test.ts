@@ -265,6 +265,152 @@ test(
   },
 );
 
+test(
+  "a public existing bean is refused, and its name/description and the sprout are untouched",
+  { skip: !hasDb },
+  async (t) => {
+    t.after(cleanup);
+    const db = await getDb();
+    await db.collection("plants").insertOne({
+      slug: "__test__p",
+      name: "P",
+      natures: ["work"],
+      description: "",
+      visibility: "private",
+    });
+    // A bean a human already reviewed and published — this door must never
+    // have created it public itself ($setOnInsert always writes private).
+    await db.collection("beans").insertOne({
+      slug: "__test__pubbean",
+      name: "Original Name",
+      description: "Original description.",
+      parents: ["plant:__test__p"],
+      visibility: "public",
+    });
+
+    const result = await writeArticles({
+      container: "plant:__test__p",
+      articles: [
+        {
+          slug: "__test__pubbean",
+          name: "Overwritten Name",
+          description: "Overwritten description.",
+          date: "2026-07-24",
+          content: "attempted overwrite",
+        },
+      ],
+    });
+    assert.deepEqual(result, { ok: false, refused: ["bean:__test__pubbean"] });
+
+    const bean = await db.collection("beans").findOne({ slug: "__test__pubbean" });
+    assert.equal(bean?.name, "Original Name");
+    assert.equal(bean?.description, "Original description.");
+    assert.equal(bean?.visibility, "public");
+
+    const sprout = await db.collection("sprouts").findOne({ slug: "__test__pubbean-0" });
+    assert.equal(sprout, null);
+  },
+);
+
+test(
+  "a private existing bean is still updated in place (the re-post case keeps working)",
+  { skip: !hasDb },
+  async (t) => {
+    t.after(cleanup);
+    const db = await getDb();
+    await db.collection("plants").insertOne({
+      slug: "__test__p",
+      name: "P",
+      natures: ["work"],
+      description: "",
+      visibility: "private",
+    });
+    await db.collection("beans").insertOne({
+      slug: "__test__privbean",
+      name: "Draft Name",
+      description: "Draft description.",
+      parents: ["plant:__test__p"],
+      visibility: "private",
+    });
+
+    const result = await writeArticles({
+      container: "plant:__test__p",
+      articles: [
+        {
+          slug: "__test__privbean",
+          name: "Updated Name",
+          description: "Updated description.",
+          date: "2026-07-24",
+          content: "body",
+        },
+      ],
+    });
+    assert.deepEqual(result, { ok: true, written: 1, narrative: false });
+
+    const bean = await db.collection("beans").findOne({ slug: "__test__privbean" });
+    assert.equal(bean?.name, "Updated Name");
+    assert.equal(bean?.description, "Updated description.");
+    assert.equal(bean?.visibility, "private");
+  },
+);
+
+test(
+  "a public-bean refusal accumulates alongside a sprout-state refusal in one response",
+  { skip: !hasDb },
+  async (t) => {
+    t.after(cleanup);
+    const db = await getDb();
+    await db.collection("plants").insertOne({
+      slug: "__test__p",
+      name: "P",
+      natures: ["work"],
+      description: "",
+      visibility: "private",
+    });
+    await db.collection("beans").insertOne({
+      slug: "__test__pubbean2",
+      name: "Original",
+      description: "",
+      parents: ["plant:__test__p"],
+      visibility: "public",
+    });
+    await db.collection("sprouts").insertOne({
+      slug: "__test__reviewed-0",
+      name: "Reviewed",
+      type: "article",
+      date: "2026-07-01",
+      description: "",
+      parents: ["bean:__test__reviewed"],
+      content: "reviewed content",
+      state: "published",
+    });
+
+    const result = await writeArticles({
+      container: "plant:__test__p",
+      articles: [
+        {
+          slug: "__test__pubbean2",
+          name: "Overwrite",
+          description: "",
+          date: "2026-07-24",
+          content: "attempt",
+        },
+        {
+          slug: "__test__reviewed",
+          name: "Reviewed",
+          description: "",
+          date: "2026-07-24",
+          content: "attempt",
+        },
+      ],
+    });
+    assert.deepEqual(result, {
+      ok: false,
+      refused: ["bean:__test__pubbean2", "__test__reviewed-0"],
+    });
+  },
+);
+
 test.after(async () => {
   if (hasDb) await closeDb();
 });
