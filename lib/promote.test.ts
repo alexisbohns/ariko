@@ -171,3 +171,35 @@ test("buildNewBean falls back to the slug when the name is blank", () => {
 test("buildNewBean returns a blank description when both boxes are empty", () => {
   assert.equal(buildNewBean(new FormData(), "karma").description, "");
 });
+
+test("buildSproutInput carries the seed's captured body", () => {
+  const withBody = { ...seed, content: { en: "# A captured body" } };
+  const form = new FormData();
+  form.set("sproutSlug", "s");
+  form.set("sproutName", "S");
+  form.set("type", "note");
+  form.set("date", "2026-08-22");
+  assert.deepEqual(buildSproutInput(form, withBody, null).content, { en: "# A captured body" });
+});
+
+test("buildSproutInput omits content when the seed has none", () => {
+  const form = new FormData();
+  form.set("sproutSlug", "s");
+  form.set("sproutName", "S");
+  form.set("type", "note");
+  form.set("date", "2026-08-22");
+  assert.equal("content" in buildSproutInput(form, seed, null), false);
+});
+
+test("buildSproutInput mirrors entity refs from the carried body", () => {
+  const withRefs = { ...seed, content: { en: "::entity{ref=bean:karma}" } };
+  const form = new FormData();
+  form.set("sproutSlug", "s");
+  form.set("sproutName", "S");
+  form.set("type", "note");
+  form.set("date", "2026-08-22");
+  assert.deepEqual(buildSproutInput(form, withRefs, null).relations, [
+    { kind: "embeds", ref: "bean:karma" },
+  ]);
+  assert.equal("relations" in buildSproutInput(form, seed, null), false);
+});

@@ -1,5 +1,6 @@
-import type { Seed, Media, Source, Text, SproutState } from "./data";
+import type { Seed, Media, Relation, Source, Text, SproutState } from "./data";
 import { composeText, resolveText } from "./data";
+import { extractRefs, mergeMirrored } from "./entity-refs";
 
 export type ParentResolution =
   | { mode: "create"; slug: string }
@@ -28,6 +29,8 @@ export interface SproutInput {
   parents: string[];
   media: Media[];
   source: Source;
+  content?: Text; // the capture's body, when it had one (slice 3 §2.8)
+  relations?: Relation[]; // mirrored from the body's entity refs — derived, never authored
 }
 
 // Pure. The new-bean half of the triage form: name and description compose from
@@ -62,6 +65,7 @@ export function buildSproutInput(
   beanParentSlug: string | null,
 ): SproutInput {
   const get = (k: string) => String(form.get(k) ?? "").trim();
+  const mirroredRelations = mergeMirrored(undefined, extractRefs(seed.content));
   const stateRaw = get("state");
   const state: SproutState =
     stateRaw === "published" || stateRaw === "private" ? stateRaw : "draft";
@@ -76,6 +80,14 @@ export function buildSproutInput(
     parents: beanParentSlug ? [`bean:${beanParentSlug}`] : [],
     media: seed.media,
     source: seed.source,
+    // The inbox has always accepted a body; until now promote dropped it on the
+    // floor, which was invisible while nothing rendered content (slice 3 §2.8).
+    // Carried verbatim, like media and provenance.
+    ...(seed.content ? { content: seed.content } : {}),
+    // Mirroring belongs on the write path, and this pure builder IS the write
+    // path for a promoted capture — so the edges are testable rather than
+    // buried in a server action (slice 3 §6).
+    ...(mirroredRelations.length > 0 ? { relations: mirroredRelations } : {}),
   };
 }
 
