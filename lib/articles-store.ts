@@ -22,6 +22,31 @@ function resolveContainer(ref: string): { collection: "plants" | "pods"; slug: s
   return { collection: "pods", slug: ref.slice(POD_PREFIX.length) };
 }
 
+// Mongo-side mirror of the JS refusal condition
+// `visibility === "public" && resolveText(content).trim() !== ""`, expressed
+// as its NEGATION ("still acceptable to write to"), so it can be embedded
+// directly in an update filter — see writeArticles's narrative write for why.
+// resolveText's fallback (content.en, else content.fr, else "") is
+// reproduced with $cond/$ifNull; $type distinguishes the LocalizedText object
+// shape from a plain string; $trim mirrors the JS-side .trim().
+function containerStillWritableFilter(): Record<string, unknown> {
+  const resolvedEn = { $ifNull: ["$content.en", ""] };
+  const resolvedFr = { $ifNull: ["$content.fr", ""] };
+  const resolvedText = {
+    $cond: [
+      { $eq: [{ $type: "$content" }, "object"] },
+      { $cond: [{ $ne: [resolvedEn, ""] }, resolvedEn, resolvedFr] },
+      { $ifNull: ["$content", ""] },
+    ],
+  };
+  return {
+    $or: [
+      { visibility: { $ne: "public" } },
+      { $expr: { $eq: [{ $trim: { input: resolvedText } }, ""] } },
+    ],
+  };
+}
+
 export async function writeArticles(payload: ArticlesPayload): Promise<WriteResult> {
   const db = await getDb();
   const { collection, slug: containerSlug } = resolveContainer(payload.container);
@@ -29,22 +54,23 @@ export async function writeArticles(payload: ArticlesPayload): Promise<WriteResu
   const refused: string[] = [];
 
   // Refusal pre-checks happen before any write — an all-or-nothing batch, like
-  // upsertDigestDrafts. Nothing below this block mutates the database.
+  // upsertDigestDrafts. Every check below runs regardless of whether an
+  // earlier one already failed: a caller with, say, a missing container AND
+  // a pre-published sprout in the same batch must see BOTH reasons in one
+  // response, not retry after fixing the first only to hit the second.
 
-  let container: (Plant | Pod) | null = null;
   if (payload.narrative !== undefined) {
-    container = await db
+    const container = await db
       .collection<Plant | Pod>(collection)
       .findOne({ slug: containerSlug }, { projection: { _id: 0, visibility: 1, content: 1 } });
     if (!container) {
-      return { ok: false, refused: [`${payload.container} (unknown)`] };
-    }
-    // Containers (plants/pods) carry visibility but no `state` — there is no
-    // "published" flag to check the way sprouts have one. "public AND already
-    // has non-blank prose" is the closest available proxy for "a human
-    // published this narrative": once it's live with content, a machine
-    // rewrite of that content is the exact clobber this door must refuse.
-    if (container.visibility === "public" && resolveText(container.content).trim() !== "") {
+      refused.push(`${payload.container} (unknown)`);
+    } else if (container.visibility === "public" && resolveText(container.content).trim() !== "") {
+      // Containers (plants/pods) carry visibility but no `state` — there is no
+      // "published" flag to check the way sprouts have one. "public AND already
+      // has non-blank prose" is the closest available proxy for "a human
+      // published this narrative": once it's live with content, a machine
+      // rewrite of that content is the exact clobber this door must refuse.
       refused.push(payload.container);
     }
   }
@@ -66,10 +92,19 @@ export async function writeArticles(payload: ArticlesPayload): Promise<WriteResu
   // --- Writes ---
 
   if (payload.narrative !== undefined) {
-    // Never touch visibility here — this door cannot publish a container any
-    // more than it can publish a sprout.
-    await db.collection(collection).updateOne(
-      { slug: containerSlug },
+    // The pre-check above already turned a missing or already-public-with-prose
+    // container into a refusal, so by construction this container exists and
+    // was writable at read time. But a human can publish it (flip to public
+    // AND give it prose) in the gap between that read and this write — the
+    // exact same race the sprout path closes with `state: { $exists: false }`
+    // in its filter. containerStillWritableFilter() re-asserts the identical
+    // "not public-with-prose" condition in the filter itself, so if the race
+    // fires the update simply fails to match (matchedCount 0) instead of
+    // silently overwriting prose that just went live. Never touch visibility
+    // here either way — this door cannot publish a container any more than it
+    // can publish a sprout.
+    const result = await db.collection(collection).updateOne(
+      { slug: containerSlug, ...containerStillWritableFilter() },
       {
         $set: {
           content: payload.narrative,
@@ -77,15 +112,20 @@ export async function writeArticles(payload: ArticlesPayload): Promise<WriteResu
         },
       },
     );
+    if (result.matchedCount === 0) {
+      return { ok: false, refused: [payload.container] };
+    }
   }
 
   for (const a of articles) {
-    // Bean upsert: name is always refreshed; description only when a
-    // non-blank one was given (an absent/blank description in a re-post must
-    // not blank out one a human later wrote). parents/visibility are
-    // $setOnInsert only — set once at creation and never re-asserted, so a
-    // human who re-parents or publishes the bean afterwards isn't undone by a
-    // later re-post of the same article.
+    // Bean upsert has no refusal check, unlike the sprout and container
+    // paths — deliberately: the fields this door writes to a bean (name,
+    // description) are machine-owned narrative metadata, not reviewed
+    // editorial state. What a human COULD have changed — parents,
+    // visibility — is written $setOnInsert only, set once at creation and
+    // never re-asserted, so a later re-post of the same article can't undo a
+    // human re-parenting or publishing the bean. There's nothing left for a
+    // refusal check to protect.
     const beanSet: Record<string, unknown> = { name: a.name };
     if (a.description && a.description.trim() !== "") beanSet.description = a.description;
     await db.collection("beans").updateOne(

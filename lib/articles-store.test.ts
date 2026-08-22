@@ -165,7 +165,105 @@ test("a public container carrying prose is refused", { skip: !hasDb }, async (t)
     narrative: "new prose",
   });
   assert.deepEqual(result, { ok: false, refused: ["plant:__test__pub"] });
+
+  // Not just the return value: the refusal must be honored on disk too — a
+  // regression that started writing on the refusal path would still pass an
+  // assertion that only checks the result.
+  const plant = await db.collection("plants").findOne({ slug: "__test__pub" });
+  assert.equal(plant?.content, "already live");
+  assert.equal(plant?.relations, undefined);
 });
+
+test(
+  "refusals accumulate: a missing container and a pre-published sprout are both reported, and nothing is written",
+  { skip: !hasDb },
+  async (t) => {
+    t.after(cleanup);
+    const db = await getDb();
+    // A sprout that some other flow already reviewed and published — no
+    // container in this collection has to exist for this row to exist.
+    await db.collection("sprouts").insertOne({
+      slug: "__test__c-0",
+      name: "C",
+      type: "article",
+      date: "2026-07-01",
+      description: "",
+      parents: ["bean:__test__c"],
+      content: "reviewed content",
+      state: "published",
+    });
+
+    const result = await writeArticles({
+      container: "plant:__test__missing",
+      narrative: "hello",
+      articles: [
+        { slug: "__test__c", name: "C", description: "", date: "2026-07-24", content: "attempt" },
+      ],
+    });
+    // Both refusals surface in one response — the missing-container check
+    // does not short-circuit before the sprout-state check runs.
+    assert.deepEqual(result, {
+      ok: false,
+      refused: ["plant:__test__missing (unknown)", "__test__c-0"],
+    });
+
+    assert.equal(await db.collection("plants").findOne({ slug: "__test__missing" }), null);
+    assert.equal(await db.collection("beans").findOne({ slug: "__test__c" }), null);
+    const sprout = await db.collection("sprouts").findOne({ slug: "__test__c-0" });
+    assert.equal(sprout?.content, "reviewed content");
+    assert.equal(sprout?.state, "published");
+  },
+);
+
+test(
+  "a public container with blank string content still accepts a narrative (the write-time filter, not just the pre-check, must agree)",
+  { skip: !hasDb },
+  async (t) => {
+    t.after(cleanup);
+    const db = await getDb();
+    await db.collection("plants").insertOne({
+      slug: "__test__blankpub",
+      name: "BlankPub",
+      natures: ["work"],
+      description: "",
+      visibility: "public",
+      content: "",
+    });
+
+    const result = await writeArticles({
+      container: "plant:__test__blankpub",
+      narrative: "first prose",
+    });
+    assert.deepEqual(result, { ok: true, written: 0, narrative: true });
+    const plant = await db.collection("plants").findOne({ slug: "__test__blankpub" });
+    assert.equal(plant?.content, "first prose");
+  },
+);
+
+test(
+  "a public container with blank LOCALIZED content still accepts a narrative (the write-time filter's object branch)",
+  { skip: !hasDb },
+  async (t) => {
+    t.after(cleanup);
+    const db = await getDb();
+    await db.collection("plants").insertOne({
+      slug: "__test__blankloc",
+      name: "BlankLoc",
+      natures: ["work"],
+      description: "",
+      visibility: "public",
+      content: { en: "", fr: "" },
+    });
+
+    const result = await writeArticles({
+      container: "plant:__test__blankloc",
+      narrative: "first prose",
+    });
+    assert.deepEqual(result, { ok: true, written: 0, narrative: true });
+    const plant = await db.collection("plants").findOne({ slug: "__test__blankloc" });
+    assert.equal(plant?.content, "first prose");
+  },
+);
 
 test.after(async () => {
   if (hasDb) await closeDb();
