@@ -1,6 +1,6 @@
 import {
   BEAN_PREFIX, BEE_PREFIX, PLANT_PREFIX, POD_PREFIX, SPROUT_PREFIX,
-  parentsWithPrefix, resolveText, type PlantNature, type RawGarden,
+  parentsWithPrefix, resolveText, type PlantNature, type RawGarden, type Text,
 } from "./data";
 
 // Graph projection of a RawGarden (roadmap G1) — the graph playground's data
@@ -14,6 +14,7 @@ export interface GraphNode {
   id: string; // "plant:slug" | "pod:slug" | "bean:slug" | "sprout:slug" | "bee:slug"
   kind: "plant" | "pod" | "bean" | "sprout" | "bee";
   name: string; // resolved at serialization time (B1)
+  description?: string; // resolved (B1); emitted only when non-blank (slice 2)
   natures?: PlantNature[]; // plants only
   type?: string; // sprouts (sprout.type) and bees (bee.kind)
   date?: string; // sprouts only
@@ -32,9 +33,9 @@ export interface Graph {
   edges: GraphEdge[];
 }
 
-// Node payload is deliberately minimal (spec: no description/content/media/
-// source/levers/serves — what a focused node displays is B3's decision). tags
-// only when non-empty. Edges: containment derived from parents[] (plant→pod,
+// Node payload stays minimal apart from description (slice 2 — the route
+// composes filterPublic, so a serialized node is already public HTML): no
+// content/media/source/levers/serves. tags and description only when non-empty. Edges: containment derived from parents[] (plant→pod,
 // plant→bean, pod→bean, bean→sprout), then relation edges — plant relations,
 // sprout relations (G2) with their kinds passed through, then bee serves —
 // every edge emitted only when BOTH ends exist as nodes in the given seed
@@ -53,17 +54,23 @@ export function toGraph(raw: RawGarden): Graph {
 
   const nodes: GraphNode[] = [
     ...plants.map((p) =>
-      withTags({ id: PLANT_PREFIX + p.slug, kind: "plant" as const, name: resolveText(p.name), natures: p.natures }, p.tags),
+      decorate({ id: PLANT_PREFIX + p.slug, kind: "plant" as const, name: resolveText(p.name), natures: p.natures }, p),
     ),
-    ...pods.map((m) => withTags({ id: POD_PREFIX + m.slug, kind: "pod" as const, name: resolveText(m.name) }, m.tags)),
-    ...beans.map((a) => withTags({ id: BEAN_PREFIX + a.slug, kind: "bean" as const, name: resolveText(a.name) }, a.tags)),
+    ...pods.map((m) => decorate({ id: POD_PREFIX + m.slug, kind: "pod" as const, name: resolveText(m.name) }, m)),
+    ...beans.map((a) => decorate({ id: BEAN_PREFIX + a.slug, kind: "bean" as const, name: resolveText(a.name) }, a)),
     ...sprouts.map((v) =>
-      withTags(
+      decorate(
         { id: SPROUT_PREFIX + v.slug, kind: "sprout" as const, name: resolveText(v.name), type: v.type, date: v.date },
-        v.tags,
+        v,
       ),
     ),
-    ...bees.map((b) => ({ id: BEE_PREFIX + b.slug, kind: "bee" as const, name: resolveText(b.name), type: b.kind, status: b.status })),
+    // Bee has no tags field, so it passes an explicit object rather than the doc.
+    ...bees.map((b) =>
+      decorate(
+        { id: BEE_PREFIX + b.slug, kind: "bee" as const, name: resolveText(b.name), type: b.kind, status: b.status },
+        { description: b.description },
+      ),
+    ),
   ];
 
   const plantSlugSet = new Set(plants.map((p) => p.slug));
@@ -128,6 +135,13 @@ export function toGraph(raw: RawGarden): Graph {
   return { nodes, edges };
 }
 
-function withTags(node: GraphNode, tags: string[] | undefined): GraphNode {
-  return tags && tags.length > 0 ? { ...node, tags } : node;
+// Optional payload fields ride along only when they carry something: a
+// description when it resolves non-blank, tags when the array is non-empty.
+function decorate(node: GraphNode, extra: { description?: Text; tags?: string[] }): GraphNode {
+  const description = resolveText(extra.description ?? "").trim();
+  return {
+    ...node,
+    ...(description ? { description } : {}),
+    ...(extra.tags && extra.tags.length > 0 ? { tags: extra.tags } : {}),
+  };
 }
