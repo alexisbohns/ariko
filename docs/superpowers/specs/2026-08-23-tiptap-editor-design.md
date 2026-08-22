@@ -214,17 +214,28 @@ where `render` is the **real remark pipeline** from `lib/markdown.ts`, and `≡`
 markdown**. Comparing markdown would fail on harmless normalization (§2.5) and would be a test about
 formatting rather than meaning; comparing rendered HTML fails only when the meaning moved.
 
-This requires `remark-parse`, `remark-rehype` and `rehype-stringify` promoted to declared
-devDependencies — already present transitively under `react-markdown`, but depended on directly by
-the test.
+It needs **no new dependencies**: `lib/entity-refs.test.ts:12` already drives that exact chain with
+`renderToStaticMarkup(createElement(Markdown, { remarkPlugins, rehypePlugins }, source))`, and the
+conformance test reuses the helper.
 
-**The spike, and it is task one of the plan.** `MarkdownManager` must construct, parse and serialize
-under plain `node --test` with **no DOM**. Its constructor takes `{ extensions }` and its
-`parse`/`serialize` work on `JSONContent`, so this should hold — but node views reference React, and
-if the manager cannot be built headlessly then the conformance test cannot exist, and the conformance
-test is the entire reason decision 3 is safe. **If the spike fails, the remark-bridge option
-(`@handlewithcare/remark-prosemirror` + `mdast-util-to-markdown`, one grammar in the repo) returns to
-the table and this spec is amended before any further work.**
+### 6.1 The spike — run 2026-08-23, before the plan. It passed.
+
+`MarkdownManager` constructs and round-trips under plain `node` with **no DOM**, from
+`new MarkdownManager({ extensions: [StarterKit, TableKit, EntityCard, EntityMention] })`. Thirteen
+fixtures — the full feature floor, both entity forms, a ref-less directive and a mixed document —
+are idempotent under `serialize(parse(x))` **and** render byte-identically through the real remark
+pipeline before and after the round trip. Decision 3 is therefore no longer conditional and the
+remark-bridge fallback is closed.
+
+Two findings carried into the plan:
+
+- **The built-in spec builders do not fit this grammar.** `createAtomBlockMarkdownSpec` emits Pandoc
+  `:::name {attrs}` — three colons — and `createInlineMarkdownSpec` emits shortcodes
+  `[name attrs]…[/name]`. Both entity nodes therefore hand-roll `markdownTokenizer`, `parseMarkdown`
+  and `renderMarkdown`, which are top-level fields on an extension's config.
+- **Tables normalize by padding cells** (`| a | b |` → `| a   | b   |`). Idempotent, and invisible
+  once rendered — precisely the case §2.5 accepts, and the reason this test compares HTML rather
+  than markdown.
 
 ## 7. Testing
 
