@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ChoiceLabel, NativeCheckbox, NativeRadio } from "@/components/ui/native-controls";
 import { Prose } from "@/components/markdown";
+import { getFullDataset } from "@/lib/store";
+import { resolveEntity } from "@/lib/entity-resolve";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +36,9 @@ export default async function EditVersionPage({
     .map((p) => p.slice(ATOM_PREFIX.length))[0];
   const backHref = beanSlug ? `/admin/bean/${beanSlug}` : "/admin/vault";
   const content = resolveText(version.content);
+  // The FULL dataset: in the authoring zone a ref to a draft or private entity
+  // should resolve and be visible, not vanish the way it does in public.
+  const dataset = await getFullDataset();
 
   return (
     <article>
@@ -72,7 +77,11 @@ export default async function EditVersionPage({
               <CardTitle className="font-heading text-base tracking-tight">Preview</CardTitle>
             </CardHeader>
             <CardContent>
-              <Prose content={version.content} />
+              <Prose
+                content={version.content}
+                resolve={(ref) => resolveEntity(dataset, ref)}
+                showUnresolved
+              />
             </CardContent>
           </Card>
         ) : null}
