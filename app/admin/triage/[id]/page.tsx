@@ -174,6 +174,18 @@ export default async function TriagePage({
                 <Label htmlFor="newBeanName">New name</Label>
                 <Input id="newBeanName" type="text" name="newBeanName" />
               </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="newBeanNameFr">New name (fr)</Label>
+                <Input id="newBeanNameFr" type="text" name="newBeanNameFr" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="newBeanDescription">New description</Label>
+                <Input id="newBeanDescription" type="text" name="newBeanDescription" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="newBeanDescriptionFr">New description (fr)</Label>
+                <Input id="newBeanDescriptionFr" type="text" name="newBeanDescriptionFr" />
+              </div>
             </div>
           </Fieldset>
 
