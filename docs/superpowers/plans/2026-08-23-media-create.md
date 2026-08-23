@@ -862,7 +862,7 @@ export function MediaPicker({
           id={`${name}-file`}
           ref={fileRef}
           type="file"
-          accept="image/png,image/jpeg,image/gif,image/webp,image/avif"
+          accept={ALLOWED_TYPES.join(",")}
           multiple
           onChange={(e) => addFiles(e.target.files)}
           className="text-sm file:mr-3 file:rounded-md file:border file:bg-muted file:px-3 file:py-1 file:text-sm"
@@ -1560,6 +1560,7 @@ Add to the imports:
 
 ```ts
 import { uploadImageAction } from "@/app/admin/actions";
+import { checkUploadFile } from "@/lib/upload-input";
 ```
 
 Add these alongside the other hooks, after `const baselineRef = …`:
@@ -1593,6 +1594,17 @@ Add the upload handler after `save`:
 ```ts
   const insertImage = async (file: File): Promise<void> => {
     setImageError(null);
+    // Advisory guard, same reason as components/admin/media-picker.tsx: the
+    // server re-checks and stays authoritative, but next.config.ts's
+    // bodySizeLimit sits only 64KiB above MAX_UPLOAD_BYTES, so anything far
+    // over — a phone photo — is rejected by the platform BEFORE the action
+    // runs, and the author sees an opaque framework error instead of "the file
+    // is too large (max 4MB)".
+    const check = checkUploadFile({ size: file.size, type: file.type });
+    if (!check.ok) {
+      setImageError(check.error);
+      return;
+    }
     const formData = new FormData();
     formData.set("file", file);
     try {
@@ -1616,7 +1628,7 @@ Add the hidden input and the error line inside the returned JSX, immediately aft
       <input
         ref={imageInputRef}
         type="file"
-        accept="image/png,image/jpeg,image/gif,image/webp,image/avif"
+        accept={ALLOWED_TYPES.join(",")}
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
