@@ -442,6 +442,20 @@ documented (umbrella §4) as staying "until the exhibition slice retires it deli
 belongs beside it for now. PR1's admin media card is already B3's "render `media[]` in the editor"
 half; nothing there is left owing.
 
+**Two things this placement produces, seen once it was real — both for D1, not for this slice.**
+
+*Media can end up far from the prose it belongs to.* The page renders the article above the cards,
+and `articleFor` returns the first sprout *carrying content*, while the cards render strictly
+newest-first. When the newest sprout has no content, the prose comes from an older one and
+unrelated cards sit between that prose and the media-bearing card. In the common case (the newest
+sprout has both) they are adjacent, separated only by a repeated title and the dump.
+
+*The dump and the media are tonally mismatched, once per sprout.* A card reads as a small spec
+sheet — muted key/value rows meant for internal traceability — capped with photographs meant to be
+looked at, and that repeats for every sprout with media. Nothing is broken; it is simply not what a
+portfolio page should look like, which is precisely what D1 exists to fix. Recorded so the
+exhibition slice inherits the observation rather than rediscovering it.
+
 ### 5.5 The cover
 
 ```ts
