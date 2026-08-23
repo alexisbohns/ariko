@@ -143,26 +143,26 @@ export const EntityMention = Node.create({
 });
 
 /**
- * The headless extension set: schema and markdown, no views. Exported so
- * lib/entity-markdown.test.ts drives the same schema definition that Task 3's
- * `lib/markdown-conformance.test.ts` will drive too, once it exists, rather
- * than each test file carrying its own copy that could quietly drift apart.
- * The editor itself (a later task) will build its own extension array on top
- * of these nodes plus React node views (components/editor/entity-views.tsx,
- * not yet written), so this does not guarantee the editor stays in sync —
- * only that the two test files will.
+ * Every node the editor and the tests share. The entity nodes are NOT here: the
+ * editor uses `.extend()`ed copies carrying React node views
+ * (components/editor/entity-views.tsx), while the tests use the bare ones.
+ * Everything else must be identical in both, or a node the editor cannot
+ * represent gets silently dropped on save — which is exactly how images and
+ * task lists were lost before this split existed.
  *
  * Image and TaskList are NOT in StarterKit, and @tiptap/markdown drops any
  * node its schema cannot represent: without these, saving an article
  * silently deletes every image, and a task list serializes to the empty
  * string.
  */
-export const headlessExtensions = [
-  StarterKit,
-  TableKit,
-  Image,
-  TaskList,
-  TaskItem,
-  EntityCard,
-  EntityMention,
-];
+export const baseExtensions = [StarterKit, TableKit, Image, TaskList, TaskItem];
+
+/**
+ * The headless extension set: schema and markdown, no views. Exported so
+ * lib/entity-markdown.test.ts and lib/markdown-conformance.test.ts drive the
+ * exact schema the editor drives (components/editor/prose-editor.tsx spreads
+ * `baseExtensions` rather than re-listing nodes), minus the React node views
+ * the editor layers on top. One definition, so a node added later cannot be
+ * tested by one file and missed by the other.
+ */
+export const headlessExtensions = [...baseExtensions, EntityCard, EntityMention];
