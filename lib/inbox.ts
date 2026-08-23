@@ -6,8 +6,13 @@ import { isObject, nonEmptyString, normalizeTextInput } from "./text-input";
 // ~17× under Vercel's platform limit, far above any real seed.
 export const MAX_INBOX_BODY_BYTES = 256 * 1024;
 
-// Media as it arrives in a raw JSON payload: an embed may omit `provider`
-// (we detect it), while the stored `Media` type always has one.
+// Media as it arrives in a raw JSON payload. An embed may omit `provider` and
+// `embedId` — but it may also DECLARE them, and if it does they are accepted
+// and then ignored: normalizeMedia (below) re-derives both from the URL, every
+// time, because provider decides whether something gets iframed and a provider
+// a caller can set is no trust signal. The optional fields survive here so the
+// wire format stays lenient, not because anything honours them. The stored
+// `Media` type always carries a derived provider.
 export type InputMedia =
   | { kind: "embed"; url: string; provider?: string; embedId?: string }
   | MediaImage;
