@@ -51,7 +51,28 @@ function same(a: Media[], b: Media[]): boolean {
  * saving it untouched must write nothing at all.
  */
 export function buildMediaPatch(current: MediaOwner, form: FormData): MediaPatchResult {
-  const next = parseMediaField(form.getAll("media").map((v) => String(v)));
+  const raw = form.getAll("media").map((v) => String(v));
+  const next = parseMediaField(raw);
   const stored = current.media ?? [];
+
+  // A save that submitted entries but parsed NONE of them is not a clear-all —
+  // it is a failed save, and treating it as a clear-all would $set an empty
+  // media[] over a stored list with no signal to anyone.
+  //
+  // The two are distinguishable without guessing: removing every entry submits
+  // ZERO fields (the picker renders no hidden input for a list it does not
+  // have), while a corrupted save submits N fields that all fail to parse. Only
+  // the second shape lands here.
+  //
+  // parseMediaField's drop-don't-reject policy is right at the per-entry
+  // granularity it was written for ("one bad entry must never cost a capture").
+  // This is the same policy at LIST granularity, where dropping everything
+  // stops being lenient and starts being destructive. Writing nothing is the
+  // safe failure: the stored list survives, and re-saving after the client bug
+  // is fixed still works. Unreachable in normal operation — the picker emits
+  // JSON.stringify of its own state — which is exactly why it must not be
+  // silent data loss when it does happen.
+  if (raw.length > 0 && next.length === 0 && stored.length > 0) return { dirty: false };
+
   return same(stored, next) ? { dirty: false } : { dirty: true, media: next };
 }

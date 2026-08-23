@@ -94,3 +94,44 @@ test("alt text containing a pipe round-trips as a real change", () => {
     assert.equal(result.media[0].alt, "before | after");
   }
 });
+
+// A corrupted save must not be mistaken for a deliberate clear-all: the first
+// would destroy a stored list, and the two are distinguishable because removing
+// every entry submits zero fields rather than unparseable ones.
+test("submitting only unparseable entries writes nothing rather than clearing", () => {
+  const result = buildMediaPatch({ media: [IMG_A, IMG_B] }, formOf([]));
+  assert.equal(result.dirty, true, "a genuine clear-all still clears");
+
+  const corrupted = new FormData();
+  corrupted.append("media", "}{not json");
+  corrupted.append("media", "also not json");
+  const guarded = buildMediaPatch({ media: [IMG_A, IMG_B] }, corrupted);
+  assert.equal(guarded.dirty, false, "a total parse failure must not wipe stored media");
+});
+
+test("a partial parse failure still saves what survived", () => {
+  const partial = new FormData();
+  partial.append("media", "}{not json");
+  partial.append("media", JSON.stringify(IMG_B));
+  const result = buildMediaPatch({ media: [IMG_A, IMG_B] }, partial);
+  assert.equal(result.dirty, true);
+  if (result.dirty) assert.deepEqual(result.media.map((m) => (m.kind === "image" ? m.storageKey : "")), ["k2"]);
+});
+
+// The leading tuple element is the kind tag, so these can never canonicalize
+// alike — pinned rather than left as something a reviewer once checked by hand.
+test("an entry changing kind at the same position is a change", () => {
+  const result = buildMediaPatch(
+    { media: [IMG_A] },
+    formOf([{ kind: "embed", url: "https://youtu.be/abc123" }]),
+  );
+  assert.equal(result.dirty, true);
+  if (result.dirty) assert.equal(result.media[0].kind, "embed");
+});
+
+test("a dimension-only change is a change", () => {
+  const stored: Media = { kind: "image", storageKey: "k", url: "https://cdn/x.jpg", width: 800, height: 600 };
+  const result = buildMediaPatch({ media: [stored] }, formOf([{ ...stored, width: 1600 }]));
+  assert.equal(result.dirty, true);
+  if (result.dirty && result.media[0].kind === "image") assert.equal(result.media[0].width, 1600);
+});
