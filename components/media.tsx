@@ -1,6 +1,7 @@
 import type { Media, MediaEmbed } from "@/lib/data";
-import { embedSrc } from "@/lib/embed-src";
+import { embedSrc, type EmbedFrame } from "@/lib/embed-src";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 /**
  * Renders a media[] list (spec §5.4). Server component — no client JS enters
@@ -11,6 +12,12 @@ import { Badge } from "@/components/ui/badge";
  * becomes a link out rather than a frame. embedSrc returning null is the
  * ORDINARY path for ausha, figma, deezer shows and every `link` provider, not
  * an error.
+ *
+ * NO LUCIDE ICONS HERE, and not by oversight: lucide-react@1.33 routes every
+ * icon through an Icon.mjs carrying "use client", so a single <ExternalLink />
+ * would push a client boundary into a zone whose whole rule is that it has
+ * none. Any affordance this file needs is an inline <svg aria-hidden> or a
+ * glyph. The same applies to every other public server component.
  */
 
 // The measured heights behind embedSrc's `aspect` (spec §5.2). Providers render
@@ -18,10 +25,29 @@ import { Badge } from "@/components/ui/badge";
 // SoundCloud 166px vs 450px, Deezer ~150 vs ~350 — so one box cannot serve
 // both. These are the taller end of each bucket on purpose: a widget shorter
 // than its box loses whitespace, one taller than its box loses content.
-const FRAME_BOX: Record<string, string> = {
+//
+// Keyed on the union rather than on `string` so a fourth aspect fails the build
+// naming its missing box. Untyped, it would silently inherit the 166px
+// single-player box — which is precisely the clipping the third value exists to
+// prevent.
+const FRAME_BOX: Record<EmbedFrame["aspect"], string> = {
   video: "aspect-video w-full",
   audio: "h-[166px] w-full",
   "audio-list": "h-[450px] w-full",
+};
+
+// Casing is looked up, never derived: "soundcloud" → "SoundCloud" is not a
+// capitalize(). An unknown provider falls back to its raw slug rather than to a
+// guess. `link` is deliberately absent — it is the one provider that never
+// earns a badge (see LinkCard).
+const PROVIDER_LABEL: Record<string, string> = {
+  ausha: "Ausha",
+  deezer: "Deezer",
+  figma: "Figma",
+  soundcloud: "SoundCloud",
+  spotify: "Spotify",
+  vimeo: "Vimeo",
+  youtube: "YouTube",
 };
 
 function hostOf(url: string): string {
@@ -32,35 +58,81 @@ function hostOf(url: string): string {
   }
 }
 
-function EmbedItem({ media }: { media: MediaEmbed }) {
-  const frame = embedSrc(media);
-
-  if (frame) {
-    return (
-      <div className={FRAME_BOX[frame.aspect] ?? FRAME_BOX.audio}>
-        <iframe
-          src={frame.src}
-          title={frame.title}
-          loading="lazy"
-          referrerPolicy="strict-origin-when-cross-origin"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture"
-          allowFullScreen
-          className="h-full w-full rounded-lg border-0"
-        />
-      </div>
-    );
+// http(s) or nothing. A stored URL is never scheme-checked on the way in
+// (lib/inbox.ts requires only a non-empty string, deliberately — spec §3), so
+// this is where a `javascript:` or `data:` href would otherwise reach an
+// anchor. React 19 does sanitize javascript: hrefs in its production server
+// builds, but that is React's guarantee to withdraw, not ours to rely on, and
+// nothing in this file said so. A non-http URL renders as text: still visible,
+// still copyable, simply not clickable. It also catches a stored "not a url",
+// which as an href would resolve RELATIVE to the page and navigate to an
+// in-site 404.
+function isHttpUrl(url: string): boolean {
+  try {
+    const { protocol } = new URL(url);
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
   }
+}
+
+const CARD = "flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm";
+
+/** The fallback for everything embedSrc cannot frame. */
+function LinkCard({ media }: { media: MediaEmbed }) {
+  // No badge for `link`: it is a category name, not a destination, and it is
+  // the commonest case — the only MediaEmbed in production today. The hostname
+  // carries the meaning, so it is the label rather than a muted footnote.
+  const body = (
+    <>
+      {media.provider !== "link" ? (
+        <Badge variant="secondary">{PROVIDER_LABEL[media.provider] ?? media.provider}</Badge>
+      ) : null}
+      <span className="min-w-0 break-all text-foreground">{hostOf(media.url)}</span>
+    </>
+  );
+
+  if (!isHttpUrl(media.url)) return <div className={CARD}>{body}</div>;
 
   return (
+    // The repo's FIRST target="_blank" in the public zone — a decision, not an
+    // inherited convention: a player or a portfolio link should not cost the
+    // reader their place on the page. Because it is the first, it also owes the
+    // announcement that sighted readers get from the tab opening.
     <a
       href={media.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm transition-colors hover:bg-accent"
+      className={cn(CARD, "transition-colors hover:bg-accent")}
     >
-      <Badge variant="secondary">{media.provider}</Badge>
-      <span className="min-w-0 break-all text-muted-foreground">{hostOf(media.url)}</span>
+      {body}
+      <span className="sr-only">(opens in a new tab)</span>
     </a>
+  );
+}
+
+function EmbedItem({ media }: { media: MediaEmbed }) {
+  const frame = embedSrc(media);
+  if (!frame) return <LinkCard media={media} />;
+
+  return (
+    <div className={FRAME_BOX[frame.aspect]}>
+      {/* `allow` is an allowlist, not a grant list: a cross-origin frame gets a
+          powerful feature only by delegation, so camera, microphone,
+          geolocation, payment and USB are already denied by not being named.
+          This is YouTube's canonical set; encrypted-media is load-bearing for
+          Spotify (EME). Deliberately no `sandbox` — the CSP frame-src pins the
+          five origins, and an unverified token set breaks playback silently. */}
+      <iframe
+        src={frame.src}
+        title={frame.title}
+        loading="lazy"
+        referrerPolicy="strict-origin-when-cross-origin"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        allowFullScreen
+        className="h-full w-full rounded-lg border-0"
+      />
+    </div>
   );
 }
 
@@ -71,6 +143,9 @@ function MediaItem({ media }: { media: Media }) {
       // Cloudinary and puts an optimizer in front of the public zone for no
       // gain here. width/height are stored by toMediaImage (lib/storage.ts)
       // and are what stop the page reflowing as images arrive.
+      // An absent alt renders as alt="" — the correct markup for an image with
+      // no description, and never a fabricated one. Making that gap visible is
+      // the admin picker's job, where an author can still fix it.
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={media.url}
@@ -91,6 +166,10 @@ export function MediaList({ media }: { media?: Media[] }) {
   return (
     <ul className="not-prose flex flex-col gap-3">
       {media.map((m, i) => (
+        // The index is the only part guaranteeing uniqueness — nothing dedupes
+        // media[], so the same url can legitimately appear twice. Safe here
+        // because the list is server-rendered, stateless and never mutated
+        // client-side.
         <li key={`${m.kind}-${i}-${m.url}`}>
           <MediaItem media={m} />
         </li>
