@@ -339,10 +339,20 @@ And in `lib/inbox.ts`:
 ### 5.2 `lib/embed-src.ts`
 
 Pure and table-driven. `embedSrc(media: MediaEmbed): { src: string; title: string; aspect: "video"
-| "audio" } | null`, plus an exported `EMBED_FRAME_HOSTS`. `aspect` drives the frame box only —
-`"video"` is 16:9, `"audio"` is a fixed short height, because an audio player that is 16:9 is mostly
-empty space. `title` is the iframe's accessible name (`"<provider> player"`), not a fetched title:
-nothing here makes a network call.
+| "audio" | "audio-list" } | null`, plus an exported `EMBED_FRAME_HOSTS`. `title` is the iframe's
+accessible name (`"<provider> player"`), not a fetched title: nothing here makes a network call.
+
+`aspect` drives the frame box only. *Amended during implementation:* it originally had two values,
+which clips real content. The providers' own widgets render a list far taller than a single item —
+Spotify 152px for a track or episode against 352px for an album, playlist, show or artist;
+SoundCloud 166px for a track against 450px for a set; Deezer ~150px against ~350px, where it draws
+a scrollable tracklist. A 352px widget in a 152px box loses part of itself, so the third value is
+not cosmetic.
+
+It is decided in `embedSrc` because that is the only place the media's *type* is known —
+`typeAndId` already parses it, and by the time `components/media.tsx` holds a frame the type is
+gone. Where the type cannot be determined, prefer the taller value: clipping loses content, padding
+only loses whitespace.
 
 | provider | iframe src | basis |
 |---|---|---|
