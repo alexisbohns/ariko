@@ -55,6 +55,7 @@ with no DB; DB/glue is smoke-tested.
 | **C1b — Inbox go-live hardening** | #18 | E11000 single-retry on the dedup upsert (concurrent posts converge); constant-time bearer-token compare (SHA-256 + `timingSafeEqual`, no-early-exit scan); 256 KB body cap on `/api/inbox` (413 before auth). |
 | **C1c — Lab Note fan-out kit** | #19 | Harmonized authoring skill shipped as a Claude Code plugin (`ariko` marketplace); sibling rollout via templated issues + centrally-set secrets — no pushes to sibling repos. |
 | **C1d — Lab Note requirement** | #?? | Moved the requirement off the discretionary skill into always-on layers: a root `CLAUDE.md` with the contract inlined, a PR template seeding the `## Lab Note` section, and a reusable **advisory** reminder workflow (`lab-note-reminder.yml` + `remind.mjs`) that comments on PRs missing/malforming a note (opt out with `no-lab-note`) and shifts validation left. Sibling rollout via the same issue-kit pattern. |
+| **Slice 5 — Tiptap editor** | #43 | **The admin learns to write.** `Sprout.content`, `Plant.content` and `Pod.content` get their first authoring surface: a Tiptap island over markdown with `@` entity mentions, `/` blocks and reference cards, in its own form and its own action so the metadata forms stay zero-JS. New `/admin/plant/[slug]`, `/admin/pod/[slug]` and `/admin/garden`. The conformance work (one corpus, three readers — remark renders, the marked tokenizer writes, `extractRefs` feeds the graph) found five defects in already-shipped code, including a `remark-directive` bug that rendered any `10:30` in prose as an empty `<div>`, and a ReDoS in `extractRefs` reachable from `/api/articles`. Spec `2026-08-23-tiptap-editor-design.md`. |
 
 The admin loop is complete end to end: **capture → triage → publish → browse → edit / un-publish**,
 and the public projection is now consistent in **both directions** (publish lifts a lineage up,
@@ -114,6 +115,11 @@ matters to the north star) and an **explanation** (what it entails / where it or
     was editing `data/garden.yml` and running `npm run migrate`. Track A still owes an admin surface
     for *editing* a container's narrative: today, correcting a published one means re-privatizing
     the container or editing the database directly.
+    **Slice 5 (Tiptap) closed that on 2026-08-23** — `/admin/plant/[slug]` and `/admin/pod/[slug]`
+    edit a container's narrative directly, and revising a sprout's prose no longer requires a
+    re-post through `/api/articles`. Container *name/description/visibility* editing remains open
+    (Track A), because flipping a container's visibility by hand is cascade-adjacent. The editor is
+    the first client-JS island in the admin; `CLAUDE.md` records the scoped exception.
 
 ### Track C — Ingestion & automation
 

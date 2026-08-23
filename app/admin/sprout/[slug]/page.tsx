@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
-import { resolveText, textPart } from "@/lib/data";
+import { buildDataset, resolveText, textPart } from "@/lib/data";
 import { getSprout } from "@/lib/botanical";
-import { editVersionAction, deleteVersionAction } from "../../actions";
+import { editVersionAction, deleteVersionAction, editContentAction } from "../../actions";
 import { AdminBar } from "../../_components/admin-bar";
+import { ContentCard } from "../../_components/content-card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ChoiceLabel, NativeCheckbox, NativeRadio } from "@/components/ui/native-controls";
 import { Prose } from "@/components/markdown";
-import { getFullDataset } from "@/lib/store";
+import { loadRawGarden } from "@/lib/store";
 import { resolveEntity } from "@/lib/entity-resolve";
 
 export const dynamic = "force-dynamic";
@@ -37,8 +38,12 @@ export default async function EditVersionPage({
   const backHref = beanSlug ? `/admin/bean/${beanSlug}` : "/admin/vault";
   const content = resolveText(version.content);
   // The FULL dataset: in the authoring zone a ref to a draft or private entity
-  // should resolve and be visible, not vanish the way it does in public.
-  const dataset = await getFullDataset();
+  // should resolve and be visible, not vanish the way it does in public. Load
+  // the raw garden once and derive the dataset from it — getFullDataset() is
+  // literally buildDataset(await loadRawGarden()), so this is the same single
+  // database read; it just keeps the raw garden the entity picker needs.
+  const raw = await loadRawGarden();
+  const dataset = buildDataset(raw);
 
   return (
     <article>
@@ -86,15 +91,28 @@ export default async function EditVersionPage({
           </Card>
         ) : null}
 
+        <ContentCard
+          raw={raw}
+          content={version.content}
+          selfRef={`sprout:${version.slug}`}
+          action={editContentAction}
+          hidden={{ slug: version.slug }}
+        />
+
         {content ? (
           <Card>
-            <CardHeader>
-              <CardTitle className="font-heading text-base tracking-tight">Content</CardTitle>
-            </CardHeader>
             <CardContent>
-              <pre className="overflow-x-auto rounded-lg bg-muted p-3 font-heading text-xs whitespace-pre-wrap">
-                {content}
-              </pre>
+              {/* Read-only, zero JS, collapsed. The editor is the authoring surface;
+                  this stays as the diagnostic for when the two markdown parsers
+                  disagree (spec §5). */}
+              <details>
+                <summary className="cursor-pointer font-heading text-sm text-muted-foreground">
+                  Source
+                </summary>
+                <pre className="mt-3 overflow-x-auto rounded-lg bg-muted p-3 font-heading text-xs whitespace-pre-wrap">
+                  {content}
+                </pre>
+              </details>
             </CardContent>
           </Card>
         ) : null}

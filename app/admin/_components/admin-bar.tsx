@@ -5,6 +5,7 @@ import { logoutAction } from "../actions";
 const LINKS = [
   { href: "/admin", label: "Inbox" },
   { href: "/admin/vault", label: "Vault" },
+  { href: "/admin/garden", label: "Garden" },
   { href: "/admin/beanstalk", label: "Beanstalk" },
 ];
 

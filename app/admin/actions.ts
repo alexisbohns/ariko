@@ -7,9 +7,10 @@ import { buildSeedBody } from "@/lib/seed-form";
 import { validateInboxPayload } from "@/lib/inbox";
 import { createOrUpdateSeed, getSeed, markSeedPromoted, discardSeed } from "@/lib/seeds";
 import { loadRawGarden } from "@/lib/store";
-import { publishCascade, unpublishCascade, unpublishCascadeForBeans } from "@/lib/data";
+import { publishCascade, unpublishCascade, unpublishCascadeForBeans, PLANT_PREFIX, POD_PREFIX } from "@/lib/data";
 import { resolveParentChoice, buildSproutInput, buildNewBean, validateSproutInput } from "@/lib/promote";
 import { buildSproutPatch, validateSproutPatch, shouldCascadePublish } from "@/lib/sprout-edit";
+import { buildContentPatch } from "@/lib/content-edit";
 import { runSync } from "@/lib/pollen-run";
 import {
   createPod,
@@ -21,6 +22,9 @@ import {
   getSprout,
   updateVersion,
   setPrivate,
+  updateSproutContent,
+  updatePlantContent,
+  updatePodContent,
 } from "@/lib/botanical";
 import {
   requireSession,
@@ -236,6 +240,66 @@ export async function deleteVersionAction(formData: FormData): Promise<void> {
 
   revalidatePath("/admin");
   redirect(beanSlugs[0] ? `/admin/bean/${beanSlugs[0]}` : "/admin/vault");
+}
+
+// Prose only. Deliberately separate from editVersionAction: content touches
+// neither `state` nor `visibility`, so there is no cascade to run here, and
+// keeping it apart is what lets the metadata form stay a zero-JS server-action
+// form (spec §2.2).
+export async function editContentAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+  const markdown = String(formData.get("content") ?? "");
+
+  const existing = await getSprout(slug);
+  if (!existing) redirect("/admin/vault");
+
+  const result = buildContentPatch(existing, markdown);
+  if (!result.ok) {
+    redirect(
+      `/admin/sprout/${encodeURIComponent(slug)}?error=${encodeURIComponent(
+        `could not save content: ${result.error}`,
+      )}`,
+    );
+  }
+  // Dirty-gated (spec §2.5): opening a digest and saving it untouched writes
+  // nothing at all, so reading can never normalize what a bee wrote.
+  if (result.dirty) await updateSproutContent(slug, result.patch);
+
+  revalidatePath("/admin");
+  redirect(`/admin/sprout/${encodeURIComponent(slug)}`);
+}
+
+// Plant and pod narrative. One action for both tiers: the ref carries the tier,
+// and the two collections differ only in which writer runs.
+export async function editContainerContentAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const ref = String(formData.get("ref") ?? "");
+  const markdown = String(formData.get("content") ?? "");
+
+  const isPlant = ref.startsWith(PLANT_PREFIX);
+  const isPod = ref.startsWith(POD_PREFIX);
+  if (!isPlant && !isPod) redirect("/admin/garden");
+
+  const slug = ref.slice(ref.indexOf(":") + 1);
+  const raw = await loadRawGarden();
+  const existing = isPlant
+    ? raw.plants?.find((p) => p.slug === slug)
+    : raw.pods?.find((p) => p.slug === slug);
+  if (!existing) redirect("/admin/garden");
+
+  const back = `/admin/${isPlant ? "plant" : "pod"}/${encodeURIComponent(slug)}`;
+  const result = buildContentPatch(existing, markdown);
+  if (!result.ok) {
+    redirect(`${back}?error=${encodeURIComponent(`could not save content: ${result.error}`)}`);
+  }
+  if (result.dirty) {
+    if (isPlant) await updatePlantContent(slug, result.patch);
+    else await updatePodContent(slug, result.patch);
+  }
+
+  revalidatePath("/admin");
+  redirect(back);
 }
 
 // Manual pull of every configured feed — same core the cron Action calls.
