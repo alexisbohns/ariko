@@ -1356,7 +1356,20 @@ and add `editSproutMediaAction` to the existing `../../actions` import. Then ins
                 this list (spec §5.5), so the order here is an authoring act. */}
             <form action={editSproutMediaAction} className="flex flex-col gap-4">
               <input type="hidden" name="slug" value={version.slug} />
-              <MediaPicker name="media" initial={version.media ?? []} links />
+              {/* The key re-seeds the island after a save. MediaPicker reads
+                  `initial` ONCE, in its useState initializer, so without this
+                  React reconciles the same instance after the action redirects
+                  and the picker keeps showing its own local state — including a
+                  just-added link still carrying provider:"" where the server has
+                  since derived the real one. Re-saving is idempotent
+                  (parseMediaField re-derives), so this is not a correctness bug;
+                  the picker should simply show what the database actually holds. */}
+              <MediaPicker
+                key={JSON.stringify(version.media ?? [])}
+                name="media"
+                initial={version.media ?? []}
+                links
+              />
               <div>
                 <Button type="submit">Save media</Button>
               </div>

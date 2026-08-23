@@ -188,11 +188,18 @@ picker holds one ordered list containing both, which is what lets a single compo
 surfaces.
 
 - **Renders nothing until mounted** (decision 1's rule). Script-off sees today's form exactly.
-- A file input (`accept="image/*"`, multiple), then one row per file: *uploading* → *done* or
-  *failed*.
-- A done row shows a thumbnail, the filename, an **alt-text input** (`MediaImage.alt` exists in the
+- A file input (`multiple`) whose `accept` list mirrors `lib/upload-input.ts`'s `ALLOWED_TYPES`
+  exactly rather than a loose `image/*` — so SVG, which the server guard rejects, never appears in
+  the file dialog in the first place. Then one row per file: *uploading* → *done* or *failed*.
+- A done row shows a thumbnail, an **alt-text input** (`MediaImage.alt` exists in the
   model and has never been populated; an empty alt renders as `alt=""`, which is the correct
   markup for a decorative image), and a remove control.
+
+  *Amended during implementation:* this originally also listed the filename. A settled row holds
+  a `MediaImage`, which has no filename field — the original name survives only as Cloudinary
+  `context`. Retaining it in local state would show a filename for images uploaded in this
+  session and nothing for images loaded from the database through `initial`, which is worse than
+  showing none. The thumbnail identifies the image better regardless.
 - A failed row shows the error and a **retry** that re-uploads the same `File` without re-picking.
 - **Only settled entries emit `<input type="hidden" name={name} value={JSON}>`** — every `initial`
   entry plus every done row, in list order. An in-flight or failed row emits nothing.
