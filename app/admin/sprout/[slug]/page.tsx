@@ -7,7 +7,7 @@ import { ContentCard } from "../../_components/content-card";
 import { MediaPicker } from "@/components/admin/media-picker";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -103,6 +103,13 @@ export default async function EditVersionPage({
         <Card>
           <CardHeader>
             <CardTitle className="font-heading text-base tracking-tight">Media</CardTitle>
+            {/* Order is load-bearing and its consequence is invisible from here:
+                the first image becomes the bean's public cover. Saying so on
+                screen, not only in a comment, is the difference between an
+                authoring act and an accident. */}
+            <CardDescription className="text-xs">
+              The first image becomes this bean&apos;s cover.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {/* Its own form — not part of the metadata form below, and not part
