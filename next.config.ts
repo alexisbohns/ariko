@@ -40,7 +40,12 @@ const nextConfig: NextConfig = {
       headers: [
         {
           key: "Content-Security-Policy",
-          value: `frame-src 'self' ${EMBED_FRAME_HOSTS.join(" ")};`,
+          // object-src too: frame-src governs <iframe>, but <object> and
+          // <embed> are a SEPARATE directive, so restricting only frames
+          // leaves the policy short of the thing it exists to do. Nothing in
+          // the repo uses either element, so 'none' costs nothing today and
+          // closes the gap before someone finds it.
+          value: `frame-src 'self' ${EMBED_FRAME_HOSTS.join(" ")}; object-src 'none';`,
         },
       ],
     },

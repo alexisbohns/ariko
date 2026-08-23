@@ -387,7 +387,22 @@ The header is **built from `EMBED_FRAME_HOSTS`**, imported from `lib/embed-src.t
 type-only imports and no runtime dependencies), so the allowlist and the src table cannot drift. A
 test asserts every host `embedSrc` can emit is in the list.
 
-`frame-ancestors` is a different concern (clickjacking) and is not addressed here.
+**What this does NOT do**, recorded so the limitation is a decision rather than something a later
+reader assumes away. The policy carries `frame-src` and `object-src` and nothing else, so it does
+not restrict scripts (`script-src` — this is no defence against XSS), network destinations
+(`connect-src` — no exfiltration protection), images, styles or fonts, the base tag (`base-uri`),
+or form targets (`form-action`). It also does not carry `frame-ancestors`: that governs whether
+*Ariko* can be framed by someone else's page — clickjacking — which is a different concern from
+what Ariko may frame, and is not addressed here.
+
+The one thing it does do, it does properly: it hardens the single new attack surface this slice
+introduces. Widening it into a full policy means nonces for Next's inline scripts and is its own
+project.
+
+A build-time caveat worth naming: `lib/embed-src.test.ts` keeps the allowlist honest against
+`embedSrc`'s own table, but that is a *test-time* guarantee. The browser only enforces the list as
+written — nothing stops someone widening `EMBED_FRAME_HOSTS` carelessly, and the CSP would then
+permit exactly what they added.
 
 ### 5.4 Rendering
 
