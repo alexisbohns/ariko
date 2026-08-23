@@ -86,6 +86,8 @@ matters to the north star) and an **explanation** (what it entails / where it or
 ### Track B — Content richness (bilingual + media + rich text)
 
 - **B2 · Image attach on the capture bar + media-pending UX**
+  - *Handoff:* [`handoffs/2026-08-23-media.md`](handoffs/2026-08-23-media.md) — verified state of the
+    upload door, the zero-`MediaImage` fact, the open zero-JS decision, and the traps this area sets.
   - *Intention:* capture images from the browser, not just links — completing the capture surface.
   - *Explanation:* wire the already-built `POST /api/upload` (Cloudinary) into the admin capture bar,
     with UX that lets a capture survive an image-upload failure ("media pending"). *(Origin: 2a, 2b-i,
