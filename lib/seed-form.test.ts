@@ -70,3 +70,46 @@ test("a blank title yields a body that validateInboxPayload rejects", () => {
   assert.equal(body.title, "");
   assert.equal(validateInboxPayload(body).ok, false);
 });
+
+test("an image field from the picker becomes an image media entry", () => {
+  const form = new FormData();
+  form.set("title", "A capture");
+  form.append(
+    "image",
+    JSON.stringify({ kind: "image", storageKey: "beanstalk/k", url: "https://cdn/x.jpg", alt: "a cat" }),
+  );
+  const body = buildSeedBody(form);
+  assert.equal(body.media.length, 1);
+  assert.equal(body.media[0].kind, "image");
+});
+
+test("links come first, then images, in declaration order", () => {
+  const form = new FormData();
+  form.set("title", "A capture");
+  form.append("link", "https://example.com/a");
+  form.append("image", JSON.stringify({ kind: "image", storageKey: "k1", url: "https://cdn/1.jpg" }));
+  form.append("image", JSON.stringify({ kind: "image", storageKey: "k2", url: "https://cdn/2.jpg" }));
+  const body = buildSeedBody(form);
+  assert.deepEqual(
+    body.media.map((m) => (m.kind === "image" ? m.storageKey : m.url)),
+    ["https://example.com/a", "k1", "k2"],
+  );
+});
+
+// The picker's fields are client-controlled. One bad entry must not cost the capture.
+test("a malformed image field is dropped, and the capture survives", () => {
+  const form = new FormData();
+  form.set("title", "A capture");
+  form.append("image", "}{not json");
+  form.append("image", JSON.stringify({ kind: "image", storageKey: "k", url: "https://cdn/ok.jpg" }));
+  const body = buildSeedBody(form);
+  assert.equal(body.title, "A capture");
+  assert.equal(body.media.length, 1);
+});
+
+test("a capture with no images is unchanged", () => {
+  const form = new FormData();
+  form.set("title", "A capture");
+  form.append("link", "https://example.com/a");
+  assert.equal(buildSeedBody(form).media.length, 1);
+});
