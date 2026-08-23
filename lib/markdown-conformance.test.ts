@@ -4,22 +4,51 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import Markdown from "react-markdown";
 import { MarkdownManager } from "@tiptap/markdown";
+import { getSchema, type JSONContent } from "@tiptap/core";
+import { Node as PMNode } from "@tiptap/pm/model";
 import { remarkPlugins, rehypePlugins } from "./markdown";
-import { headlessExtensions } from "./entity-markdown";
+import { headlessExtensions, normalizeEmptyListMarkers } from "./entity-markdown";
 import { extractRefs } from "./entity-refs";
 import { ENTITY_FIXTURES } from "./entity-fixtures";
+
+// C1's durable half: MarkdownManager (used for `editorVerdict` below) does
+// NOT enforce the ProseMirror schema — `manager.parse` happily returns a
+// document ProseMirror itself would reject, which is exactly how a card as a
+// list item's first child (`- ::entity{ref=bean:x}`) shipped invisibly: it
+// "parsed" fine here, and Tiptap's `EditorState.create` doesn't validate
+// content either, so the break only surfaced on the NEXT transaction, as a
+// `RangeError` thrown out of `dispatchTransaction` (a DOM event listener, so
+// no React error boundary catches it) — silently freezing the editor. This
+// schema is the actual ProseMirror gate: it's what the running editor
+// enforces on every transaction, even though `parse`/`EditorState.create`
+// don't enforce it on load.
+const schema = getSchema(headlessExtensions as never);
 
 // Spec §6. The editor writes markdown with `marked`; the site renders it with
 // `remark`. This asserts they MEAN the same thing, by comparing rendered HTML
 // rather than markdown — markdown comparison would fail on harmless
 // normalization (spec §2.5) and would be a test about formatting, not meaning.
-const manager = new MarkdownManager({ extensions: headlessExtensions });
+// indentation MUST mirror components/editor/prose-editor.tsx's
+// `Markdown.configure(...)` — this manager is the headless stand-in for the
+// editor's own MarkdownManager (constructed internally with whatever the
+// `Markdown` extension is configured with), and a mismatch here would mean
+// these tests exercise indentation the real editor never produces. size: 3
+// is C2's fix for nested ORDERED lists (see that file's comment).
+const manager = new MarkdownManager({
+  extensions: headlessExtensions,
+  indentation: { style: "space", size: 3 },
+});
 
 // The EXACT chain the app renders — same helper as lib/entity-refs.test.ts:12.
 const render = (source: string): string =>
   renderToStaticMarkup(createElement(Markdown, { remarkPlugins, rehypePlugins }, source));
 
-const roundTrip = (source: string): string => manager.serialize(manager.parse(source)).trim();
+// normalizeEmptyListMarkers mirrors what components/editor/prose-editor.tsx
+// applies to `initialMarkdown` before it ever reaches the editor (I2) — this
+// keeps `roundTrip` an accurate stand-in for what the real editor does with
+// stored markdown, not just what MarkdownManager does on its own.
+const roundTrip = (source: string): string =>
+  manager.serialize(manager.parse(normalizeEmptyListMarkers(source))).trim();
 
 const FIXTURES: Record<string, string> = {
   heading: "## Execution",
@@ -30,6 +59,11 @@ const FIXTURES: Record<string, string> = {
   bullets: "- one\n- two",
   nestedList: "- a\n  - b\n- c",
   ordered: "1. first\n2. second",
+  // C2: an ordered item's marker (`1. `) is 3 columns wide, so CommonMark
+  // needs a 3-space child indent to keep a nested ordered list attached to
+  // its parent item — 2 undershoots and the nesting is silently lost.
+  nestedOrdered: "1. outer one\n   1. inner a\n   2. inner b\n2. outer two",
+  nestedOrderedDeep: "1. a\n   1. b\n      1. c",
   quote: "> quoted line",
   inlineCode: "call `filterPublic()` first",
   fenced: "```ts\nconst x: number = 1\n```",
@@ -47,6 +81,12 @@ const FIXTURES: Record<string, string> = {
   imageTitled: '![alt](/i.png "Title")',
   taskList: "- [ ] todo item\n- [x] done item",
   bom: "﻿meet at 10:30 tomorrow",
+  // I2: a bullet marker followed by exactly one trailing space and nothing
+  // else — the shape marked's block-start check misreads as plain text
+  // instead of an empty list item — with a card as the item's only real
+  // content. See lib/entity-markdown.ts's normalizeEmptyListMarkers.
+  emptyListItemCard: "- \n  ::entity{ref=bean:x}",
+  emptyOrderedItemCard: "1. \n   ::entity{ref=bean:x}",
 };
 
 for (const [name, source] of Object.entries(FIXTURES)) {
@@ -54,6 +94,29 @@ for (const [name, source] of Object.entries(FIXTURES)) {
     assert.equal(render(roundTrip(source)), render(source));
   });
 }
+
+test("I2 fix: an empty list item ahead of a card is not silently rewritten as an orphaned card on save", () => {
+  // Before the fix: marked's block-start check misreads "- \n" (a bullet
+  // marker with exactly one trailing space and nothing else) as plain
+  // paragraph text, not an empty list item — the list is gone from the
+  // moment the document is opened, and the card that was the item's only
+  // real content becomes an orphaned top-level node. Re-serializing that
+  // then permanently corrupts the stored markdown: round-trip DATA LOSS, not
+  // a display difference. This asserts the editor now agrees with remark
+  // both on what the page looks like AND on the underlying structure — the
+  // card ends up inside the list, not next to it.
+  const source = "- \n  ::entity{ref=bean:x}";
+  assert.equal(render(roundTrip(source)), render(source));
+  const json = manager.parse(normalizeEmptyListMarkers(source)) as JSONContent;
+  assert.equal(json.content?.[0]?.type, "bulletList");
+  assert.equal(json.content?.[0]?.content?.[0]?.type, "listItem");
+  assert.equal(json.content?.[0]?.content?.[0]?.content?.[0]?.type, "entityCard");
+  // And it stays schema-valid — C1's fix (listItem content "block+") is what
+  // lets a list item whose only real content is a card exist at all.
+  assert.doesNotThrow(() => {
+    PMNode.fromJSON(schema, manager.parse(normalizeEmptyListMarkers(source)) as never).check();
+  });
+});
 
 test("a ref-less inline directive degrades to prose, not to a <div> in a <p>", () => {
   // compose §3: "a directive whose ref is missing or malformed produces no
@@ -178,7 +241,8 @@ const remarkVerdict = (md: string): "card" | "mention" | "none" => {
 };
 
 const editorVerdict = (md: string): "card" | "mention" | "none" => {
-  const json = JSON.stringify(manager.parse(md));
+  // normalizeEmptyListMarkers: see roundTrip above — same reasoning.
+  const json = JSON.stringify(manager.parse(normalizeEmptyListMarkers(md)));
   if (json.includes('"entityCard"')) return "card";
   if (json.includes('"entityMention"')) return "mention";
   return "none";
@@ -196,6 +260,16 @@ for (const { md, expect } of ENTITY_FIXTURES) {
     assert.equal(remarkVerdict(md), expect, "remark (renders the page)");
     assert.equal(editorVerdict(md), expect, "marked tokenizer (the editor writes)");
     assert.equal(refsVerdict(md), expect, "extractRefs (feeds the graph)");
+  });
+
+  // C1's durable half: every fixture must also parse to a document the
+  // running ProseMirror schema actually accepts — not just one `manager.parse`
+  // is willing to hand back. This is the check `editorVerdict` above cannot
+  // do: MarkdownManager has no schema opinion at all.
+  test(`${JSON.stringify(md)} parses to a schema-valid document`, () => {
+    assert.doesNotThrow(() => {
+      PMNode.fromJSON(schema, manager.parse(normalizeEmptyListMarkers(md)) as never).check();
+    });
   });
 }
 

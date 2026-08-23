@@ -50,4 +50,10 @@ export const ENTITY_FIXTURES: EntityFixture[] = [
   // Nested blockquote markers, each with extra trailing whitespace, ending in
   // a list item — the general case the widened marker-run grammar exists for.
   { md: ">  >  - ::entity{ref=bean:x}", expect: "card" },
+  // I1: a card sharing a level-2 list item with a preceding paragraph
+  // serializes with BARE indentation (no marker of its own) — this is the
+  // row that motivated BLOCK's lookbehind alternative. Depth 1 of the same
+  // shape ("- a\n  ::entity{ref=bean:x}") already worked; this is "one level
+  // down".
+  { md: "- a\n  - b\n    ::entity{ref=bean:two}", expect: "card" },
 ];

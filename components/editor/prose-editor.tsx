@@ -6,7 +6,7 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import { Markdown } from "@tiptap/markdown";
 import Suggestion from "@tiptap/suggestion";
-import { baseExtensions } from "@/lib/entity-markdown";
+import { baseExtensions, normalizeEmptyListMarkers } from "@/lib/entity-markdown";
 import type { EntityOption } from "@/lib/entity-options";
 import { entityExtensions } from "./entity-views";
 import { SuggestionMenu, type MenuItem } from "./suggestion-menu";
@@ -148,7 +148,24 @@ export function ProseEditor({
       // lib/entity-markdown.ts. A node missing here is a node the editor
       // silently deletes on save.
       ...baseExtensions,
-      Markdown,
+      // @tiptap/markdown defaults to a 2-space indent for nested list
+      // content. CommonMark requires the indent to be at least as wide as
+      // the parent marker: `- ` is 2 columns (2 is correct), but `1. ` is 3
+      // columns, so a 2-space child indent under an ORDERED item undershoots
+      // by one column. remark then refuses to treat that child as belonging
+      // to the item at all — nesting is lost, numbering re-runs flat, and at
+      // 3 levels deep the mis-indented text itself gets folded onto the
+      // parent line (defect C2). Bullets stay correct at 3 (more than their
+      // own 2-column marker is still enough to count as nested content), so
+      // widening to 3 fixes ordered nesting without breaking bullet nesting
+      // — verified for both in lib/markdown-conformance.test.ts
+      // (nestedOrdered, nestedOrderedDeep) alongside the existing bullet
+      // fixtures. This is global (marked has no per-list-type indent
+      // option), so it also widens the BARE (markerless) continuation
+      // indentation a card gets when it shares a list item with a paragraph
+      // — see lib/entity-refs.ts's BLOCK comment for how extractRefs stays
+      // in step with that.
+      Markdown.configure({ indentation: { style: "space", size: 3 } }),
       ...entityExtensions(entities),
       // `@` — an inline mention. The label is the entity's name at insertion
       // time; it is authored text from then on, which is why a rename does not
@@ -203,7 +220,11 @@ export function ProseEditor({
 
   const editor = useEditor({
     extensions,
-    content: initialMarkdown,
+    // normalizeEmptyListMarkers: see lib/entity-markdown.ts — works around a
+    // marked parsing bug that otherwise loses an empty list item (and
+    // anything nested under it, including a card) the instant a stored
+    // document with one is opened (defect I2).
+    content: normalizeEmptyListMarkers(initialMarkdown),
     contentType: "markdown",
     immediatelyRender: false, // Next SSR: the editor mounts on the client only.
     editorProps: {

@@ -67,8 +67,41 @@ const MIRRORED_KINDS = new Set(["embeds", "mentions"]);
 // so the failure mode is a visible-but-contained wrong edge at worst — never
 // exposure of a private or nonexistent node — which is the lesser failure
 // next to the missing-edge bug this widening exists to fix.
+// Second top-level alternative (added for I1): a card sharing a list item
+// with a PRECEDING paragraph serializes with no marker of its own — just
+// bare indentation matching the item's content column, e.g.
+// `- a\n  - b\n    ::entity{ref=bean:two}` (the card is `b`'s sibling inside
+// the level-2 item, not a nested item itself). At depth 1 that bare indent is
+// {0,3} and the plain fallback above already covers it; at depth 2+ it isn't
+// — with the editor's 3-space list indent (see components/editor/prose-
+// editor.tsx's `Markdown.configure`) it's 6 bare spaces, and no FIXED cap can
+// accept that while still rejecting the required negative `    ::entity{ref=
+// x}` (4 bare spaces, genuinely top-level): any cap wide enough for 6 already
+// admits 4. The two are literally indistinguishable by looking at this line
+// alone — the only real signal is the line before it. So this alternative
+// looks one line back with a lookbehind: if the PREVIOUS line itself starts
+// with a marker run (the same list/quote-marker group as above), this line
+// is known to be inside that item's content, and its own leading whitespace
+// is unconstrained. If the previous line has no marker at all — including
+// the negative fixture, which has no previous line — this alternative simply
+// doesn't apply and the plain {0,3} fallback still governs. Deliberately
+// narrow: it only looks at the ONE immediately preceding line, so a card as
+// a THIRD (or later) bare sibling in the same item — two bare paragraphs
+// then a card — is not covered (an under-match, not an over-match; the
+// editor's own list-item content is `[paragraph, block*]`-shaped per item
+// today, so a card never actually has more than one bare sibling ahead of
+// it in practice).
+//
+// Safety: reuses the exact same marker-run subpattern already verified
+// non-backtracking below (the hoisted-`[ \t]*` fix), inside a lookbehind
+// whose only additional piece is a single unambiguous `[^\n]*` run to the
+// line's end — no nested quantifiers, so no new exponential path. Re-checked
+// against the existing ReDoS regression (still ~0.2ms) and against harder
+// adversarial input built from valid marker-run lines specifically to
+// exercise this new lookbehind at every line (400 lines: ~0.4ms; ~400KB /
+// 2000 lines: ~2ms) — linear, not quadratic.
 const BLOCK =
-  /^(?:[ \t]*(?:>[ \t]*|(?:[-*+]|\d+[.)])[ \t]+)+)? {0,3}::entity(?:\[[^\]\n]*\])?\{[^}]*\bref=([^\s}]+)/gm;
+  /(?:^(?:[ \t]*(?:>[ \t]*|(?:[-*+]|\d+[.)])[ \t]+)+)? {0,3}|(?<=^[ \t]*(?:>[ \t]*|(?:[-*+]|\d+[.)])[ \t]+)[^\n]*\n)[ \t]*)::entity(?:\[[^\]\n]*\])?\{[^}]*\bref=([^\s}]+)/gm;
 const INLINE = /(?<!:):entity\[[^\]]*\]\{[^}]*\bref=([^\s}]+)/g;
 
 // Fenced code blocks and inline code spans render as literal text — the

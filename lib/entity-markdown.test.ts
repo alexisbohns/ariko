@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { MarkdownManager } from "@tiptap/markdown";
-import { headlessExtensions } from "./entity-markdown";
+import { headlessExtensions, normalizeEmptyListMarkers } from "./entity-markdown";
 
 // The editor's parse/serialize pair, headless — no DOM, no React. This will be
 // the same manager the editor's (future) components/editor/prose-editor.tsx
@@ -145,6 +145,25 @@ test("a label containing ']' loses the bracket, not the mention, and the double 
   const md = manager.serialize(doc).trim();
   assert.equal(md, ":entity[A B]{ref=bean:x}");
   assert.ok(docJson(md).includes('"entityMention"'));
+});
+
+test("normalizeEmptyListMarkers: strips the ONE trailing space/tab marked's list-start check can't handle (I2)", () => {
+  // See lib/entity-markdown.ts's comment: marked reads "-\n" (nothing after
+  // the marker) and "-  \n" / "- x" (two-plus trailing characters) as an
+  // empty list item fine; only exactly one trailing space or tab, with
+  // nothing else on the line, falls through to plain text.
+  assert.equal(normalizeEmptyListMarkers("- \n  ::entity{ref=bean:x}"), "-\n  ::entity{ref=bean:x}");
+  assert.equal(normalizeEmptyListMarkers("-\t\n  x"), "-\n  x");
+  // Ordered markers, and both allowed punctuation styles.
+  assert.equal(normalizeEmptyListMarkers("1. \n   x"), "1.\n   x");
+  assert.equal(normalizeEmptyListMarkers("1) \n   x"), "1)\n   x");
+  // A later, not just the first, sibling item.
+  assert.equal(normalizeEmptyListMarkers("- a\n- \n- c"), "- a\n-\n- c");
+  // Untouched: no trailing space at all, two-plus trailing characters, or
+  // real content after the marker.
+  for (const src of ["-\n  x", "-  \n  x", "- x", "- text", "1.\n2. two"]) {
+    assert.equal(normalizeEmptyListMarkers(src), src, src);
+  }
 });
 
 test("a mention's marks are dropped, on parse as well as on serialize", () => {

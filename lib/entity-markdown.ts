@@ -2,7 +2,7 @@ import { Node, type JSONContent, type MarkdownToken } from "@tiptap/core";
 import { StarterKit } from "@tiptap/starter-kit";
 import { TableKit } from "@tiptap/extension-table";
 import { Image } from "@tiptap/extension-image";
-import { TaskList, TaskItem } from "@tiptap/extension-list";
+import { ListItem, TaskList, TaskItem } from "@tiptap/extension-list";
 
 /**
  * The EDITOR's half of the entity grammar (compose spec §2.2).
@@ -17,6 +17,46 @@ import { TaskList, TaskItem } from "@tiptap/extension-list";
  * are deliberately unused: they emit Pandoc `:::name {attrs}` (three colons) and
  * shortcodes `[name attrs]…[/name]`. Neither is our grammar (spec §6.1).
  */
+
+// I2: marked's block-level "is this a list?" check (`Tokenizer.list`'s
+// `rules.block.list` regex) requires its optional trailing-content group to
+// consume at least ONE character beyond the marker's required whitespace —
+// `([ \t][^\n]+?)?`, note the `+?`, not `*?`. A marker with NOTHING after it
+// (`-\n`) matches (the whole group is skipped), and a marker with TWO OR
+// MORE trailing characters (`-  \n`, `- x`) also matches (the group has
+// enough to satisfy both the whitespace and the `+?`). A marker followed by
+// EXACTLY one trailing space or tab and nothing else (`- \n`) matches
+// NEITHER shape: the group can't consume just the one whitespace character
+// on its own. That line falls through to being read as plain paragraph text
+// instead of the empty list item CommonMark (and remark) agree it is —
+// confirmed upstream in marked (its own per-item `listItemRegex` gets this
+// right, with `[^\n]*`, zero-or-more; only this block-start check doesn't).
+//
+// This is round-trip DATA LOSS, not a display difference: opening a stored
+// document with an empty list item ahead of a card
+// (`- \n  ::entity{ref=…}`) mis-parses the list away from the moment it
+// loads — the card becomes an orphaned top-level node, the "- " becomes
+// literal paragraph text — and the next save writes that corruption back
+// permanently. A narrow, targeted fix beats pinning it: strip the one
+// character that trips marked's check, before marked ever sees the text.
+//
+// Deliberately narrow — touches ONLY a line that is entirely a 0-3-space-
+// indented list marker (bullet or ordered) followed by exactly one trailing
+// space or tab and nothing else, turning it into the shape marked already
+// handles correctly (no trailing whitespace at all). Never touches a marker
+// with real content after it, and is a no-op on every other line. Not fence-
+// aware, unlike lib/entity-refs.ts's stripCode: a fenced code sample whose
+// literal content happens to be exactly "- " on its own line loses that one
+// trailing space too. Accepted — fence-tracking a preprocessing pass over
+// raw markdown is real complexity for a change nobody would ever notice in a
+// code sample, and it cannot make the data-loss bug this exists to fix any
+// worse. Applied to `initialMarkdown` before it reaches `useEditor`
+// (components/editor/prose-editor.tsx) — the one place stored markdown
+// becomes marked's input — and mirrored in lib/markdown-conformance.test.ts's
+// `roundTrip` helper so the tests exercise the same input the editor does.
+export function normalizeEmptyListMarkers(markdown: string): string {
+  return markdown.replace(/^( {0,3}(?:[-*+]|\d{1,9}[.)]))[ \t]$/gm, "$1");
+}
 
 // Shares two rules with lib/entity-refs.ts's BLOCK/INLINE: the {0,3} leading-space
 // allowance (four is an indented code block) and "ref can appear anywhere in the
@@ -142,6 +182,30 @@ export const EntityMention = Node.create({
   },
 });
 
+// StarterKit's built-in ListItem requires a leading paragraph
+// (`content: "paragraph block*"`). A card (`::entity{…}`) is a block atom,
+// and CommonMark/marked happily produce a list item whose ONLY child is that
+// card — no leading paragraph — for markdown as ordinary as
+// `- ::entity{ref=bean:x}` (one of the ENTITY_FIXTURES rows, and something
+// `POST /api/articles` accepts from arbitrary markdown). Tiptap's
+// `createDocument` does not validate node content on load, so the mismatch is
+// invisible until the next transaction, when ProseMirror's own
+// `contentMatchAt` throws `RangeError` out of `dispatchTransaction` — a DOM
+// event listener no React error boundary catches — and the editor silently
+// stops accepting input. Widening to `"block+"` (any block, atom or not, may
+// lead, and any number may follow) fixes this without changing how a plain
+// `- text` item parses or renders: a paragraph still satisfies `block+`
+// first, same as it always has.
+//
+// Configured OUT of StarterKit and back in as its own extension rather than
+// passed through `StarterKit.configure({ listItem: {...} })`: StarterKit's
+// `listItem` option only forwards `ListItemOptions` (HTMLAttributes and the
+// bullet/ordered type names), not `content` — the node's content expression
+// isn't configurable through it. bulletList/orderedList still find this node
+// by NAME (`listItem`), the same way they'd find StarterKit's own, so nothing
+// else about list behavior changes.
+const CardLeadingListItem = ListItem.extend({ content: "block+" });
+
 /**
  * Every node the editor and the tests share. The entity nodes are NOT here: the
  * editor uses `.extend()`ed copies carrying React node views
@@ -155,7 +219,14 @@ export const EntityMention = Node.create({
  * silently deletes every image, and a task list serializes to the empty
  * string.
  */
-export const baseExtensions = [StarterKit, TableKit, Image, TaskList, TaskItem];
+export const baseExtensions = [
+  StarterKit.configure({ listItem: false }),
+  CardLeadingListItem,
+  TableKit,
+  Image,
+  TaskList,
+  TaskItem,
+];
 
 /**
  * The headless extension set: schema and markdown, no views. Exported so
