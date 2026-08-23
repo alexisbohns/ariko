@@ -18,8 +18,10 @@ export interface RawGardenBody {
 // validateInboxPayload guard rejects an empty title).
 //
 // Links first, then images, both in declaration order. Order matters: a bean's
-// cover is the FIRST MediaImage in its newest sprout's media[] (spec §5.5), and
-// image order here is the picker's order.
+// cover is the FIRST MediaImage in the first sprout that has one, scanning
+// newest-first (spec §5.5 — a text-only newest sprout does not blank the cover,
+// it falls through to an older one). Image order here is the picker's order, so
+// which image becomes the cover is an authoring act rather than an accident.
 export function buildSeedBody(form: FormData): RawGardenBody {
   const title = String(form.get("title") ?? "").trim();
   const note = String(form.get("note") ?? "").trim();
