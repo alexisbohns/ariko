@@ -67,3 +67,30 @@ test("key order does not make an unchanged list look dirty", () => {
   const submitted = { alt: "a", url: "https://cdn/x.jpg", storageKey: "k", kind: "image" };
   assert.equal(buildMediaPatch({ media: [stored] }, formOf([submitted])).dirty, false);
 });
+
+// A `|`-joined canonical form collided here: both of these produced
+// "image|a|b|c|||", so buildMediaPatch reported dirty:false and the edit was
+// silently discarded. `alt` is free-typed and `url` is format-unvalidated, so a
+// literal `|` is reachable input.
+test("a pipe inside a field cannot forge a match between different entries", () => {
+  const stored: Media = { kind: "image", storageKey: "a", url: "b|c" };
+  const submitted = { kind: "image", storageKey: "a|b", url: "c" };
+  const result = buildMediaPatch({ media: [stored] }, formOf([submitted]));
+  assert.equal(result.dirty, true, "a genuine edit must not be swallowed as unchanged");
+  if (result.dirty && result.media[0].kind === "image") {
+    assert.equal(result.media[0].storageKey, "a|b");
+    assert.equal(result.media[0].url, "c");
+  }
+});
+
+test("alt text containing a pipe round-trips as a real change", () => {
+  const stored: Media = { kind: "image", storageKey: "k", url: "https://cdn/x.jpg" };
+  const result = buildMediaPatch(
+    { media: [stored] },
+    formOf([{ ...stored, alt: "before | after" }]),
+  );
+  assert.equal(result.dirty, true);
+  if (result.dirty && result.media[0].kind === "image") {
+    assert.equal(result.media[0].alt, "before | after");
+  }
+});

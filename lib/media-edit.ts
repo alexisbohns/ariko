@@ -16,14 +16,26 @@ export interface MediaOwner {
 export type MediaPatchResult = { dirty: false } | { dirty: true; media: Media[] };
 
 // Order-sensitive canonical form. A reorder IS a change, so this compares
-// position by position. Field order is fixed here rather than relying on
-// JSON.stringify: a stored entry comes back from Mongo and a submitted one is
-// rebuilt by the browser, so their key order can differ while the entries are
-// identical — and that must not read as an edit.
+// position by position.
+//
+// A JSON-encoded TUPLE, not a delimiter-joined string, and not
+// JSON.stringify(m) of the object itself:
+//
+//  - The tuple fixes field order, so a stored entry (from Mongo) and a
+//    submitted one (rebuilt by the browser) canonicalize the same despite
+//    differing key order. Stringifying the object directly would not: key
+//    order would leak into the comparison and make an untouched list look
+//    dirty.
+//  - Encoding rather than joining removes delimiter injection. A `|`-joined
+//    form collided: {storageKey:"a", url:"b|c"} and {storageKey:"a|b", url:"c"}
+//    both produced "image|a|b|c|||", so an edit between them reported
+//    dirty:false and silently wrote NOTHING — the one failure here that a user
+//    could not see. `alt` is free-typed and `url` is format-unvalidated, so a
+//    literal `|` is reachable input, not a hypothetical.
 function canonical(m: Media): string {
   return m.kind === "image"
-    ? `image|${m.storageKey}|${m.url}|${m.alt ?? ""}|${m.width ?? ""}|${m.height ?? ""}`
-    : `embed|${m.provider}|${m.url}|${m.embedId ?? ""}`;
+    ? JSON.stringify(["image", m.storageKey, m.url, m.alt ?? "", m.width ?? null, m.height ?? null])
+    : JSON.stringify(["embed", m.provider, m.url, m.embedId ?? ""]);
 }
 
 function same(a: Media[], b: Media[]): boolean {
