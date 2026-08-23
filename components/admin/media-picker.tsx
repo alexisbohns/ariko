@@ -176,6 +176,17 @@ export function MediaPicker({
 
   return (
     <div className="flex flex-col gap-3">
+      {/* Proof that this island actually mounted.
+          A list the admin emptied and a picker that never mounted both submit
+          ZERO `${name}` fields, and they mean opposite things: the first is a
+          deliberate clear-all, the second is a form that has no idea what it
+          holds. Without this marker the server cannot tell them apart, and the
+          destructive reading wins — a script-off save on a sprout would $set
+          media:[] and silently delete every stored image. This is what makes
+          CLAUDE.md's "no capture or edit ever depends on it" literally true
+          rather than aspirational. */}
+      <input type="hidden" name={`${name}__ready`} value="1" />
+
       <div className="flex flex-col gap-2">
         <Label htmlFor={`${name}-file`}>Images</Label>
         {/* The registry Input, not a raw element: it already ships this

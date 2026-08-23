@@ -6,10 +6,18 @@ import { buildMediaPatch } from "./media-edit";
 const IMG_A: Media = { kind: "image", storageKey: "k1", url: "https://cdn/1.jpg" };
 const IMG_B: Media = { kind: "image", storageKey: "k2", url: "https://cdn/2.jpg" };
 
+// The shape a MOUNTED picker submits: the readiness marker plus its rows.
 function formOf(entries: unknown[]): FormData {
   const form = new FormData();
+  form.set("media__ready", "1");
   for (const e of entries) form.append("media", JSON.stringify(e));
   return form;
+}
+
+// The shape a form submits when the picker never mounted — script off, or a
+// submit that beat hydration. No marker, and no rows.
+function unmountedForm(): FormData {
+  return new FormData();
 }
 
 test("an untouched list writes nothing", () => {
@@ -59,6 +67,23 @@ test("clearing every entry is a change, not a no-op", () => {
   if (result.dirty) assert.deepEqual(result.media, []);
 });
 
+// The defect this guard exists for: MediaPicker renders nothing until it
+// mounts, but the "Save media" button is server-rendered and submits fine
+// without script. A zero-field submission from an unmounted picker is
+// indistinguishable from a deliberate clear-all unless the mounted picker
+// says it was there.
+test("a form whose picker never mounted writes nothing, even though a real clear-all does", () => {
+  const cleared = buildMediaPatch({ media: [IMG_A, IMG_B] }, formOf([]));
+  assert.equal(cleared.dirty, true, "an admin who removed every row must still be able to save that");
+
+  const unmounted = buildMediaPatch({ media: [IMG_A, IMG_B] }, unmountedForm());
+  assert.equal(unmounted.dirty, false, "a script-off save must not delete stored media");
+});
+
+test("an unmounted picker writes nothing even when there is nothing stored", () => {
+  assert.equal(buildMediaPatch({}, unmountedForm()).dirty, false);
+});
+
 // A stored entry arrives from Mongo and a submitted one is rebuilt by the
 // browser; their JSON key ORDER can differ while the entries are identical.
 // The comparison must not mistake that for an edit and rewrite the document.
@@ -102,7 +127,10 @@ test("submitting only unparseable entries writes nothing rather than clearing", 
   const result = buildMediaPatch({ media: [IMG_A, IMG_B] }, formOf([]));
   assert.equal(result.dirty, true, "a genuine clear-all still clears");
 
-  const corrupted = new FormData();
+  // formOf([]) for the marker alone — the picker WAS mounted here; what failed
+  // is the payload it emitted. Without the marker this would take the
+  // never-mounted exit above and stop exercising the parse-failure guard.
+  const corrupted = formOf([]);
   corrupted.append("media", "}{not json");
   corrupted.append("media", "also not json");
   const guarded = buildMediaPatch({ media: [IMG_A, IMG_B] }, corrupted);
@@ -110,7 +138,7 @@ test("submitting only unparseable entries writes nothing rather than clearing", 
 });
 
 test("a partial parse failure still saves what survived", () => {
-  const partial = new FormData();
+  const partial = formOf([]);
   partial.append("media", "}{not json");
   partial.append("media", JSON.stringify(IMG_B));
   const result = buildMediaPatch({ media: [IMG_A, IMG_B] }, partial);

@@ -56,6 +56,21 @@ export function buildMediaPatch(current: MediaOwner, form: FormData): MediaPatch
   const next = parseMediaField(raw);
   const stored = current.media ?? [];
 
+  // The picker never mounted (script off, or a submit that beat hydration), so
+  // this form does not know what it holds — it is not a clear-all. The marker
+  // is rendered by MediaPicker whenever it is mounted, independent of row
+  // count, so its ABSENCE is unambiguous where a zero-field submission is not.
+  //
+  // Without this, a script-off "Save media" on a sprout with stored images
+  // silently $set media:[] and deleted all of them: the parse-failure guard
+  // below requires raw.length > 0 and so does not fire, and same(stored, [])
+  // is false, so it read as a deliberate clear-all.
+  //
+  // Hard-coded to match this function's hard-coded getAll("media") — the two
+  // names are one contract with the "media" surface, so parameterising only one
+  // of them would let them drift.
+  if (!form.has("media__ready")) return { dirty: false };
+
   // A save that submitted entries but parsed NONE of them is not a clear-all —
   // it is a failed save, and treating it as a clear-all would $set an empty
   // media[] over a stored list with no signal to anyone.
