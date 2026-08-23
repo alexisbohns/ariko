@@ -9,7 +9,7 @@ const MIRRORED_KINDS = new Set(["embeds", "mentions"]);
 // :entity[…]{ref=…} anywhere. Deliberately a scan, not a parse: this runs on
 // every write, where a full mdast pass per document buys nothing — the
 // grammar is fixed and narrow.
-const BLOCK = /^ {0,3}::entity\{[^}]*\bref=([^\s}]+)/gm;
+const BLOCK = /^ {0,3}::entity(?:\[[^\]\n]*\])?\{[^}]*\bref=([^\s}]+)/gm;
 const INLINE = /(?<!:):entity\[[^\]]*\]\{[^}]*\bref=([^\s}]+)/g;
 
 // Fenced code blocks and inline code spans render as literal text — the

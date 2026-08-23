@@ -92,3 +92,11 @@ test("inline ref inside a code span: NOT extracted (no phantom edge), matching t
   assert.deepEqual(extractRefs(src), []);
   assert.doesNotMatch(render(src), /entity-link/);
 });
+
+test("a labeled block card mints an embeds edge, like the unlabeled form", () => {
+  // Found by the slice-5 conformance work: the renderer draws a card for this
+  // and the graph had no edge for it.
+  assert.deepEqual(extractRefs("::entity[Some Label]{ref=bean:x}"), [
+    { kind: "embeds", ref: "bean:x" },
+  ]);
+});

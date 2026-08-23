@@ -16,6 +16,7 @@ import type { PluggableList } from "unified";
 interface DirectiveNode {
   type: string;
   name?: string;
+  children?: unknown[];
   attributes?: Record<string, string | null | undefined>;
   data?: { hName?: string; hProperties?: Record<string, unknown> };
 }
@@ -26,18 +27,32 @@ interface DirectiveNode {
 // rehypeSanitize, whose schema must admit whatever this mints (slice 3 §3).
 function remarkEntity() {
   return (tree: unknown) => {
-    visit(tree as never, (node: DirectiveNode) => {
-      const block = node.type === "containerDirective" || node.type === "leafDirective";
-      const inline = node.type === "textDirective";
-      if ((!block && !inline) || node.name !== "entity") return;
-      const ref = typeof node.attributes?.ref === "string" ? node.attributes.ref.trim() : "";
-      if (!ref) return;
-      node.data = {
-        ...node.data,
-        hName: block ? "entity-card" : "entity-link",
-        hProperties: { "data-ref": ref },
-      };
-    });
+    visit(
+      tree as never,
+      (node: DirectiveNode, index?: number, parent?: { children: unknown[] }) => {
+        const block = node.type === "containerDirective" || node.type === "leafDirective";
+        const inline = node.type === "textDirective";
+        if ((!block && !inline) || node.name !== "entity") return;
+        const ref = typeof node.attributes?.ref === "string" ? node.attributes.ref.trim() : "";
+        if (!ref) {
+          // Degrade to NOTHING (compose §3), which means unwrapping to the
+          // directive's own children. Returning early instead leaves an
+          // unhandled directive node for mdast-util-to-hast, which renders it
+          // as a bare <div> — inside a <p> for the inline form, which is
+          // invalid nesting. Found by lib/markdown-conformance.test.ts.
+          if (parent && typeof index === "number") {
+            parent.children.splice(index, 1, ...(node.children ?? []));
+            return index;
+          }
+          return;
+        }
+        node.data = {
+          ...node.data,
+          hName: block ? "entity-card" : "entity-link",
+          hProperties: { "data-ref": ref },
+        };
+      },
+    );
   };
 }
 
