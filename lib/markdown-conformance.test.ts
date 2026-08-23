@@ -386,8 +386,33 @@ test("REGRESSION (ReDoS): extractRefs stays fast on adversarial input that actua
   const start = performance.now();
   const result = extractRefs(adversarial);
   const elapsed = performance.now() - start;
-  assert.ok(elapsed < 1000, `extractRefs took ${elapsed.toFixed(1)}ms on adversarial input`);
+  assert.ok(elapsed < 250, `extractRefs took ${elapsed.toFixed(1)}ms on adversarial input`);
   assert.deepEqual(result, [{ kind: "embeds", ref: "bean:x" }]);
+
+  // THE SHAPE THAT ACTUALLY REPRODUCED IT, and the one the interleaved body
+  // above misses. The cost is quadratic in LINE LENGTH, so many short lines
+  // are cheap however many you stack up: 220-character lines cost nothing,
+  // and the vulnerable regex sails through the assertion above. It needs
+  // TWO CONSECUTIVE very long whitespace-only lines — one alone measured
+  // 0.5ms, two measured 900ms on the pre-215fe7f regex.
+  //
+  // Note the bound: 250ms, not 1000ms. The vulnerable form took ~900ms on a
+  // 64 KiB body, which would have passed a 1-second assertion. A regression
+  // test whose threshold sits above the bug it guards against is decoration.
+  const twoLongBlankLines =
+    "::entity{ref=bean:x}\n" + `${" ".repeat(32000)}\n`.repeat(2) + "::entity{ref=bean:y}\n";
+  const worstStart = performance.now();
+  const worstResult = extractRefs(twoLongBlankLines);
+  const worstElapsed = performance.now() - worstStart;
+  assert.ok(
+    worstElapsed < 250,
+    `extractRefs took ${worstElapsed.toFixed(1)}ms on two long whitespace-only lines ` +
+      `(the pre-215fe7f regex took ~900ms on this exact input)`,
+  );
+  assert.deepEqual(worstResult, [
+    { kind: "embeds", ref: "bean:x" },
+    { kind: "embeds", ref: "bean:y" },
+  ]);
 });
 
 // Reads what each implementation believes the fixture contains.
