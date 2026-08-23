@@ -7,8 +7,9 @@ import { TableKit } from "@tiptap/extension-table";
  *
  * The public site parses this syntax with remark (`lib/markdown.ts`); the editor
  * parses it with marked, which is what `@tiptap/markdown` runs on. Two parsers
- * over one format is this slice's central risk, and `lib/markdown-conformance.test.ts`
- * is what keeps them honest — change nothing here without re-running it.
+ * over one format is this slice's central risk; Task 3 adds
+ * `lib/markdown-conformance.test.ts` to keep them honest — re-run it before
+ * changing anything here once it exists.
  *
  * Tiptap's built-in `createAtomBlockMarkdownSpec` / `createInlineMarkdownSpec`
  * are deliberately unused: they emit Pandoc `:::name {attrs}` (three colons) and
@@ -25,7 +26,7 @@ import { TableKit } from "@tiptap/extension-table";
 // `}` and, for the block form, that the directive owns its whole line.
 const REF = /\bref=([^\s}]+)/;
 const BLOCK = /^ {0,3}::entity(?:\[[^\]\n]*\])?\{([^}\n]*)\}[ \t]*(?:\n|$)/;
-const INLINE = /^:entity\[([^\]]*)\]\{([^}\n]*)\}/;
+const INLINE = /^:entity\[([^\]\n]*)\]\{([^}\n]*)\}/;
 
 interface EntityCardToken extends MarkdownToken {
   ref: string;
@@ -62,8 +63,8 @@ export const EntityCard = Node.create({
       const m = BLOCK.exec(src);
       if (!m) return;
       const ref = REF.exec(m[1])?.[1];
-      // No ref, no node: the directive degrades to literal text, exactly as
-      // remarkEntity's ref-less branch degrades it (lib/markdown.ts).
+      // No ref, no node — the one rule shared with remarkEntity's ref-less
+      // branch (lib/markdown.ts).
       if (!ref) return;
       return { type: "entityCard", raw: m[0], ref } as EntityCardToken;
     },
@@ -74,9 +75,14 @@ export const EntityCard = Node.create({
   }),
   renderMarkdown: (node: JSONContent) => {
     // No ref, no markdown: mirrors the parse-side rule and avoids emitting
-    // `::entity{ref=undefined}`, which would re-parse as a bogus real ref.
+    // `::entity{ref=undefined}`, which would re-parse as a bogus real ref. A
+    // ref containing `}` or whitespace is guarded the same way and for the
+    // same reason: `}` closes the brace early and drops the whole card on
+    // re-parse, and whitespace gets silently truncated by REF — either way
+    // the ref is lost, which is worse than emitting nothing.
     const ref = node.attrs?.ref;
-    return ref ? `::entity{ref=${ref}}` : "";
+    if (!ref || /[\s}]/.test(ref)) return "";
+    return `::entity{ref=${ref}}`;
   },
 });
 
@@ -118,25 +124,30 @@ export const EntityMention = Node.create({
     },
   }),
   renderMarkdown: (node: JSONContent) => {
-    // No ref, no markdown: see EntityCard's renderMarkdown above.
+    // No ref, no markdown: see EntityCard's renderMarkdown above — same guard,
+    // same reasoning.
     const ref = node.attrs?.ref;
-    if (!ref) return "";
+    if (!ref || /[\s}]/.test(ref)) return "";
     // `[` and `]` in the label would otherwise close the markdown label early
     // and desync the brace count, silently dropping the whole mention on
     // re-parse. A display label losing a bracket is benign; silently losing
-    // the reference is not — so strip rather than escape.
-    const label = String(node.attrs?.label ?? "").replace(/[[\]]/g, "");
+    // the reference is not — so strip rather than escape, then collapse the
+    // double space a bracket's removal can leave behind.
+    const label = String(node.attrs?.label ?? "")
+      .replace(/[[\]]/g, "")
+      .replace(/ {2,}/g, " ");
     return `:entity[${label}]{ref=${ref}}`;
   },
 });
 
 /**
  * The headless extension set: schema and markdown, no views. Exported so
- * lib/entity-markdown.test.ts and lib/markdown-conformance.test.ts drive the
- * same schema definition rather than two copies that could quietly drift out
- * of sync with each other. The editor itself (a later task) builds its own
- * extension array on top of these nodes plus React node views
- * (components/editor/entity-views.tsx), so this does not guarantee the editor
- * stays in sync — only that the two test files do.
+ * lib/entity-markdown.test.ts drives the same schema definition that Task 3's
+ * `lib/markdown-conformance.test.ts` will drive too, once it exists, rather
+ * than each test file carrying its own copy that could quietly drift apart.
+ * The editor itself (a later task) will build its own extension array on top
+ * of these nodes plus React node views (components/editor/entity-views.tsx,
+ * not yet written), so this does not guarantee the editor stays in sync —
+ * only that the two test files will.
  */
 export const headlessExtensions = [StarterKit, TableKit, EntityCard, EntityMention];
