@@ -36,8 +36,18 @@ export const ENTITY_FIXTURES: EntityFixture[] = [
   { md: "> - ::entity{ref=bean:x}", expect: "card" },
   // The 4-space negative already has a row above ("    ::entity{ref=bean:x}"),
   // load-bearing since it must NOT match despite the new quote/list prefixes.
-  { md: "- a\n  - ::entity{ref=bean:x}", expect: "card" },
   // Reachable from the editor itself: Tiptap's list serializer emits exactly
   // this indentation on round-trip, so a card nested one level deep must mint
   // its graph edge too (found by the coordinator's review of Task 3c).
+  { md: "- a\n  - ::entity{ref=bean:x}", expect: "card" },
+  // CommonMark allows a blockquote marker with no trailing space, unlike a
+  // list marker — must agree the same way `> ::entity{…}` does above.
+  { md: ">::entity{ref=bean:x}", expect: "card" },
+  // Three levels deep: this is the row that rules out bounding the leading
+  // marker run's indentation to {0,3} — a third-level list item legitimately
+  // carries 4+ leading spaces, which the plain {0,3} rule alone would reject.
+  { md: "- a\n  - b\n    - ::entity{ref=bean:x}", expect: "card" },
+  // Nested blockquote markers, each with extra trailing whitespace, ending in
+  // a list item — the general case the widened marker-run grammar exists for.
+  { md: ">  >  - ::entity{ref=bean:x}", expect: "card" },
 ];

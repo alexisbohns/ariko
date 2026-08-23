@@ -108,11 +108,65 @@ test("KNOWN DIVERGENCE: a card in an ordered list item is invisible to the edito
   // disagrees. Crucially: no data is lost. The round trip is byte-stable —
   // the author just sees raw `::entity{...}` syntax instead of a live card
   // when reopening a document with a card in this one position.
-  const source = "1. ::entity{ref=bean:x}";
-  assert.match(render(source), /<entity-card data-ref="bean:x">/);
-  assert.deepEqual(extractRefs(source), [{ kind: "embeds", ref: "bean:x" }]);
-  assert.ok(!JSON.stringify(manager.parse(source)).includes('"entityCard"'));
-  assert.equal(roundTrip(source), source);
+  //
+  // All three ordered-marker spellings CommonMark allows (`1.`, `1)`, and a
+  // multi-digit `10.`) hit the same upstream gap identically. Content is
+  // never lost for any of them; `1)` is the one spelling where the marker
+  // ITSELF is not byte-stable — the editor's serializer always re-emits an
+  // ordered marker as `N.`, never `N)`, regardless of which one was parsed.
+  // That is marker-style normalization, not data loss: the ref and the rest
+  // of the line survive untouched either way.
+  const roundTrips: Record<string, string> = {
+    "1.": "1. ::entity{ref=bean:x}",
+    "1)": "1. ::entity{ref=bean:x}",
+    "10.": "10. ::entity{ref=bean:x}",
+  };
+  for (const marker of ["1.", "1)", "10."]) {
+    const source = `${marker} ::entity{ref=bean:x}`;
+    assert.match(render(source), /<entity-card data-ref="bean:x">/, source);
+    assert.deepEqual(extractRefs(source), [{ kind: "embeds", ref: "bean:x" }], source);
+    assert.ok(!JSON.stringify(manager.parse(source)).includes('"entityCard"'), source);
+    assert.equal(roundTrip(source), roundTrips[marker], source);
+  }
+});
+
+test("KNOWN DIVERGENCE: a linked image silently loses its link on the round trip", () => {
+  // The same failure class as the image loss Task 3c's Step 1 fixed — a node
+  // the editor's schema cannot fully represent — one layer down and upstream:
+  // @tiptap/markdown parses `[![alt](/i.png)](https://e.com)` into a plain
+  // image node with no memory of the enclosing link, and
+  // `Image.configure({ inline: true })` does not change that. Unlike the
+  // character-entity and footnote pins above, this one is silent: the author
+  // sees a normal-looking image both before and after, with no visual sign
+  // the link URL is gone. Pinned so an @tiptap/markdown upgrade that fixes it
+  // shows up as a diff here rather than as a surprise in production.
+  const source = "[![alt](/i.png)](https://e.com)";
+  assert.match(render(source), /<a href="https:\/\/e\.com"><img src="\/i\.png" alt="alt"\/><\/a>/);
+  assert.equal(roundTrip(source), "![alt](/i.png)");
+  assert.doesNotMatch(render(roundTrip(source)), /<a /);
+});
+
+test("REGRESSION (ReDoS): extractRefs stays fast on adversarial marker-run input", () => {
+  // Task 3c widened entity-refs.ts's BLOCK regex to tolerate blockquote/list
+  // markers before a card. An earlier version of that widening put a `[ \t]*`
+  // INSIDE the repeated marker group, which is ambiguous: a run of k
+  // whitespace characters between two markers can be split between "end of
+  // one iteration" and "start of the next" in k different ways, and with n
+  // markers the engine explores k^n paths once the string fails to end in
+  // `::entity{...}` — catastrophic backtracking. extractRefs runs on every
+  // write path, including the up-to-64-KiB body /api/articles accepts, and a
+  // regex hang blocks Node's entire event loop for every concurrent request.
+  // This asserts adversarial input that reproduced multi-second hangs on the
+  // vulnerable regex still completes in well under a second. Shape: 200 lines
+  // (a realistic document length), each 40 marker-plus-run-of-spaces
+  // repetitions wide with no `::entity{...}` to ever match — the worst case,
+  // since every line fully exhausts the ambiguous split before failing.
+  const line = "-    ".repeat(40);
+  const adversarial = Array.from({ length: 200 }, () => line).join("\n");
+  const start = performance.now();
+  extractRefs(adversarial);
+  const elapsed = performance.now() - start;
+  assert.ok(elapsed < 1000, `extractRefs took ${elapsed.toFixed(1)}ms on adversarial input`);
 });
 
 // Reads what each implementation believes the fixture contains.
