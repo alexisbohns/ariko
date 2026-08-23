@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { MAX_UPLOAD_BYTES } from "./lib/upload-input";
+import { EMBED_FRAME_HOSTS } from "./lib/embed-src";
 
 const nextConfig: NextConfig = {
   // Botanical rename (slice 1 PR1): /atom/* was the only public renamed path;
@@ -22,6 +23,28 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: { bodySizeLimit: MAX_UPLOAD_BYTES + 64 * 1024 },
   },
+  // The repo's first CSP, and deliberately ONE directive.
+  //
+  // A policy containing only `frame-src` constrains frames and nothing else —
+  // there is no `default-src`, so scripts, styles and fonts are untouched and
+  // no nonces are needed. That is what makes it safe to add in the same slice
+  // as the feature it guards, instead of as its own project.
+  //
+  // Built from EMBED_FRAME_HOSTS (lib/embed-src.ts) rather than a hand-copied
+  // list, so the allowlist and the URL table it mirrors cannot drift.
+  // lib/embed-src.test.ts asserts the correspondence in both directions, and
+  // fails loudly if a provider is added without an allowlist entry.
+  headers: async () => [
+    {
+      source: "/:path*",
+      headers: [
+        {
+          key: "Content-Security-Policy",
+          value: `frame-src 'self' ${EMBED_FRAME_HOSTS.join(" ")};`,
+        },
+      ],
+    },
+  ],
 };
 
 export default nextConfig;
