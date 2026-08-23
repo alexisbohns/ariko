@@ -75,9 +75,15 @@ function youtubeId(url: string): string | undefined {
 // keyword, the id is the FIRST numeric segment — correct for the bare,
 // unlisted, and review forms alike.
 //
-// Known miss: an all-numeric channel slug (vimeo.com/channels/12345/67890)
-// would resolve to the channel. Far rarer than a private link, and it fails to
-// a wrong video rather than an unsafe one.
+// Known miss, stated at its real width: absent the keyword, ANY numeric segment
+// sitting before the id wins — an all-numeric channel slug
+// (vimeo.com/channels/12345/67890), and equally vimeo.com/12345/review/678/90,
+// which is one of the very forms the fallback exists to serve. What keeps this
+// from biting is a platform convention rather than anything structural here:
+// Vimeo usernames are `user12345678`, never bare digits. Left as a documented
+// limitation because the guard that would close it costs more than a miss that
+// requires Vimeo to change its username format — and, like every other miss in
+// this function, it fails to a wrong video rather than an unsafe host.
 function vimeoId(url: string): string | undefined {
   let segments: string[];
   try {
