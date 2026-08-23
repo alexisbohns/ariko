@@ -7,6 +7,7 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import { Markdown } from "@tiptap/markdown";
 import Suggestion from "@tiptap/suggestion";
+import { PluginKey } from "@tiptap/pm/state";
 import { baseExtensions, normalizeEmptyListMarkers } from "@/lib/entity-markdown";
 import type { EntityOption } from "@/lib/entity-options";
 import { entityExtensions } from "./entity-views";
@@ -85,6 +86,12 @@ export function ProseEditor({
             Suggestion<MenuItem>({
               editor,
               char,
+              // @tiptap/suggestion defaults pluginKey to `new PluginKey("suggestion")`,
+              // so registering BOTH the `@` and `/` plugins made ProseMirror throw
+              // "Adding different instances of a keyed plugin (suggestion$)" and the
+              // editor failed to mount at all. Key each one by its own extension
+              // name so the two never collide.
+              pluginKey: new PluginKey(this.name),
               startOfLine: char === "/",
               // I4: @tiptap/suggestion defaults `allow` to always-true, so
               // both menus would otherwise fire inside a code block too.
