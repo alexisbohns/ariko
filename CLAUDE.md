@@ -14,11 +14,17 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
 - Chrome belongs to the zones, not the root layout: `app/(public)/layout.tsx`
   (site header) and `app/admin/layout.tsx` + `app/admin/_components/admin-bar.tsx`
   (tooling bar). The root layout owns only the document shell and the fonts.
-- **The admin forms stay zero-client-JS**: they post to server actions and must
-  work without script. Use the styled *native* controls in
+- **The admin's *metadata* forms stay zero-client-JS**: they post to server
+  actions and must work without script. Use the styled *native* controls in
   `components/ui/native-controls.tsx` (`NativeSelect`, `NativeRadio`,
   `NativeCheckbox`) rather than the Base UI Select/RadioGroup/Checkbox
   composites, which submit through a script-populated hidden input.
+- **The prose editor is the one deliberate exception** (`components/editor/`,
+  slice 5). The content forms on `/admin/sprout/[slug]`, `/admin/plant/[slug]`
+  and `/admin/pod/[slug]` are client components and do not work without script.
+  They still invoke the same server actions, and they are *separate forms* from
+  the metadata ones on the same page — which is what keeps the exception
+  contained. Widening it to any other form is a decision, not a convenience.
 
 Orientation lives in
 [`README.md`](README.md); the sequenced plan lives in
