@@ -9,9 +9,8 @@ import { ListItem, TaskList, TaskItem } from "@tiptap/extension-list";
  *
  * The public site parses this syntax with remark (`lib/markdown.ts`); the editor
  * parses it with marked, which is what `@tiptap/markdown` runs on. Two parsers
- * over one format is this slice's central risk; Task 3 adds
- * `lib/markdown-conformance.test.ts` to keep them honest — re-run it before
- * changing anything here once it exists.
+ * over one format is this slice's central risk; `lib/markdown-conformance.test.ts`
+ * keeps them honest — re-run it before changing anything here.
  *
  * Tiptap's built-in `createAtomBlockMarkdownSpec` / `createInlineMarkdownSpec`
  * are deliberately unused: they emit Pandoc `:::name {attrs}` (three colons) and
@@ -220,7 +219,17 @@ const CardLeadingListItem = ListItem.extend({ content: "block+" });
  * string.
  */
 export const baseExtensions = [
-  StarterKit.configure({ listItem: false }),
+  // underline: false — StarterKit v3 ships @tiptap/extension-underline and
+  // registers Mod-u/Mod-U live. @tiptap/markdown serializes its mark as
+  // `++text++`; remark + remark-gfm has no `++` rule, so that syntax renders
+  // literally on the public page instead of underlining anything (I3) — a
+  // fourth grammar no reader shares, on top of the three the bubble menu
+  // actually offers (bold/italic/code). The round trip through THIS editor
+  // is byte-stable either way, so the conformance harness's render-equality
+  // loop can't catch the divergence on its own; see the dedicated I3 test in
+  // lib/markdown-conformance.test.ts, which parses "++x++" and asserts no
+  // underline mark is produced. strike stays on: "~~" is real GFM.
+  StarterKit.configure({ listItem: false, underline: false }),
   CardLeadingListItem,
   TableKit,
   Image,

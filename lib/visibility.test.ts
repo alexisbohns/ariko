@@ -260,6 +260,30 @@ test("filterPublic scrubs plant relations to surviving targets, exactly like spr
   assert.deepEqual(melogram?.relations, [{ kind: "distributes", ref: "plant:bohns-music" }]);
 });
 
+// I6: editContainerContentAction writes relations[] onto pod documents too
+// (mirroring plants), but Pod had no declared field and filterPublic never
+// scrubbed it — an undeclared, unscrubbed array that could point at a
+// private bean. This closes the trap the same way the plant test above does.
+test("filterPublic scrubs pod relations to surviving targets — a relation pointing at a private bean does not survive", () => {
+  const seed: RawGarden = {
+    pods: [
+      {
+        slug: "rm-narrative", name: "Narrative pod", description: "",
+        relations: [
+          { kind: "features", ref: "bean:rm-public" }, // kept
+          { kind: "features", ref: "bean:rm-private" }, // dropped: private target
+        ],
+      },
+    ],
+    beans: [
+      { slug: "rm-public", name: "Public bean", parents: [] },
+      { slug: "rm-private", name: "Private bean", parents: [], visibility: "private" },
+    ],
+  };
+  const pod = (filterPublic(seed).pods ?? []).find((p) => p.slug === "rm-narrative");
+  assert.deepEqual(pod?.relations, [{ kind: "features", ref: "bean:rm-public" }]);
+});
+
 test("filterPublic keeps only explicitly public bees (default is PRIVATE) and scrubs serves to kept plants", () => {
   const seed: RawGarden = {
     plants: [

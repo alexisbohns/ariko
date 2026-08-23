@@ -21,7 +21,14 @@ export function ContentCard({
 }: {
   raw: RawGarden;
   content?: Text;
-  /** This entity's own ref, so the picker cannot offer it to itself. */
+  /**
+   * This entity's own ref, so the picker cannot offer it to itself — matters
+   * for plant and pod pages, where entityOptions() does emit a row for the
+   * page's own container. The sprout page passes `sprout:${slug}` here too,
+   * for consistency, but it excludes nothing: entityOptions() never emits
+   * `sprout:` rows at all (a sprout has no public URL to mint a reference
+   * to), so there is nothing for that ref to filter out.
+   */
   selfRef: string;
   action: (formData: FormData) => Promise<void>;
   hidden: Record<string, string>;

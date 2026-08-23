@@ -87,6 +87,10 @@ const FIXTURES: Record<string, string> = {
   // content. See lib/entity-markdown.ts's normalizeEmptyListMarkers.
   emptyListItemCard: "- \n  ::entity{ref=bean:x}",
   emptyOrderedItemCard: "1. \n   ::entity{ref=bean:x}",
+  // I3: with Underline disabled (lib/entity-markdown.ts's baseExtensions),
+  // "++text++" is no longer a grammar the editor understands — it is
+  // literal text on both sides, same as remark always treated it.
+  literalPlusPlus: "text with ++not underline++ inside",
 };
 
 for (const [name, source] of Object.entries(FIXTURES)) {
@@ -116,6 +120,30 @@ test("I2 fix: an empty list item ahead of a card is not silently rewritten as an
   assert.doesNotThrow(() => {
     PMNode.fromJSON(schema, manager.parse(normalizeEmptyListMarkers(source)) as never).check();
   });
+});
+
+test("I3 fix: \"++x++\" is literal text, not a synthesized underline mark", () => {
+  // Before the fix: StarterKit shipped @tiptap/extension-underline, which
+  // registers a markdownTokenizer for "++...++" AND live keyboard shortcuts
+  // (Mod-u/Mod-U). Two ways an underline mark could exist in the document:
+  // typing/pasting literal "++text++", or selecting plain text and pressing
+  // Cmd-U. Either way, @tiptap/markdown serializes the mark back out as
+  // "++text++" — and remark + remark-gfm has no "++" rule, so the PUBLIC
+  // page rendered that literally: "editor shows underlined text, page shows
+  // ++underlined text++". The round trip through the editor's OWN manager is
+  // byte-stable in both directions, which is exactly why the render-equality
+  // loop above (FIXTURES.literalPlusPlus) cannot, by itself, distinguish
+  // "understood the same way" from "coincidentally re-emitted the same
+  // bytes" — this test checks the underlying structure instead.
+  const source = "++x++";
+  assert.equal(render(roundTrip(source)), render(source));
+  const json = manager.parse(source) as JSONContent;
+  const marks = (json.content?.[0]?.content ?? []).flatMap((n) => n.marks ?? []);
+  assert.ok(
+    !marks.some((m) => m.type === "underline"),
+    "no extension registers a markdown mark for \"++...++\" once Underline is disabled",
+  );
+  assert.deepEqual(json.content?.[0]?.content?.[0], { type: "text", text: "++x++" });
 });
 
 test("a ref-less inline directive degrades to prose, not to a <div> in a <p>", () => {

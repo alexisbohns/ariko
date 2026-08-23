@@ -3,10 +3,9 @@ import assert from "node:assert/strict";
 import { MarkdownManager } from "@tiptap/markdown";
 import { headlessExtensions, normalizeEmptyListMarkers } from "./entity-markdown";
 
-// The editor's parse/serialize pair, headless — no DOM, no React. This will be
-// the same manager the editor's (future) components/editor/prose-editor.tsx
-// builds minus the node views, which is exactly why the nodes live in lib/
-// without them.
+// The editor's parse/serialize pair, headless — no DOM, no React. This is the
+// same manager components/editor/prose-editor.tsx builds minus the node
+// views, which is exactly why the nodes live in lib/ without them.
 const manager = new MarkdownManager({ extensions: headlessExtensions });
 const roundTrip = (src: string): string => manager.serialize(manager.parse(src)).trim();
 const docJson = (src: string): string => JSON.stringify(manager.parse(src));
@@ -33,8 +32,9 @@ test("a ref-less directive mints nothing and stays literal text", () => {
 
 test("indentation follows the CommonMark rule: 3 spaces yes, 4 spaces no", () => {
   assert.ok(docJson("   ::entity{ref=bean:x}").includes('"entityCard"'));
-  // 4+ spaces is an indented code block; marked re-emits it as a fence, which
-  // Task 3's conformance test will assert renders identically.
+  // 4+ spaces is an indented code block; marked re-emits it as a fence, and
+  // lib/markdown-conformance.test.ts's `indentedCode` fixture asserts that
+  // renders identically to the source.
   assert.ok(!docJson("    ::entity{ref=bean:x}").includes('"entityCard"'));
 });
 

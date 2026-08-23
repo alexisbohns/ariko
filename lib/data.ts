@@ -89,6 +89,14 @@ export interface Pod {
   description: Text;
   content?: Text; // optional narrative — the container's own page (slice 3)
   visibility?: Visibility; // default treated as "public"
+  // I6: editContainerContentAction / buildContentPatch / updatePodContent
+  // (mirroring plant narrative) already write this from extractRefs(content)
+  // — the type must say so, or the field is undeclared AND (until the
+  // filterPublic fix alongside this one) unscrubbed, which is how a pod
+  // narrative's card refs could leak a private bean slug through
+  // /api/graph the moment something starts reading pod relations. NOT fed
+  // into toGraph — pod graph edges are a separate feature/decision.
+  relations?: Relation[];
   tags?: string[];
 }
 
@@ -344,11 +352,12 @@ export function composeText(en: string, fr: string): Text {
 //    shelters it), and a Sprout whose every EXISTING bean parent was filtered
 //    out is dropped. Dangling (nonexistent) parent refs are ignored, so
 //    standalone-by-dangling items are preserved (matches buildDataset);
-//  - each kept Sprout's AND Plant's relations[] is scrubbed to refs whose
-//    TARGET survives this same projection (kept sprout/bean/pod/plant) —
-//    draft, private, cascaded-out, dangling, and unknown-prefix targets all
+//  - each kept Sprout's, Plant's, AND Pod's relations[] is scrubbed to refs
+//    whose TARGET survives this same projection (kept sprout/bean/pod/plant)
+//    — draft, private, cascaded-out, dangling, and unknown-prefix targets all
 //    drop, so a hidden slug can never leak through a property dump or the
-//    graph endpoint;
+//    graph endpoint. (toGraph does not read pod relations today — this scrub
+//    just keeps the data safe by construction ahead of that decision.)
 //  - Bees are default-PRIVATE and cascade-exempt: only an explicit
 //    visibility === "public" survives, and each survivor's serves[] is
 //    scrubbed to kept plants.
@@ -364,13 +373,13 @@ export function filterPublic(raw: RawGarden): RawGarden {
   const plantExists = new Set(rawPlants.map((p) => p.slug));
   const plantKept = new Set(keptPlants.map((p) => p.slug));
 
-  const pods = rawPods.filter(
+  const keptPods = rawPods.filter(
     (p) =>
       p.visibility !== "private" &&
       !allExistingParentsFiltered(p.parents, [[PLANT_PREFIX, plantExists, plantKept]]),
   );
   const podExists = new Set(rawPods.map((p) => p.slug));
-  const podKept = new Set(pods.map((p) => p.slug));
+  const podKept = new Set(keptPods.map((p) => p.slug));
 
   const beans = rawBeans.filter(
     (b) =>
@@ -403,6 +412,13 @@ export function filterPublic(raw: RawGarden): RawGarden {
 
   const sprouts = keptSprouts.map((s) => scrubRelations(s, refSurvives));
   const plants = keptPlants.map((p) => scrubRelations(p, refSurvives));
+  // I6: editContainerContentAction writes relations[] onto pod documents the
+  // same way it does for plants (buildContentPatch / updatePodContent), but
+  // nothing scrubbed them here until now — an undeclared, unscrubbed array
+  // that could point at a private bean. toGraph deliberately does NOT read
+  // pod relations (that's a separate feature/decision); this scrub exists so
+  // the data is already safe by construction whenever that decision is made.
+  const pods = keptPods.map((p) => scrubRelations(p, refSurvives));
 
   // Bees are default-PRIVATE (the opposite of every content tier) and sit
   // outside the cascades: only an explicit "public" survives, and each

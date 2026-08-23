@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState, useTransition } from "react";
+import { unstable_rethrow } from "next/navigation";
 import { Extension, type Editor, type Range } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
@@ -49,6 +50,7 @@ export function ProseEditor({
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [pending, startTransition] = useTransition();
   const [unchanged, setUnchanged] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   // Mirrors `menu` for the keydown handler, which runs outside React's render
   // and would otherwise close over a stale index.
   const menuRef = useRef<MenuState | null>(null);
@@ -84,6 +86,16 @@ export function ProseEditor({
               editor,
               char,
               startOfLine: char === "/",
+              // I4: @tiptap/suggestion defaults `allow` to always-true, so
+              // both menus would otherwise fire inside a code block too.
+              // codeBlock's content is `text*` with `marks: ""` — picking an
+              // entity there runs deleteRange(range) (eating the typed text)
+              // then tries to insert a node the block can't contain, and
+              // picking "Heading" runs setNode("heading") on the block,
+              // converting it and losing its language attribute. Reachable
+              // from ordinary technical prose: an `@Component` decorator, or
+              // a `/usr/...` path at the start of a line in a sample.
+              allow: ({ state, range }) => !state.doc.resolve(range.from).parent.type.spec.code,
               items: ({ query }) => items(query),
               command: ({ range, props }) => run(editor, range, props),
               render: () => {
@@ -120,7 +132,12 @@ export function ProseEditor({
                       return true;
                     }
                     if (event.key === "Enter") {
-                      current.run(current.items[current.index]);
+                      // menuRef.current updates synchronously while the rendered
+                      // list is React state (see the onPick guard below for the
+                      // fuller race) — guarded defensively so an out-of-range
+                      // index can never dereference straight into item.id.
+                      const item = current.items[current.index];
+                      if (item) current.run(item);
                       show(null);
                       return true;
                     }
@@ -214,8 +231,18 @@ export function ProseEditor({
         },
       ),
     ];
-    // Rebuilt only when the entity list identity changes — the editor is not
-    // recreated on every render.
+    // This dependency array does not do what it implies: useEditor(options)
+    // below is called with no `deps` argument, which defaults to `[]`
+    // (@tiptap/react), so it builds the Editor instance exactly once, at
+    // mount, from whatever `extensions` this useMemo returned on the FIRST
+    // render. A later `entities` change recomputes this array, but the
+    // running editor never sees it — the @ and / pickers stay frozen with
+    // the entity list that existed at mount. Harmless in practice:
+    // ContentCard is a server component that rebuilds `entities` fresh on
+    // every page request (app/admin/_components/content-card.tsx), so
+    // ProseEditor is never kept mounted across an `entities` change — but
+    // that is a property of how this component happens to be used, not
+    // something this hook enforces.
   }, [entities]);
 
   const editor = useEditor({
@@ -249,13 +276,41 @@ export function ProseEditor({
       setUnchanged(true);
       return;
     }
+    setUnchanged(false);
+    setError(null);
     const formData = new FormData();
     for (const [key, value] of Object.entries(hidden)) formData.set(key, value);
     // The serialize step (spec §2.3): markdown is what the database stores, and
     // the editor is only ever a surface over it.
     formData.set("content", markdown);
-    startTransition(() => {
-      void action(formData);
+    // I5: React 19 keeps `isPending` true across an async transition only
+    // when the scope callback RETURNS the promise — `startTransition(() =>
+    // { void action(formData) })` returns undefined, so `pending` flipped
+    // back before the request settled ("Saving…" never really showed, the
+    // button re-enabled mid-flight) and `void` discarded every rejection, so
+    // a server error was an unhandled rejection with no user-visible signal.
+    // Awaiting inside the transition fixes both.
+    //
+    // Every action passed in here (editContentAction / editContainerContentAction,
+    // app/admin/actions.ts) ends with a `redirect()` on success — and a
+    // client component invoking a server action directly (not through
+    // `<form action>`) gets that redirect back as a REJECTED promise: Next's
+    // server-action reducer resolves the underlying page navigation itself
+    // and then explicitly rejects the action's promise with a NEXT_REDIRECT
+    // digest error so RedirectBoundary can catch it and reset this
+    // component's tree (see next/dist/client/components/router-reducer/
+    // reducers/server-action-reducer.js). That rejection is control flow,
+    // not failure — presenting it as a save error would be wrong on the
+    // common (successful) path. unstable_rethrow is Next's documented way to
+    // tell the two apart: it rethrows redirect/notFound errors so the
+    // framework still handles them, and no-ops on anything else.
+    startTransition(async () => {
+      try {
+        await action(formData);
+      } catch (e) {
+        unstable_rethrow(e);
+        setError(e instanceof Error ? e.message : "could not save content");
+      }
     });
   };
 
@@ -297,6 +352,9 @@ export function ProseEditor({
         {unchanged ? (
           <span className="self-center text-xs text-muted-foreground">No changes to save</span>
         ) : null}
+        {error ? (
+          <span className="self-center text-xs text-destructive">Could not save: {error}</span>
+        ) : null}
       </div>
 
       <SuggestionMenu
@@ -306,7 +364,15 @@ export function ProseEditor({
         onPick={(index) => {
           const current = menuRef.current;
           if (!current) return;
-          current.run(current.items[index]);
+          // menuRef.current updates synchronously on every show(), but the
+          // rendered <SuggestionMenu> list this `index` was clicked from is
+          // React state (`menu`), which lags a render behind. A mousedown
+          // between a show() and its re-render can carry an index that no
+          // longer exists in the current (possibly shorter) items array —
+          // guarded rather than dereferencing straight into item.id.
+          const item = current.items[index];
+          if (!item) return;
+          current.run(item);
           show(null);
         }}
       />
