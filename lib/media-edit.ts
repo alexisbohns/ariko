@@ -43,7 +43,8 @@ function same(a: Media[], b: Media[]): boolean {
 }
 
 /**
- * Pure. The submitted list IS the new media[] — the picker owns ordering and
+ * Pure, aside from one diagnostic warning on the guarded path below. The
+ * submitted list IS the new media[] — the picker owns ordering and
  * posts the whole thing, so there is nothing to diff and no client-supplied
  * intent to interpret (spec §4.4).
  *
@@ -72,7 +73,20 @@ export function buildMediaPatch(current: MediaOwner, form: FormData): MediaPatch
   // is fixed still works. Unreachable in normal operation — the picker emits
   // JSON.stringify of its own state — which is exactly why it must not be
   // silent data loss when it does happen.
-  if (raw.length > 0 && next.length === 0 && stored.length > 0) return { dirty: false };
+  if (raw.length > 0 && next.length === 0 && stored.length > 0) {
+    // The one diagnostic in this otherwise pure module. Without it a client bug
+    // that trips this guard is indistinguishable, from the operator's side,
+    // from an ordinary no-op save: no exception, no log, the redirect proceeds.
+    // The admin just sees "my edit didn't take" with no trail. It belongs HERE
+    // rather than in the calling action: the action cannot reconstruct this
+    // condition without re-running parseMediaField, and the cheap approximation
+    // (not dirty, yet fields were submitted) also matches the common
+    // opened-and-saved-untouched case, which would bury the real signal.
+    console.warn(
+      `[media] buildMediaPatch: ${raw.length} submitted field(s) all failed to parse — write skipped, stored media unchanged`,
+    );
+    return { dirty: false };
+  }
 
   return same(stored, next) ? { dirty: false } : { dirty: true, media: next };
 }
