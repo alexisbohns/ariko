@@ -223,7 +223,7 @@ export function ProseEditor({
 
       <p className="font-heading text-xs text-muted-foreground">
         Type <strong>@</strong> to mention an entity inline, <strong>/</strong> at the start of a line
-        for headings, lists, tables and reference cards. Select text to format it.
+        for headings, lists, tables, images and reference cards. Select text to format it.
       </p>
 
       <div className="flex items-center gap-3">
