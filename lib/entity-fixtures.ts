@@ -36,4 +36,8 @@ export const ENTITY_FIXTURES: EntityFixture[] = [
   { md: "> - ::entity{ref=bean:x}", expect: "card" },
   // The 4-space negative already has a row above ("    ::entity{ref=bean:x}"),
   // load-bearing since it must NOT match despite the new quote/list prefixes.
+  { md: "- a\n  - ::entity{ref=bean:x}", expect: "card" },
+  // Reachable from the editor itself: Tiptap's list serializer emits exactly
+  // this indentation on round-trip, so a card nested one level deep must mint
+  // its graph edge too (found by the coordinator's review of Task 3c).
 ];

@@ -10,17 +10,38 @@ const MIRRORED_KINDS = new Set(["embeds", "mentions"]);
 // every write, where a full mdast pass per document buys nothing — the
 // grammar is fixed and narrow.
 //
-// The optional `(?:(?:> |- )*)` prefix tolerates a card living inside a
-// blockquote or a list item (nested combinations of both, any depth) — remark
-// and the editor's marked tokenizer both already render a card for
-// `> ::entity{ref=…}` and `- ::entity{ref=…}` because they parse the
-// surrounding blockquote/list structure first and see the directive on its
-// own dedented line; this is a flat scan over raw source, so it has to
-// tolerate those prefixes explicitly instead. It does NOT open the 4-space
-// indented-code escape hatch: with zero prefixes matched, the space count
-// after it is still capped at {0,3}, so `    ::entity{ref=x}` (four bare
-// leading spaces, no quote/list marker) still matches nothing.
-const BLOCK = /^(?:(?:> |- )*) {0,3}::entity(?:\[[^\]\n]*\])?\{[^}]*\bref=([^\s}]+)/gm;
+// The optional `(?:[ \t]*(?:>|[-*+]|\d+[.)])[ \t]+)*` prefix tolerates a card
+// living inside a blockquote or a list item — bullet (`-`, `*`, `+`) or
+// ordered (`1.`, `1)`) — nested to any depth, INCLUDING the leading
+// indentation a nested item carries (`  - ::entity{…}`, `    - ::entity{…}`).
+// remark and the editor's marked tokenizer both already render a card for
+// these because they parse the surrounding blockquote/list structure first
+// and see the directive on its own dedented line; this is a flat scan over
+// raw source, so it has to tolerate the markers (and their indentation)
+// explicitly instead. Verified reachable from the editor itself: Tiptap's
+// bullet/ordered list serializer emits exactly this indentation, e.g.
+// `manager.serialize(manager.parse("- a\n  - ::entity{ref=bean:x}"))` round-
+// trips byte-identically, indentation included.
+//
+// Each marker requires trailing whitespace before the next marker or the
+// directive, so a BARE run of leading spaces with no marker at all never
+// satisfies the group — it always matches zero times, falling through to the
+// plain ` {0,3}` below. That preserves the 4-space indented-code rule:
+// `    ::entity{ref=x}` (four bare leading spaces, no quote/list marker)
+// still matches nothing, because {0,3} can consume at most three of the four
+// spaces, leaving a stray space before the literal `::entity`.
+//
+// Known, accepted over-match: a scan is line-local and stateless, so
+// `    - ::entity{ref=x}` (four raw spaces then a marker) is indistinguishable
+// from the SAME line appearing as a genuinely nested list item two levels
+// deep (e.g. after `- a\n  - b\n`) versus appearing bare at the top level,
+// where CommonMark would actually treat those four spaces as an indented
+// code block regardless of the marker that follows. This regex always reads
+// it as a card. Consistent with this file's existing stance (see stripCode's
+// comment): over-matching costs one spurious edge at worst, which is the
+// lesser failure next to the missing-edge bug this widening exists to fix.
+const BLOCK =
+  /^(?:[ \t]*(?:>|[-*+]|\d+[.)])[ \t]+)* {0,3}::entity(?:\[[^\]\n]*\])?\{[^}]*\bref=([^\s}]+)/gm;
 const INLINE = /(?<!:):entity\[[^\]]*\]\{[^}]*\bref=([^\s}]+)/g;
 
 // Fenced code blocks and inline code spans render as literal text — the

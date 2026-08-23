@@ -97,6 +97,24 @@ test("KNOWN DIVERGENCE: a GFM footnote survives remark but not the round trip", 
   assert.notEqual(render(roundTrip(source)), render(source));
 });
 
+test("KNOWN DIVERGENCE: a card in an ordered list item is invisible to the editor", () => {
+  // Upstream in @tiptap/markdown, not ours to fix: its bullet-list handling
+  // block-tokenizes an item's content (so `- ::entity{ref=…}` parses as a
+  // card, per ENTITY_FIXTURES), but its ordered-list handling does not — an
+  // ordered item's content is only ever inline-tokenized, so the block
+  // tokenizer that recognizes `::entity{…}` never runs on it. The page and
+  // the graph agree it is a card (both walk the real remark/regex source,
+  // not the editor's schema); only the editor's own parse of its own syntax
+  // disagrees. Crucially: no data is lost. The round trip is byte-stable —
+  // the author just sees raw `::entity{...}` syntax instead of a live card
+  // when reopening a document with a card in this one position.
+  const source = "1. ::entity{ref=bean:x}";
+  assert.match(render(source), /<entity-card data-ref="bean:x">/);
+  assert.deepEqual(extractRefs(source), [{ kind: "embeds", ref: "bean:x" }]);
+  assert.ok(!JSON.stringify(manager.parse(source)).includes('"entityCard"'));
+  assert.equal(roundTrip(source), source);
+});
+
 // Reads what each implementation believes the fixture contains.
 const remarkVerdict = (md: string): "card" | "mention" | "none" => {
   const html = render(md);
