@@ -1658,7 +1658,33 @@ second trigger character or a two-step picker.
 **Files:**
 - Create: `components/editor/prose-editor.tsx`
 
-- [ ] **Step 1: Write the component file**
+- [ ] **Step 1: Export a shared node set so the editor cannot drift from the tests**
+
+**Task 2's review predicted this exact failure and it has now materialised.** `headlessExtensions`
+gained `Image`, `TaskList` and `TaskItem` in Task 3c — without them `@tiptap/markdown` deletes every
+image on save and serializes a task list to `""`. But this task, as originally written, hand-rebuilt
+its own array as `[StarterKit, TableKit, Markdown, …]`, which would have reinstated the data loss
+while every conformance test kept passing, because those tests drive `headlessExtensions`.
+
+Split the export in `lib/entity-markdown.ts` so one definition serves both:
+
+```ts
+/**
+ * Every node the editor and the tests share. The entity nodes are NOT here: the
+ * editor uses `.extend()`ed copies carrying React node views, while the tests use
+ * the bare ones. Everything else must be identical in both, or a node the editor
+ * cannot represent gets silently dropped on save — which is exactly how images
+ * and task lists were lost before Task 3c.
+ */
+export const baseExtensions = [StarterKit, TableKit, Image, TaskList, TaskItem];
+
+export const headlessExtensions = [...baseExtensions, EntityCard, EntityMention];
+```
+
+The editor below then spreads `baseExtensions` rather than listing nodes again. Adding a node in
+future means adding it in one place.
+
+- [ ] **Step 2: Write the component file**
 
 ```tsx
 "use client";
@@ -1667,10 +1693,9 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { Extension, type Editor, type Range } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
-import { StarterKit } from "@tiptap/starter-kit";
-import { TableKit } from "@tiptap/extension-table";
 import { Markdown } from "@tiptap/markdown";
 import Suggestion from "@tiptap/suggestion";
+import { baseExtensions } from "@/lib/entity-markdown";
 import type { EntityOption } from "@/lib/entity-options";
 import { entityExtensions } from "./entity-views";
 import { SuggestionMenu, type MenuItem } from "./suggestion-menu";
@@ -1798,8 +1823,9 @@ export function ProseEditor({
         .map((e) => ({ id: e.ref, label: e.name, hint: e.ref }));
 
     return [
-      StarterKit,
-      TableKit,
+      // Spread, never re-listed — see Step 1. A node missing here is a node the
+      // editor silently deletes on save.
+      ...baseExtensions,
       Markdown,
       ...entityExtensions(entities),
       // `@` — an inline mention. The label is the entity's name at insertion
@@ -1920,7 +1946,7 @@ export function ProseEditor({
 }
 ```
 
-- [ ] **Step 2: Guarantee no insertion can create a ref-less node**
+- [ ] **Step 3: Guarantee no insertion can create a ref-less node**
 
 Task 2's review established that a ref-less `entityCard` serializes to `""`, which is harmless in a
 flat document and **destroys a list** when the node is a list item's only child. Task 2 pinned that
@@ -1936,21 +1962,21 @@ const ref = item.id.slice("card:".length);
 if (!ref) return;
 ```
 
-- [ ] **Step 3: Verify it type-checks**
+- [ ] **Step 4: Verify it type-checks**
 
 Run: `npx tsc --noEmit 2>&1 | head -30`
 Expected: no output. If `BubbleMenu` cannot be found, confirm the subpath: in Tiptap 3 it is
 `@tiptap/react/menus`, **not** `@tiptap/react`.
 
-- [ ] **Step 4: Verify the app builds**
+- [ ] **Step 5: Verify the app builds**
 
 Run: `npm run build 2>&1 | tail -20`
 Expected: `Compiled successfully`.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add components/editor/prose-editor.tsx
+git add lib/entity-markdown.ts components/editor/prose-editor.tsx
 git commit -m "feat: the prose editor island — bubble menu, @ mentions, / blocks"
 ```
 
