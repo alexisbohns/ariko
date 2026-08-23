@@ -313,8 +313,14 @@ detection while leaving the fourth open would lock the front door and leave the 
    (`hostname.includes("youtu.be")`). It uses the hardened helper.
 3. **`:36`** — `vimeoId()` regexes the **whole URL** (`/vimeo\.com\/(\d+)/`), so it can lift an id
    out of a query string, and it returns the wrong id for
-   `vimeo.com/channels/staffpicks/123456`. Replaced with: parse the URL, take the first numeric
-   **path segment**.
+   `vimeo.com/channels/staffpicks/123456`. Replaced with: parse the URL, take the **last** numeric
+   path segment.
+
+   *Amended during implementation:* this first said the **first** numeric segment. That still
+   embeds the wrong video — Vimeo nests the video id under a collection id in `/showcase/…/video/…`,
+   `/groups/…/videos/…` and `/album/…/video/…`, and the collection's id always comes first. The
+   last segment is correct for every form. Worth recording because the plan's own test asserted the
+   wrong value, which would have shipped the bug pinned as intended behaviour.
 
 And in `lib/inbox.ts`:
 

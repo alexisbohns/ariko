@@ -70,9 +70,20 @@ test("real subdomains and bare apexes both still match", () => {
 // vimeoId regexed the WHOLE url, so it could lift an id out of a query string
 // and picked the wrong segment on a channel URL.
 test("the vimeo id comes from a path segment, not from anywhere in the string", () => {
+  assert.equal(detectEmbed("https://vimeo.com/123456").embedId, "123456");
   assert.equal(detectEmbed("https://vimeo.com/channels/staffpicks/123456").embedId, "123456");
-  assert.equal(detectEmbed("https://vimeo.com/showcase/999/video/123456").embedId, "999");
   assert.equal(detectEmbed("https://vimeo.com/notanumber").embedId, undefined);
+});
+
+// AMENDED: this originally asserted 999 for the showcase form, taking the FIRST
+// numeric segment. 999 is the showcase's id, so embedSrc would have built
+// player.vimeo.com/video/999 and embedded the wrong video. Vimeo nests the
+// video id under a collection id in several share forms and the collection's id
+// always comes first, so the LAST numeric segment is the right rule.
+test("a collection URL yields the video's id, not the collection's", () => {
+  assert.equal(detectEmbed("https://vimeo.com/showcase/999/video/123456").embedId, "123456");
+  assert.equal(detectEmbed("https://vimeo.com/groups/123/videos/456").embedId, "456");
+  assert.equal(detectEmbed("https://vimeo.com/album/999/video/123456").embedId, "123456");
 });
 
 test("a youtu.be lookalike does not reach the short-URL id path", () => {
@@ -132,12 +143,18 @@ function youtubeId(url: string): string | undefined {
   }
 }
 
-// The first NUMERIC PATH SEGMENT. The previous regex matched anywhere in the
-// whole URL string, so a decoy in a query parameter could supply the id, and
-// "vimeo.com/channels/staffpicks/123456" resolved to the wrong segment.
+// The LAST numeric path segment. Not the first: Vimeo nests the video id under
+// a collection id in several share forms — /showcase/{id}/video/{id},
+// /groups/{id}/videos/{id}, /album/{id}/video/{id} — all of which lead with the
+// COLLECTION's id, so taking the first embeds the wrong video. The last is
+// right for every form, including the bare vimeo.com/123456.
+//
+// Still a path-segment scan rather than a regex over the whole URL: the regex
+// this replaced could lift an id out of a query string.
 function vimeoId(url: string): string | undefined {
   try {
-    return new URL(url).pathname.split("/").find((segment) => /^\d+$/.test(segment));
+    const numeric = new URL(url).pathname.split("/").filter((s) => /^\d+$/.test(s));
+    return numeric[numeric.length - 1];
   } catch {
     return undefined;
   }

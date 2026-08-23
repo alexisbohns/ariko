@@ -66,9 +66,19 @@ test("real subdomains and bare apexes both still match", () => {
 // vimeoId regexed the WHOLE url, so it could lift an id out of a query string
 // and picked the wrong segment on a channel URL.
 test("the vimeo id comes from a path segment, not from anywhere in the string", () => {
+  assert.equal(detectEmbed("https://vimeo.com/123456").embedId, "123456");
   assert.equal(detectEmbed("https://vimeo.com/channels/staffpicks/123456").embedId, "123456");
-  assert.equal(detectEmbed("https://vimeo.com/showcase/999/video/123456").embedId, "999");
   assert.equal(detectEmbed("https://vimeo.com/notanumber").embedId, undefined);
+});
+
+// Vimeo nests the video id under a collection id in several share forms, and
+// the collection's id comes FIRST. Taking the first numeric segment embedded
+// the wrong video — a wrong-content bug, not a security one, since the host is
+// allowlisted either way.
+test("a collection URL yields the video's id, not the collection's", () => {
+  assert.equal(detectEmbed("https://vimeo.com/showcase/999/video/123456").embedId, "123456");
+  assert.equal(detectEmbed("https://vimeo.com/groups/123/videos/456").embedId, "456");
+  assert.equal(detectEmbed("https://vimeo.com/album/999/video/123456").embedId, "123456");
 });
 
 test("a youtu.be lookalike does not reach the short-URL id path", () => {
