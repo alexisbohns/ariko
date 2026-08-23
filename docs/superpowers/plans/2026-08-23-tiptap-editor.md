@@ -579,6 +579,165 @@ git commit -m "test: one grammar corpus, three readers; fix ref-less <div> and t
 
 ---
 
+### Task 3b: Stop `remark-directive` from eating ordinary prose
+
+**Found by the Task 3 conformance work, not planned.** `remark-directive` is enabled globally for
+the whole public zone, so **every** `:` followed by identifier characters is parsed as a directive —
+not just ours. Unhandled directives reach `mdast-util-to-hast` with no `hName` and render as a bare
+`<div>`, destroying the text:
+
+| authored prose | renders as |
+|---|---|
+| `meet at 10:30 tomorrow` | `<p>meet at 10<div></div> tomorrow</p>` |
+| `a ratio of 3:2` | `<p>a ratio of 3<div></div></p>` |
+| `see :something[here]` | `<p>see <div>here</div> in prose</p>` |
+
+Verified against the live database: **no published document is affected today**, because until now
+nothing could author prose. Slice 5 is precisely what makes it reachable — the moment the editor
+ships, a time of day in an article silently corrupts the page. Task 3 fixed this for ref-less
+`entity` directives only; this closes the general case.
+
+**Files:**
+- Modify: `lib/markdown.ts`
+- Modify: `lib/entity-fixtures.ts`
+- Test: `lib/markdown-conformance.test.ts`
+
+- [ ] **Step 1: Write the failing tests**
+
+Append to `lib/markdown-conformance.test.ts`:
+
+```ts
+test("a time of day survives rendering", () => {
+  assert.equal(render("meet at 10:30 tomorrow"), "<p>meet at 10:30 tomorrow</p>");
+});
+
+test("a ratio survives rendering", () => {
+  assert.equal(render("a ratio of 3:2 today"), "<p>a ratio of 3:2 today</p>");
+});
+
+test("a directive we do not handle is left as the text the author wrote", () => {
+  // remark-directive parses ALL directive syntax, not just ours. Anything we
+  // do not claim must be handed back verbatim rather than rendered as a <div>.
+  assert.equal(render("see :something[here] in prose"), "<p>see :something[here] in prose</p>");
+  assert.equal(render("::callout{type=warn}"), "<p>::callout{type=warn}</p>");
+});
+
+test("no rendered output ever contains an empty div", () => {
+  for (const md of ["meet at 10:30", "3:2", ":x", "a:b:c", "::callout{type=warn}"]) {
+    assert.ok(!render(md).includes("<div></div>"), md);
+  }
+});
+```
+
+Add three rows to `ENTITY_FIXTURES` in `lib/entity-fixtures.ts` — the corpus had no colon case at
+all, which is why this survived Task 3:
+
+```ts
+  { md: "meet at 10:30 tomorrow", expect: "none" },
+  { md: "a ratio of 3:2 today", expect: "none" },
+  { md: "see :something[here] in prose", expect: "none" },
+```
+
+- [ ] **Step 2: Run them and confirm they fail**
+
+Run: `node --import tsx --test lib/markdown-conformance.test.ts 2>&1 | tail -20`
+Expected: the four new tests FAIL with `<div></div>` in the actual output. The three new fixture rows
+should PASS already (all three readers agree the text contains no entity), which is the point — the
+fixture table checks *agreement*, and both readers agree while both are wrong about the prose.
+
+- [ ] **Step 3: Restore unhandled directives from their own source offsets**
+
+In `lib/markdown.ts`, a remark transformer receives `(tree, file)`, and every mdast node carries
+`position.start.offset` / `position.end.offset`. So the original text can be restored **byte-exactly**
+rather than reconstructed from name + label + attributes, which would lose attribute order and
+quoting.
+
+Widen `DirectiveNode`:
+
+```ts
+interface DirectiveNode {
+  type: string;
+  name?: string;
+  children?: unknown[];
+  attributes?: Record<string, string | null | undefined>;
+  data?: { hName?: string; hProperties?: Record<string, unknown> };
+  position?: { start: { offset?: number }; end: { offset?: number } };
+}
+```
+
+Change the transformer signature and add the fall-through. Note the ref-less `entity` branch keeps
+its existing unwrap-to-children behaviour — `:entity[Label]{}` still degrades to `Label`, which
+Task 3 pinned and the `KNOWN DIVERGENCE` test asserts:
+
+```ts
+function remarkEntity() {
+  return (tree: unknown, file: { value?: unknown }) => {
+    const source = typeof file?.value === "string" ? file.value : "";
+    visit(
+      tree as never,
+      (node: DirectiveNode, index?: number, parent?: { children: unknown[] }) => {
+        const block = node.type === "containerDirective" || node.type === "leafDirective";
+        const inline = node.type === "textDirective";
+        if (!block && !inline) return;
+
+        // Not ours. remark-directive claims EVERY `:name` in prose — a time of
+        // day, a ratio, a namespaced word — and an unclaimed directive reaches
+        // mdast-util-to-hast with no hName, where it renders as a bare <div>
+        // and the author's text is gone. Hand it back exactly as written,
+        // sliced from the source by the node's own offsets so attribute order
+        // and quoting survive verbatim.
+        if (node.name !== "entity") {
+          const from = node.position?.start?.offset;
+          const to = node.position?.end?.offset;
+          if (parent && typeof index === "number" && typeof from === "number" && typeof to === "number") {
+            parent.children.splice(index, 1, { type: "text", value: source.slice(from, to) });
+            return index + 1; // past the text node just inserted
+          }
+          return;
+        }
+
+        const ref = typeof node.attributes?.ref === "string" ? node.attributes.ref.trim() : "";
+        if (!ref) {
+          // Degrade to NOTHING (compose §3), which means unwrapping to the
+          // directive's own children. Returning early instead leaves an
+          // unhandled directive node for mdast-util-to-hast, which renders it
+          // as a bare <div> — inside a <p> for the inline form, which is
+          // invalid nesting. Found by lib/markdown-conformance.test.ts.
+          if (parent && typeof index === "number") {
+            parent.children.splice(index, 1, ...(node.children ?? []));
+            return index;
+          }
+          return;
+        }
+        node.data = {
+          ...node.data,
+          hName: block ? "entity-card" : "entity-link",
+          hProperties: { "data-ref": ref },
+        };
+      },
+    );
+  };
+}
+```
+
+- [ ] **Step 4: Run everything**
+
+Run: `node --import tsx --test lib/markdown-conformance.test.ts lib/markdown.test.ts lib/entity-refs.test.ts lib/entity-markdown.test.ts 2>&1 | tail -8`
+Expected: `fail 0`. The `KNOWN DIVERGENCE` test and the ref-less-degrades-to-prose test must both
+still pass — `entity` directives are handled before the fall-through, so their behaviour is unchanged.
+
+Run: `npm test 2>&1 | tail -6` — expected `fail 0`.
+Run: `npx tsc --noEmit` — expected clean.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/markdown.ts lib/entity-fixtures.ts lib/markdown-conformance.test.ts
+git commit -m "fix: a time of day in prose no longer renders as an empty div"
+```
+
+---
+
 ### Task 4: The picker's menu
 
 Pure. Turns the raw garden into the rows the `@` and `/` menus offer. Sprouts are excluded on
