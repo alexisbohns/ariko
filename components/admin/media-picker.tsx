@@ -17,6 +17,14 @@ import { Label } from "@/components/ui/label";
  *   The picker renders NOTHING until it mounts. Without script the form around
  *   it is byte-for-byte what it was, and no capture or edit ever depends on it.
  *
+ * The second half of that rule is why `submitLabel` exists. A form whose only
+ * meaningful content is this picker cannot keep a server-rendered submit
+ * button: script-off, that button submits a form carrying nothing, which is a
+ * form that visibly depends on the island. Such a form hands its button to the
+ * picker, so script-off there is not a broken form — it is no form at all. The
+ * capture bar keeps its own button, because its title, note and link fields
+ * work perfectly without script.
+ *
  * It owns one ORDERED list holding stored entries and newly uploaded ones
  * alike, and emits the whole list as repeated hidden fields — so reorder and
  * remove never cross the wire as operations (lib/media-input.ts).
@@ -35,6 +43,7 @@ export function MediaPicker({
   name,
   initial = [],
   links = false,
+  submitLabel,
 }: {
   /** The hidden field name — "image" on the capture bar, "media" on a sprout. */
   name: string;
@@ -42,6 +51,23 @@ export function MediaPicker({
   initial?: Media[];
   /** Offer an "add link" input, which joins the same ordered list. */
   links?: boolean;
+  /**
+   * Renders the form's submit button INSIDE the island when set.
+   *
+   * For a form whose entire meaningful content is this picker — the sprout
+   * media card — a server-rendered submit button would still be clickable
+   * without script, and would submit a form carrying nothing. The
+   * `${name}__ready` marker makes that write safe, but "safe" is not the claim
+   * CLAUDE.md makes: it says no edit ever DEPENDS on this island. A button that
+   * appears to work, does nothing, and redirects as though it worked is a form
+   * that plainly depends on it. Rendering the button here means script-off sees
+   * no button at all, and the form is simply not operable — which is the rule,
+   * literally.
+   *
+   * Omitted on the capture bar, whose submit belongs to the capture form and
+   * must keep working without script.
+   */
+  submitLabel?: string;
 }) {
   const [mounted, setMounted] = useState(false);
   // `initial` is read ONCE: past mount this list is the picker's own, and a
@@ -314,6 +340,12 @@ export function MediaPicker({
           {pending} not ready — saving now will leave {pending === 1 ? "it" : "them"} out. Nothing
           here blocks the save.
         </p>
+      ) : null}
+
+      {submitLabel ? (
+        <div>
+          <Button type="submit">{submitLabel}</Button>
+        </div>
       ) : null}
     </div>
   );

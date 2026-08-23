@@ -66,6 +66,13 @@ export function buildMediaPatch(current: MediaOwner, form: FormData): MediaPatch
   // below requires raw.length > 0 and so does not fire, and same(stored, [])
   // is false, so it read as a deliberate clear-all.
   //
+  // Defence in depth rather than the sole protection: the sprout media form's
+  // submit button now lives INSIDE the island too (MediaPicker's `submitLabel`),
+  // so an unmounted picker leaves no button to press and closes the user-facing
+  // path entirely. This guard covers what a missing button cannot — a replayed
+  // or scripted POST straight to the server action, which never renders a
+  // button at all.
+  //
   // Hard-coded to match this function's hard-coded getAll("media") — the two
   // names are one contract with the "media" surface, so parameterising only one
   // of them would let them drift.

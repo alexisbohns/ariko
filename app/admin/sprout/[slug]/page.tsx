@@ -125,15 +125,20 @@ export default async function EditVersionPage({
                   since derived the real one. Re-saving is idempotent
                   (parseMediaField re-derives), so this is not a correctness bug;
                   the picker should simply show what the database actually holds. */}
+              {/* submitLabel, so the button is rendered BY the island rather
+                  than around it: this form's entire meaningful content is the
+                  picker, and a server-rendered button would let a script-off
+                  browser submit a form carrying nothing. Now script-off sees no
+                  button at all and the form is simply not operable — which is
+                  what CLAUDE.md's "no capture or edit ever depends on it"
+                  actually asserts. */}
               <MediaPicker
                 key={JSON.stringify(version.media ?? [])}
                 name="media"
                 initial={version.media ?? []}
                 links
+                submitLabel="Save media"
               />
-              <div>
-                <Button type="submit">Save media</Button>
-              </div>
             </form>
           </CardContent>
         </Card>
