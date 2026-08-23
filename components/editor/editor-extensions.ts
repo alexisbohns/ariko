@@ -97,7 +97,28 @@ export function buildEditorExtensions({ entities, onMenu, getMenu }: BuildEditor
             // converting it and losing its language attribute. Reachable
             // from ordinary technical prose: an `@Component` decorator, or
             // a `/usr/...` path at the start of a line in a sample.
-            allow: ({ state, range }) => !state.doc.resolve(range.from).parent.type.spec.code,
+            //
+            // `parent.type.spec.code` alone only catches codeBlock, a NODE
+            // whose whole content is code — it misses the `code` MARK, an
+            // inline code SPAN (`` `…` ``) inside an ordinary paragraph,
+            // which carries no such flag on its parent. Reachable from the
+            // same kind of technical prose: a mention or block picked mid-
+            // span (`` `@Component` `` or `` `/usr/...` ``) runs
+            // deleteRange(range) then inserts a node inline with the rest of
+            // the code text — the inserted node is fine, but the code mark
+            // that should have closed at the deleted text now reopens on
+            // whatever text follows, silently marking it as code too
+            // (mismatched backticks on serialization). `$pos.marks()` is the
+            // same idiom @tiptap/core's own `isMarkActive` uses for an empty
+            // selection (`state.selection.$from.marks()`) — range.from is
+            // exactly that empty-selection cursor position while a
+            // suggestion menu is open.
+            allow: ({ state, range }) => {
+              const $pos = state.doc.resolve(range.from);
+              if ($pos.parent.type.spec.code) return false;
+              const codeMark = state.schema.marks.code;
+              return !codeMark || !codeMark.isInSet($pos.marks());
+            },
             items: ({ query }) => items(query),
             command: ({ range, props }) => run(editor, range, props),
             render: () => {

@@ -1,5 +1,6 @@
-import { Node, type JSONContent, type MarkdownToken } from "@tiptap/core";
+import { Node, type JSONContent, type MarkdownParseHelpers, type MarkdownToken } from "@tiptap/core";
 import { StarterKit } from "@tiptap/starter-kit";
+import { Paragraph } from "@tiptap/extension-paragraph";
 import { TableKit } from "@tiptap/extension-table";
 import { Image } from "@tiptap/extension-image";
 import { ListItem, TaskList, TaskItem } from "@tiptap/extension-list";
@@ -205,6 +206,44 @@ export const EntityMention = Node.create({
 // else about list behavior changes.
 const CardLeadingListItem = ListItem.extend({ content: "block+" });
 
+// @tiptap/extension-paragraph's OWN parseMarkdown special-cases a paragraph
+// token holding ONLY an image token: instead of nesting the image as inline
+// content, it unwraps to a bare, un-paragraphed image node
+// (`helpers.parseChildren([tokens[0]])`, not `parseInline`) — written for
+// Image's stock `inline: false` (group "block"), where a bare block-group
+// sibling is exactly what belongs directly in `doc`/`listItem` content.
+// `Image.configure({ inline: true, ... })` below (baseExtensions) flips
+// Image's group to "inline" — required so an inline image ("text
+// ![a](/i.png) more") or a list item whose only content is an image
+// ("- ![a](/i.png)") parses as valid paragraph/listItem content instead of
+// freezing the editor on the next keystroke (item 1) — but the upstream
+// special case doesn't know that: it keeps handing `doc`/`listItem` an
+// INLINE-group node with no paragraph wrapper for a bare top-level image
+// line, which is schema-invalid for the exact shape the special case exists
+// to serve. Delegates to the original parseMarkdown (still reachable via
+// `Paragraph.config`, since `.extend()` replaces rather than removes it) and
+// only intervenes when that special case actually fired — recognizable by
+// its return shape, an array whose one element is an unwrapped "image" node,
+// which the ordinary (non-special-cased) path never returns — re-wrapping
+// the image in a paragraph so it round-trips through the now-inline schema
+// exactly the way it always rendered. Verified: a bare top-level
+// "![a](/i.png)" line still parses, still serializes byte-identically, and
+// still renders the same HTML through remark (lib/markdown-conformance.test.ts's
+// `image`/`imageTitled` fixtures).
+const InlineImageParagraph = Paragraph.extend({
+  parseMarkdown: (token: MarkdownToken, helpers: MarkdownParseHelpers) => {
+    // Non-null assertion, not `?.`: Paragraph always defines parseMarkdown
+    // (it's not optional in practice, only in the config type), and `?.`
+    // would widen this override's return type to include `undefined`, which
+    // the extension field's own type does not accept.
+    const result = Paragraph.config.parseMarkdown!(token, helpers);
+    if (Array.isArray(result) && result.length === 1 && result[0]?.type === "image") {
+      return helpers.createNode("paragraph", undefined, result);
+    }
+    return result;
+  },
+});
+
 /**
  * Every node the editor and the tests share. The entity nodes are NOT here: the
  * editor uses `.extend()`ed copies carrying React node views
@@ -229,12 +268,50 @@ export const baseExtensions = [
   // loop can't catch the divergence on its own; see the dedicated I3 test in
   // lib/markdown-conformance.test.ts, which parses "++x++" and asserts no
   // underline mark is produced. strike stays on: "~~" is real GFM.
-  StarterKit.configure({ listItem: false, underline: false }),
+  // paragraph: false — configured out the same way listItem is below, and
+  // for the analogous reason: StarterKit.configure's `paragraph` option only
+  // forwards `ParagraphOptions` (HTMLAttributes), not `parseMarkdown`, so
+  // InlineImageParagraph (this file, right above) has to replace it entirely
+  // rather than layer on top of it.
+  StarterKit.configure({ listItem: false, underline: false, paragraph: false }),
+  InlineImageParagraph,
   CardLeadingListItem,
   TableKit,
-  Image,
+  // inline: true — @tiptap/markdown's markdown parser tokenizes `![a](/i.png)`
+  // as an INLINE token whenever it appears mid-paragraph ("text ![a](/i.png)
+  // more") or as a list item's only content ("- ![a](/i.png)"); only a bare
+  // top-level image line is tokenized as a standalone block. Image defaults
+  // to `inline: false` (group "block"), so the parser hands a block-group
+  // node to `createNode` inside inline content, and the ENCLOSING paragraph
+  // ends up with an image in its content array despite the schema saying
+  // paragraph content is `inline*` — invisible on load (createDocument does
+  // not validate content) and a `RangeError` out of `dispatchTransaction` on
+  // the next keystroke, same failure class as CardLeadingListItem below.
+  // `inline: true` makes Image's own `group()` return "inline", matching what
+  // the parser actually produces; a top-level image (`imageTopLevel` in
+  // lib/markdown-conformance.test.ts) still parses and round-trips the same
+  // way, because a lone inline node is valid paragraph content too.
+  // allowBase64 stays false (Image's own default) — pinned explicitly so a
+  // future Image default change can't silently start accepting data: URIs.
+  Image.configure({ inline: true, allowBase64: false }),
   TaskList,
-  TaskItem,
+  // nested: true — mirrors CardLeadingListItem below, one node over. TaskItem
+  // defaults to `nested: false`, whose content expression is `paragraph+`:
+  // ONLY paragraphs, nothing else. But `parseMarkdown` pushes whatever
+  // `nestedTokens` the tokenizer found (a nested taskList, or any other block
+  // — including a card sharing the item's indentation) unconditionally, with
+  // no regard for what the schema currently admits. A task item as ordinary
+  // as "- [ ] a\n  - [x] b" (a nested task list) or "- [ ] a\n\n
+  // ::entity{ref=…}" (a card under a task item) then parses to a document
+  // ProseMirror rejects on the next transaction — invisible on load, same
+  // failure class as image above and the original CardLeadingListItem bug.
+  // `nested: true` widens content to `paragraph block*`: a task item's own
+  // parseMarkdown always emits a leading paragraph (even an empty one, for
+  // an item with no text of its own — see TaskItem's own source), so this
+  // alone admits both a nested taskList (group "block list") and an
+  // entityCard (group "block") as later children — no further content-
+  // expression widening needed, unlike CardLeadingListItem above.
+  TaskItem.configure({ nested: true }),
 ];
 
 /**

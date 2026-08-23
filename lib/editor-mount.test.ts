@@ -219,3 +219,30 @@ test("4. both entity insert paths (mention, card) produce schema-valid documents
   assert.doesNotThrow(() => editor.state.doc.check());
   editor.destroy();
 });
+
+test("5. a transaction succeeds after loading an inline image mid-paragraph (item 1)", () => {
+  // Same failure class and same proof shape as test 3 above, one node over:
+  // before lib/entity-markdown.ts's `Image.configure({ inline: true })` fix,
+  // @tiptap/markdown tokenizes "text ![a](/i.png) more" as a paragraph whose
+  // inline content includes a BLOCK-group image node (Image's stock
+  // `inline: false`) — schema-invalid content ProseMirror's own `createDoc`
+  // never validates on load, so building the editor does NOT throw. The
+  // RangeError only surfaces on the first transaction that walks INTO the
+  // malformed paragraph, same as C1's card-in-list-item bug — this is the
+  // real-`Editor` test that would have caught it, mirroring how test 3
+  // covers C1 for the card case.
+  const editor = makeEditor({ content: "text ![a](/i.png) more", contentType: "markdown" });
+  let posAfterImage = -1;
+  editor.state.doc.descendants((node, pos) => {
+    if (node.type.name === "image") {
+      posAfterImage = pos + node.nodeSize;
+      return false;
+    }
+    return true;
+  });
+  assert.notEqual(posAfterImage, -1, "fixture doesn't contain an image");
+  assert.doesNotThrow(() => {
+    editor.commands.insertContentAt(posAfterImage, { type: "text", text: " even more" });
+  });
+  editor.destroy();
+});

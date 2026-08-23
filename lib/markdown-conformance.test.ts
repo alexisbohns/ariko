@@ -91,11 +91,52 @@ const FIXTURES: Record<string, string> = {
   // "++text++" is no longer a grammar the editor understands — it is
   // literal text on both sides, same as remark always treated it.
   literalPlusPlus: "text with ++not underline++ inside",
+  // Item 1: @tiptap/markdown tokenizes an image as INLINE whenever it isn't
+  // a lone top-level line — mid-paragraph, or a list item's only content —
+  // which `Image.configure({ inline: true })` (lib/entity-markdown.ts) now
+  // matches. Before that fix these two were schema-invalid on load (see the
+  // schema-check loop below): the document parsed, then the NEXT keystroke
+  // threw a RangeError out of dispatchTransaction and froze the editor —
+  // invisible to this render-equality loop, which never drives a real
+  // Editor or its transactions (that's what lib/editor-mount.test.ts is for).
+  imageInline: "text ![a](/i.png) more",
+  imageInItem: "- ![a](/i.png)",
+  // Item 2: TaskItem defaults to `nested: false` (content "paragraph+"), but
+  // its parseMarkdown pushes a nested taskList's tokens unconditionally —
+  // schema-invalid on load, same failure class as the two rows above, fixed
+  // by `TaskItem.configure({ nested: true })`.
+  nestedTask: "- [ ] a\n  - [x] b",
 };
 
 for (const [name, source] of Object.entries(FIXTURES)) {
   test(`conformance: ${name} means the same after a round trip`, () => {
     assert.equal(render(roundTrip(source)), render(source));
+  });
+}
+
+// Item 3: FIXTURES only ever got render-equality — no schema check — which is
+// exactly why items 1 (inline image) and 2 (nested task list / card-in-task-
+// item) were invisible here: a fixture could round-trip through
+// MarkdownManager just fine while still parsing to a document the RUNNING
+// ProseMirror schema rejects on the next transaction (the same gap the
+// comment above `schema` at the top of this file describes for
+// ENTITY_FIXTURES — this is that same check, over the OTHER corpus).
+//
+// cardInTask is checked here too but deliberately kept OUT of FIXTURES
+// itself: it is schema-valid after item 2's fix (this loop passes) but does
+// NOT render-equal after the round trip, for a real and unrelated reason —
+// see the KNOWN DIVERGENCE test below. Folding it into FIXTURES would make
+// the render-equality loop above assert something false.
+const SCHEMA_CHECK_FIXTURES: Record<string, string> = {
+  ...FIXTURES,
+  cardInTask: "- [ ] a\n\n  ::entity{ref=bean:x}",
+};
+
+for (const [name, source] of Object.entries(SCHEMA_CHECK_FIXTURES)) {
+  test(`${JSON.stringify(name)} (${JSON.stringify(source)}) parses to a schema-valid document`, () => {
+    assert.doesNotThrow(() => {
+      PMNode.fromJSON(schema, manager.parse(normalizeEmptyListMarkers(source)) as never).check();
+    });
   });
 }
 
@@ -237,27 +278,116 @@ test("KNOWN DIVERGENCE: a linked image silently loses its link on the round trip
   assert.doesNotMatch(render(roundTrip(source)), /<a /);
 });
 
-test("REGRESSION (ReDoS): extractRefs stays fast on adversarial marker-run input", () => {
-  // Task 3c widened entity-refs.ts's BLOCK regex to tolerate blockquote/list
-  // markers before a card. An earlier version of that widening put a `[ \t]*`
-  // INSIDE the repeated marker group, which is ambiguous: a run of k
-  // whitespace characters between two markers can be split between "end of
-  // one iteration" and "start of the next" in k different ways, and with n
-  // markers the engine explores k^n paths once the string fails to end in
-  // `::entity{...}` — catastrophic backtracking. extractRefs runs on every
-  // write path, including the up-to-64-KiB body /api/articles accepts, and a
-  // regex hang blocks Node's entire event loop for every concurrent request.
-  // This asserts adversarial input that reproduced multi-second hangs on the
-  // vulnerable regex still completes in well under a second. Shape: 200 lines
-  // (a realistic document length), each 40 marker-plus-run-of-spaces
-  // repetitions wide with no `::entity{...}` to ever match — the worst case,
-  // since every line fully exhausts the ambiguous split before failing.
-  const line = "-    ".repeat(40);
-  const adversarial = Array.from({ length: 200 }, () => line).join("\n");
+test("KNOWN DIVERGENCE: a card sharing a task item with a blank line renders loose, not tight, after the round trip", () => {
+  // Item 2's fix (TaskItem.configure({ nested: true })) makes this shape
+  // schema-valid (see the cardInTask row in the schema-check loop above) but
+  // does not make it render-identical. @tiptap/core's own
+  // renderNestedMarkdownContent — the shared helper every listItem-like
+  // node's renderMarkdown calls, TaskItem included — only emits a blank line
+  // ahead of a nested child when that child is itself a paragraph
+  // (`child.type === "paragraph" ? "\n\n..." : "\n..."`); a non-paragraph
+  // child like entityCard always gets a single newline, tight, no matter
+  // whether the ORIGINAL markdown had a blank line there. remark's own
+  // loose-vs-tight list rule keys off exactly that blank line, so the round
+  // trip flips this list from loose (the item's own text wrapped in <p>) to
+  // tight (unwrapped) — a rendering difference, not a data-loss one: the
+  // card and its ref survive intact, only the list's looseness does not.
+  // Upstream in @tiptap/core, not ours to fix — same class as the ordered-
+  // list-item and linked-image pins above, and not in FIXTURES for the same
+  // reason: it would make the render-equality loop assert something false.
+  const source = "- [ ] a\n\n  ::entity{ref=bean:x}";
+  const rt = roundTrip(source);
+  assert.match(render(source), /<p><input[^>]*\/> a<\/p>/, render(source));
+  assert.doesNotMatch(render(rt), /<p><input/, render(rt));
+  assert.match(render(rt), /<entity-card data-ref="bean:x">/);
+  assert.notEqual(render(rt), render(source));
+});
+
+test("KNOWN DIVERGENCE: a nested list under a double-digit ordered item is flattened, not indented", () => {
+  // C2 (Markdown.configure({ indentation: { size: 3 } })) fixes ordered-list
+  // nesting for single-digit items: `1. ` is 3 columns, so a 3-space child
+  // indent matches exactly. But an ordered marker's width is NOT constant —
+  // `1.`-`9.` is 3 columns, `10.`-`99.` is 4, `100.`-`999.` is 5 — and
+  // `indentation: { size: N }` is one fixed number for the WHOLE document;
+  // marked has no per-list-type (let alone per-marker-width) indent option,
+  // so there is no single `size` that is simultaneously correct for a
+  // single-digit item's children AND a double-digit item's children in the
+  // same list. A child nested under item 10 at the (correct, single-digit)
+  // 3-space indent under-indents by one column relative to what item 10's
+  // OWN marker needs, and remark reads the under-indented line as flattened
+  // sibling content rather than a nested list. This is a real editor
+  // limitation, not a test gap: pinned here so the existing nestedOrdered /
+  // nestedOrderedDeep fixtures (both single-digit) stop implying ordered
+  // nesting is fixed in general, and so a future indent-size change that
+  // widens this shows up as a diff instead of a silent behavior change.
+  const source = "9. i\n10. j\n    1. nested under ten";
+  assert.match(render(source), /<ol>\s*<li>nested under ten<\/li>\s*<\/ol>/, "source nests as expected");
+  const rt = roundTrip(source);
+  assert.equal(rt, "9. i\n10. j\n   1. nested under ten");
+  assert.doesNotMatch(render(rt), /<ol>\s*<li>nested under ten<\/li>\s*<\/ol>/, "round trip loses the nesting");
+  assert.notEqual(render(rt), render(source));
+});
+
+test("REGRESSION (ReDoS): extractRefs stays fast on adversarial input that actually contains a ref", () => {
+  // Two catastrophic-backtracking fixes have gone into entity-refs.ts's
+  // BLOCK regex: 07129b5 (a per-iteration `[ \t]*` inside the repeated
+  // marker group, k^n paths across n markers) and 215fe7f (the lookbehind's
+  // `>[ \t]*` / `[ \t]+` overlapping the following `[^\n]*`, O(L^2) per line
+  // start on a marker followed by a long run of trailing whitespace). This
+  // test's job is to keep BOTH fixed — and to do so honestly.
+  //
+  // THE TRAP: an adversarial string with NO "::entity" substring ANYWHERE is
+  // not a valid regression test, no matter how pathological its
+  // whitespace/marker structure is. The regex's required literal
+  // ("::entity") lets the engine's own literal pre-scan rule out a match
+  // (and skip the expensive backtracking branches entirely) the moment it
+  // confirms the literal is absent — fast on a vulnerable regex and a fixed
+  // one alike, indistinguishably. 215fe7f's own FIRST reproduction attempt
+  // fell into exactly this trap: it measured 0.0ms on adversarial input that
+  // happened to contain no "::entity" occurrence, and nearly went
+  // unreported as a false negative. The previous version of this test had
+  // the same blind spot (200 lines of pure marker-run repetition, no
+  // "::entity" anywhere) — it would have stayed green through a regression
+  // of EITHER fix above. Every case below plants one real
+  // "::entity{ref=…}" so the pre-scan can never bypass the real match
+  // attempts, and the assertion below fails loudly if that ever stops being
+  // true.
+  //
+  // Shapes, interleaved through a body sized to what POST /api/articles
+  // actually accepts per request (~64 KiB): (1) marker-run lines — the
+  // 07129b5 shape; (2) long whitespace-only lines with no marker at all —
+  // required by item 4's own review, since a purely-whitespace line is a
+  // realistic "body full of indentation" document shape and was never
+  // exercised on its own; (3) tab-indented marker lines — tabs satisfy the
+  // same `[ \t]` classes as spaces throughout BLOCK, so a tab run is the
+  // same hazard in a different whitespace character, and is what the
+  // 215fe7f shape (a single marker followed by a long trailing run) looks
+  // like when someone's editor indents with tabs instead of spaces.
+  const markerRun = "-    ".repeat(40);
+  const whitespaceOnly = " ".repeat(220);
+  const tabIndentedMarker = "\t>" + "\t".repeat(150);
+  const shapes = [markerRun, whitespaceOnly, tabIndentedMarker];
+  const lines: string[] = [];
+  let bytes = 0;
+  let i = 0;
+  while (bytes < 64 * 1024) {
+    const line = shapes[i % shapes.length];
+    lines.push(line);
+    bytes += line.length + 1;
+    i += 1;
+  }
+  lines.push("::entity{ref=bean:x}");
+  const adversarial = lines.join("\n");
+  assert.ok(
+    adversarial.includes("::entity{ref="),
+    "test is worthless without a real occurrence — see the literal-prefix trap above",
+  );
+
   const start = performance.now();
-  extractRefs(adversarial);
+  const result = extractRefs(adversarial);
   const elapsed = performance.now() - start;
   assert.ok(elapsed < 1000, `extractRefs took ${elapsed.toFixed(1)}ms on adversarial input`);
+  assert.deepEqual(result, [{ kind: "embeds", ref: "bean:x" }]);
 });
 
 // Reads what each implementation believes the fixture contains.
