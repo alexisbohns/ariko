@@ -1,6 +1,6 @@
 import { hasValidToken, parseTokens } from "../../../lib/auth";
 import { uploadImage } from "../../../lib/storage";
-import { checkUploadFile } from "../../../lib/upload-input";
+import { checkUploadFile, uploadedFilename } from "../../../lib/upload-input";
 
 export async function POST(request: Request): Promise<Response> {
   const tokens = parseTokens(process.env.INBOX_TOKENS);
@@ -26,7 +26,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const bytes = Buffer.from(await file.arrayBuffer());
-  const filename = typeof (file as File).name === "string" ? (file as File).name : undefined;
+  const filename = uploadedFilename(file);
 
   try {
     const media = await uploadImage(bytes, filename);

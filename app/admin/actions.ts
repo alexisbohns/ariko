@@ -34,7 +34,7 @@ import {
   updatePodContent,
 } from "@/lib/botanical";
 import { uploadImage } from "@/lib/storage";
-import { checkUploadFile } from "@/lib/upload-input";
+import { checkUploadFile, uploadedFilename } from "@/lib/upload-input";
 import {
   requireSession,
   setSessionCookie,
@@ -351,11 +351,15 @@ export async function uploadImageAction(formData: FormData): Promise<UploadResul
   const check = checkUploadFile({ size: file.size, type: file.type });
   if (!check.ok) return { ok: false, error: check.error };
 
-  const filename = typeof (file as File).name === "string" ? (file as File).name : undefined;
+  const filename = uploadedFilename(file);
   try {
     const media = await uploadImage(Buffer.from(await file.arrayBuffer()), filename);
     return { ok: true, media };
   } catch (err) {
+    // Never throws to the client — but an unexpected failure must not vanish
+    // either. Without this, a real bug is indistinguishable from an ordinary
+    // upload failure and leaves no server-side trace.
+    console.error("[upload] uploadImageAction failed", err);
     return { ok: false, error: err instanceof Error ? err.message : "upload failed" };
   }
 }

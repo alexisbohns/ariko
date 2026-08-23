@@ -2,11 +2,13 @@
 // uploadImageAction (app/admin/actions.ts) and the machine route
 // (app/api/upload/route.ts), which had no size check at all before this.
 
-// Matches next.config.ts's serverActions.bodySizeLimit. Vercel's own platform
-// ceiling is 4.5MB for a route handler and a server action alike, so this is a
-// floor set by the platform rather than a preference — it exists so an
-// oversized file is refused with a real message instead of arriving as an
-// opaque 413.
+// next.config.ts's serverActions.bodySizeLimit is set ABOVE this, deliberately
+// — it bounds the whole multipart body (boundaries, headers, framing), not
+// just the file, so it must have headroom over this constant or the platform
+// could reject, with an opaque 413, a file this check accepts. Kept below
+// Vercel's own 4.5MB platform ceiling, which applies to a route handler and a
+// server action alike — this exists so an oversized file is refused with a
+// real message instead of arriving as an opaque error.
 export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 // Raster formats only. SVG is deliberately absent: it is an image the browser
@@ -31,4 +33,12 @@ export function checkUploadFile(file: { size: number; type: string }): UploadChe
     return { ok: false, error: `${file.type || "that file"} is not a supported image` };
   }
   return { ok: true };
+}
+
+// A Blob has no name; a File does. Both doors receive `Blob` from FormData and
+// need the original filename when it is there — recovered in one place so the
+// cast lives once rather than at each door.
+export function uploadedFilename(file: Blob): string | undefined {
+  const name = (file as File).name;
+  return typeof name === "string" && name.length > 0 ? name : undefined;
 }

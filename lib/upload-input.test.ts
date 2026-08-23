@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MAX_UPLOAD_BYTES, checkUploadFile } from "./upload-input";
+import { MAX_UPLOAD_BYTES, checkUploadFile, uploadedFilename } from "./upload-input";
 
 test("accepts an ordinary image under the ceiling", () => {
   assert.deepEqual(checkUploadFile({ size: 1024, type: "image/png" }), { ok: true });
@@ -36,4 +36,19 @@ test("rejects svg specifically", () => {
 
 test("a missing type is rejected rather than assumed", () => {
   assert.equal(checkUploadFile({ size: 10, type: "" }).ok, false);
+});
+
+test("uploadedFilename: a File returns its name", () => {
+  const file = new File([Buffer.from("x")], "photo.png", { type: "image/png" });
+  assert.equal(uploadedFilename(file), "photo.png");
+});
+
+test("uploadedFilename: a bare Blob returns undefined", () => {
+  const blob = new Blob([Buffer.from("x")], { type: "image/png" });
+  assert.equal(uploadedFilename(blob), undefined);
+});
+
+test("uploadedFilename: an empty name returns undefined", () => {
+  const file = new File([Buffer.from("x")], "", { type: "image/png" });
+  assert.equal(uploadedFilename(file), undefined);
 });
