@@ -40,3 +40,39 @@ test("a non-URL string is a generic link embed, never throws", () => {
   assert.equal(e.provider, "link");
   assert.equal(e.url, "not a url");
 });
+
+// The reason this slice pairs hardening with rendering: substring matching
+// made every one of these detect as a real provider, and a provider is what
+// decides whether something gets iframed.
+test("a decoy host that merely CONTAINS a provider domain is not that provider", () => {
+  assert.equal(detectEmbed("https://vimeo.com.evil.test/123").provider, "link");
+  assert.equal(detectEmbed("https://evilvimeo.com/123").provider, "link");
+  assert.equal(detectEmbed("https://notyoutu.be/abc").provider, "link");
+  assert.equal(detectEmbed("https://youtube.com.attacker.example/watch?v=x").provider, "link");
+  assert.equal(detectEmbed("https://spotify.com.evil.test/track/abc").provider, "link");
+});
+
+test("a decoy host yields no embedId either", () => {
+  assert.equal(detectEmbed("https://vimeo.com.evil.test/123").embedId, undefined);
+  assert.equal(detectEmbed("https://notyoutu.be/abc").embedId, undefined);
+});
+
+test("real subdomains and bare apexes both still match", () => {
+  assert.equal(detectEmbed("https://vimeo.com/123").provider, "vimeo");
+  assert.equal(detectEmbed("https://player.vimeo.com/video/123").provider, "vimeo");
+  assert.equal(detectEmbed("https://m.youtube.com/watch?v=abc").provider, "youtube");
+});
+
+// vimeoId regexed the WHOLE url, so it could lift an id out of a query string
+// and picked the wrong segment on a channel URL.
+test("the vimeo id comes from a path segment, not from anywhere in the string", () => {
+  assert.equal(detectEmbed("https://vimeo.com/channels/staffpicks/123456").embedId, "123456");
+  assert.equal(detectEmbed("https://vimeo.com/showcase/999/video/123456").embedId, "999");
+  assert.equal(detectEmbed("https://vimeo.com/notanumber").embedId, undefined);
+});
+
+test("a youtu.be lookalike does not reach the short-URL id path", () => {
+  // "youtu.be.evil.test/HIJACK" would have had its path read as the video id.
+  assert.equal(detectEmbed("https://youtu.be.evil.test/HIJACK").provider, "link");
+  assert.equal(detectEmbed("https://youtu.be.evil.test/HIJACK").embedId, undefined);
+});
