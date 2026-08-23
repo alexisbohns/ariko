@@ -100,8 +100,15 @@ const MIRRORED_KINDS = new Set(["embeds", "mentions"]);
 // adversarial input built from valid marker-run lines specifically to
 // exercise this new lookbehind at every line (400 lines: ~0.4ms; ~400KB /
 // 2000 lines: ~2ms) — linear, not quadratic.
+// The lookbehind deliberately lets [^\n]* own everything after ONE marker
+// character. Writing it as `>[ \t]*` / `[ \t]+` instead makes the trailing
+// whitespace class overlap [^\n]*, and a right-to-left match then re-walks
+// every split point of the preceding line: O(L^2) per line start. Measured on
+// the ambiguous form, a 63 KiB body of whitespace-only lines took 970ms and
+// blocked the event loop; this form takes 0.28ms. Same hazard the hoisted
+// [ \t]* above already guards against, one layer down.
 const BLOCK =
-  /(?:^(?:[ \t]*(?:>[ \t]*|(?:[-*+]|\d+[.)])[ \t]+)+)? {0,3}|(?<=^[ \t]*(?:>[ \t]*|(?:[-*+]|\d+[.)])[ \t]+)[^\n]*\n)[ \t]*)::entity(?:\[[^\]\n]*\])?\{[^}]*\bref=([^\s}]+)/gm;
+  /(?:^(?:[ \t]*(?:>[ \t]*|(?:[-*+]|\d+[.)])[ \t]+)+)? {0,3}|(?<=^[ \t]*(?:>|(?:[-*+]|\d+[.)])[ \t])[^\n]*\n)[ \t]*)::entity(?:\[[^\]\n]*\])?\{[^}]*\bref=([^\s}]+)/gm;
 const INLINE = /(?<!:):entity\[[^\]]*\]\{[^}]*\bref=([^\s}]+)/g;
 
 // Fenced code blocks and inline code spans render as literal text — the
