@@ -302,6 +302,20 @@ export function MediaPicker({
                       placeholder="describe the image"
                       onChange={(e) => setAlt(row.key, e.target.value)}
                     />
+                    {/* An image with no alt renders alt="" on the public page,
+                        which tells a screen reader the image is DECORATIVE and
+                        to skip it. On a portfolio the image is often the work
+                        itself, so that is a silent lie rather than a neutral
+                        default — and nothing downstream can invent the sentence
+                        an author never wrote. Said here because this is the one
+                        moment someone can fix it. Deliberately not blocking:
+                        some images really are decorative, and a save that
+                        refuses is worse than a description that is missing. */}
+                    {!row.media.alt?.trim() ? (
+                      <span className="font-heading text-xs text-muted-foreground">
+                        No description — screen readers will skip this image.
+                      </span>
+                    ) : null}
                   </>
                 ) : row.state === "settled" ? (
                   <span className="min-w-0 break-all font-heading text-xs">{row.media.url}</span>
