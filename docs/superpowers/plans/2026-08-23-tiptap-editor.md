@@ -1982,6 +1982,112 @@ git commit -m "feat: the prose editor island — bubble menu, @ mentions, / bloc
 
 ---
 
+### Task 10b: Make the dirty-gate actually fire
+
+**Found by auditing the live database, not by a test.** Spec §2.5 promises that opening a document
+and saving it untouched writes **nothing**. Measured against every real document in Ariko: **10 of 10
+would be rewritten.**
+
+The server-side gate in `buildContentPatch` compares the *stored* markdown against what the editor
+submits. But the editor re-serializes, and serialization always normalizes something — a blank line
+between adjacent entity cards, table cell padding, `&` to `&amp;`. So the two never match and `dirty`
+is always true. The gate is dead code in practice.
+
+Verified as **not** a correctness emergency: every normalization is idempotent (stable after one
+round trip, checked to three) and renders identically, and no live document contains a named
+character entity, which is the one case that would genuinely corrupt. So this is a broken promise and
+needless churn of stored prose, not data loss.
+
+**The fix belongs on the client**, because only the editor knows whether the *author* changed
+anything: compare the editor's own serialization at load against its serialization at save. The
+stored markdown then normalizes only when someone actually edits — which is exactly what §2.5 says
+should happen.
+
+**Files:**
+- Modify: `components/editor/prose-editor.tsx`
+
+- [ ] **Step 1: Capture the editor's own baseline**
+
+`useEditor` takes an `onCreate` callback. The baseline must be the editor's **serialization**, not the
+`initialMarkdown` prop — the prop is what the database holds, and the whole problem is that those two
+differ.
+
+```tsx
+const baselineRef = useRef<string | null>(null);
+```
+
+and on the editor config:
+
+```tsx
+    onCreate: ({ editor }) => {
+      // The editor's OWN serialization of the loaded document, not the stored
+      // markdown it came from. Those differ by normalization on essentially
+      // every real document, which is why comparing against the stored string
+      // server-side never detects "unchanged" (spec §2.5).
+      baselineRef.current = editor.getMarkdown();
+    },
+```
+
+- [ ] **Step 2: Skip the save entirely when nothing changed**
+
+```tsx
+  const save = (): void => {
+    if (!editor) return;
+    const markdown = editor.getMarkdown();
+    if (baselineRef.current !== null && markdown === baselineRef.current) {
+      // Nothing the author did changed the document. Do not call the action at
+      // all: a scheduled bee writes these digests, and reading one must never
+      // rewrite it. Undo back to the original lands here too, correctly.
+      setUnchanged(true);
+      return;
+    }
+    const formData = new FormData();
+    for (const [key, value] of Object.entries(hidden)) formData.set(key, value);
+    formData.set("content", markdown);
+    startTransition(() => {
+      void action(formData);
+    });
+  };
+```
+
+Add the `unchanged` state and clear it on any edit, so the button gives feedback instead of appearing
+broken:
+
+```tsx
+const [unchanged, setUnchanged] = useState(false);
+```
+
+Pass `onUpdate: () => setUnchanged(false)` in the editor config, and render the flag next to the Save
+button:
+
+```tsx
+{unchanged ? (
+  <span className="self-center text-xs text-muted-foreground">No changes to save</span>
+) : null}
+```
+
+- [ ] **Step 3: Verify against the real database, read-only**
+
+Write a throwaway script under `.superpowers/` that loads every plant, pod and sprout, and for each
+one with prose asserts `serialize(parse(md))` is **stable** — that a second round trip equals the
+first. That is the property the client gate now depends on: the baseline is taken after one
+serialization, so if a second differed, an untouched save would still fire.
+
+Report how many documents were checked and how many are stable. Delete the script. **Do not write to
+the database.**
+
+- [ ] **Step 4: Verify and commit**
+
+`npx tsc --noEmit` clean, `npm run build` compiles, `npm test` unchanged at **495 pass / 0 fail /
+34 skipped**.
+
+```bash
+git add components/editor/prose-editor.tsx
+git commit -m "fix: an untouched save writes nothing, as the spec promised"
+```
+
+---
+
 ### Task 11: The content card, and the sprout page
 
 One server wrapper, used by all three pages.
