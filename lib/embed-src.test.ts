@@ -50,6 +50,30 @@ test("a spotify url whose path is not a known type does not frame", () => {
   assert.equal(frameFor("https://open.spotify.com/"), null);
 });
 
+// Deezer's share vocabulary and its widget's vocabulary disagree: a share URL
+// says /show/{id} while the widget generator calls that category "Podcast". We
+// have not verified which the widget path accepts, so `show` is not in
+// DEEZER_TYPES and degrades to a link card — the same stance §5.2 takes on
+// Figma. If this test ever starts failing, someone has verified it and should
+// add the type rather than delete the test.
+test("a deezer show url does not frame, pending a verified widget vocabulary", () => {
+  assert.equal(frameFor("https://www.deezer.com/en/show/123456"), null);
+});
+
+// artist IS in DEEZER_TYPES — the widget generator lists it explicitly — and it
+// is a collection, so it gets the taller box.
+test("a deezer artist url frames tall", () => {
+  const f = frameFor("https://www.deezer.com/en/artist/12345");
+  assert.ok(f);
+  assert.equal(f!.src, "https://widget.deezer.com/widget/dark/artist/12345");
+  assert.equal(f!.aspect, "audio-list");
+});
+
+// The mirror of the youtube no-id case, so both id-only providers are pinned.
+test("a vimeo url with no extractable id does not frame", () => {
+  assert.equal(embedSrc({ kind: "embed", provider: "vimeo", url: "https://vimeo.com/notanumber" }), null);
+});
+
 test("a deezer url with a non-numeric id does not frame", () => {
   assert.equal(frameFor("https://www.deezer.com/en/track/abc"), null);
 });

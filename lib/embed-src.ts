@@ -4,7 +4,7 @@ import type { MediaEmbed } from "./data";
 /**
  * Which embeds become an iframe, and what URL they load (spec §5.2).
  *
- * KEEP THIS MODULE DEPENDENCY-FREE at runtime. next.config.ts imports
+ * KEEP THIS MODULE DEPENDENCY-FREE at runtime. next.config.ts will import
  * EMBED_FRAME_HOSTS to build the CSP, so anything this file pulls in is loaded
  * while Next reads its config, before the app exists — the same constraint
  * lib/upload-input.ts carries. `hostMatches` comes from lib/embeds.ts, which is
@@ -26,6 +26,10 @@ import type { MediaEmbed } from "./data";
  * exactly rather than by substring, and lib/inbox.ts re-derives provider from
  * the URL on every write rather than accepting a declared one. If either is
  * ever relaxed, this file becomes an open redirect into an iframe.
+ *
+ * One documented exception: the soundcloud case re-verifies the host itself,
+ * because it is the only provider whose stored URL is handed onward verbatim
+ * rather than reduced to an extracted id.
  */
 
 export interface EmbedFrame {
@@ -63,12 +67,18 @@ const SPOTIFY_TYPES = new Set([
   "show",
   "artist",
 ]);
+// NOT the same list as Spotify's, despite currently overlapping: `show` is
+// deliberately absent. Deezer's SHARE urls say /show/{id}, but its widget
+// generator calls that category "Podcast" — so the type word lifted from the
+// share URL may not be the one the widget path expects, and
+// widget.deezer.com/widget/dark/show/{id} would simply 404. Unverified against
+// a real Deezer podcast, so it renders as a link card, exactly the stance §5.2
+// takes on Figma. One line and one test to add the day someone can check it.
 const DEEZER_TYPES = new Set([
   "track",
   "album",
   "playlist",
   "episode",
-  "show",
   "artist",
 ]);
 
@@ -110,11 +120,6 @@ function segments(url: string): string[] | null {
 // misread almost always lands on a slug that is not a type and returns null —
 // degrading to a link card rather than to a plausible-looking mistake. That is
 // what makes "last two" safe here and unsafe there.
-//
-// Verified against the real share forms: the intl-XX locale prefix, ?si=
-// tracking params, legacy /user/{id}/playlist/{id}, Deezer's
-// /show/{id}/episode/{id}, and an embed or widget URL pasted back in (which
-// round-trips to itself) all resolve correctly.
 //
 // Residual miss, stated at its real width: any URL where a type word happens to
 // sit second-to-last with an alphanumeric final segment gets framed. No real
