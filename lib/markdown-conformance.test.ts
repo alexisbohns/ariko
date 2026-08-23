@@ -43,6 +43,10 @@ const FIXTURES: Record<string, string> = {
   reflessBlock: "::entity{foo=bar}",
   emptyRef: "::entity{ref=}",
   mixed: "## Drawer\n\nProse with :entity[X]{ref=bean:x} inline.\n\n::entity{ref=bean:y}",
+  image: "![alt text](/img.png)",
+  imageTitled: '![alt](/i.png "Title")',
+  taskList: "- [ ] todo item\n- [x] done item",
+  bom: "﻿meet at 10:30 tomorrow",
 };
 
 for (const [name, source] of Object.entries(FIXTURES)) {
@@ -69,6 +73,27 @@ test("KNOWN DIVERGENCE: a malformed inline directive is the one case the parsers
   const source = "see :entity[Label]{} here";
   assert.equal(render(source), "<p>see Label here</p>");
   assert.equal(roundTrip(source), "see :entity\\[Label\\]{} here");
+  assert.notEqual(render(roundTrip(source)), render(source));
+});
+
+test("KNOWN DIVERGENCE: a character entity survives remark but not the round trip", () => {
+  // remark decodes `&copy;` to the actual glyph; marked's serializer re-escapes
+  // the leading `&` of anything that still looks like an entity, so a second
+  // pass through the editor turns it into literal `&amp;copy;` text. No
+  // extension can fix this — it is `@tiptap/markdown`'s own serialization
+  // rule. Pinned here so an upgrade that changes it shows up as a diff.
+  const source = "AT&amp;T &copy; x";
+  assert.equal(roundTrip(source), "AT&amp;T &amp;copy; x");
+  assert.notEqual(render(roundTrip(source)), render(source));
+});
+
+test("KNOWN DIVERGENCE: a GFM footnote survives remark but not the round trip", () => {
+  // remark-gfm renders a real footnote (a superscript ref plus a backref
+  // section); marked has no footnote syntax at all, so it reads `[^1]` as
+  // plain text and `[^1]: note` as a reference-style link, producing
+  // `text[^1](note)` — a visibly different, but not silently lossy, document.
+  const source = "text[^1]\n\n[^1]: note";
+  assert.equal(roundTrip(source), "text[^1](note)");
   assert.notEqual(render(roundTrip(source)), render(source));
 });
 
@@ -117,8 +142,41 @@ test("a directive we do not handle is left as the text the author wrote", () => 
   assert.equal(render("::callout{type=warn}"), "<p>::callout{type=warn}</p>");
 });
 
-test("no rendered output ever contains an empty div", () => {
+test("a foreign container directive unwraps to its children, preserving structure — not one run-on paragraph", () => {
+  // Task 3b's byte-offset restoration is right for a single-line foreign
+  // leaf/text directive, but wrong for a container: slicing raw source would
+  // flatten `:::note`'s two paragraphs into one paragraph of literal text.
+  const html = render(":::note\npara one\n\npara two\n:::");
+  assert.equal(html, "<p>para one</p>\n<p>para two</p>");
+  assert.ok(!html.includes("<div"));
+});
+
+test(":::entity{...} is a CONTAINER, not ours — Ariko's grammar has no container form", () => {
+  // Even though the name matches, a triple-colon `:::entity{…}` is not the
+  // block card: Ariko only claims leafDirective and textDirective. It falls
+  // through to the same unwrap-to-children handling as any other foreign
+  // container; with nothing between the fences, that unwraps to nothing.
+  const html = render(":::entity{ref=bean:x}");
+  assert.ok(!html.includes("entity-card"));
+  assert.ok(!html.includes("<div"));
+});
+
+test("a foreign container wrapping a real card lets the card still render, matching what extractRefs already mints", () => {
+  // The page/graph disagreement this slice exists to eliminate: extractRefs
+  // is a raw scan and already saw the nested ::entity{ref=…} regardless of
+  // its container, but before this fix the page discarded the whole
+  // container — and the card inside it — as one run-on paragraph of text.
+  const src = ":::grid\n::entity{ref=bean:x}\n:::";
+  assert.match(render(src), /<entity-card data-ref="bean:x">/);
+  assert.deepEqual(extractRefs(src), [{ kind: "embeds", ref: "bean:x" }]);
+});
+
+test("no rendered output ever contains a div at all", () => {
+  // This pipeline never legitimately mints a div, so any div — empty or not —
+  // is the bare-directive bug. Matching only the literal "<div></div>" would
+  // have missed the `:something[here]` -> `<div>here</div>` case that
+  // motivated Task 3b in the first place.
   for (const md of ["meet at 10:30", "3:2", ":x", "a:b:c", "::callout{type=warn}"]) {
-    assert.ok(!render(md).includes("<div></div>"), md);
+    assert.ok(!render(md).includes("<div"), md);
   }
 });

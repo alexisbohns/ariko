@@ -1,6 +1,8 @@
 import { Node, type JSONContent, type MarkdownToken } from "@tiptap/core";
 import { StarterKit } from "@tiptap/starter-kit";
 import { TableKit } from "@tiptap/extension-table";
+import { Image } from "@tiptap/extension-image";
+import { TaskList, TaskItem } from "@tiptap/extension-list";
 
 /**
  * The EDITOR's half of the entity grammar (compose spec §2.2).
@@ -149,5 +151,18 @@ export const EntityMention = Node.create({
  * of these nodes plus React node views (components/editor/entity-views.tsx,
  * not yet written), so this does not guarantee the editor stays in sync —
  * only that the two test files will.
+ *
+ * Image and TaskList are NOT in StarterKit, and @tiptap/markdown drops any
+ * node its schema cannot represent: without these, saving an article
+ * silently deletes every image, and a task list serializes to the empty
+ * string.
  */
-export const headlessExtensions = [StarterKit, TableKit, EntityCard, EntityMention];
+export const headlessExtensions = [
+  StarterKit,
+  TableKit,
+  Image,
+  TaskList,
+  TaskItem,
+  EntityCard,
+  EntityMention,
+];

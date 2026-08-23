@@ -9,7 +9,18 @@ const MIRRORED_KINDS = new Set(["embeds", "mentions"]);
 // :entity[…]{ref=…} anywhere. Deliberately a scan, not a parse: this runs on
 // every write, where a full mdast pass per document buys nothing — the
 // grammar is fixed and narrow.
-const BLOCK = /^ {0,3}::entity(?:\[[^\]\n]*\])?\{[^}]*\bref=([^\s}]+)/gm;
+//
+// The optional `(?:(?:> |- )*)` prefix tolerates a card living inside a
+// blockquote or a list item (nested combinations of both, any depth) — remark
+// and the editor's marked tokenizer both already render a card for
+// `> ::entity{ref=…}` and `- ::entity{ref=…}` because they parse the
+// surrounding blockquote/list structure first and see the directive on its
+// own dedented line; this is a flat scan over raw source, so it has to
+// tolerate those prefixes explicitly instead. It does NOT open the 4-space
+// indented-code escape hatch: with zero prefixes matched, the space count
+// after it is still capped at {0,3}, so `    ::entity{ref=x}` (four bare
+// leading spaces, no quote/list marker) still matches nothing.
+const BLOCK = /^(?:(?:> |- )*) {0,3}::entity(?:\[[^\]\n]*\])?\{[^}]*\bref=([^\s}]+)/gm;
 const INLINE = /(?<!:):entity\[[^\]]*\]\{[^}]*\bref=([^\s}]+)/g;
 
 // Fenced code blocks and inline code spans render as literal text — the
