@@ -249,22 +249,29 @@ test("5. a transaction succeeds after loading an inline image mid-paragraph (ite
 });
 
 test("6. the / menu offers Image, and running it clears the typed command and asks the host to pick a file", () => {
+  // Captured INSIDE the callback, not after run() returns: both orderings
+  // leave the same final document, so an implementation that handed off
+  // first and deleted second would pass an after-the-fact assertion
+  // identically — and the ordering is the load-bearing part (the file dialog
+  // takes focus, so the deletion has to be already committed).
   let asked = 0;
+  let textWhenAsked = "";
+  const editor = makeEditor({ content: "/image", contentType: "markdown" });
   const blocks = buildBlocks(() => {
     asked++;
+    textWhenAsked = editor.getText();
   });
   const image = blocks.find((b) => b.id === "image");
   assert.ok(image, `no image block in: ${blocks.map((b) => b.id).join(", ")}`);
 
-  const editor = makeEditor({ content: "/image", contentType: "markdown" });
   // The suggestion range for "/image" typed at the start of the only paragraph:
   // position 1 is inside that paragraph, before the "/".
   image!.run(editor, { from: 1, to: 1 + "/image".length });
 
   assert.equal(asked, 1, "running the block must ask the host to open a file picker");
   assert.ok(
-    !editor.getText().includes("/image"),
-    `the typed command must be deleted, got: ${JSON.stringify(editor.getText())}`,
+    !textWhenAsked.includes("/image"),
+    `the text must be deleted BEFORE the handoff, got: ${JSON.stringify(textWhenAsked)}`,
   );
   editor.destroy();
 });

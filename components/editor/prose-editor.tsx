@@ -48,10 +48,23 @@ export function ProseEditor({
   // deletion left behind.
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [imageBusy, setImageBusy] = useState(false);
+  // Mirrors `imageBusy` for `onInsertImage`, for exactly the reason `menuRef`
+  // mirrors `menu` above: that callback is captured in the useMemo below,
+  // which the editor reads ONCE at mount (see its comment), so reading the
+  // `imageBusy` STATE there would close over `false` forever and the
+  // one-at-a-time guard would never fire.
+  const imageBusyRef = useRef(false);
 
   const show = (next: MenuState | null): void => {
     menuRef.current = next;
     setMenu(next);
+  };
+
+  // Same ref-alongside-state shape as `show`.
+  const setBusy = (next: boolean): void => {
+    imageBusyRef.current = next;
+    setImageBusy(next);
   };
 
   // The schema, markdown wiring, and `@`/`/` suggestion plugins — built by
@@ -77,7 +90,12 @@ export function ProseEditor({
         entities,
         onMenu: show,
         getMenu: () => menuRef.current,
-        onInsertImage: () => imageInputRef.current?.click(),
+        onInsertImage: () => {
+          // One at a time. Without this the author, seeing no feedback, runs
+          // /image again and both uploads resolve into two inserted images.
+          if (imageBusyRef.current) return;
+          imageInputRef.current?.click();
+        },
       }),
     [entities],
   );
@@ -152,6 +170,11 @@ export function ProseEditor({
   };
 
   const insertImage = async (file: File): Promise<void> => {
+    // Explicit, like `save` above rather than an `editor?.` that silently
+    // no-ops: if this invariant ever broke, the upload would still succeed
+    // and the asset would sit in Cloudinary with nothing inserted and
+    // nothing reported.
+    if (!editor) return;
     setImageError(null);
     // Advisory guard, same reason as components/admin/media-picker.tsx: the
     // server re-checks and stays authoritative, but next.config.ts's
@@ -166,17 +189,28 @@ export function ProseEditor({
     }
     const formData = new FormData();
     formData.set("file", file);
+    setBusy(true);
     try {
       const result = await uploadImageAction(formData);
       if (!result.ok) {
         setImageError(result.error);
         return;
       }
-      editor?.chain().focus().setImage({ src: result.media.url, alt: result.media.alt ?? "" }).run();
+      // toMediaImage never sets alt (lib/storage.ts) — it is not something
+      // Cloudinary knows — so it has to be asked for here or the image ships
+      // with alt="" forever: this is a WYSIWYG, and the author has no way to
+      // reach the markdown afterwards. window.prompt matches the Link button
+      // in this same file rather than introducing a second modal idiom.
+      // Cancelling yields "", which is the correct markup for an image the
+      // author declines to describe.
+      const alt = window.prompt("Alt text (describe the image, or leave blank if decorative)") ?? "";
+      editor.chain().focus().setImage({ src: result.media.url, alt }).run();
     } catch (e) {
       // Same rejection semantics as `save` above — see its comment.
       unstable_rethrow(e);
-      setImageError(e instanceof Error ? e.message : "could not upload image");
+      setImageError(e instanceof Error ? e.message : "upload failed");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -214,9 +248,15 @@ export function ProseEditor({
         onChange={(e) => {
           const file = e.target.files?.[0];
           e.target.value = "";
+          // A previous failure's red line must not outlive the attempt the
+          // author is making right now.
+          setImageError(null);
           if (file) void insertImage(file);
         }}
       />
+      {imageBusy ? (
+        <p className="font-heading text-xs text-muted-foreground">Uploading image…</p>
+      ) : null}
       {imageError ? (
         <p className="font-heading text-xs text-destructive">Could not add image: {imageError}</p>
       ) : null}
