@@ -47,18 +47,22 @@ function normalizeSuggestion(s: unknown): SeedSuggestion | undefined {
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
-// Fill provider for bare embeds; pass images and already-typed embeds through.
+/**
+ * Images pass through; every embed's provider is DERIVED from its URL.
+ *
+ * A declared `provider` (and `embedId`) on an incoming payload is ignored, not
+ * trusted. `provider` decides whether a URL is loaded into an iframe
+ * (lib/embed-src.ts), so a caller-settable provider would be no trust signal at
+ * all — it would let a payload claim "soundcloud" for any URL and be framed on
+ * an allowlisted host. Hardening detectEmbed's host matching (lib/embeds.ts)
+ * without closing this would lock the front door and leave the side one.
+ *
+ * The InputMedia type still carries the optional fields because that is the
+ * shape /api/inbox ACCEPTS — accepting and honouring are different things, and
+ * rejecting a payload for a field we can derive would be a needless break.
+ */
 export function normalizeMedia(media: InputMedia[]): Media[] {
-  return media.map((m) => {
-    if (m.kind === "image") return m;
-    if (!m.provider) return detectEmbed(m.url);
-    return {
-      kind: "embed",
-      provider: m.provider,
-      url: m.url,
-      ...(m.embedId ? { embedId: m.embedId } : {}),
-    };
-  });
+  return media.map((m) => (m.kind === "image" ? m : detectEmbed(m.url)));
 }
 
 export type MediaEntryResult =

@@ -58,11 +58,12 @@ test("normalizeMedia fills provider for a bare embed via detection", () => {
   }
 });
 
-test("normalizeMedia leaves an already-typed embed and images untouched", () => {
+test("normalizeMedia re-derives a typed embed's provider and leaves images untouched", () => {
   const out = normalizeMedia([
     { kind: "embed", provider: "spotify", url: "https://open.spotify.com/x" },
     { kind: "image", storageKey: "k", url: "https://cdn/x.jpg" },
   ]);
+  // Same answer as before, but now because the URL says so, not the payload.
   if (out[0].kind === "embed") assert.equal(out[0].provider, "spotify");
   assert.equal(out[1].kind, "image");
 });
@@ -188,6 +189,36 @@ test("validateMediaEntry accepts an image with its optional fields", () => {
       assert.equal(r.value.width, 800);
     }
   }
+});
+
+// provider is a TRUST SIGNAL once embeds are iframed (lib/embed-src.ts), and a
+// signal a caller can set is no signal at all.
+test("normalizeMedia derives the provider from the url, ignoring a declared one", () => {
+  const out = normalizeMedia([
+    { kind: "embed", provider: "soundcloud", url: "https://evil.test/anything" },
+  ]);
+  assert.equal(out[0].kind, "embed");
+  if (out[0].kind === "embed") {
+    assert.equal(out[0].provider, "link");
+    assert.equal(out[0].url, "https://evil.test/anything");
+  }
+});
+
+test("a declared embedId cannot be smuggled past detection either", () => {
+  const out = normalizeMedia([
+    { kind: "embed", provider: "youtube", embedId: "HIJACKED", url: "https://evil.test/x" },
+  ]);
+  if (out[0].kind === "embed") {
+    assert.equal(out[0].provider, "link");
+    assert.equal(out[0].embedId, undefined);
+  }
+});
+
+test("a declared provider that agrees with the url is unaffected", () => {
+  const out = normalizeMedia([
+    { kind: "embed", provider: "spotify", url: "https://open.spotify.com/track/abc" },
+  ]);
+  if (out[0].kind === "embed") assert.equal(out[0].provider, "spotify");
 });
 
 // The exact strings validateInboxPayload has always returned. They are part of
