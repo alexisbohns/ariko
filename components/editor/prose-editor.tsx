@@ -48,9 +48,19 @@ export function ProseEditor({
 }) {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [pending, startTransition] = useTransition();
+  const [unchanged, setUnchanged] = useState(false);
   // Mirrors `menu` for the keydown handler, which runs outside React's render
   // and would otherwise close over a stale index.
   const menuRef = useRef<MenuState | null>(null);
+  // The editor's OWN serialization of the loaded document (set in onCreate),
+  // not the stored `initialMarkdown` prop. Those differ by normalization on
+  // essentially every real document — a blank line between adjacent entity
+  // cards, table cell padding, `&` -> `&amp;` — which is why comparing the
+  // save-time serialization against the *stored* string server-side never
+  // detects "unchanged" (spec §2.5). Comparing against the editor's own first
+  // serialization does, because save-time re-serialization of an untouched
+  // document is idempotent.
+  const baselineRef = useRef<string | null>(null);
 
   const show = (next: MenuState | null): void => {
     menuRef.current = next;
@@ -201,15 +211,28 @@ export function ProseEditor({
         class: "prose prose-sm max-w-none dark:prose-invert min-h-48 focus:outline-none",
       },
     },
+    onCreate: ({ editor }) => {
+      baselineRef.current = editor.getMarkdown();
+    },
+    onUpdate: () => setUnchanged(false),
   });
 
   const save = (): void => {
     if (!editor) return;
+    const markdown = editor.getMarkdown();
+    if (baselineRef.current !== null && markdown === baselineRef.current) {
+      // Nothing the author did changed the document (undo back to the
+      // original lands here too, correctly). Do not call the action at all: a
+      // scheduled bee writes these digests, and reading one must never
+      // rewrite it (spec §2.5).
+      setUnchanged(true);
+      return;
+    }
     const formData = new FormData();
     for (const [key, value] of Object.entries(hidden)) formData.set(key, value);
     // The serialize step (spec §2.3): markdown is what the database stores, and
     // the editor is only ever a surface over it.
-    formData.set("content", editor.getMarkdown());
+    formData.set("content", markdown);
     startTransition(() => {
       void action(formData);
     });
@@ -246,10 +269,13 @@ export function ProseEditor({
         for headings, lists, tables and reference cards. Select text to format it.
       </p>
 
-      <div>
+      <div className="flex items-center gap-3">
         <Button type="button" onClick={save} disabled={pending || !editor}>
           {pending ? "Saving…" : "Save content"}
         </Button>
+        {unchanged ? (
+          <span className="self-center text-xs text-muted-foreground">No changes to save</span>
+        ) : null}
       </div>
 
       <SuggestionMenu
