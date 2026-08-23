@@ -277,7 +277,10 @@ only as non-identifying context, and pin the behaviour with a test.
 
 ## 5. PR2 — showing them (B3)
 
-### 5.1 Host hardening — three fixes, not one
+### 5.1 Host hardening — four fixes, not one
+
+Three in `lib/embeds.ts`, and a fourth one door over. Found while writing the plan: hardening
+detection while leaving the fourth open would lock the front door and leave the side one.
 
 `lib/embeds.ts`:
 
@@ -290,6 +293,20 @@ only as non-identifying context, and pin the behaviour with a test.
    out of a query string, and it returns the wrong id for
    `vimeo.com/channels/staffpicks/123456`. Replaced with: parse the URL, take the first numeric
    **path segment**.
+
+And in `lib/inbox.ts`:
+
+4. **`normalizeMedia` passes a client-declared `provider` through unverified** (`:52-60`, pinned by
+   a test at `lib/inbox.test.ts:61`). So a payload can claim `provider: "soundcloud"` for *any*
+   URL and be framed on an allowlisted host. **The provider is a trust signal only if it is
+   derived**, so it is now always derived from the URL and a declared `provider`/`embedId` is
+   ignored. Nothing in the repo sends one — verified across `scripts/` and `.github/` — and the
+   one `MediaEmbed` in production has provider `link`, so there is no regression to absorb.
+
+   The blast radius before the fix was bounded (the CSP allowlist means a forged provider could
+   still only load an allowlisted host), which is why this is a hardening rather than an incident.
+   It is fixed in the same slice because §5.2 is what turns `provider` into a decision about what
+   third-party code runs on a public page.
 
 ### 5.2 `lib/embed-src.ts`
 
@@ -409,6 +426,7 @@ missed a defect that made the editor fail to mount on every page.
 | Test | Asserts |
 |---|---|
 | `lib/embeds.test.ts` *(extended)* | `vimeo.com.evil.test`, `evilvimeo.com`, `notyoutu.be` → `link`; both id-extraction fixes, including `vimeo.com/channels/staffpicks/123456` |
+| `lib/inbox.test.ts` *(extended)* | a declared `provider`/`embedId` is ignored in favour of detection (§5.1 fix 4); a declared provider that agrees with the URL is unaffected |
 | `lib/embed-src.test.ts` | one derived and one non-derived case per provider; `link` never yields a src; **every host `embedSrc` can emit is in `EMBED_FRAME_HOSTS`** |
 | `lib/cover.test.ts` | first image wins; scans past an image-less newest sprout; embeds are not covers; none → `null` |
 | `lib/entity-resolve.test.ts` *(extended)* | cover on bean refs; absent for plant/pod; absent when no image |
