@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { articleFor } from "@/lib/article";
 import { Prose } from "@/components/markdown";
 import { resolveEntity } from "@/lib/entity-resolve";
+import { MediaList } from "@/components/media";
 
 export const dynamic = "force-dynamic";
 
@@ -82,8 +83,12 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
               {resolveText(sprout.name)}
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-col gap-4">
             <ul className="flex flex-col gap-1 font-heading text-xs">{dumpRows(sprout)}</ul>
+            {/* One location, no duplication, and no layout bet the exhibition
+                slice would overturn: the property dump stays until D1 retires
+                it deliberately (umbrella §4), so media belongs beside it. */}
+            <MediaList media={sprout.media} />
           </CardContent>
         </Card>
       ))}
