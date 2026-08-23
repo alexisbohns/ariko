@@ -259,6 +259,21 @@ callback threaded through `BuildEditorExtensionsOptions` exactly like the existi
 command deletes the suggestion range and calls the callback; `ProseEditor` owns a hidden file input,
 uploads through `uploadImageAction`, and runs `setImage({ src, alt })`.
 
+**Amended during implementation — where does `alt` come from?** This originally read as though `alt`
+arrived with the uploaded media. It cannot: `toMediaImage` (`lib/storage.ts`) is the only constructor
+of a `MediaImage` and never sets `alt` — Cloudinary has no idea what the picture shows. So
+`result.media.alt` is structurally always `undefined`, and the editor would have shipped every
+inserted image as `![](url)` **permanently**, since a WYSIWYG gives the author no way to reach the
+markdown afterwards. On the surface where images are most likely to be content rather than
+decoration, that is the wrong default. The command therefore *asks*, via `window.prompt` — matching
+the Link bubble-menu button already in that file rather than introducing a second modal idiom.
+Cancelling yields `""`, which is the correct markup for a deliberately undescribed image.
+
+**The command is exclusive while an upload is in flight**, and says so. Between the dialog closing
+and the image appearing there is otherwise no signal at all — ten-plus seconds of stationary
+document on a large photo, whose only observable event was the typed `/image` vanishing. An author
+with no feedback runs the command again, and both uploads land.
+
 The callback indirection is what makes this testable: `lib/editor-mount.test.ts` builds the real
 extension array against a headless `Editor` and can assert the row exists and fires, without a DOM
 file picker.
