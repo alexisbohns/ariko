@@ -255,10 +255,10 @@ export function ProseEditor({
         }}
       />
       {imageBusy ? (
-        <p className="font-heading text-xs text-muted-foreground">Uploading image…</p>
+        <p className="font-heading text-xs text-muted-foreground" aria-live="polite">Uploading image…</p>
       ) : null}
       {imageError ? (
-        <p className="font-heading text-xs text-destructive">Could not add image: {imageError}</p>
+        <p className="font-heading text-xs text-destructive" role="alert">Could not add image: {imageError}</p>
       ) : null}
 
       <p className="font-heading text-xs text-muted-foreground">
@@ -267,7 +267,10 @@ export function ProseEditor({
       </p>
 
       <div className="flex items-center gap-3">
-        <Button type="button" onClick={save} disabled={pending || !editor}>
+        {/* Also disabled mid-upload: saving now would persist a document
+            missing the image that is seconds from being inserted, and the
+            author would have to notice and save again. */}
+        <Button type="button" onClick={save} disabled={pending || imageBusy || !editor}>
           {pending ? "Saving…" : "Save content"}
         </Button>
         {unchanged ? (
