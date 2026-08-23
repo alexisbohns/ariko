@@ -25,4 +25,7 @@ export const ENTITY_FIXTURES: EntityFixture[] = [
   { md: "::entity{foo=bar}", expect: "none" },
   { md: "::entity{ref=}", expect: "none" },
   { md: "x::entity{ref=bean:x}", expect: "none" },
+  { md: "meet at 10:30 tomorrow", expect: "none" },
+  { md: "a ratio of 3:2 today", expect: "none" },
+  { md: "see :something[here] in prose", expect: "none" },
 ];

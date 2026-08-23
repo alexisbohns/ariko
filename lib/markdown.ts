@@ -19,6 +19,7 @@ interface DirectiveNode {
   children?: unknown[];
   attributes?: Record<string, string | null | undefined>;
   data?: { hName?: string; hProperties?: Record<string, unknown> };
+  position?: { start: { offset?: number }; end: { offset?: number } };
 }
 
 // Converts ::entity{ref=…} (block) and :entity[label]{ref=…} (inline) into the
@@ -26,13 +27,40 @@ interface DirectiveNode {
 // mints nothing: it degrades to absence, never to a broken card. Runs BEFORE
 // rehypeSanitize, whose schema must admit whatever this mints (slice 3 §3).
 function remarkEntity() {
-  return (tree: unknown) => {
+  return (tree: unknown, file: { value?: unknown }) => {
+    const source = typeof file?.value === "string" ? file.value : "";
     visit(
       tree as never,
       (node: DirectiveNode, index?: number, parent?: { children: unknown[] }) => {
         const block = node.type === "containerDirective" || node.type === "leafDirective";
         const inline = node.type === "textDirective";
-        if ((!block && !inline) || node.name !== "entity") return;
+        if (!block && !inline) return;
+
+        // Not ours. remark-directive claims EVERY `:name` in prose — a time of
+        // day, a ratio, a namespaced word — and an unclaimed directive reaches
+        // mdast-util-to-hast with no hName, where it renders as a bare <div>
+        // and the author's text is gone. Hand it back exactly as written,
+        // sliced from the source by the node's own offsets so attribute order
+        // and quoting survive verbatim.
+        if (node.name !== "entity") {
+          const from = node.position?.start?.offset;
+          const to = node.position?.end?.offset;
+          if (parent && typeof index === "number" && typeof from === "number" && typeof to === "number") {
+            const text = { type: "text", value: source.slice(from, to) };
+            // A textDirective already sits inside an existing paragraph's
+            // children — a bare text node there is enough. A leaf/container
+            // directive instead sits directly under a block parent (root,
+            // blockquote, list item…) in the SLOT a paragraph would have
+            // occupied; splicing in a bare text node there leaves it
+            // unwrapped, since mdast-to-hast does not paragraph-wrap loose
+            // text outside phrasing content — the text would then render
+            // with no enclosing <p>. Wrap it in one so it does.
+            parent.children.splice(index, 1, block ? { type: "paragraph", children: [text] } : text);
+            return index + 1; // past the node(s) just inserted
+          }
+          return;
+        }
+
         const ref = typeof node.attributes?.ref === "string" ? node.attributes.ref.trim() : "";
         if (!ref) {
           // Degrade to NOTHING (compose §3), which means unwrapping to the

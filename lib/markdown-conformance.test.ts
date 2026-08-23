@@ -101,3 +101,24 @@ for (const { md, expect } of ENTITY_FIXTURES) {
     assert.equal(refsVerdict(md), expect, "extractRefs (feeds the graph)");
   });
 }
+
+test("a time of day survives rendering", () => {
+  assert.equal(render("meet at 10:30 tomorrow"), "<p>meet at 10:30 tomorrow</p>");
+});
+
+test("a ratio survives rendering", () => {
+  assert.equal(render("a ratio of 3:2 today"), "<p>a ratio of 3:2 today</p>");
+});
+
+test("a directive we do not handle is left as the text the author wrote", () => {
+  // remark-directive parses ALL directive syntax, not just ours. Anything we
+  // do not claim must be handed back verbatim rather than rendered as a <div>.
+  assert.equal(render("see :something[here] in prose"), "<p>see :something[here] in prose</p>");
+  assert.equal(render("::callout{type=warn}"), "<p>::callout{type=warn}</p>");
+});
+
+test("no rendered output ever contains an empty div", () => {
+  for (const md of ["meet at 10:30", "3:2", ":x", "a:b:c", "::callout{type=warn}"]) {
+    assert.ok(!render(md).includes("<div></div>"), md);
+  }
+});
