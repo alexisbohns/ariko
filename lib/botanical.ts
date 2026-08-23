@@ -2,6 +2,7 @@ import { getDb } from "./db";
 import { resolveText, type Bean, type Plant, type Pod, type Sprout, type Text, type Visibility } from "./data";
 import type { SproutInput } from "./promote";
 import type { SproutPatch } from "./sprout-edit";
+import type { ContentPatch } from "./content-edit";
 
 // Thrown when a create hits the unique slug index. Lets the server action turn a
 // collision into a friendly message instead of a 500.
@@ -162,4 +163,32 @@ export async function setPublic(plantSlugs: string[], podSlugs: string[], beanSl
 // The write half of the un-publish cascade — the exact mirror of setPublic.
 export async function setPrivate(plantSlugs: string[], podSlugs: string[], beanSlugs: string[]): Promise<void> {
   return setVisibility(plantSlugs, podSlugs, beanSlugs, "private");
+}
+
+/**
+ * Writes prose and its mirrored relations — and nothing else.
+ *
+ * The two fields are named explicitly rather than spread, deliberately. This is
+ * the mirror of updateVersion's `$set: { ...patch }`: because that one spreads,
+ * `content` must never join SproutPatch (the metadata form has no content input
+ * and would blank the prose on every save), and because this one does not
+ * spread, a widened caller can never reach `state`, `media` or `source`.
+ */
+async function writeContent(collection: string, slug: string, patch: ContentPatch): Promise<void> {
+  const db = await getDb();
+  await db
+    .collection(collection)
+    .updateOne({ slug }, { $set: { content: patch.content, relations: patch.relations } });
+}
+
+export function updateSproutContent(slug: string, patch: ContentPatch): Promise<void> {
+  return writeContent("sprouts", slug, patch);
+}
+
+export function updatePlantContent(slug: string, patch: ContentPatch): Promise<void> {
+  return writeContent("plants", slug, patch);
+}
+
+export function updatePodContent(slug: string, patch: ContentPatch): Promise<void> {
+  return writeContent("pods", slug, patch);
 }
