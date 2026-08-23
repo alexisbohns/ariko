@@ -414,7 +414,27 @@ permit exactly what they added.
   gain at this stage.
 - **embed with a src** → `<iframe>` in an aspect box, `loading="lazy"`,
   `referrerPolicy="strict-origin-when-cross-origin"`, `allowFullScreen`.
-- **anything else** → a link card: provider badge, hostname, `rel="noopener noreferrer"`.
+- **anything else** → a link card. The badge is suppressed for the `link` provider (a badge reading
+  "link" is a category name carrying no information, and it is the commonest case), leaving the
+  hostname as the label; named providers keep a title-cased badge. `rel="noopener noreferrer"`, and
+  a visually-hidden "(opens in a new tab)" — this is the public zone's first `target="_blank"`.
+  A URL whose scheme is not `http(s)` renders the same card *without* an anchor: React 19 does
+  sanitize `javascript:` hrefs, but that is React's guarantee to withdraw rather than ours to rely
+  on, and `lib/inbox.ts` deliberately does not scheme-check on the way in.
+
+  **Deferred, and worth naming as a decision:** the hostname alone is a weak label. Two links to
+  different work on the same host render as *identical* cards — ambiguity, not merely vagueness,
+  and it worsens as a portfolio's outbound links cluster on a few hosts. Every fix available at
+  render time (full URL, truncated path, de-slugged last segment) is a heuristic reconstructing
+  meaning the author already had. The real answer is an optional `title` on `MediaEmbed`, captured
+  in the picker — the same shape as the alt-text marker: record the meaning where the author is,
+  rather than guess it where the reader is. Not built, because production holds exactly one link
+  embed and this spec's own rule is to defer until authoring demands it.
+
+  **No lucide in the public zone.** `lucide-react@1.33` routes every icon through an `Icon.mjs`
+  carrying `"use client"`, so a single icon would push a client boundary into a zone whose defining
+  rule is that it has none. Inline `<svg aria-hidden>` or a glyph instead. This governs every future
+  public server component, not only this card.
 
 **Placement.** `<MediaList>` renders inside each sprout's existing card on `/bean/[id]`, under the
 property dump. One location, no duplication, and no layout bet that D1 would overturn — the dump is
