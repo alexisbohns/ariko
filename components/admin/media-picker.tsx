@@ -238,6 +238,15 @@ export function MediaPicker({
               value={link}
               placeholder="paste a URL"
               onChange={(e) => setLink(e.target.value)}
+              // Enter here would otherwise submit the whole form (implicit
+              // submission finds the picker's own submit button) instead of
+              // adding the link the author just typed — losing it.
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addLink();
+                }
+              }}
             />
           </div>
           <Button type="button" variant="secondary" onClick={addLink}>

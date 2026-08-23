@@ -30,13 +30,24 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
   rather than a slope:
 
   > The picker renders **nothing until it mounts**. Without script, the form
-  > around it is byte-for-byte what it was, and **no capture or edit ever
-  > depends on it**.
+  > around it is byte-for-byte what it was, and **its absence never costs
+  > anything** — a form it merely adds to still submits, and a form that is
+  > *only* the picker goes inert rather than destructive.
 
-  So the capture bar still submits without script, and a submit is never
-  blocked by an upload: an in-flight or failed image simply is not in the
-  payload. Images upload through `uploadImageAction`, never from the browser to
-  a third party, and a pasted link's `provider` is always derived server-side.
+  Both halves are load-bearing. The capture bar still submits without script,
+  minus the images — and a submit is never blocked by an upload either: an
+  in-flight or failed image simply is not in the payload. The sprout media card
+  is the other case: it is nothing *but* the picker, so the picker renders its
+  submit button too (`submitLabel`). Script-off, that form is a lone hidden
+  input — no button, and no field that permits implicit submission — because a
+  server-rendered button there would submit a form carrying nothing, and an
+  empty media list is indistinguishable from a deliberate clear-all. It would
+  have silently deleted every stored image. `buildMediaPatch` also refuses to
+  write without the picker's `__ready` marker, as defence in depth against a
+  POST that never rendered a button at all.
+
+  Images upload through `uploadImageAction`, never from the browser to a third
+  party, and a pasted link's `provider` is always derived server-side.
 
   Widening this to any *further* form is a decision, not a convenience.
 
