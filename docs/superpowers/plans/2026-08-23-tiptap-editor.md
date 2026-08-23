@@ -738,6 +738,150 @@ git commit -m "fix: a time of day in prose no longer renders as an empty div"
 
 ---
 
+### Task 3c: The editor must not delete what it cannot represent
+
+**Found by the Task 3 + 3b quality review.** Seven items, one theme: a save must never lose the
+author's work. Verified against the real pipelines — every claim below was reproduced before being
+written down.
+
+- [ ] **Step 1: Stop the editor deleting images and task lists (the important one)**
+
+`StarterKit` ships no `Image` and no `TaskList` extension, so anything it cannot represent is
+dropped on serialize. Measured:
+
+| input | today | required |
+|---|---|---|
+| `![alt text](/img.png)` | `alt text` — **the image is gone** | round-trips |
+| `- [ ] todo\n- [x] done` | `""` — **the whole list is gone** | round-trips |
+
+Once the editor ships, opening any article containing an image and pressing Save destroys it. Verified
+that registering the extensions fixes both completely:
+
+```bash
+npm install @tiptap/extension-image@3.30.2 @tiptap/extension-list@3.30.2
+```
+
+In `lib/entity-markdown.ts`, add them to `headlessExtensions`:
+
+```ts
+import { Image } from "@tiptap/extension-image";
+import { TaskList, TaskItem } from "@tiptap/extension-list";
+
+// Image and TaskList are NOT in StarterKit, and @tiptap/markdown drops any node
+// its schema cannot represent: without these, saving an article silently
+// deletes every image, and a task list serializes to the empty string.
+export const headlessExtensions = [StarterKit, TableKit, Image, TaskList, TaskItem, EntityCard, EntityMention];
+```
+
+Add corpus rows to `lib/entity-fixtures.ts` (`expect: "none"` — they contain no entity) and
+round-trip fixtures to `lib/markdown-conformance.test.ts`:
+
+```ts
+  image: "![alt text](/img.png)",
+  imageTitled: '![alt](/i.png "Title")',
+  taskList: "- [ ] todo item\n- [x] done item",
+```
+
+- [ ] **Step 2: Pin the two losses that adding an extension cannot fix**
+
+Character entities and GFM footnotes survive remark but not the round trip. Verified:
+`"AT&amp;T &copy; x"` → `"AT&amp;T &amp;copy; x"` (the entity becomes literal text), and
+`"text[^1]\n\n[^1]: note"` → `"text[^1](note)"`. Add named divergence tests in the style the file
+already uses, so both stay known rather than surprising. Do **not** add them to `ENTITY_FIXTURES` —
+that corpus is for cases all three readers agree on.
+
+- [ ] **Step 3: Fix the BOM off-by-one in the restoration**
+
+micromark strips a leading U+FEFF before assigning offsets, so positions index the BOM-less string
+while `file.value` still carries it, and every slice shifts by one. Verified:
+`render("\uFEFFmeet at 10:30 tomorrow")` → `<p>meet at 100:3 tomorrow</p>` — the exact silent
+corruption Task 3b exists to prevent.
+
+```ts
+const raw = typeof file?.value === "string" ? file.value : "";
+// micromark's preprocessor strips a leading BOM before assigning offsets, so
+// positions index the BOM-less string while file.value still carries it.
+const source = raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
+```
+
+Add `"\uFEFFmeet at 10:30 tomorrow"` as a round-trip fixture.
+
+- [ ] **Step 4: Restrict the grammar and the fall-through to leaf and text directives**
+
+Task 3b's fall-through replaces a *container* directive before `visit` reaches its children, so all
+inner structure is discarded. Measured regression:
+
+| input | before 3b | after 3b |
+|---|---|---|
+| `:::note\npara one\n\npara two\n:::` | `<div><p>para one</p><p>para two</p></div>` | one run-on `<p>` of literal source |
+| `:::grid\n::entity{ref=bean:x}\n:::` | renders the card | card gone, **but `extractRefs` still mints the edge** |
+
+The third row is a page/graph disagreement, which this slice exists to eliminate. Fix both this and
+the related `:::entity` divergence by narrowing what counts:
+
+- **Ariko's grammar is `leafDirective` + `textDirective` only.** `::entity{…}` and
+  `:entity[…]{…}`. Change the entity branch's `block` test from
+  `containerDirective || leafDirective` to `leafDirective` alone. A `:::entity{…}` container then
+  stops being ours.
+- **The fall-through restores only `leafDirective` and `textDirective`.** A foreign
+  `containerDirective` keeps the pre-3b behaviour: unwrap to its children, preserving inner
+  structure.
+
+Say all of this in the comment. The current comment claims the restoration is a strict improvement,
+which is not true for containers.
+
+- [ ] **Step 5: Let a card in a quote or a list mint its graph edge**
+
+`extractRefs`'s `BLOCK` is anchored `^ {0,3}::entity`, so a line prefixed by `> ` or `- ` never
+matches — while both other readers render a card. Verified three-reader verdicts today:
+
+| input | remark | editor | extractRefs |
+|---|---|---|---|
+| `> ::entity{ref=bean:x}` | card | card | **none** |
+| `- ::entity{ref=bean:x}` | card | card | **none** |
+
+This is reachable from the editor the moment Task 10 lands: `EntityCard` is `group: "block"`, and
+StarterKit's `blockquote` and `listItem` both accept block content. It is the identical bug class
+Task 3 Step 5 fixed for labeled cards.
+
+Widen `BLOCK` to tolerate blockquote and list-item prefixes **without** breaking the 4-space
+indented-code rule — `    ::entity{ref=x}` must still mint nothing. Add all four cases
+(`> `, `- `, nested, and the 4-space negative) as corpus rows and let the fixture table be the spec.
+
+- [ ] **Step 6: Three robustness fixes in the restoration**
+
+- A non-string `file.value` (VFile permits `Uint8Array`) leaves `source` empty while the offsets stay
+  valid numbers, so every foreign directive is replaced with an **empty** text node. Guard on
+  `source` being non-empty before restoring.
+- A directive node with no `position` falls through to `return`, which restores the original bare-`<div>`
+  bug. Unwrap to `node.children` instead — the same fallback the ref-less branch already uses.
+- `lib/markdown-conformance.test.ts`'s "no rendered output ever contains an empty div" test matches
+  the literal `<div></div>`, so it would not have caught the `:something[here]` → `<div>here</div>`
+  case that motivated Task 3b. This pipeline never legitimately mints a div — assert
+  `!render(md).includes("<div")`.
+
+- [ ] **Step 7: Split the transformer**
+
+`remarkEntity` now does three jobs and its name covers one of them; someone debugging a vanished
+`:foo` will not grep for "entity". Split into `remarkEntity` (claim + ref-less unwrap) and
+`remarkRestoreForeignDirectives` (the fall-through), registered in that order in `remarkPlugins`.
+The extra `visit` is one O(n) walk over a tree that parse, `mdast-to-hast` and `renderToStaticMarkup`
+each already traverse — not measurable, and the ordering becomes explicit rather than implicit.
+
+- [ ] **Step 8: Verify and commit**
+
+Run: `npm test 2>&1 | tail -6` — baseline is **462 pass / 0 fail / 32 skipped**; expect it higher, `fail 0`.
+Run: `npx tsc --noEmit` — clean.
+Confirm `git status --short` is empty of scratch files before committing; **never `git add -A`**.
+
+```bash
+git add lib/markdown.ts lib/entity-refs.ts lib/entity-markdown.ts \
+        lib/entity-fixtures.ts lib/markdown-conformance.test.ts package.json package-lock.json
+git commit -m "fix: the editor no longer deletes images, task lists or BOM-prefixed prose"
+```
+
+---
+
 ### Task 4: The picker's menu
 
 Pure. Turns the raw garden into the rows the `@` and `/` menus offer. Sprouts are excluded on
