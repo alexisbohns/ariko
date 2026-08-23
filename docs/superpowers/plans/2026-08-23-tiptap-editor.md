@@ -1108,7 +1108,7 @@ Expected: FAIL — `Cannot find module './content-edit'`.
 - [ ] **Step 3: Write the implementation**
 
 ```ts
-import type { Relation, Text } from "./data";
+import { textPart, type Relation, type Text } from "./data";
 import { extractRefs, mergeMirrored } from "./entity-refs";
 
 // The article door's ceiling (article-door spec §4), applied to the same field
