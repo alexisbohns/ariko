@@ -61,6 +61,47 @@ export function normalizeMedia(media: InputMedia[]): Media[] {
   });
 }
 
+export type MediaEntryResult =
+  | { ok: true; value: InputMedia }
+  | { ok: false; error: string };
+
+// One definition of "a valid media entry", shared by /api/inbox
+// (validateInboxPayload, below) and the admin media picker's hidden fields
+// (lib/media-input.ts). An embed may still omit `provider` here —
+// normalizeMedia derives it — which is why this returns InputMedia and not Media.
+export function validateMediaEntry(m: unknown): MediaEntryResult {
+  if (!isObject(m)) return { ok: false, error: "each media entry must be an object" };
+  if (m.kind === "embed") {
+    if (!nonEmptyString(m.url)) return { ok: false, error: "embed media requires a url" };
+    return {
+      ok: true,
+      value: {
+        kind: "embed",
+        url: m.url,
+        ...(nonEmptyString(m.provider) ? { provider: m.provider } : {}),
+        ...(nonEmptyString(m.embedId) ? { embedId: m.embedId } : {}),
+      },
+    };
+  }
+  if (m.kind === "image") {
+    if (!nonEmptyString(m.storageKey) || !nonEmptyString(m.url)) {
+      return { ok: false, error: "image media requires storageKey and url" };
+    }
+    return {
+      ok: true,
+      value: {
+        kind: "image",
+        storageKey: m.storageKey,
+        url: m.url,
+        ...(nonEmptyString(m.alt) ? { alt: m.alt } : {}),
+        ...(typeof m.width === "number" ? { width: m.width } : {}),
+        ...(typeof m.height === "number" ? { height: m.height } : {}),
+      },
+    };
+  }
+  return { ok: false, error: "media entry kind must be 'embed' or 'image'" };
+}
+
 // Pure guard. Never touches the DB. Returns a normalized InboxInput or a clear
 // error string (spec §7: malformed payloads are rejected, never silently dropped).
 export function validateInboxPayload(body: unknown): ValidationResult {
@@ -77,30 +118,9 @@ export function validateInboxPayload(body: unknown): ValidationResult {
   const rawMedia = Array.isArray(body.media) ? (body.media as unknown[]) : [];
   const inputMedia: InputMedia[] = [];
   for (const m of rawMedia) {
-    if (!isObject(m)) return { ok: false, error: "each media entry must be an object" };
-    if (m.kind === "embed") {
-      if (!nonEmptyString(m.url)) return { ok: false, error: "embed media requires a url" };
-      inputMedia.push({
-        kind: "embed",
-        url: m.url,
-        ...(nonEmptyString(m.provider) ? { provider: m.provider } : {}),
-        ...(nonEmptyString(m.embedId) ? { embedId: m.embedId } : {}),
-      });
-    } else if (m.kind === "image") {
-      if (!nonEmptyString(m.storageKey) || !nonEmptyString(m.url)) {
-        return { ok: false, error: "image media requires storageKey and url" };
-      }
-      inputMedia.push({
-        kind: "image",
-        storageKey: m.storageKey,
-        url: m.url,
-        ...(nonEmptyString(m.alt) ? { alt: m.alt } : {}),
-        ...(typeof m.width === "number" ? { width: m.width } : {}),
-        ...(typeof m.height === "number" ? { height: m.height } : {}),
-      });
-    } else {
-      return { ok: false, error: "media entry kind must be 'embed' or 'image'" };
-    }
+    const entry = validateMediaEntry(m);
+    if (!entry.ok) return { ok: false, error: entry.error };
+    inputMedia.push(entry.value);
   }
 
   const src = body.source as Record<string, unknown>;
