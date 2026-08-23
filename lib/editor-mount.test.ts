@@ -58,7 +58,7 @@ const { test, after } = require("node:test") as typeof import("node:test");
 // call target's declared type comes from an annotation, not an `as` cast.
 const assert: typeof import("node:assert/strict") = require("node:assert/strict");
 const { Editor } = require("@tiptap/core") as typeof import("@tiptap/core");
-const { buildEditorExtensions } = require("../components/editor/editor-extensions.js") as typeof import("../components/editor/editor-extensions.js");
+const { buildEditorExtensions, buildBlocks } = require("../components/editor/editor-extensions.js") as typeof import("../components/editor/editor-extensions.js");
 const { createElement } = require("react") as typeof import("react");
 const { renderToStaticMarkup } = require("react-dom/server") as typeof import("react-dom/server");
 const ReactMarkdown = require("react-markdown") as typeof import("react-markdown");
@@ -108,6 +108,7 @@ function makeEditor(opts: { content?: string; contentType?: "markdown"; entities
     // doc-comment in components/editor/editor-extensions.ts.
     onMenu: () => {},
     getMenu: () => null,
+    onInsertImage: () => {},
   });
   return new Editor({
     extensions,
@@ -244,5 +245,40 @@ test("5. a transaction succeeds after loading an inline image mid-paragraph (ite
   assert.doesNotThrow(() => {
     editor.commands.insertContentAt(posAfterImage, { type: "text", text: " even more" });
   });
+  editor.destroy();
+});
+
+test("6. the / menu offers Image, and running it clears the typed command and asks the host to pick a file", () => {
+  let asked = 0;
+  const blocks = buildBlocks(() => {
+    asked++;
+  });
+  const image = blocks.find((b) => b.id === "image");
+  assert.ok(image, `no image block in: ${blocks.map((b) => b.id).join(", ")}`);
+
+  const editor = makeEditor({ content: "/image", contentType: "markdown" });
+  // The suggestion range for "/image" typed at the start of the only paragraph:
+  // position 1 is inside that paragraph, before the "/".
+  image!.run(editor, { from: 1, to: 1 + "/image".length });
+
+  assert.equal(asked, 1, "running the block must ask the host to open a file picker");
+  assert.ok(
+    !editor.getText().includes("/image"),
+    `the typed command must be deleted, got: ${JSON.stringify(editor.getText())}`,
+  );
+  editor.destroy();
+});
+
+test("7. setImage inserts a node that serializes back to markdown (the /image insert path)", () => {
+  const editor = makeEditor({ content: "before", contentType: "markdown" });
+  editor.chain().focus().setImage({ src: "https://cdn/x.jpg", alt: "a cat" }).run();
+  const markdown = editor.getMarkdown();
+  assert.match(markdown, /!\[a cat\]\(https:\/\/cdn\/x\.jpg\)/);
+  // And it survives a reload — the failure mode baseExtensions' doc-comment
+  // warns about is a node that vanishes on the NEXT save, not the first.
+  const reloaded = makeEditor({ content: markdown, contentType: "markdown" });
+  assert.ok(JSON.stringify(reloaded.getJSON()).includes('"image"'));
+  assert.equal(render(reloaded.getMarkdown()), render(markdown));
+  reloaded.destroy();
   editor.destroy();
 });
