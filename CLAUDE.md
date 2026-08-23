@@ -19,12 +19,26 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
   `components/ui/native-controls.tsx` (`NativeSelect`, `NativeRadio`,
   `NativeCheckbox`) rather than the Base UI Select/RadioGroup/Checkbox
   composites, which submit through a script-populated hidden input.
-- **The prose editor is the one deliberate exception** (`components/editor/`,
+- **The prose editor is the first deliberate exception** (`components/editor/`,
   slice 5). The content forms on `/admin/sprout/[slug]`, `/admin/plant/[slug]`
   and `/admin/pod/[slug]` are client components and do not work without script.
   They still invoke the same server actions, and they are *separate forms* from
   the metadata ones on the same page — which is what keeps the exception
-  contained. Widening it to any other form is a decision, not a convenience.
+  contained.
+- **The media picker is the second** (`components/admin/media-picker.tsx`, the
+  media slice). It carries its own rule, which is what makes it an island
+  rather than a slope:
+
+  > The picker renders **nothing until it mounts**. Without script, the form
+  > around it is byte-for-byte what it was, and **no capture or edit ever
+  > depends on it**.
+
+  So the capture bar still submits without script, and a submit is never
+  blocked by an upload: an in-flight or failed image simply is not in the
+  payload. Images upload through `uploadImageAction`, never from the browser to
+  a third party, and a pasted link's `provider` is always derived server-side.
+
+  Widening this to any *further* form is a decision, not a convenience.
 
 Orientation lives in
 [`README.md`](README.md); the sequenced plan lives in
