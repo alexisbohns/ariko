@@ -18,6 +18,7 @@ import {
 import { resolveParentChoice, buildSproutInput, buildNewBean, validateSproutInput } from "@/lib/promote";
 import { buildSproutPatch, validateSproutPatch, shouldCascadePublish } from "@/lib/sprout-edit";
 import { buildContentPatch } from "@/lib/content-edit";
+import { buildMediaPatch } from "@/lib/media-edit";
 import { runSync } from "@/lib/pollen-run";
 import {
   createPod,
@@ -32,6 +33,7 @@ import {
   updateSproutContent,
   updatePlantContent,
   updatePodContent,
+  updateSproutMedia,
 } from "@/lib/botanical";
 import { uploadImage } from "@/lib/storage";
 import { checkUploadFile, uploadedFilename } from "@/lib/upload-input";
@@ -274,6 +276,25 @@ export async function editContentAction(formData: FormData): Promise<void> {
   // Dirty-gated (spec §2.5): opening a digest and saving it untouched writes
   // nothing at all, so reading can never normalize what a bee wrote.
   if (result.dirty) await updateSproutContent(slug, result.patch);
+
+  revalidatePath("/admin");
+  redirect(`/admin/sprout/${encodeURIComponent(slug)}`);
+}
+
+// A sprout's media[] — its own form, its own action, its own narrow writer.
+// Separate from BOTH the metadata form and the prose editor, which is what
+// keeps each surface's blast radius to its own fields (spec §4.4).
+export async function editSproutMediaAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+
+  const existing = await getSprout(slug);
+  if (!existing) redirect("/admin/vault");
+
+  const result = buildMediaPatch(existing, formData);
+  // Dirty-gated, same rule as editContentAction: opening a sprout and saving
+  // it untouched writes nothing at all.
+  if (result.dirty) await updateSproutMedia(slug, result.media);
 
   revalidatePath("/admin");
   redirect(`/admin/sprout/${encodeURIComponent(slug)}`);

@@ -1,5 +1,14 @@
 import { getDb } from "./db";
-import { resolveText, type Bean, type Plant, type Pod, type Sprout, type Text, type Visibility } from "./data";
+import {
+  resolveText,
+  type Bean,
+  type Media,
+  type Plant,
+  type Pod,
+  type Sprout,
+  type Text,
+  type Visibility,
+} from "./data";
 import type { SproutInput } from "./promote";
 import type { SproutPatch } from "./sprout-edit";
 import type { ContentPatch } from "./content-edit";
@@ -191,4 +200,19 @@ export function updatePlantContent(slug: string, patch: ContentPatch): Promise<v
 
 export function updatePodContent(slug: string, patch: ContentPatch): Promise<void> {
   return writeContent("pods", slug, patch);
+}
+
+/**
+ * Writes a sprout's media — and nothing else.
+ *
+ * A SIBLING of writeContent, not a widening of updateVersion. updateVersion
+ * writes `$set: { ...patch }` and its comment promises it "never touches slug /
+ * parents / media / source / content"; that promise is what makes the metadata
+ * form safe, so media gets its own narrow writer instead. `media` is named
+ * explicitly rather than spread, for the same reason writeContent names its
+ * two fields: a spread lets a widened caller reach `state` or `source`.
+ */
+export async function updateSproutMedia(slug: string, media: Media[]): Promise<void> {
+  const db = await getDb();
+  await db.collection<Sprout>("sprouts").updateOne({ slug }, { $set: { media } });
 }
