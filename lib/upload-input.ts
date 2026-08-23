@@ -20,13 +20,18 @@ export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 // Raster formats only. SVG is deliberately absent: it is an image the browser
 // executes script from, and every real capture here is a raster.
-const ALLOWED_TYPES = new Set([
+// Exported so the admin picker's file-dialog filter is this same list rather
+// than a hand-copied duplicate that can silently drift from it — add a format
+// here and the dialog offers it, in the same commit.
+export const ALLOWED_TYPES = [
   "image/png",
   "image/jpeg",
   "image/gif",
   "image/webp",
   "image/avif",
-]);
+] as const;
+
+const ALLOWED = new Set<string>(ALLOWED_TYPES);
 
 export type UploadCheck = { ok: true } | { ok: false; error: string };
 
@@ -36,7 +41,7 @@ export function checkUploadFile(file: { size: number; type: string }): UploadChe
   if (file.size > MAX_UPLOAD_BYTES) {
     return { ok: false, error: `the file is too large (max ${MAX_UPLOAD_BYTES / 1024 / 1024}MB)` };
   }
-  if (!ALLOWED_TYPES.has(file.type)) {
+  if (!ALLOWED.has(file.type)) {
     return { ok: false, error: `${file.type || "that file"} is not a supported image` };
   }
   return { ok: true };
