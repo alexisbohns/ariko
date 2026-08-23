@@ -12,11 +12,13 @@ test("parses an image entry the picker emitted", () => {
 });
 
 test("derives an embed's provider server-side from a bare entry", () => {
-  const out = parseMediaField([JSON.stringify({ kind: "embed", url: "https://youtu.be/abc123" })]);
+  const out = parseMediaField([
+    JSON.stringify({ kind: "embed", url: "https://youtu.be/dQw4w9WgXcQ" }),
+  ]);
   assert.equal(out.length, 1);
   if (out[0].kind === "embed") {
     assert.equal(out[0].provider, "youtube");
-    assert.equal(out[0].embedId, "abc123");
+    assert.equal(out[0].embedId, "dQw4w9WgXcQ");
   }
 });
 

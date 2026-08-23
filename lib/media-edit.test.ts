@@ -48,11 +48,14 @@ test("editing alt text is a change", () => {
 });
 
 test("a newly added bare link gets its provider derived server-side", () => {
-  const result = buildMediaPatch({ media: [] }, formOf([{ kind: "embed", url: "https://youtu.be/abc123" }]));
+  const result = buildMediaPatch(
+    { media: [] },
+    formOf([{ kind: "embed", url: "https://youtu.be/dQw4w9WgXcQ" }]),
+  );
   assert.equal(result.dirty, true);
   if (result.dirty && result.media[0].kind === "embed") {
     assert.equal(result.media[0].provider, "youtube");
-    assert.equal(result.media[0].embedId, "abc123");
+    assert.equal(result.media[0].embedId, "dQw4w9WgXcQ");
   }
 });
 

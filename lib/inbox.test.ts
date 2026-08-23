@@ -50,11 +50,11 @@ test("carries body, content, suggested, and source fields through", () => {
 });
 
 test("normalizeMedia fills provider for a bare embed via detection", () => {
-  const out = normalizeMedia([{ kind: "embed", url: "https://youtu.be/abc123" }]);
+  const out = normalizeMedia([{ kind: "embed", url: "https://youtu.be/dQw4w9WgXcQ" }]);
   assert.equal(out[0].kind, "embed");
   if (out[0].kind === "embed") {
     assert.equal(out[0].provider, "youtube");
-    assert.equal(out[0].embedId, "abc123");
+    assert.equal(out[0].embedId, "dQw4w9WgXcQ");
   }
 });
 
