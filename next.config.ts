@@ -8,6 +8,13 @@ const nextConfig: NextConfig = {
     // Slice 4: the timeline is the beanstalk — the cosmology reaches the URL.
     { source: "/timeline", destination: "/beanstalk", permanent: true },
   ],
+  // Server actions default to a 1MB request body; uploadImageAction carries an
+  // image. Kept in step with lib/upload-input.ts's MAX_UPLOAD_BYTES, and
+  // bounded by Vercel's own 4.5MB platform ceiling, which applies to a route
+  // handler and a server action alike.
+  experimental: {
+    serverActions: { bodySizeLimit: "4mb" },
+  },
 };
 
 export default nextConfig;

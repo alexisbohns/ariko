@@ -7,7 +7,14 @@ import { buildSeedBody } from "@/lib/seed-form";
 import { validateInboxPayload } from "@/lib/inbox";
 import { createOrUpdateSeed, getSeed, markSeedPromoted, discardSeed } from "@/lib/seeds";
 import { loadRawGarden } from "@/lib/store";
-import { publishCascade, unpublishCascade, unpublishCascadeForBeans, PLANT_PREFIX, POD_PREFIX } from "@/lib/data";
+import {
+  publishCascade,
+  unpublishCascade,
+  unpublishCascadeForBeans,
+  PLANT_PREFIX,
+  POD_PREFIX,
+  type MediaImage,
+} from "@/lib/data";
 import { resolveParentChoice, buildSproutInput, buildNewBean, validateSproutInput } from "@/lib/promote";
 import { buildSproutPatch, validateSproutPatch, shouldCascadePublish } from "@/lib/sprout-edit";
 import { buildContentPatch } from "@/lib/content-edit";
@@ -26,6 +33,8 @@ import {
   updatePlantContent,
   updatePodContent,
 } from "@/lib/botanical";
+import { uploadImage } from "@/lib/storage";
+import { checkUploadFile } from "@/lib/upload-input";
 import {
   requireSession,
   setSessionCookie,
@@ -315,4 +324,38 @@ export async function syncNowAction(): Promise<void> {
       ? `/admin/beanstalk?error=${encodeURIComponent(failed.map((f) => `${f.feedId}: ${f.error ?? "unknown"}`).join(" · "))}`
       : "/admin/beanstalk",
   );
+}
+
+export type UploadResult = { ok: true; media: MediaImage } | { ok: false; error: string };
+
+/**
+ * The admin's upload door (spec §4.1). Called DIRECTLY by a client component
+ * (components/admin/media-picker.tsx), not through a `<form action>`, so it
+ * RETURNS a result rather than redirecting.
+ *
+ * It never throws to the client: a Cloudinary failure becomes { ok: false },
+ * because a failed upload must not take the capture down with it. That is the
+ * same stance app/api/upload/route.ts states as "upload failure never costs a
+ * seed" — honoured here by construction, since the island uploads first and
+ * captures second.
+ *
+ * /api/upload is deliberately NOT reused: its guarantee is "bearer or nothing",
+ * and a browser cannot hold that token.
+ */
+export async function uploadImageAction(formData: FormData): Promise<UploadResult> {
+  await requireSession();
+
+  const file = formData.get("file");
+  if (!(file instanceof Blob)) return { ok: false, error: "no file was sent" };
+
+  const check = checkUploadFile({ size: file.size, type: file.type });
+  if (!check.ok) return { ok: false, error: check.error };
+
+  const filename = typeof (file as File).name === "string" ? (file as File).name : undefined;
+  try {
+    const media = await uploadImage(Buffer.from(await file.arrayBuffer()), filename);
+    return { ok: true, media };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "upload failed" };
+  }
 }
