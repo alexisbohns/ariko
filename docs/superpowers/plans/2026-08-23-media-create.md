@@ -135,6 +135,11 @@ export function checkUploadFile(file: { size: number; type: string }): UploadChe
 }
 ```
 
+> **Amended during execution.** `MAX_UPLOAD_BYTES`'s comment above says it "matches"
+> `next.config.ts`'s `serverActions.bodySizeLimit`. It must not — see Task 5 Step 6. The
+> shipped comment instead records that the config sits deliberately *above* this constant,
+> and that this module must stay dependency-free because the config imports it.
+
 - [ ] **Step 4: Run the test and confirm it passes**
 
 Run: `node --import tsx --test lib/upload-input.test.ts`
@@ -637,27 +642,73 @@ export async function uploadImageAction(formData: FormData): Promise<UploadResul
 
 - [ ] **Step 6: Raise the server-action body limit**
 
-In `next.config.ts`, add to `nextConfig`:
+> **Amended during execution.** This step originally specified `bodySizeLimit: "4mb"`, which
+> code review showed was wrong: Next parses `"4mb"` as exactly 4,194,304 bytes — *equal* to
+> `MAX_UPLOAD_BYTES` — but the limit bounds the whole multipart body (boundaries, headers,
+> framing), so a file of exactly `MAX_UPLOAD_BYTES` produced a body over the limit and was
+> killed by the platform with the opaque 413 the guard exists to prevent, while
+> `lib/upload-input.test.ts` explicitly asserts that file is accepted. The limit must sit
+> *above* the guard so the guard always binds first.
+
+In `next.config.ts`, add the import and the config:
+
+```ts
+import { MAX_UPLOAD_BYTES } from "./lib/upload-input";
+```
 
 ```ts
   // Server actions default to a 1MB request body; uploadImageAction carries an
-  // image. Kept in step with lib/upload-input.ts's MAX_UPLOAD_BYTES, and
-  // bounded by Vercel's own 4.5MB platform ceiling, which applies to a route
-  // handler and a server action alike.
+  // image. This is deliberately ABOVE lib/upload-input.ts's MAX_UPLOAD_BYTES
+  // rather than equal to it: bodySizeLimit bounds the WHOLE multipart body
+  // (boundaries, Content-Disposition headers, field framing), so a file of
+  // exactly MAX_UPLOAD_BYTES yields a body slightly larger than that. Equal
+  // limits would let the platform reject — with an opaque 413, before the
+  // action runs — a file checkUploadFile explicitly accepts, which is the very
+  // failure that guard exists to prevent. The headroom keeps the app-level
+  // guard the binding constraint. Still well under Vercel's own 4.5MB ceiling,
+  // which applies to a route handler and a server action alike.
   experimental: {
-    serverActions: { bodySizeLimit: "4mb" },
+    serverActions: { bodySizeLimit: MAX_UPLOAD_BYTES + 64 * 1024 },
   },
 ```
 
-- [ ] **Step 7: Typecheck**
+**Verified during execution:** Next's config loader *does* resolve a relative import of a
+project `lib/` module at config-load time. In exchange, `lib/upload-input.ts` must stay
+dependency-free — an import needing a server runtime or an env var would stop the config
+loading in every environment at once. A comment in that file records the constraint.
+
+- [ ] **Step 7: Consolidate the filename recovery**
+
+> **Added during execution**, on review: `typeof (file as File).name === "string" ? … : undefined`
+> was duplicated verbatim at both doors, in the one slice whose `lib/upload-input.ts` exists
+> precisely to be what both doors share.
+
+Add to `lib/upload-input.ts` and use at both call sites:
+
+```ts
+// A Blob has no name; a File does. Both doors receive `Blob` from FormData and
+// need the original filename when it is there — recovered in one place so the
+// cast lives once rather than at each door.
+export function uploadedFilename(file: Blob): string | undefined {
+  const name = (file as File).name;
+  return typeof name === "string" && name.length > 0 ? name : undefined;
+}
+```
+
+Test it in `lib/upload-input.test.ts`: a `File` returns its name, a bare `Blob` returns
+`undefined`, an empty name returns `undefined`. (The `length > 0` condition is new; it is a
+no-op at both doors, since `uploadOptions` already gated on a truthy filename — it just makes
+the helper's contract match its declared return type at the source.)
+
+- [ ] **Step 8: Typecheck**
 
 Run: `npm run build`
 Expected: compiles with no type errors. (If `CLOUDINARY_URL` is unset the build still succeeds — nothing uploads at build time.)
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add app/admin/actions.ts app/api/upload/route.ts next.config.ts lib/upload-route.test.ts
+git add app/admin/actions.ts app/api/upload/route.ts next.config.ts lib/upload-input.ts lib/upload-input.test.ts lib/upload-route.test.ts
 git commit -m "Media: the admin upload action, and a size/type guard on the machine door"
 ```
 

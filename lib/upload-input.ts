@@ -1,6 +1,13 @@
 // The one size/type guard for image uploads, shared by both doors: the admin's
 // uploadImageAction (app/admin/actions.ts) and the machine route
 // (app/api/upload/route.ts), which had no size check at all before this.
+//
+// KEEP THIS MODULE DEPENDENCY-FREE. next.config.ts imports MAX_UPLOAD_BYTES
+// from here, so anything this file pulls in is loaded while Next reads its
+// config — before the app exists. An import that needs a server runtime,
+// `server-only`, or an environment variable would stop the config from loading
+// AT ALL, in every environment at once, which is a far worse failure than the
+// one the constant below prevents. Constants and pure functions only.
 
 // next.config.ts's serverActions.bodySizeLimit is set ABOVE this, deliberately
 // — it bounds the whole multipart body (boundaries, headers, framing), not

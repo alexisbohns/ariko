@@ -583,7 +583,20 @@ import { EMBED_FRAME_HOSTS } from "./lib/embed-src";
 - [ ] **Step 2: Verify the config compiles and the header ships**
 
 Run: `npm run build`
-Expected: build succeeds. If Next cannot resolve the `./lib/embed-src` import from `next.config.ts`, that is the one risk in this task — `lib/embed-src.ts` has type-only imports and no runtime dependencies specifically so it can be imported here. If it still fails, move `EMBED_FRAME_HOSTS` into its own `lib/embed-hosts.ts` (no imports at all), have `lib/embed-src.ts` re-export it, and import that from the config instead. Do **not** hand-copy the list.
+Expected: build succeeds.
+
+> **De-risked during PR1.** This step originally carried a caveat that Next might not resolve a
+> relative import of a project `lib/` module from `next.config.ts`. **It does** — PR1's Task 5
+> ships exactly that pattern (`import { MAX_UPLOAD_BYTES } from "./lib/upload-input"`) with a
+> clean `npm run build`. The `lib/embed-hosts.ts` fallback is therefore not needed.
+>
+> The cost of that pattern is a constraint, and it applies here too: **`lib/embed-src.ts` must
+> stay dependency-free.** Anything it imports is loaded while Next reads its config, before the
+> app exists, so an import needing a server runtime, `server-only`, or an env var would stop the
+> config loading in *every* environment at once. Type-only imports are fine. Record the
+> constraint in a comment at the top of the file, as `lib/upload-input.ts` does.
+
+Either way: do **not** hand-copy the host list into the config. The whole point is that the CSP and the URL table cannot drift.
 
 - [ ] **Step 3: Confirm the header at runtime**
 
