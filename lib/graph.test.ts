@@ -495,3 +495,141 @@ test("a public bee's description is emitted too", () => {
   assert.equal(nodes[0].description, "what it does");
   assert.equal("levers" in nodes[0], false, "levers must not leak into the node");
 });
+
+test("a bean node carries the cover derived from its newest sprout with an image", () => {
+  const graph = toGraph({
+    beans: [{ slug: "b", name: "B", parents: [] }],
+    sprouts: [
+      { slug: "newer", name: "N", type: "t", date: "2026-06-01", description: "", parents: ["bean:b"] },
+      {
+        slug: "older",
+        name: "O",
+        type: "t",
+        date: "2026-01-01",
+        description: "",
+        parents: ["bean:b"],
+        media: [
+          { kind: "image", storageKey: "k", url: "https://cdn/x.jpg", alt: "a cat", width: 8, height: 6 },
+        ],
+      },
+    ],
+  });
+  const bean = graph.nodes.find((n) => n.id === "bean:b");
+  assert.deepEqual(bean?.cover, { url: "https://cdn/x.jpg", alt: "a cat", width: 8, height: 6 });
+});
+
+// storageKey is a Cloudinary-internal id with no meaning to a consumer, so the
+// public payload is a narrowed view rather than the whole MediaImage.
+test("the graph's cover omits storageKey", () => {
+  const graph = toGraph({
+    beans: [{ slug: "b", name: "B", parents: [] }],
+    sprouts: [
+      {
+        slug: "s",
+        name: "S",
+        type: "t",
+        date: "2026-01-01",
+        description: "",
+        parents: ["bean:b"],
+        media: [{ kind: "image", storageKey: "secret", url: "https://cdn/x.jpg" }],
+      },
+    ],
+  });
+  const bean = graph.nodes.find((n) => n.id === "bean:b");
+  assert.deepEqual(bean?.cover, { url: "https://cdn/x.jpg" });
+  assert.equal(JSON.stringify(graph).includes("secret"), false);
+});
+
+// The one cover consumer that cannot vet its own sink: /api/graph hands this
+// URL to an unknown client renderer, which may put it in an href. A stored
+// media URL is never scheme-checked on the way in (lib/inbox.ts, spec §3), so
+// this boundary is the first place it could be.
+test("a cover whose URL is not http(s) is not emitted at all", () => {
+  const withCover = (url: string) =>
+    toGraph({
+      beans: [{ slug: "b", name: "B", parents: [] }],
+      sprouts: [
+        {
+          slug: "s",
+          name: "S",
+          type: "t",
+          date: "2026-01-01",
+          description: "",
+          parents: ["bean:b"],
+          media: [{ kind: "image", storageKey: "k", url }],
+        },
+      ],
+    }).nodes.find((n) => n.id === "bean:b")?.cover;
+
+  for (const url of [
+    "javascript:alert(1)",
+    "JavaScript:alert(1)",
+    "data:text/html,<script>1</script>",
+    "not a url",
+    "",
+  ]) {
+    assert.equal(withCover(url), undefined, `a ${url || "blank"} cover must not reach the payload`);
+  }
+
+  // Non-vacuous, and the guard must not be over-eager either.
+  assert.deepEqual(withCover("https://cdn/x.jpg"), { url: "https://cdn/x.jpg" });
+  assert.deepEqual(withCover("http://cdn/x.jpg"), { url: "http://cdn/x.jpg" });
+});
+
+test("a bean with no images emits no cover key", () => {
+  const graph = toGraph({ beans: [{ slug: "b", name: "B", parents: [] }] });
+  const bean = graph.nodes.find((n) => n.id === "bean:b");
+  assert.ok(bean);
+  assert.ok(!("cover" in bean!));
+});
+
+test("non-bean nodes never carry a cover", () => {
+  const graph = toGraph({
+    plants: [{ slug: "p", name: "P", natures: ["work"], description: "" }],
+    beans: [{ slug: "b", name: "B", parents: ["plant:p"] }],
+    sprouts: [
+      {
+        slug: "s",
+        name: "S",
+        type: "t",
+        date: "2026-01-01",
+        description: "",
+        parents: ["bean:b"],
+        media: [{ kind: "image", storageKey: "k", url: "https://cdn/x.jpg" }],
+      },
+    ],
+  });
+  assert.ok(!("cover" in graph.nodes.find((n) => n.id === "plant:p")!));
+  assert.ok(!("cover" in graph.nodes.find((n) => n.id === "sprout:s")!));
+});
+
+// toGraph works from a RawGarden, so it must establish newest-first ordering
+// itself — coverFor's contract depends on it, and a RawGarden's sprouts[] is
+// in whatever order the database returned.
+test("the cover follows sprout DATE, not the order sprouts appear in the raw garden", () => {
+  const graph = toGraph({
+    beans: [{ slug: "b", name: "B", parents: [] }],
+    sprouts: [
+      {
+        slug: "older",
+        name: "O",
+        type: "t",
+        date: "2020-01-01",
+        description: "",
+        parents: ["bean:b"],
+        media: [{ kind: "image", storageKey: "old", url: "https://cdn/old.jpg" }],
+      },
+      {
+        slug: "newer",
+        name: "N",
+        type: "t",
+        date: "2026-01-01",
+        description: "",
+        parents: ["bean:b"],
+        media: [{ kind: "image", storageKey: "new", url: "https://cdn/new.jpg" }],
+      },
+    ],
+  });
+  const bean = graph.nodes.find((n) => n.id === "bean:b");
+  assert.equal(bean?.cover?.url, "https://cdn/new.jpg");
+});

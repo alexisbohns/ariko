@@ -1,7 +1,9 @@
 import {
   BEAN_PREFIX, BEE_PREFIX, PLANT_PREFIX, POD_PREFIX, SPROUT_PREFIX,
-  parentsWithPrefix, resolveText, type PlantNature, type RawGarden, type Text,
+  byDateDesc, parentsWithPrefix, resolveText, type PlantNature, type RawGarden, type Sprout, type Text,
 } from "./data";
+import { coverFor } from "./cover";
+import { isHttpUrl } from "./url";
 
 // Graph projection of a RawGarden (roadmap G1) — the graph playground's data
 // contract. Projection-agnostic: serializes whatever seed it is given, so the
@@ -15,6 +17,21 @@ export interface GraphNode {
   kind: "plant" | "pod" | "bean" | "sprout" | "bee";
   name: string; // resolved at serialization time (B1)
   description?: string; // resolved (B1); emitted only when non-blank (slice 2)
+  // Beans only, derived (lib/cover.ts) — G1's withheld-media note pointed here.
+  // A NARROWED view of the MediaImage: storageKey is a Cloudinary-internal id
+  // with no meaning to a consumer, so it stays out of the public payload.
+  // `url` is scheme-vetted (see beanCover); the rest is passed through.
+  //
+  // What a consumer should do with `alt`, since this repo's own two cover
+  // renderers deliberately discard it (spec §5.4): a cover is not announced
+  // where the entity's NAME sits beside it — which, in a graph, is always: the
+  // node carries `name` in this same payload, and announcing the cover would
+  // say the same destination twice. Render `alt=""` there. It is kept on the
+  // wire because the payload is the whole contract — there is no second fetch —
+  // and a consumer that shows the image ALONE and enlarged (a detail panel, a
+  // lightbox) is no longer showing a cover, and should use the author's words.
+  // Absent means the author wrote none: `alt=""`, never a fabricated sentence.
+  cover?: { url: string; alt?: string; width?: number; height?: number };
   natures?: PlantNature[]; // plants only
   type?: string; // sprouts (sprout.type) and bees (bee.kind)
   date?: string; // sprouts only
@@ -33,9 +50,10 @@ export interface Graph {
   edges: GraphEdge[];
 }
 
-// Node payload stays minimal apart from description (slice 2 — the route
-// composes filterPublic, so a serialized node is already public HTML): no
-// content/media/source/levers/serves. tags and description only when non-empty. Edges: containment derived from parents[] (plant→pod,
+// Node payload stays minimal apart from description (slice 2) and, for beans,
+// a derived cover (media slice — the route composes filterPublic, so a
+// serialized node is already public HTML): no content/raw media/source/
+// levers/serves. tags and description only when non-empty. Edges: containment derived from parents[] (plant→pod,
 // plant→bean, pod→bean, bean→sprout), then relation edges — plant relations,
 // sprout relations (G2) with their kinds passed through, then bee serves —
 // every edge emitted only when BOTH ends exist as nodes in the given seed
@@ -52,12 +70,53 @@ export function toGraph(raw: RawGarden): Graph {
   const sprouts = raw.sprouts ?? [];
   const bees = raw.bees ?? [];
 
+  // Sprouts per bean, newest-first — the same ordering buildDataset guarantees
+  // (byDateDesc, exported from lib/data.ts for exactly this), because that is
+  // the ordering coverFor documents that it expects. toGraph serializes a
+  // RawGarden and has no Dataset to borrow it from.
+  const sproutsByBean = new Map<string, Sprout[]>();
+  for (const sprout of sprouts) {
+    for (const slug of parentsWithPrefix(sprout.parents, BEAN_PREFIX)) {
+      const list = sproutsByBean.get(slug) ?? [];
+      list.push(sprout);
+      sproutsByBean.set(slug, list);
+    }
+  }
+  for (const list of sproutsByBean.values()) list.sort(byDateDesc);
+
+  const beanCover = (slug: string): Pick<GraphNode, "cover"> => {
+    const cover = coverFor(sproutsByBean.get(slug) ?? []);
+    // Scheme-vetted HERE, unlike the two HTML consumers of the same cover.
+    // They render an <img src>, which is a fetch sink where a hostile scheme
+    // can only fail to paint. This payload leaves for an unknown client
+    // renderer — D1's graph playground is the intended one — which may put the
+    // URL in an href, a CSS url(), or anywhere else. A JSON boundary cannot
+    // vet its consumer's sink, so it vets the value: a cover whose scheme is
+    // not http(s) is simply not emitted, exactly like a bean with no image.
+    // (A stored URL is never scheme-checked on the way in — lib/inbox.ts,
+    // spec §3 — so this is the first place it could be.)
+    if (!cover || !isHttpUrl(cover.url)) return {};
+    return {
+      cover: {
+        url: cover.url,
+        ...(cover.alt ? { alt: cover.alt } : {}),
+        ...(typeof cover.width === "number" ? { width: cover.width } : {}),
+        ...(typeof cover.height === "number" ? { height: cover.height } : {}),
+      },
+    };
+  };
+
   const nodes: GraphNode[] = [
     ...plants.map((p) =>
       decorate({ id: PLANT_PREFIX + p.slug, kind: "plant" as const, name: resolveText(p.name), natures: p.natures }, p),
     ),
     ...pods.map((m) => decorate({ id: POD_PREFIX + m.slug, kind: "pod" as const, name: resolveText(m.name) }, m)),
-    ...beans.map((a) => decorate({ id: BEAN_PREFIX + a.slug, kind: "bean" as const, name: resolveText(a.name) }, a)),
+    ...beans.map((a) =>
+      decorate(
+        { id: BEAN_PREFIX + a.slug, kind: "bean" as const, name: resolveText(a.name), ...beanCover(a.slug) },
+        a,
+      ),
+    ),
     ...sprouts.map((v) =>
       decorate(
         { id: SPROUT_PREFIX + v.slug, kind: "sprout" as const, name: resolveText(v.name), type: v.type, date: v.date },

@@ -313,8 +313,39 @@ detection while leaving the fourth open would lock the front door and leave the 
    (`hostname.includes("youtu.be")`). It uses the hardened helper.
 3. **`:36`** — `vimeoId()` regexes the **whole URL** (`/vimeo\.com\/(\d+)/`), so it can lift an id
    out of a query string, and it returns the wrong id for
-   `vimeo.com/channels/staffpicks/123456`. Replaced with: parse the URL, take the first numeric
-   **path segment**.
+   `vimeo.com/channels/staffpicks/123456`. Replaced with: parse the URL, split the path, and
+   **anchor on the `video`/`videos` segment** — the id is the numeric segment immediately after
+   it. Absent that keyword, the id is the **first** numeric segment.
+
+   *Amended twice during implementation.* What shipped is the **third** attempt at replacing the
+   regex, and the two rejected ones are recorded here because each looked right until a share form
+   disproved it:
+
+   - **A regex over the whole URL** — what was there before this slice. Not positional at all, so
+     it could lift an id out of a query string.
+   - **The first numeric path segment.** Vimeo nests the video under a collection in
+     `/showcase/{id}/video/{id}`, `/groups/{id}/videos/{id}` and `/album/{id}/video/{id}`, where
+     the collection's id comes first — so this embeds the collection, not the video.
+   - **The last numeric path segment.** Fixes the collection forms and breaks the unlisted-share
+     form `vimeo.com/{id}/{hash}`, whose privacy hash is routinely all digits — so this embeds the
+     hash. Same for the review form `vimeo.com/{user}/review/{id}/{hash}`.
+   - **The keyword anchor with a first-numeric fallback** — shipped. Correct for all six known
+     forms: bare, channel, showcase, groups, unlisted, review.
+
+   An earlier version of this amendment asserted that "the last segment is correct for every form",
+   and the plan's test pinned it. That was wrong — and it was wrong in the very note written to
+   record that *a test pinning wrong behaviour is worse than no test, because it ships the bug
+   labelled as intended*. Anyone reconciling code to spec from that sentence would have put the
+   unlisted-hash bug back. **The paragraph above describes `lib/embeds.ts` as it actually stands;
+   re-read the function before trusting any prose about it, including this.**
+
+   **Known miss, stated at its real width.** Absent the keyword, *any* numeric segment sitting
+   before the id wins — an all-numeric channel slug (`vimeo.com/channels/12345/67890`), and equally
+   `vimeo.com/12345/review/678/90`, which is one of the very forms the fallback exists to serve.
+   What keeps it harmless is a platform convention rather than anything structural here: Vimeo
+   usernames are `user12345678`, never bare digits. Left documented rather than closed, because
+   every miss in this function fails to a *wrong video on an allowlisted host* — never to an
+   unsafe one.
 
 And in `lib/inbox.ts`:
 
@@ -333,10 +364,20 @@ And in `lib/inbox.ts`:
 ### 5.2 `lib/embed-src.ts`
 
 Pure and table-driven. `embedSrc(media: MediaEmbed): { src: string; title: string; aspect: "video"
-| "audio" } | null`, plus an exported `EMBED_FRAME_HOSTS`. `aspect` drives the frame box only —
-`"video"` is 16:9, `"audio"` is a fixed short height, because an audio player that is 16:9 is mostly
-empty space. `title` is the iframe's accessible name (`"<provider> player"`), not a fetched title:
-nothing here makes a network call.
+| "audio" | "audio-list" } | null`, plus an exported `EMBED_FRAME_HOSTS`. `title` is the iframe's
+accessible name (`"<provider> player"`), not a fetched title: nothing here makes a network call.
+
+`aspect` drives the frame box only. *Amended during implementation:* it originally had two values,
+which clips real content. The providers' own widgets render a list far taller than a single item —
+Spotify 152px for a track or episode against 352px for an album, playlist, show or artist;
+SoundCloud 166px for a track against 450px for a set; Deezer ~150px against ~350px, where it draws
+a scrollable tracklist. A 352px widget in a 152px box loses part of itself, so the third value is
+not cosmetic.
+
+It is decided in `embedSrc` because that is the only place the media's *type* is known —
+`typeAndId` already parses it, and by the time `components/media.tsx` holds a frame the type is
+gone. Where the type cannot be determined, prefer the taller value: clipping loses content, padding
+only loses whitespace.
 
 | provider | iframe src | basis |
 |---|---|---|
@@ -371,7 +412,22 @@ The header is **built from `EMBED_FRAME_HOSTS`**, imported from `lib/embed-src.t
 type-only imports and no runtime dependencies), so the allowlist and the src table cannot drift. A
 test asserts every host `embedSrc` can emit is in the list.
 
-`frame-ancestors` is a different concern (clickjacking) and is not addressed here.
+**What this does NOT do**, recorded so the limitation is a decision rather than something a later
+reader assumes away. The policy carries `frame-src` and `object-src` and nothing else, so it does
+not restrict scripts (`script-src` — this is no defence against XSS), network destinations
+(`connect-src` — no exfiltration protection), images, styles or fonts, the base tag (`base-uri`),
+or form targets (`form-action`). It also does not carry `frame-ancestors`: that governs whether
+*Ariko* can be framed by someone else's page — clickjacking — which is a different concern from
+what Ariko may frame, and is not addressed here.
+
+The one thing it does do, it does properly: it hardens the single new attack surface this slice
+introduces. Widening it into a full policy means nonces for Next's inline scripts and is its own
+project.
+
+A build-time caveat worth naming: `lib/embed-src.test.ts` keeps the allowlist honest against
+`embedSrc`'s own table, but that is a *test-time* guarantee. The browser only enforces the list as
+written — nothing stops someone widening `EMBED_FRAME_HOSTS` carelessly, and the CSP would then
+permit exactly what they added.
 
 ### 5.4 Rendering
 
@@ -383,13 +439,76 @@ test asserts every host `embedSrc` can emit is in the list.
   gain at this stage.
 - **embed with a src** → `<iframe>` in an aspect box, `loading="lazy"`,
   `referrerPolicy="strict-origin-when-cross-origin"`, `allowFullScreen`.
-- **anything else** → a link card: provider badge, hostname, `rel="noopener noreferrer"`.
+- **anything else** → a link card. The badge is suppressed for the `link` provider (a badge reading
+  "link" is a category name carrying no information, and it is the commonest case), leaving the
+  hostname as the label; named providers keep a title-cased badge. `rel="noopener noreferrer"`, and
+  a visually-hidden "(opens in a new tab)" — this is the public zone's first `target="_blank"`.
+  A URL whose scheme is not `http(s)` renders the same card *without* an anchor: React 19 does
+  sanitize `javascript:` hrefs, but that is React's guarantee to withdraw rather than ours to rely
+  on, and `lib/inbox.ts` deliberately does not scheme-check on the way in.
+
+  **Deferred, and worth naming as a decision:** the hostname alone is a weak label. Two links to
+  different work on the same host render as *identical* cards — ambiguity, not merely vagueness,
+  and it worsens as a portfolio's outbound links cluster on a few hosts. Every fix available at
+  render time (full URL, truncated path, de-slugged last segment) is a heuristic reconstructing
+  meaning the author already had. The real answer is an optional `title` on `MediaEmbed`, captured
+  in the picker — the same shape as the alt-text marker: record the meaning where the author is,
+  rather than guess it where the reader is. Not built, because production holds exactly one link
+  embed and this spec's own rule is to defer until authoring demands it.
+
+  **No lucide in the public zone.** `lucide-react@1.33` routes every icon through an `Icon.mjs`
+  carrying `"use client"`, so a single icon would push a client boundary into a zone whose defining
+  rule is that it has none. Inline `<svg aria-hidden>` or a glyph instead. This governs every future
+  public server component, not only this card.
+
+**The alt policy, stated once.** Four surfaces make an alt decision, and a reader meeting them in a
+different order would think they disagree. They do not:
+
+> **A cover is never announced.** An adjacent link always carries the entity's name, so announcing
+> the image would name the same destination twice. The Directory row and the entity card both
+> render `alt=""`, and the entity card additionally declines to be a *link* at all for the same
+> reason — one destination, one announcement. The admin picker's thumbnail lands on `alt=""` by the
+> same argument from a different direction: the filename and the alt-text field sit beside it, so
+> the row already says what the image is.
+>
+> **A sprout's own media IS announced** when the author described it, and skipped when they did
+> not. `alt={alt ?? ""}` — the author's words when there are any, and otherwise the correct markup
+> for an image nobody described, never a fabricated description.
+
+The same rule governs `/api/graph`, whose bean nodes carry `cover.alt` on the wire: a graph node
+ships its `name` in the same payload, so a consumer drawing the cover beside that name is in the
+first case and should render `alt=""`. It is kept on the wire anyway, because a consumer showing
+the image *alone* and enlarged is no longer showing a cover. That contract is stated in
+`GraphNode`'s doc-comment rather than left to be inferred.
+
+**The gap this leaves is closed in the admin, not in the renderer.** An undescribed image is
+silent: `alt=""` tells a screen reader to skip it, which on a portfolio — where the image is often
+the work itself — is a small lie rather than a neutral default. No render-time change can fix that,
+because nothing downstream can invent the sentence an author never wrote. So the fix lives at the
+one moment someone can still write it: `components/admin/media-picker.tsx` puts an alt field beside
+every image and marks an empty one ("No description — screen readers will skip this image").
+Deliberately non-blocking — some images really are decorative, and a save that refuses is worse
+than a description that is missing.
 
 **Placement.** `<MediaList>` renders inside each sprout's existing card on `/bean/[id]`, under the
 property dump. One location, no duplication, and no layout bet that D1 would overturn — the dump is
 documented (umbrella §4) as staying "until the exhibition slice retires it deliberately", so media
 belongs beside it for now. PR1's admin media card is already B3's "render `media[]` in the editor"
 half; nothing there is left owing.
+
+**Two things this placement produces, seen once it was real — both for D1, not for this slice.**
+
+*Media can end up far from the prose it belongs to.* The page renders the article above the cards,
+and `articleFor` returns the first sprout *carrying content*, while the cards render strictly
+newest-first. When the newest sprout has no content, the prose comes from an older one and
+unrelated cards sit between that prose and the media-bearing card. In the common case (the newest
+sprout has both) they are adjacent, separated only by a repeated title and the dump.
+
+*The dump and the media are tonally mismatched, once per sprout.* A card reads as a small spec
+sheet — muted key/value rows meant for internal traceability — capped with photographs meant to be
+looked at, and that repeats for every sprout with media. Nothing is broken; it is simply not what a
+portfolio page should look like, which is precisely what D1 exists to fix. Recorded so the
+exhibition slice inherits the observation rather than rediscovering it.
 
 ### 5.5 The cover
 
@@ -412,7 +531,13 @@ State is **not** re-checked, and that is deliberate: the public page passes the 
 projected dataset, so "published" is already enforced upstream (§3, Privacy). One projection, one
 place — the same stance and the same comment as `articleFor`.
 
-**Consumers:**
+**Consumers.** Three, and one deliberate non-consumer. The "Inside" lists on `/plant/[slug]` and
+`/pod/[slug]` render bean names as plain links and do **not** get a cover. That is not an oversight:
+they already omit the descriptions the Directory shows, and carry their own note — *"Mechanical
+index — an aggregation with no argument to make"*. The container page's prose makes the argument;
+the list is navigation. Covers on the Directory continue that existing asymmetry rather than
+introducing one.
+
 - `resolveEntity` gains `cover?: MediaImage` for `bean:` refs, via `dataset.sproutsForBean(slug)`.
   `EntityCard` renders a thumbnail. Plant and pod refs never carry one — those tiers have no
   `media` field (§3).
@@ -447,12 +572,24 @@ missed a defect that made the editor fail to mount on every page.
 
 | Test | Asserts |
 |---|---|
-| `lib/embeds.test.ts` *(extended)* | `vimeo.com.evil.test`, `evilvimeo.com`, `notyoutu.be` → `link`; both id-extraction fixes, including `vimeo.com/channels/staffpicks/123456` |
+| `lib/embeds.test.ts` *(extended)* | `vimeo.com.evil.test`, `evilvimeo.com`, `notyoutu.be` → `link`; both id-extraction fixes, with the Vimeo id pinned across **every** share form — bare, channel, player, showcase, groups, album, unlisted `{id}/{hash}` and review — because a positional rule got it wrong twice (§5.1) |
 | `lib/inbox.test.ts` *(extended)* | a declared `provider`/`embedId` is ignored in favour of detection (§5.1 fix 4); a declared provider that agrees with the URL is unaffected |
 | `lib/embed-src.test.ts` | one derived and one non-derived case per provider; `link` never yields a src; **every host `embedSrc` can emit is in `EMBED_FRAME_HOSTS`** |
 | `lib/cover.test.ts` | first image wins; scans past an image-less newest sprout; embeds are not covers; none → `null` |
 | `lib/entity-resolve.test.ts` *(extended)* | cover on bean refs; absent for plant/pod; absent when no image |
-| `lib/graph.test.ts` *(extended)* | `cover` present on bean nodes, absent when none |
+| `lib/graph.test.ts` *(extended)* | `cover` present on bean nodes, absent when none; **a cover whose URL is not `http(s)` is not emitted at all** — the one cover consumer that cannot vet its own sink |
+| `lib/url.test.ts` | `isHttpUrl`: http/https pass whatever else the URL carries; `javascript:`, `data:`, mixed case and a leading space are refused; a relative or protocol-relative string is refused; never throws |
+| `components/media.test.tsx` *(added after the branch review)* | the render boundary itself, driven through `MediaList`: **every iframe `src` lands on an origin in `EMBED_FRAME_HOSTS` even for forged provider/url/`embedId` rows**; a non-http URL renders no anchor; an image keeps the author's `alt` and gets `alt=""` when there is none; `link` suppresses the badge and a named provider keeps it; an empty or absent list renders nothing |
+
+**The test glob had to be widened for that last row to run at all.** `package.json` globbed
+`lib/**/*.test.ts` only, so `components/media.tsx` — the file that turns every derivation in this
+slice into HTML — was pinned by nothing, and a test written beside it would have passed silently by
+never executing. Every gate in the security argument was tested up to `lib/embed-src.ts`, and then
+the last link was not. The glob now names `components/` as well as `lib/`, and `.tsx` as well as `.ts` — four plain
+patterns rather than one brace expression, so nothing depends on how a given Node version expands
+braces; a pattern that matches nothing is not an error. `tsconfig.test.json` overrides `jsx` to the automatic runtime, because under the repo's `preserve`
+(which Next rewrites back on every build) tsx uses the classic transform and any component rendered
+from a test throws "React is not defined".
 
 **No new conformance fixtures.** `lib/markdown-conformance.test.ts:80-103` already pins `image`,
 `imageTitled`, `imageInline` and `imageInItem`. `/image` inserts that same node, so it adds no
@@ -511,8 +648,26 @@ Recorded so nothing is silently dropped:
 - **Ausha and Figma iframes** — §5.2, on stated evidence. One table row and one test each, later.
 - **Deleting a Cloudinary asset** when it is removed from `media[]`. Removal unlinks; the asset
   stays. That is also what makes removal safely undoable.
-- **`next/image` optimization** — §5.4.
+- **`next/image` optimization** — §5.4. Note this is *not* the same as leaving thumbnails
+  unoptimised: `lib/image-url.ts` rewrites a Cloudinary delivery URL to ask for a sized derivative
+  (`w_,h_,c_fill,q_auto,f_auto`), which needs no optimizer, no `images.remotePatterns`, and no new
+  dependency. Without it the Directory downloaded multi-megabyte originals to paint 40px squares —
+  the byte-to-pixel ratio `components/media.tsx` reasonably accepts for a full-size image does not
+  survive being reused for a list of thumbnails.
+
+  **Derived at render, not stored at write**, for the same reasons the cover itself is: a stored
+  thumbnail URL would need a backfill for every existing `MediaImage`, would lock in one size when
+  the two consumers already want different ones (80×80 and 1440×256 from the same original), and
+  would go stale the moment a box is resized. The transform is a URL parse and two string
+  operations — cheaper than the `Map` lookup beside it — so there is no axis on which storing it
+  wins. A non-Cloudinary URL passes through untouched, since §3 deliberately allows a hotlink.
 - **Container media.** `Plant` and `Pod` have no `media` field (`lib/data.ts` — only `Sprout:125`
   and `Seed:155` carry one). This is out of *model* scope, not merely out of slice scope.
 - **Per-media privacy.** §3: anything on a published sprout is public. Changing that is a model
   decision, not a rendering one.
+- **A cover in the editor's own entity-card preview.** The Tiptap view resolves against
+  `EntityOption`, not `ResolvedEntity`, so it would need either a widened options list (paying
+  `coverFor` for every candidate bean, not just referenced ones) or its own resolution call. Left
+  alone because the two previews already diverge deliberately: the editor renders the raw ref and a
+  dashed placeholder for unresolved refs, optimising for *is this the entity I meant* rather than
+  for fidelity to the published page. A missing thumbnail is an addition to an intentional gap.

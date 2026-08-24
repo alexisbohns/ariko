@@ -1,0 +1,41 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+
+import { isHttpUrl } from "./url";
+
+// A security predicate with two consumers in different layers
+// (components/media.tsx's href, lib/graph.ts's wire payload), so it is pinned
+// once here rather than twice through them.
+
+test("http and https pass, whatever else the URL carries", () => {
+  assert.equal(isHttpUrl("https://example.com/a?b=c#d"), true);
+  assert.equal(isHttpUrl("http://example.com"), true);
+  assert.equal(isHttpUrl("HTTPS://EXAMPLE.COM"), true, "the scheme is case-insensitive");
+  assert.equal(isHttpUrl("https://user:pw@example.com:8443/x"), true);
+});
+
+test("an executable or inline scheme is refused", () => {
+  assert.equal(isHttpUrl("javascript:alert(1)"), false);
+  // `new URL` lowercases the scheme, so a mixed-case bypass does not exist.
+  assert.equal(isHttpUrl("JaVaScRiPt:alert(1)"), false);
+  assert.equal(isHttpUrl(" javascript:alert(1)"), false, "leading space is stripped, not a bypass");
+  assert.equal(isHttpUrl("data:text/html,<script>1</script>"), false);
+  assert.equal(isHttpUrl("vbscript:msgbox(1)"), false);
+  assert.equal(isHttpUrl("blob:https://example.com/abc"), false);
+});
+
+test("anything that is not an absolute URL is refused", () => {
+  // These are the quiet ones: as an href they resolve RELATIVE to the page and
+  // navigate somewhere in-site instead of failing visibly.
+  assert.equal(isHttpUrl("/relative/path"), false);
+  assert.equal(isHttpUrl("//example.com/protocol-relative"), false);
+  assert.equal(isHttpUrl("example.com"), false);
+  assert.equal(isHttpUrl("not a url"), false);
+  assert.equal(isHttpUrl(""), false);
+});
+
+test("it never throws, whatever the stored value is", () => {
+  for (const junk of ["", "   ", "http://", "https://[", "\u0000"]) {
+    assert.doesNotThrow(() => isHttpUrl(junk));
+  }
+});

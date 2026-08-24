@@ -1,5 +1,7 @@
 import { resolveText } from "@/lib/data";
 import { getPublicDataset } from "@/lib/store";
+import { coverFor } from "@/lib/cover";
+import { cloudinaryThumb } from "@/lib/image-url";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -13,20 +15,50 @@ export default async function DirectoryPage() {
 
   const beanList = (beans: ReturnType<typeof data.beansForPod>) => (
     <ul className="flex flex-col gap-2">
-      {beans.map((bean) => (
-        <li key={bean.slug} className="flex flex-col gap-0.5">
-          <a
-            href={`/bean/${bean.slug}`}
-            className="text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-          >
-            {resolveText(bean.name)}
-          </a>
-          {/* One muted line, never markdown: descriptions are one-liners, content is not (spec §5). */}
-          {resolveText(bean.description ?? "").trim() ? (
-            <p className="text-xs text-muted-foreground/80">{resolveText(bean.description)}</p>
-          ) : null}
-        </li>
-      ))}
+      {beans.map((bean) => {
+        // sproutsForBean is newest-first (buildDataset), which is the ordering
+        // coverFor expects.
+        const cover = coverFor(data.sproutsForBean(bean.slug));
+        return (
+          <li key={bean.slug} className="flex items-start gap-3">
+            {/* A fixed-width gutter, reserved whether or not this row has a
+                cover. Most beans have none yet, and rendering the thumbnail
+                only when present pushed the text column in by 52px on rows
+                that had one and left it flush on rows that didn't — a list
+                that read as ragged rather than aligned. Reserving the slot
+                keeps the text column straight without inventing a "missing
+                image" placeholder graphic for the common no-cover case. */}
+            <div className="h-10 w-10 shrink-0">
+              {cover ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  // A 40px row painting a full-size Cloudinary original could
+                  // cost several MB per bean; cloudinaryThumb asks Cloudinary
+                  // for an already-shrunk derivative instead. 80 (not 40) so
+                  // the thumbnail stays sharp on a 2x display.
+                  src={cloudinaryThumb(cover.url, { width: 80, height: 80 })}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="h-10 w-10 rounded object-cover"
+                />
+              ) : null}
+            </div>
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <a
+                href={`/bean/${bean.slug}`}
+                className="text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+              >
+                {resolveText(bean.name)}
+              </a>
+              {/* One muted line, never markdown: descriptions are one-liners, content is not (spec §5). */}
+              {resolveText(bean.description ?? "").trim() ? (
+                <p className="text-xs text-muted-foreground/80">{resolveText(bean.description)}</p>
+              ) : null}
+            </div>
+          </li>
+        );
+      })}
     </ul>
   );
 

@@ -6,8 +6,13 @@ import { isObject, nonEmptyString, normalizeTextInput } from "./text-input";
 // ~17× under Vercel's platform limit, far above any real seed.
 export const MAX_INBOX_BODY_BYTES = 256 * 1024;
 
-// Media as it arrives in a raw JSON payload: an embed may omit `provider`
-// (we detect it), while the stored `Media` type always has one.
+// Media as it arrives in a raw JSON payload. An embed may omit `provider` and
+// `embedId` — but it may also DECLARE them, and if it does they are accepted
+// and then ignored: normalizeMedia (below) re-derives both from the URL, every
+// time, because provider decides whether something gets iframed and a provider
+// a caller can set is no trust signal. The optional fields survive here so the
+// wire format stays lenient, not because anything honours them. The stored
+// `Media` type always carries a derived provider.
 export type InputMedia =
   | { kind: "embed"; url: string; provider?: string; embedId?: string }
   | MediaImage;
@@ -47,18 +52,22 @@ function normalizeSuggestion(s: unknown): SeedSuggestion | undefined {
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
-// Fill provider for bare embeds; pass images and already-typed embeds through.
+/**
+ * Images pass through; every embed's provider is DERIVED from its URL.
+ *
+ * A declared `provider` (and `embedId`) on an incoming payload is ignored, not
+ * trusted. `provider` decides whether a URL is loaded into an iframe
+ * (lib/embed-src.ts), so a caller-settable provider would be no trust signal at
+ * all — it would let a payload claim "soundcloud" for any URL and be framed on
+ * an allowlisted host. Hardening detectEmbed's host matching (lib/embeds.ts)
+ * without closing this would lock the front door and leave the side one.
+ *
+ * The InputMedia type still carries the optional fields because that is the
+ * shape /api/inbox ACCEPTS — accepting and honouring are different things, and
+ * rejecting a payload for a field we can derive would be a needless break.
+ */
 export function normalizeMedia(media: InputMedia[]): Media[] {
-  return media.map((m) => {
-    if (m.kind === "image") return m;
-    if (!m.provider) return detectEmbed(m.url);
-    return {
-      kind: "embed",
-      provider: m.provider,
-      url: m.url,
-      ...(m.embedId ? { embedId: m.embedId } : {}),
-    };
-  });
+  return media.map((m) => (m.kind === "image" ? m : detectEmbed(m.url)));
 }
 
 export type MediaEntryResult =

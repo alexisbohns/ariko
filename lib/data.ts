@@ -197,8 +197,10 @@ export function parentsWithPrefix(parents: string[] | undefined, prefix: string)
   return (parents ?? []).filter((p) => p.startsWith(prefix)).map((p) => p.slice(prefix.length));
 }
 
-// Newest first; ties keep input order (stable sort).
-function byDateDesc(a: { date: string }, b: { date: string }): number {
+// Newest first; ties keep input order (stable sort). Exported because
+// lib/graph.ts orders a bean's sprouts the same way to derive its cover, and
+// it works from a RawGarden rather than a built Dataset.
+export function byDateDesc(a: { date: string }, b: { date: string }): number {
   return a.date < b.date ? 1 : a.date > b.date ? -1 : 0;
 }
 

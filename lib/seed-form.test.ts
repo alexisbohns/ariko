@@ -53,14 +53,14 @@ test("turns each non-blank link into a bare embed and drops blanks", () => {
 });
 
 test("output of a valid form passes validateInboxPayload with providers detected", () => {
-  const body = buildSeedBody(form([["title", "Hi"], ["link", "https://youtu.be/abc123"]]));
+  const body = buildSeedBody(form([["title", "Hi"], ["link", "https://youtu.be/dQw4w9WgXcQ"]]));
   const r = validateInboxPayload(body);
   assert.equal(r.ok, true);
   if (r.ok) {
     assert.equal(r.value.media[0].kind, "embed");
     if (r.value.media[0].kind === "embed") {
       assert.equal(r.value.media[0].provider, "youtube");
-      assert.equal(r.value.media[0].embedId, "abc123");
+      assert.equal(r.value.media[0].embedId, "dQw4w9WgXcQ");
     }
   }
 });
