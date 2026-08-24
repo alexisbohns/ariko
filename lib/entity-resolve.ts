@@ -1,4 +1,5 @@
-import { BEAN_PREFIX, PLANT_PREFIX, POD_PREFIX, resolveText, type Dataset } from "./data";
+import { BEAN_PREFIX, PLANT_PREFIX, POD_PREFIX, resolveText, type Dataset, type MediaImage } from "./data";
+import { coverFor } from "./cover";
 
 export interface ResolvedEntity {
   ref: string;
@@ -6,6 +7,12 @@ export interface ResolvedEntity {
   href: string;
   name: string;
   description?: string;
+  /**
+   * Beans only, and derived — the first image of the newest sprout that has
+   * one (lib/cover.ts). Plants and pods have no media field at all
+   * (lib/data.ts), so this is structurally absent for them, not merely unset.
+   */
+  cover?: MediaImage;
 }
 
 export type EntityResolver = (ref: string) => ResolvedEntity | null;
@@ -29,11 +36,15 @@ export function resolveEntity(dataset: Dataset, ref: string): ResolvedEntity | n
   if (!found?.doc) return null;
 
   const description = resolveText(found.doc.description ?? "").trim();
+  // sproutsForBean is already newest-first (buildDataset sorts with byDateDesc),
+  // which is the ordering coverFor documents that it expects.
+  const cover = found.kind === "bean" ? coverFor(dataset.sproutsForBean(found.doc.slug)) : null;
   return {
     ref,
     kind: found.kind,
     href: found.base + found.doc.slug,
     name: resolveText(found.doc.name),
     ...(description ? { description } : {}),
+    ...(cover ? { cover } : {}),
   };
 }

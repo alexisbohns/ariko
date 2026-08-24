@@ -23,7 +23,23 @@ export function EntityCard({
     ) : null;
   }
   return (
-    <Card className="not-prose my-4">
+    <Card className="not-prose my-4 overflow-hidden">
+      {entity.cover ? (
+        <a href={entity.href} aria-hidden="true" tabIndex={-1}>
+          {/* Decorative HERE specifically: the link below carries the
+              accessible name, so describing the image again would announce the
+              same destination twice. This is not the same as the empty alt on
+              a public MediaList image, which is a genuine gap.
+              eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={entity.cover.url}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="h-32 w-full object-cover"
+          />
+        </a>
+      ) : null}
       <CardContent className="flex flex-col gap-1 py-4">
         <a href={entity.href} className="text-sm font-medium underline-offset-4 hover:underline">
           {entity.name}
