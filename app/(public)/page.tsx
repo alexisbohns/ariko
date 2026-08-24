@@ -1,8 +1,9 @@
 import { resolveText } from "@/lib/data";
-import type { Bean, Pod } from "@/lib/data";
+import type { Bean, Plant, Pod } from "@/lib/data";
 import { getPublicDataset } from "@/lib/store";
 import { coverFor } from "@/lib/cover";
 import { roleLine } from "@/lib/plant-role";
+import { splitPlantsByStatus } from "@/lib/plant-status";
 import { cloudinaryThumb } from "@/lib/image-url";
 import { ArikoLogo } from "@/components/brand/ariko-logo";
 import { PROFANE_WOFF2_URL } from "@/app/fonts";
@@ -31,7 +32,7 @@ type Entry = {
 
 export default async function DirectoryPage() {
   const data = await getPublicDataset();
-  const plants = data.getPlants();
+  const { active, inactive } = splitPlantsByStatus(data.getPlants());
   const unrooted = data.unrootedPods();
   const standalone = data.standaloneBeans();
 
@@ -112,6 +113,63 @@ export default async function DirectoryPage() {
     </div>
   );
 
+  const plantSection = (plant: Plant) => {
+    // A bean parented to BOTH the plant and one of its pods appears in each
+    // place — multi-parent membership is by design.
+    const entries = [
+      ...data.podsForPlant(plant.slug).map(podEntry),
+      ...data.beansForPlant(plant.slug).map(beanEntry),
+    ];
+    return (
+      <section key={plant.slug} className="flex flex-col gap-5">
+        <div className={`${GUTTER} flex flex-col gap-3`}>
+          {/* The plant's mark, above its name and left-aligned to the same
+              gutter, so the logo, the title and the first card of the row all
+              share one left edge.
+
+              Absent ⇒ nothing drawn, and the title simply sits where it did
+              before. No placeholder square: a mixed gallery is briefly ragged
+              while logos are still being uploaded, where an empty frame would
+              be permanently wrong.
+
+              alt="" because it is decorative — the plant's name is the very
+              next element, and a screen reader announcing both would say it
+              twice. */}
+          {plant.logo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={cloudinaryThumb(plant.logo.url, { width: 96, height: 96 })}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="h-12 w-12 rounded-xl object-cover"
+            />
+          ) : null}
+          <div className="flex flex-col gap-2">
+            <h2 className="font-display text-3xl font-normal tracking-tight sm:text-4xl">
+              <a href={`/plant/${plant.slug}`} className="underline-offset-4 hover:underline">
+                {resolveText(plant.name)}
+              </a>
+            </h2>
+            {/* A subtitle, not a badge: a pill beside a text-4xl display
+                title reads as UI chrome interrupting the typography, where
+                a small line reads as part of the heading. `detail` stays
+                off this surface — too long for a section header. */}
+            <p className="font-heading text-xs uppercase tracking-widest text-muted-foreground">
+              {roleLine(plant.role)}
+            </p>
+            {resolveText(plant.description ?? "").trim() ? (
+              <p className="max-w-2xl text-sm text-muted-foreground">
+                {resolveText(plant.description)}
+              </p>
+            ) : null}
+          </div>
+        </div>
+        {entries.length > 0 ? cardRow(entries) : null}
+      </section>
+    );
+  };
+
   return (
     <main className="pb-20">
       {/* The display face is not bundled (it is served from Cloudinary — see
@@ -132,38 +190,30 @@ export default async function DirectoryPage() {
       </header>
 
       <div className="flex flex-col gap-14">
-        {plants.map((plant) => {
-          // A bean parented to BOTH the plant and one of its pods appears in each
-          // place — multi-parent membership is by design.
-          const entries = [
-            ...data.podsForPlant(plant.slug).map(podEntry),
-            ...data.beansForPlant(plant.slug).map(beanEntry),
-          ];
-          return (
-            <section key={plant.slug} className="flex flex-col gap-5">
-              <div className={`${GUTTER} flex flex-col gap-2`}>
-                <h2 className="font-display text-3xl font-normal tracking-tight sm:text-4xl">
-                  <a href={`/plant/${plant.slug}`} className="underline-offset-4 hover:underline">
-                    {resolveText(plant.name)}
-                  </a>
-                </h2>
-                {/* A subtitle, not a badge: a pill beside a text-4xl display
-                    title reads as UI chrome interrupting the typography, where
-                    a small line reads as part of the heading. `detail` stays
-                    off this surface — too long for a section header. */}
-                <p className="font-heading text-xs uppercase tracking-widest text-muted-foreground">
-                  {roleLine(plant.role)}
-                </p>
-                {resolveText(plant.description ?? "").trim() ? (
-                  <p className="max-w-2xl text-sm text-muted-foreground">
-                    {resolveText(plant.description)}
-                  </p>
-                ) : null}
-              </div>
-              {entries.length > 0 ? cardRow(entries) : null}
-            </section>
-          );
-        })}
+        {active.map(plantSection)}
+
+        {/* Rendered only when there is something under it — an all-active
+            garden shows no divider at all.
+
+            Separation carries the whole meaning here: the inactive plants below
+            are NOT dimmed, tagged or shrunk. Opacity would say "deprecated"
+            where the page means "finished", and finished work is still work
+            worth looking at. */}
+        {inactive.length > 0 ? (
+          <div className="flex flex-col gap-14">
+            {/* A divider, not a peer. A plant's name is the h2 rank on this
+                page, so rendering "Inactive" at font-display text-4xl would
+                make it read as loud as "Femfolk" — inverting the hierarchy the
+                split exists to create. It wears the role line's register
+                instead. */}
+            <h2
+              className={`${GUTTER} border-t pt-6 font-heading text-xs uppercase tracking-widest text-muted-foreground`}
+            >
+              Inactive
+            </h2>
+            {inactive.map(plantSection)}
+          </div>
+        ) : null}
 
         {unrooted.length > 0 || standalone.length > 0 ? (
           <section className="flex flex-col gap-5">

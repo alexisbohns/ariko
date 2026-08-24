@@ -21,6 +21,13 @@ import { buildSproutPatch, validateSproutPatch, shouldCascadePublish } from "@/l
 import { buildContentPatch } from "@/lib/content-edit";
 import { buildMediaPatch } from "@/lib/media-edit";
 import { buildPlantRolePatch, InvalidRoleKindError } from "@/lib/plant-role";
+import {
+  buildPlantMetaPatch,
+  BlankPlantNameError,
+  InvalidPlantStatusError,
+  type PlantMetaPatch,
+} from "@/lib/plant-meta";
+import { buildPlantLogoPatch } from "@/lib/plant-logo";
 import { runSync } from "@/lib/pollen-run";
 import {
   createPod,
@@ -37,6 +44,8 @@ import {
   updatePodContent,
   updateSproutMedia,
   updatePlantRole,
+  updatePlantMeta,
+  updatePlantLogo,
 } from "@/lib/botanical";
 import { uploadImage } from "@/lib/storage";
 import { checkUploadFile, uploadedFilename } from "@/lib/upload-input";
@@ -371,6 +380,71 @@ export async function editPlantRoleAction(formData: FormData): Promise<void> {
   // The role renders on the landing gallery and the plant page, both
   // force-dynamic — nothing to revalidate there, they re-read on next request.
   redirect(back);
+}
+
+/**
+ * The plant's name, description and status — and nothing else.
+ *
+ * A third narrow write on the plant page, beside the role and the narrative.
+ * Zero-client-JS, so this is reachable from a browser with script disabled and
+ * must behave correctly there.
+ *
+ * Both builder failures redirect with an error rather than defaulting, the
+ * stance editPlantRoleAction takes: a nameless plant and a mis-stated status
+ * are public claims the site would otherwise render as though authored.
+ */
+export async function editPlantMetaAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+
+  // Existence first, so the error redirect below can only ever target a real
+  // page and can only interpolate a known-good stored slug.
+  const raw = await loadRawGarden();
+  const existing = raw.plants?.find((p) => p.slug === slug);
+  if (!existing) redirect("/admin/garden");
+
+  const back = `/admin/plant/${encodeURIComponent(slug)}`;
+  let patch: PlantMetaPatch;
+  try {
+    patch = buildPlantMetaPatch(formData);
+  } catch (err) {
+    if (!(err instanceof BlankPlantNameError) && !(err instanceof InvalidPlantStatusError)) throw err;
+    redirect(`${back}?error=${encodeURIComponent(`could not save: ${err.message}`)}`);
+  }
+
+  await updatePlantMeta(slug, patch);
+
+  revalidatePath("/admin");
+  // /admin/garden tabulates name and status, so it is stale after this write
+  // in a way /admin/plant/[slug] (force-dynamic) is not. The public landing and
+  // plant page are force-dynamic too — they re-read on the next request.
+  revalidatePath("/admin/garden");
+  redirect(back);
+}
+
+/**
+ * The plant's logo — and nothing else.
+ *
+ * The one client-island write on this page. Its form is nothing BUT the picker,
+ * so the picker renders the submit button (`submitLabel`) and script-off there
+ * is no button at all — the card is inert rather than destructive, which is the
+ * rule CLAUDE.md states. buildPlantLogoPatch enforces the same thing server-side
+ * for a POST that never rendered a button.
+ */
+export async function editPlantLogoAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+
+  const raw = await loadRawGarden();
+  const existing = raw.plants?.find((p) => p.slug === slug);
+  if (!existing) redirect("/admin/garden");
+
+  const result = buildPlantLogoPatch(existing, formData);
+  if (result.dirty) await updatePlantLogo(slug, result.logo);
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/garden");
+  redirect(`/admin/plant/${encodeURIComponent(slug)}`);
 }
 
 // Manual pull of every configured feed — same core the cron Action calls.
