@@ -482,6 +482,17 @@ import type { MediaEmbed } from "./data";
  * SAFETY: this trusts `media.provider`, which is exactly why lib/embeds.ts
  * matches hosts exactly and lib/inbox.ts derives the provider from the URL
  * rather than accepting a declared one. Those two are this file's premise.
+ *
+ * AMENDED after the branch review, and the shipped comment says so instead:
+ * they are NOT this file's premise for origin safety. Every case here either
+ * reduces the URL to a validated id or re-verifies the host, and the origin is
+ * a literal in every branch — so a forged provider/url/embedId triple yields
+ * the wrong content on an allowlisted origin, never an unallowlisted one. The
+ * two upstream files buy CORRECTNESS (the right video, the right badge). The
+ * distinction matters because rows written before this slice are not
+ * re-normalized on read and there is no migration, so "the trust is worthless
+ * without them" implied a residual risk in that population that does not
+ * exist.
  */
 
 export interface EmbedFrame {

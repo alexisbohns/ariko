@@ -21,15 +21,37 @@ import type { MediaEmbed } from "./data";
  * current embed contract is unverified with no Figma content in the database to
  * test against. Each is one table row and one test away.
  *
- * SAFETY: this trusts `media.provider` absolutely. That trust is earned by two
- * other files, and is worthless without them — lib/embeds.ts matches hosts
- * exactly rather than by substring, and lib/inbox.ts re-derives provider from
- * the URL on every write rather than accepting a declared one. If either is
- * ever relaxed, this file becomes an open redirect into an iframe.
+ * SAFETY — and this file is safer than an earlier version of this comment
+ * claimed, which matters practically rather than as a nicety. It said the trust
+ * placed in `media.provider` "is worthless without" lib/embeds.ts and
+ * lib/inbox.ts. It is not: **origin safety here is independent of both.** Every
+ * case either reduces the URL to a validated id (youtube and vimeo take
+ * `embedId` through encodeURIComponent, so a traversal or a whole URL becomes
+ * one escaped path segment; spotify and deezer accept only an allowlisted type
+ * word plus a charset-bounded id) or re-verifies the host itself (soundcloud,
+ * below). The origin is a literal in every branch. Feed this function a forged
+ * provider/url/embedId triple and the worst it produces is the WRONG content on
+ * an allowlisted origin — never an unallowlisted one. Asserted at both ends:
+ * lib/embed-src.test.ts pins the host table, components/media.test.tsx renders
+ * forged rows and reads the srcs back out of the markup.
  *
- * One documented exception: the soundcloud case re-verifies the host itself,
- * because it is the only provider whose stored URL is handed onward verbatim
- * rather than reduced to an extracted id.
+ * Why the correction is load-bearing: rows written before this slice are not
+ * re-normalized on read and there is no migration, so the database genuinely
+ * holds `MediaEmbed`s that never passed through today's `normalizeMedia`. The
+ * old wording implied a residual risk in exactly that population. There is
+ * none.
+ *
+ * What the two upstream files DO buy is correctness, which is not a lesser
+ * thing: lib/embeds.ts matching hosts exactly rather than by substring, and
+ * lib/inbox.ts deriving `provider` from the URL rather than accepting a
+ * declared one, are what make a framed video the RIGHT video and a badge the
+ * right badge. Relaxing either produces wrong content, not an open redirect.
+ *
+ * One documented exception, and it is about data leaving rather than about
+ * origin: the soundcloud case re-verifies the host itself, because it is the
+ * only provider whose stored URL is handed onward verbatim — as a query
+ * parameter SoundCloud's widget will fetch — rather than reduced to an
+ * extracted id.
  */
 
 export interface EmbedFrame {

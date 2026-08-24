@@ -577,7 +577,18 @@ missed a defect that made the editor fail to mount on every page.
 | `lib/embed-src.test.ts` | one derived and one non-derived case per provider; `link` never yields a src; **every host `embedSrc` can emit is in `EMBED_FRAME_HOSTS`** |
 | `lib/cover.test.ts` | first image wins; scans past an image-less newest sprout; embeds are not covers; none → `null` |
 | `lib/entity-resolve.test.ts` *(extended)* | cover on bean refs; absent for plant/pod; absent when no image |
-| `lib/graph.test.ts` *(extended)* | `cover` present on bean nodes, absent when none |
+| `lib/graph.test.ts` *(extended)* | `cover` present on bean nodes, absent when none; **a cover whose URL is not `http(s)` is not emitted at all** — the one cover consumer that cannot vet its own sink |
+| `lib/url.test.ts` | `isHttpUrl`: http/https pass whatever else the URL carries; `javascript:`, `data:`, mixed case and a leading space are refused; a relative or protocol-relative string is refused; never throws |
+| `components/media.test.tsx` *(added after the branch review)* | the render boundary itself, driven through `MediaList`: **every iframe `src` lands on an origin in `EMBED_FRAME_HOSTS` even for forged provider/url/`embedId` rows**; a non-http URL renders no anchor; an image keeps the author's `alt` and gets `alt=""` when there is none; `link` suppresses the badge and a named provider keeps it; an empty or absent list renders nothing |
+
+**The test glob had to be widened for that last row to run at all.** `package.json` globbed
+`lib/**/*.test.ts` only, so `components/media.tsx` — the file that turns every derivation in this
+slice into HTML — was pinned by nothing, and a test written beside it would have passed silently by
+never executing. Every gate in the security argument was tested up to `lib/embed-src.ts`, and then
+the last link was not. The glob now covers `{lib,components}/**/*.test.{ts,tsx}`, and
+`tsconfig.test.json` overrides `jsx` to the automatic runtime, because under the repo's `preserve`
+(which Next rewrites back on every build) tsx uses the classic transform and any component rendered
+from a test throws "React is not defined".
 
 **No new conformance fixtures.** `lib/markdown-conformance.test.ts:80-103` already pins `image`,
 `imageTitled`, `imageInline` and `imageInItem`. `/image` inserts that same node, so it adds no
