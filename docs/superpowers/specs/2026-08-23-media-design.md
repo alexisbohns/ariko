@@ -587,3 +587,9 @@ Recorded so nothing is silently dropped:
   and `Seed:155` carry one). This is out of *model* scope, not merely out of slice scope.
 - **Per-media privacy.** §3: anything on a published sprout is public. Changing that is a model
   decision, not a rendering one.
+- **A cover in the editor's own entity-card preview.** The Tiptap view resolves against
+  `EntityOption`, not `ResolvedEntity`, so it would need either a widened options list (paying
+  `coverFor` for every candidate bean, not just referenced ones) or its own resolution call. Left
+  alone because the two previews already diverge deliberately: the editor renders the raw ref and a
+  dashed placeholder for unresolved refs, optimising for *is this the entity I meant* rather than
+  for fidelity to the published page. A missing thumbnail is an addition to an intentional gap.
