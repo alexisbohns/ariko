@@ -2,6 +2,7 @@ import { getDb, closeDb } from "../lib/db";
 import { ensureSeedIndexes } from "../lib/seeds";
 import { ensureBotanicalIndexes } from "../lib/botanical";
 import { ensurePollenIndexes } from "../lib/pollen-store";
+import { PLANT_ROLE_KINDS } from "../lib/plant-role";
 
 // Applies a $jsonSchema validator to a collection, creating it if absent.
 // Idempotent: safe to re-run. validationLevel "moderate" only validates inserts
@@ -80,11 +81,22 @@ async function main() {
     properties: { visibility: { enum: ["private", "public"] } },
   });
 
+  // `role` is REQUIRED here, not just in TypeScript — that is the whole point
+  // of requiring it. Run scripts/backfill-plant-roles.ts BEFORE this, so no
+  // write can be rejected mid-flight. `title` and `detail` stay unconstrained:
+  // Text is `string | { en?, fr? }`, exactly how `name` and `description` are
+  // (not) constrained today.
   await applyValidator("plants", {
     bsonType: "object",
+    required: ["role"],
     properties: {
       visibility: { enum: ["private", "public"] },
       natures: { bsonType: "array", items: { enum: ["work", "tool"] } },
+      role: {
+        bsonType: "object",
+        required: ["kind"],
+        properties: { kind: { enum: [...PLANT_ROLE_KINDS] } },
+      },
       relations: {
         bsonType: "array",
         items: {

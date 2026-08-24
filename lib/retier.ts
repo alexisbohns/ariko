@@ -1,10 +1,22 @@
-import { PLANT_PREFIX, POD_PREFIX, type Bee, type Plant, type PlantNature, type Pod, type RawGarden } from "./data";
+import { PLANT_PREFIX, POD_PREFIX, type Bee, type Plant, type PlantNature, type PlantRole, type Pod, type RawGarden } from "./data";
 
 // The slice-1 PR2 re-tiering (spec §4) as a pure, idempotent transform over a
 // RawGarden. scripts/migrate-retier.ts applies the SAME transform to
 // data/garden.yml and to Mongo; lib/retier.test.ts asserts it against the real
 // garden file. Docs read from YAML/Mongo may still carry the retired `domain`
 // key, which the transform strips.
+
+/**
+ * Every plant this historical transform creates gets the same role.
+ *
+ * `Plant.role` is required, and this transform predates the concept — it has no
+ * opinion about which of them Alexis owns versus leads. It writes the same
+ * default the backfill script writes, for the same reason: the real roles are
+ * authored afterwards, by hand, through the admin role card. Re-running this
+ * migration cannot overwrite one, because it only ever creates plants that do
+ * not already exist.
+ */
+const DEFAULT_ROLE: PlantRole = { kind: "owner" };
 
 // Pods of the practice promoted in place: the pod doc is absorbed into a plant
 // (name/description/visibility/tags carried over), and its beans climb to
@@ -26,12 +38,14 @@ export const CREATED: Plant[] = [
     slug: "bohns-music",
     name: "Bohns Music",
     natures: ["work"],
+    role: DEFAULT_ROLE,
     description: "The music practice — albums and songs published as Bohns Music.",
   },
   {
     slug: "melogram",
     name: "Melogram",
     natures: ["work", "tool"],
+    role: DEFAULT_ROLE,
     description: "Music release hub — the Arkaik of music; distributes Bohns Music.",
     relations: [{ kind: "distributes", ref: "plant:bohns-music" }],
   },
@@ -39,6 +53,7 @@ export const CREATED: Plant[] = [
     slug: "arkaik",
     name: "Arkaik",
     natures: ["tool"],
+    role: DEFAULT_ROLE,
     description: "Journal of record for the code practice; chronicles Pebbles and Femfolk.",
     relations: [
       { kind: "chronicles", ref: "plant:pbbls" },
@@ -49,18 +64,21 @@ export const CREATED: Plant[] = [
     slug: "ariko",
     name: "Ariko",
     natures: ["work", "tool"],
+    role: DEFAULT_ROLE,
     description: "The central node — portfolio, practice graph and federation hub.",
   },
   {
     slug: "paulopus",
     name: "Paulopus",
     natures: ["work"],
+    role: DEFAULT_ROLE,
     description: "World Cup 2026 oracle — predictions, briefs and the writer routine.",
   },
   {
     slug: "oxymore",
     name: "Oxymore",
     natures: ["tool"],
+    role: DEFAULT_ROLE,
     description: "Third-party panel stack. Read-only in practice — no automation ever targets it.",
   },
 ];
@@ -154,7 +172,7 @@ export function retierGarden(raw: RawGarden): RawGarden {
     if (plantSlugs.has(slug) || !pod) continue; // already promoted, or nothing to promote
     // parents dropped deliberately: plants are roots; containment is re-expressed by the beans climbing.
     const { parents: _parents, ...rest } = stripDomain(pod);
-    plants.push({ ...rest, natures: [...natures] });
+    plants.push({ ...rest, natures: [...natures], role: { ...DEFAULT_ROLE } });
     plantSlugs.add(slug);
   }
 

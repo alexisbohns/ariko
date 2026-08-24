@@ -383,7 +383,7 @@ test("toGraph(filterPublic(raw)) never emits a filtered id as a node OR an edge 
 
 test("toGraph maps a plant to {id, kind, name, natures, description} — relations never leak", () => {
   const seed: RawGarden = {
-    plants: [{ slug: "melogram", name: "Melogram", natures: ["work", "tool"], description: "secret", relations: [{ kind: "distributes", ref: "plant:bohns-music" }] }],
+    plants: [{ slug: "melogram", name: "Melogram", natures: ["work", "tool"], role: { kind: "owner" as const }, description: "secret", relations: [{ kind: "distributes", ref: "plant:bohns-music" }] }],
   };
   const { nodes } = toGraph(seed);
   assert.deepEqual(nodes, [
@@ -411,7 +411,7 @@ test("toGraph maps a bee to {id, kind, name, type, status, description} — leve
 
 test("toGraph emits plant containment for pods and direct beans", () => {
   const seed: RawGarden = {
-    plants: [{ slug: "pl", name: "P", natures: ["work"], description: "" }],
+    plants: [{ slug: "pl", name: "P", natures: ["work"], role: { kind: "owner" as const }, description: "" }],
     pods: [{ slug: "m", name: "M", description: "", parents: ["plant:pl", "plant:ghost"] }],
     beans: [{ slug: "direct", name: "D", parents: ["plant:pl"] }],
   };
@@ -425,8 +425,8 @@ test("toGraph emits plant containment for pods and direct beans", () => {
 test("toGraph renders plant relation edges (distributes/chronicles) with both-ends prune", () => {
   const seed: RawGarden = {
     plants: [
-      { slug: "melogram", name: "Mg", natures: ["work", "tool"], description: "", relations: [{ kind: "distributes", ref: "plant:bohns-music" }, { kind: "chronicles", ref: "plant:ghost" }] },
-      { slug: "bohns-music", name: "BM", natures: ["work"], description: "" },
+      { slug: "melogram", name: "Mg", natures: ["work", "tool"], role: { kind: "owner" as const }, description: "", relations: [{ kind: "distributes", ref: "plant:bohns-music" }, { kind: "chronicles", ref: "plant:ghost" }] },
+      { slug: "bohns-music", name: "BM", natures: ["work"], role: { kind: "owner" as const }, description: "" },
     ],
   };
   assert.deepEqual(toGraph(seed).edges, [
@@ -436,7 +436,7 @@ test("toGraph renders plant relation edges (distributes/chronicles) with both-en
 
 test("toGraph renders bee serves edges with both-ends prune", () => {
   const seed: RawGarden = {
-    plants: [{ slug: "femfolk", name: "F", natures: ["work"], description: "" }],
+    plants: [{ slug: "femfolk", name: "F", natures: ["work"], role: { kind: "owner" as const }, description: "" }],
     bees: [{ slug: "si", name: "SI", kind: "capability", status: "live", levers: [], serves: ["plant:femfolk", "plant:ghost"], description: "" }],
   };
   assert.deepEqual(toGraph(seed).edges, [
@@ -446,7 +446,7 @@ test("toGraph renders bee serves edges with both-ends prune", () => {
 
 test("toGraph composed with filterPublic shows only public bees (the /api/graph contract)", () => {
   const seed: RawGarden = {
-    plants: [{ slug: "pl", name: "P", natures: ["work"], description: "" }],
+    plants: [{ slug: "pl", name: "P", natures: ["work"], role: { kind: "owner" as const }, description: "" }],
     bees: [
       { slug: "pub", name: "Pub", kind: "workflow", status: "live", levers: [], serves: ["plant:pl"], description: "", visibility: "public" },
       { slug: "hidden", name: "H", kind: "adapter", status: "planned", levers: [], serves: ["plant:pl"], description: "" },
@@ -585,7 +585,7 @@ test("a bean with no images emits no cover key", () => {
 
 test("non-bean nodes never carry a cover", () => {
   const graph = toGraph({
-    plants: [{ slug: "p", name: "P", natures: ["work"], description: "" }],
+    plants: [{ slug: "p", name: "P", natures: ["work"], role: { kind: "owner" as const }, description: "" }],
     beans: [{ slug: "b", name: "B", parents: ["plant:p"] }],
     sprouts: [
       {

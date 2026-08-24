@@ -14,11 +14,13 @@ import {
   PLANT_PREFIX,
   POD_PREFIX,
   type MediaImage,
+  type PlantRole,
 } from "@/lib/data";
 import { resolveParentChoice, buildSproutInput, buildNewBean, validateSproutInput } from "@/lib/promote";
 import { buildSproutPatch, validateSproutPatch, shouldCascadePublish } from "@/lib/sprout-edit";
 import { buildContentPatch } from "@/lib/content-edit";
 import { buildMediaPatch } from "@/lib/media-edit";
+import { buildPlantRolePatch, InvalidRoleKindError } from "@/lib/plant-role";
 import { runSync } from "@/lib/pollen-run";
 import {
   createPod,
@@ -34,6 +36,7 @@ import {
   updatePlantContent,
   updatePodContent,
   updateSproutMedia,
+  updatePlantRole,
 } from "@/lib/botanical";
 import { uploadImage } from "@/lib/storage";
 import { checkUploadFile, uploadedFilename } from "@/lib/upload-input";
@@ -329,6 +332,44 @@ export async function editContainerContentAction(formData: FormData): Promise<vo
   }
 
   revalidatePath("/admin");
+  redirect(back);
+}
+
+/**
+ * The plant's role — and nothing else.
+ *
+ * A separate form and a separate action from the narrative one on the same
+ * page, which is what keeps each write narrow: this one can only ever reach
+ * `role`, and editContainerContentAction can only ever reach `content`.
+ *
+ * An unknown `kind` redirects with an error instead of defaulting. A role is a
+ * public claim about Alexis's relationship to someone else's project, so a
+ * garbled submit must not quietly become "owner".
+ */
+export async function editPlantRoleAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+
+  // Existence first, so the error redirect below can only ever target a real
+  // page and can only interpolate a known-good stored slug.
+  const raw = await loadRawGarden();
+  const existing = raw.plants?.find((p) => p.slug === slug);
+  if (!existing) redirect("/admin/garden");
+
+  const back = `/admin/plant/${encodeURIComponent(slug)}`;
+  let role: PlantRole;
+  try {
+    role = buildPlantRolePatch(formData);
+  } catch (err) {
+    if (!(err instanceof InvalidRoleKindError)) throw err;
+    redirect(`${back}?error=${encodeURIComponent(`could not save role: ${err.message}`)}`);
+  }
+
+  await updatePlantRole(slug, role);
+
+  revalidatePath("/admin");
+  // The role renders on the landing gallery and the plant page, both
+  // force-dynamic — nothing to revalidate there, they re-read on next request.
   redirect(back);
 }
 

@@ -12,7 +12,8 @@
     "pollen:validate": "node --import tsx scripts/pollen-validate.ts",
     "pollen:rebuild": "node --env-file=.env.local --import tsx scripts/pollen-rebuild.ts",
     "migrate:botanical": "node --env-file=.env.local --import tsx scripts/migrate-botanical.ts",
-    "migrate:retier": "node --env-file=.env.local --import tsx scripts/migrate-retier.ts"
+    "migrate:retier": "node --env-file=.env.local --import tsx scripts/migrate-retier.ts",
+    "backfill:plant-roles": "node --env-file=.env.local --import tsx scripts/backfill-plant-roles.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

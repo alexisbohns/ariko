@@ -135,7 +135,7 @@ test(
     await db.collection("plants").insertOne({
       slug: `${TEST_PREFIX}p`,
       name: "P",
-      natures: ["work"],
+      natures: ["work"], role: { kind: "owner" as const },
       description: "",
       visibility: "private",
     });
@@ -177,7 +177,7 @@ test(
     await db.collection("plants").insertOne({
       slug: `${TEST_PREFIX}p`,
       name: "P",
-      natures: ["work"],
+      natures: ["work"], role: { kind: "owner" as const },
       description: "",
       visibility: "private",
     });

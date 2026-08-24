@@ -209,7 +209,7 @@ test("filterPublic never mutates the input seed when scrubbing relations (pure)"
 
 test("filterPublic drops a private plant and cascades out its pods, beans and sprouts", () => {
   const seed: RawGarden = {
-    plants: [{ slug: "pl-priv", name: "P", natures: ["work"], description: "", visibility: "private" }],
+    plants: [{ slug: "pl-priv", name: "P", natures: ["work"], role: { kind: "owner" as const }, description: "", visibility: "private" }],
     pods: [{ slug: "m", name: "M", description: "", parents: ["plant:pl-priv"] }],
     beans: [
       { slug: "a", name: "A", parents: ["pod:m"] },
@@ -234,7 +234,7 @@ test("filterPublic keeps a pod whose only plant-parent is a dangling ref (matche
 
 test("filterPublic keeps a bean sheltered by a public parent in EITHER tier", () => {
   const seed: RawGarden = {
-    plants: [{ slug: "pl", name: "P", natures: ["work"], description: "" }],
+    plants: [{ slug: "pl", name: "P", natures: ["work"], role: { kind: "owner" as const }, description: "" }],
     pods: [{ slug: "m-priv", name: "M", description: "", visibility: "private" }],
     beans: [{ slug: "a", name: "A", parents: ["pod:m-priv", "plant:pl"] }],
   };
@@ -245,15 +245,15 @@ test("filterPublic scrubs plant relations to surviving targets, exactly like spr
   const seed: RawGarden = {
     plants: [
       {
-        slug: "melogram", name: "Melogram", natures: ["work", "tool"], description: "",
+        slug: "melogram", name: "Melogram", natures: ["work", "tool"], role: { kind: "owner" as const }, description: "",
         relations: [
           { kind: "distributes", ref: "plant:bohns-music" }, // kept
           { kind: "chronicles", ref: "plant:hidden" }, // dropped: private target
           { kind: "uses", ref: "pod:ghost" }, // dropped: dangling
         ],
       },
-      { slug: "bohns-music", name: "BM", natures: ["work"], description: "" },
-      { slug: "hidden", name: "H", natures: ["tool"], description: "", visibility: "private" },
+      { slug: "bohns-music", name: "BM", natures: ["work"], role: { kind: "owner" as const }, description: "" },
+      { slug: "hidden", name: "H", natures: ["tool"], role: { kind: "owner" as const }, description: "", visibility: "private" },
     ],
   };
   const melogram = (filterPublic(seed).plants ?? []).find((p) => p.slug === "melogram");
@@ -287,8 +287,8 @@ test("filterPublic scrubs pod relations to surviving targets — a relation poin
 test("filterPublic keeps only explicitly public bees (default is PRIVATE) and scrubs serves to kept plants", () => {
   const seed: RawGarden = {
     plants: [
-      { slug: "femfolk", name: "F", natures: ["work"], description: "" },
-      { slug: "secret", name: "S", natures: ["tool"], description: "", visibility: "private" },
+      { slug: "femfolk", name: "F", natures: ["work"], role: { kind: "owner" as const }, description: "" },
+      { slug: "secret", name: "S", natures: ["tool"], role: { kind: "owner" as const }, description: "", visibility: "private" },
     ],
     bees: [
       { slug: "song-identifier", name: "SI", kind: "capability", status: "live", levers: [], serves: ["plant:femfolk", "plant:secret", "plant:ghost"], description: "", visibility: "public" },
@@ -302,7 +302,7 @@ test("filterPublic keeps only explicitly public bees (default is PRIVATE) and sc
 
 test("filterPublic tolerates malformed bee serves entries fail-closed (one bad doc must not 500 the public site)", () => {
   const seed: RawGarden = {
-    plants: [{ slug: "femfolk", name: "F", natures: ["work"], description: "" }],
+    plants: [{ slug: "femfolk", name: "F", natures: ["work"], role: { kind: "owner" as const }, description: "" }],
     bees: [
       {
         slug: "b", name: "B", kind: "routine", status: "live", levers: [], description: "", visibility: "public",
@@ -318,13 +318,13 @@ test("filterPublic never mutates the input when scrubbing plant relations or bee
   const seed: RawGarden = {
     plants: [
       {
-        slug: "pl", name: "P", natures: ["work"], description: "",
+        slug: "pl", name: "P", natures: ["work"], role: { kind: "owner" as const }, description: "",
         relations: [
           { kind: "uses", ref: "plant:other" }, // kept
           { kind: "uses", ref: "pod:ghost" }, // dropped: dangling — forces a scrub
         ],
       },
-      { slug: "other", name: "O", natures: ["tool"], description: "" },
+      { slug: "other", name: "O", natures: ["tool"], role: { kind: "owner" as const }, description: "" },
     ],
     bees: [
       {

@@ -2,6 +2,7 @@ import { resolveText } from "@/lib/data";
 import type { Bean, Pod } from "@/lib/data";
 import { getPublicDataset } from "@/lib/store";
 import { coverFor } from "@/lib/cover";
+import { roleLine } from "@/lib/plant-role";
 import { cloudinaryThumb } from "@/lib/image-url";
 import { ArikoLogo } from "@/components/brand/ariko-logo";
 import { PROFANE_WOFF2_URL } from "@/app/fonts";
@@ -146,6 +147,13 @@ export default async function DirectoryPage() {
                     {resolveText(plant.name)}
                   </a>
                 </h2>
+                {/* A subtitle, not a badge: a pill beside a text-4xl display
+                    title reads as UI chrome interrupting the typography, where
+                    a small line reads as part of the heading. `detail` stays
+                    off this surface — too long for a section header. */}
+                <p className="font-heading text-xs uppercase tracking-widest text-muted-foreground">
+                  {roleLine(plant.role)}
+                </p>
                 {resolveText(plant.description ?? "").trim() ? (
                   <p className="max-w-2xl text-sm text-muted-foreground">
                     {resolveText(plant.description)}

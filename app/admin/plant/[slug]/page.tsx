@@ -4,6 +4,8 @@ import { loadRawGarden } from "@/lib/store";
 import { editContainerContentAction } from "../../actions";
 import { AdminBar } from "../../_components/admin-bar";
 import { ContentCard } from "../../_components/content-card";
+import { RoleCard } from "../../_components/role-card";
+import { roleLine } from "@/lib/plant-role";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,6 +47,7 @@ export default async function AdminPlantPage({
           </h1>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">plant:{plant.slug}</Badge>
+            <Badge>{roleLine(plant.role)}</Badge>
             <Badge variant={plant.visibility === "public" ? "default" : "secondary"}>
               {plant.visibility ?? "public"}
             </Badge>
@@ -59,6 +62,8 @@ export default async function AdminPlantPage({
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         ) : null}
+
+        <RoleCard plant={plant} />
 
         <ContentCard
           raw={raw}

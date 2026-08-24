@@ -1,6 +1,7 @@
 import { resolveText, textPart } from "@/lib/data";
 import { loadRawGarden } from "@/lib/store";
 import { AdminBar } from "../_components/admin-bar";
+import { roleLine } from "@/lib/plant-role";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -28,6 +29,7 @@ export default async function AdminGardenPage() {
       name: resolveText(p.name),
       visibility: p.visibility ?? "public",
       hasNarrative: textPart(p.content, "en").trim().length > 0,
+      role: roleLine(p.role),
       href: `/admin/plant/${p.slug}`,
     })),
     ...(raw.pods ?? []).map((p) => ({
@@ -36,6 +38,8 @@ export default async function AdminGardenPage() {
       name: resolveText(p.name),
       visibility: p.visibility ?? "public",
       hasNarrative: textPart(p.content, "en").trim().length > 0,
+      // Roles live at the plant tier only — a pod's cell stays empty.
+      role: null,
       href: `/admin/pod/${p.slug}`,
     })),
   ].sort((a, b) => a.tier.localeCompare(b.tier) || a.name.localeCompare(b.name));
@@ -52,6 +56,7 @@ export default async function AdminGardenPage() {
             <TableRow>
               <TableHead>name</TableHead>
               <TableHead>tier</TableHead>
+              <TableHead>role</TableHead>
               <TableHead>visibility</TableHead>
               <TableHead>narrative</TableHead>
             </TableRow>
@@ -68,6 +73,7 @@ export default async function AdminGardenPage() {
                 <TableCell>
                   <Badge variant="outline">{row.tier}</Badge>
                 </TableCell>
+                <TableCell className="text-muted-foreground">{row.role ?? "—"}</TableCell>
                 <TableCell className="text-muted-foreground">{row.visibility}</TableCell>
                 <TableCell className="text-muted-foreground">
                   {row.hasNarrative ? "yes" : "—"}

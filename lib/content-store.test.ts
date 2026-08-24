@@ -53,7 +53,7 @@ test("the container writers reach plants and pods, leaving visibility alone", { 
   t.after(cleanup);
   const db = await getDb();
   await db.collection("plants").insertOne({
-    slug: "__test__p", name: "P", natures: ["work"], description: "d", visibility: "public",
+    slug: "__test__p", name: "P", natures: ["work"], role: { kind: "owner" as const }, description: "d", visibility: "public",
   });
   await db.collection("pods").insertOne({
     slug: "__test__d", name: "D", description: "d", visibility: "private",

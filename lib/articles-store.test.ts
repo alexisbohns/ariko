@@ -23,7 +23,7 @@ test(
     await db.collection("plants").insertOne({
       slug: "__test__p",
       name: "P",
-      natures: ["work"],
+      natures: ["work"], role: { kind: "owner" as const },
       description: "",
       visibility: "private",
     });
@@ -64,7 +64,7 @@ test("a re-post updates the sprout in place", { skip: !hasDb }, async (t) => {
   await db.collection("plants").insertOne({
     slug: "__test__p",
     name: "P",
-    natures: ["work"],
+    natures: ["work"], role: { kind: "owner" as const },
     description: "",
     visibility: "private",
   });
@@ -97,7 +97,7 @@ test(
     await db.collection("plants").insertOne({
       slug: "__test__p",
       name: "P",
-      natures: ["work"],
+      natures: ["work"], role: { kind: "owner" as const },
       description: "",
       visibility: "private",
     });
@@ -154,7 +154,7 @@ test("a public container carrying prose is refused", { skip: !hasDb }, async (t)
   await db.collection("plants").insertOne({
     slug: "__test__pub",
     name: "Pub",
-    natures: ["work"],
+    natures: ["work"], role: { kind: "owner" as const },
     description: "",
     visibility: "public",
     content: "already live",
@@ -224,7 +224,7 @@ test(
     await db.collection("plants").insertOne({
       slug: "__test__blankpub",
       name: "BlankPub",
-      natures: ["work"],
+      natures: ["work"], role: { kind: "owner" as const },
       description: "",
       visibility: "public",
       content: "",
@@ -249,7 +249,7 @@ test(
     await db.collection("plants").insertOne({
       slug: "__test__blankloc",
       name: "BlankLoc",
-      natures: ["work"],
+      natures: ["work"], role: { kind: "owner" as const },
       description: "",
       visibility: "public",
       content: { en: "", fr: "" },
@@ -274,7 +274,7 @@ test(
     await db.collection("plants").insertOne({
       slug: "__test__p",
       name: "P",
-      natures: ["work"],
+      natures: ["work"], role: { kind: "owner" as const },
       description: "",
       visibility: "private",
     });
@@ -321,7 +321,7 @@ test(
     await db.collection("plants").insertOne({
       slug: "__test__p",
       name: "P",
-      natures: ["work"],
+      natures: ["work"], role: { kind: "owner" as const },
       description: "",
       visibility: "private",
     });
@@ -363,7 +363,7 @@ test(
     await db.collection("plants").insertOne({
       slug: "__test__p",
       name: "P",
-      natures: ["work"],
+      natures: ["work"], role: { kind: "owner" as const },
       description: "",
       visibility: "private",
     });
