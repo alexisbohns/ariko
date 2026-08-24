@@ -2,8 +2,15 @@ import type { ReactNode } from "react";
 
 import { ArikoLogo } from "@/components/brand/ariko-logo";
 
-/** The public exhibition zone: site header + a reading-width column. */
-export default function PublicLayout({ children }: { children: ReactNode }) {
+/**
+ * The inner exhibition pages: site header + a reading-width column.
+ *
+ * The home page deliberately sits OUTSIDE this group (`app/(public)/page.tsx`).
+ * It is the landing, not a destination reached from a nav, so it wears the mark
+ * large and centred instead of a header bar — which is why the header lives in
+ * this nested layout rather than in the zone root.
+ */
+export default function ChromeLayout({ children }: { children: ReactNode }) {
   return (
     <>
       <header className="border-b border-border">
