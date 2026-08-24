@@ -4,16 +4,17 @@
  * manipulation on a URL Cloudinary already serves.
  *
  * Why it matters here: a MediaImage's stored `url` is Cloudinary's secure_url,
- * the untouched original. The Directory paints it at 40px and an entity card at
- * 128px tall, so without this a page of covers downloads several megabytes to
- * fill a few thousand pixels — the ratio components/media.tsx accepted for a
- * full-size image on a bean page does not survive being reused for a list of
- * squares.
+ * the untouched original. The Directory paints it at 40px, an entity card at
+ * 128px tall, and the admin's media picker at 80px square, so without this a
+ * page of covers downloads several megabytes to fill a few thousand pixels —
+ * the ratio components/media.tsx accepted for a full-size image on a bean page
+ * does not survive being reused for a list of squares. Every caller asks for 2x
+ * the box it paints into, so the derivative stays sharp on a retina display.
  *
  * components/media.tsx is deliberately NOT a consumer: it renders a sprout's
  * media at full size on the bean page, where the original is exactly what
- * should be delivered. This function exists for the two places that shrink a
- * cover into a fixed box, not for the one place that shows the image itself.
+ * should be delivered. This function exists for the three places that shrink an
+ * image into a fixed box, not for the one place that shows the image itself.
  *
  * Anything that is not a Cloudinary delivery URL is returned UNCHANGED, byte
  * for byte. `lib/inbox.ts` deliberately does not host-check a stored media URL

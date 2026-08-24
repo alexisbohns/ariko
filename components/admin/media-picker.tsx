@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { unstable_rethrow } from "next/navigation";
 import type { Media } from "@/lib/data";
 import { ALLOWED_TYPES, checkUploadFile } from "@/lib/upload-input";
+import { cloudinaryThumb } from "@/lib/image-url";
 import { uploadImageAction } from "@/app/admin/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -288,12 +289,24 @@ export function MediaPicker({
               <div className="flex min-w-0 flex-1 flex-col gap-2">
                 {row.state === "settled" && row.media.kind === "image" ? (
                   <>
-                    {/* The full-size original, painted into an 80px square: five
-                        4MB uploads is 20MB fetched to draw five thumbnails.
-                        Accepted on a single-admin surface; a Cloudinary
-                        transformation is the fix if it ever matters. */}
+                    {/* 160px of pixels for an 80px box — 2x, so it stays sharp
+                        on a retina display. This surface is the worst case for
+                        painting originals, not the mildest: it shows a whole
+                        media list at once, so five 4MB uploads meant 20MB
+                        fetched to draw five squares. cloudinaryThumb asks
+                        Cloudinary for the derivative instead, and returns a
+                        non-Cloudinary URL untouched.
+                        alt="" is right here and only here: the filename and the
+                        alt-text field sit beside it, so announcing the image
+                        would repeat what the row already says. */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={row.media.url} alt="" className="h-20 w-20 rounded object-cover" />
+                    <img
+                      src={cloudinaryThumb(row.media.url, { width: 160, height: 160 })}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      className="h-20 w-20 rounded object-cover"
+                    />
                     <Label htmlFor={`${name}-alt-${row.key}`}>Alt text</Label>
                     <Input
                       id={`${name}-alt-${row.key}`}
