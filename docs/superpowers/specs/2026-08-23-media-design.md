@@ -461,6 +461,35 @@ permit exactly what they added.
   rule is that it has none. Inline `<svg aria-hidden>` or a glyph instead. This governs every future
   public server component, not only this card.
 
+**The alt policy, stated once.** Four surfaces make an alt decision, and a reader meeting them in a
+different order would think they disagree. They do not:
+
+> **A cover is never announced.** An adjacent link always carries the entity's name, so announcing
+> the image would name the same destination twice. The Directory row and the entity card both
+> render `alt=""`, and the entity card additionally declines to be a *link* at all for the same
+> reason — one destination, one announcement. The admin picker's thumbnail lands on `alt=""` by the
+> same argument from a different direction: the filename and the alt-text field sit beside it, so
+> the row already says what the image is.
+>
+> **A sprout's own media IS announced** when the author described it, and skipped when they did
+> not. `alt={alt ?? ""}` — the author's words when there are any, and otherwise the correct markup
+> for an image nobody described, never a fabricated description.
+
+The same rule governs `/api/graph`, whose bean nodes carry `cover.alt` on the wire: a graph node
+ships its `name` in the same payload, so a consumer drawing the cover beside that name is in the
+first case and should render `alt=""`. It is kept on the wire anyway, because a consumer showing
+the image *alone* and enlarged is no longer showing a cover. That contract is stated in
+`GraphNode`'s doc-comment rather than left to be inferred.
+
+**The gap this leaves is closed in the admin, not in the renderer.** An undescribed image is
+silent: `alt=""` tells a screen reader to skip it, which on a portfolio — where the image is often
+the work itself — is a small lie rather than a neutral default. No render-time change can fix that,
+because nothing downstream can invent the sentence an author never wrote. So the fix lives at the
+one moment someone can still write it: `components/admin/media-picker.tsx` puts an alt field beside
+every image and marks an empty one ("No description — screen readers will skip this image").
+Deliberately non-blocking — some images really are decorative, and a save that refuses is worse
+than a description that is missing.
+
 **Placement.** `<MediaList>` renders inside each sprout's existing card on `/bean/[id]`, under the
 property dump. One location, no duplication, and no layout bet that D1 would overturn — the dump is
 documented (umbrella §4) as staying "until the exhibition slice retires it deliberately", so media

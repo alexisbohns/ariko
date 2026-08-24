@@ -20,6 +20,17 @@ export interface GraphNode {
   // Beans only, derived (lib/cover.ts) — G1's withheld-media note pointed here.
   // A NARROWED view of the MediaImage: storageKey is a Cloudinary-internal id
   // with no meaning to a consumer, so it stays out of the public payload.
+  // `url` is scheme-vetted (see beanCover); the rest is passed through.
+  //
+  // What a consumer should do with `alt`, since this repo's own two cover
+  // renderers deliberately discard it (spec §5.4): a cover is not announced
+  // where the entity's NAME sits beside it — which, in a graph, is always: the
+  // node carries `name` in this same payload, and announcing the cover would
+  // say the same destination twice. Render `alt=""` there. It is kept on the
+  // wire because the payload is the whole contract — there is no second fetch —
+  // and a consumer that shows the image ALONE and enlarged (a detail panel, a
+  // lightbox) is no longer showing a cover, and should use the author's words.
+  // Absent means the author wrote none: `alt=""`, never a fabricated sentence.
   cover?: { url: string; alt?: string; width?: number; height?: number };
   natures?: PlantNature[]; // plants only
   type?: string; // sprouts (sprout.type) and bees (bee.kind)
