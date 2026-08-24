@@ -5,7 +5,7 @@ import type { RawGarden } from "./data";
 
 const garden: RawGarden = {
   plants: [
-    { slug: "paulopus", name: "Paulopus", natures: ["work"], description: "A project." },
+    { slug: "paulopus", name: "Paulopus", natures: ["work"], role: { kind: "owner" as const }, description: "A project." },
   ],
   pods: [{ slug: "records", name: "Records", description: "" }],
   beans: [

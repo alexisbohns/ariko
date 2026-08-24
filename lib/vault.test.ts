@@ -7,7 +7,7 @@ function entry(slug: string, state: string | undefined, plantSlug: string | null
   return {
     sprout: { slug, name: slug, type: "t", date: "2025-01-01", description: "", parents: [], ...(state ? { state: state as never } : {}), ...(tags ? { tags } : {}) },
     bean: plantSlug ? { slug: `bean-${slug}`, name: "a", parents: [] } : null,
-    plant: plantSlug ? { slug: plantSlug, name: plantSlug, natures: ["work" as const], description: "" } : null,
+    plant: plantSlug ? { slug: plantSlug, name: plantSlug, natures: ["work" as const], role: { kind: "owner" as const }, description: "" } : null,
   };
 }
 
@@ -60,7 +60,7 @@ test("empty input returns empty", () => {
 });
 
 test("filterVaultEntries filters by the resolved plant's slug; an unknown slug matches nothing", () => {
-  const plant = { slug: "pbbls", name: "P", natures: ["work" as const], description: "" };
+  const plant = { slug: "pbbls", name: "P", natures: ["work" as const], role: { kind: "owner" as const }, description: "" };
   const entries: TimelineEntry[] = [
     { sprout: { slug: "v1", name: "V1", type: "t", date: "2026-01-01", description: "", parents: [] }, bean: null, plant },
     { sprout: { slug: "v2", name: "V2", type: "t", date: "2026-01-02", description: "", parents: [] }, bean: null, plant: null },
@@ -70,7 +70,7 @@ test("filterVaultEntries filters by the resolved plant's slug; an unknown slug m
 });
 
 test("distinctPlants returns sorted unique plant slugs", () => {
-  const p = (slug: string) => ({ slug, name: slug, natures: ["work" as const], description: "" });
+  const p = (slug: string) => ({ slug, name: slug, natures: ["work" as const], role: { kind: "owner" as const }, description: "" });
   const entries: TimelineEntry[] = [
     { sprout: { slug: "a", name: "a", type: "t", date: "2026-01-01", description: "", parents: [] }, bean: null, plant: p("zeta") },
     { sprout: { slug: "b", name: "b", type: "t", date: "2026-01-02", description: "", parents: [] }, bean: null, plant: p("alpha") },

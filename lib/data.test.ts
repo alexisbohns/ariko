@@ -417,8 +417,8 @@ test("adapter equivalence: unpublishCascade(slug) === unpublishCascadeForBeans(t
 
 const PLANTED: RawGarden = {
   plants: [
-    { slug: "bohns-music", name: "Bohns Music", natures: ["work"], description: "" },
-    { slug: "pbbls", name: "Pebbles", natures: ["work"], description: "" },
+    { slug: "bohns-music", name: "Bohns Music", natures: ["work"], role: { kind: "owner" as const }, description: "" },
+    { slug: "pbbls", name: "Pebbles", natures: ["work"], role: { kind: "owner" as const }, description: "" },
   ],
   pods: [
     { slug: "celesta", name: "Celesta", description: "", parents: ["plant:bohns-music"] },
@@ -490,8 +490,8 @@ test("garden.yml parses into a garden with only botanical prefixes", () => {
 
 const CASCADE_GARDEN: RawGarden = {
   plants: [
-    { slug: "pl1", name: "P1", natures: ["work"], description: "" },
-    { slug: "pl2", name: "P2", natures: ["work"], description: "" },
+    { slug: "pl1", name: "P1", natures: ["work"], role: { kind: "owner" as const }, description: "" },
+    { slug: "pl2", name: "P2", natures: ["work"], role: { kind: "owner" as const }, description: "" },
   ],
   pods: [{ slug: "m1", name: "M1", description: "", parents: ["plant:pl1", "plant:ghost"] }],
   beans: [
@@ -539,7 +539,7 @@ test("unpublishCascade honors a plant sheltered by a surviving public pod", () =
 
 test("unpublishCascade honors a plant sheltered by a surviving public DIRECT bean", () => {
   const raw: RawGarden = {
-    plants: [{ slug: "pl", name: "P", natures: ["work"], description: "" }],
+    plants: [{ slug: "pl", name: "P", natures: ["work"], role: { kind: "owner" as const }, description: "" }],
     pods: [],
     beans: [
       { slug: "flipping", name: "F", parents: ["plant:pl"] },
@@ -552,7 +552,7 @@ test("unpublishCascade honors a plant sheltered by a surviving public DIRECT bea
 
 test("unpublishCascade flips a plant reached only through a directly-parented bean", () => {
   const raw: RawGarden = {
-    plants: [{ slug: "pl", name: "P", natures: ["work"], description: "" }],
+    plants: [{ slug: "pl", name: "P", natures: ["work"], role: { kind: "owner" as const }, description: "" }],
     pods: [],
     beans: [{ slug: "b", name: "B", parents: ["plant:pl"] }],
     sprouts: [{ slug: "v", name: "V", type: "t", date: "2026-01-01", description: "", parents: ["bean:b"], state: "draft" }],
@@ -572,7 +572,7 @@ test("an explicitly-private pod does not shelter a plant", () => {
 
 test("an explicitly-private direct bean does not shelter a plant", () => {
   const raw: RawGarden = {
-    plants: [{ slug: "pl", name: "P", natures: ["work"], description: "" }],
+    plants: [{ slug: "pl", name: "P", natures: ["work"], role: { kind: "owner" as const }, description: "" }],
     pods: [],
     beans: [
       { slug: "flipping", name: "F", parents: ["plant:pl"] },
@@ -585,7 +585,7 @@ test("an explicitly-private direct bean does not shelter a plant", () => {
 
 test("getPlant and getPod look a container up by slug", () => {
   const data = buildDataset({
-    plants: [{ slug: "p", name: "P", natures: ["work"], description: "" }],
+    plants: [{ slug: "p", name: "P", natures: ["work"], role: { kind: "owner" as const }, description: "" }],
     pods: [{ slug: "m", name: "M", description: "", parents: ["plant:p"] }],
   });
   assert.equal(data.getPlant("p")?.slug, "p");

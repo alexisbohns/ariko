@@ -46,6 +46,24 @@ export interface Relation {
 
 export type PlantNature = "work" | "tool";
 
+// What Alexis IS to a plant — a public credibility signal, not an internal
+// organizing fact. `kind` is the vocabulary spine (badges, the admin column);
+// `title` is the real local job title, which renders BESIDE the enum label
+// rather than replacing it, so the vocabulary stays legible everywhere.
+// `detail` is one line of context and is never markdown: plants already have
+// `description` (one line) and `content` (full narrative) for prose.
+//
+// Contains no entity refs, so filterPublic needs no scrub for it — and there
+// is no such thing as a PRIVATE role: if the plant is public, so is all of
+// this, `detail` included.
+export type PlantRoleKind = "owner" | "co-owner" | "lead" | "contributor";
+
+export interface PlantRole {
+  kind: PlantRoleKind;
+  title?: Text; // bilingual; blank parts are OMITTED, never stored as ""
+  detail?: Text; // one bilingual line; same omission rule
+}
+
 // Top tier of the practice graph (slice 1 PR2). Plants are roots — they carry
 // no parents[]; pods and beans parent INTO them. relations[] carries the
 // articulation vocabulary (distributes | chronicles | uses | publishes-to |
@@ -54,6 +72,12 @@ export interface Plant {
   slug: string;
   name: Text;
   natures: PlantNature[]; // array: melogram is both work AND tool
+  // REQUIRED, deliberately — a plant is by definition something Alexis has a
+  // relationship with, so there is no "unclassified plant" to default for. The
+  // softer precedents nearby (optional `description`, "default treated as
+  // public" `visibility`) were NOT followed: a tolerant read (`role ?? owner`)
+  // would make this type a promise the database does not keep.
+  role: PlantRole;
   description: Text;
   content?: Text; // optional narrative — the container's own page (slice 3)
   visibility?: Visibility; // default treated as "public", same rule as pods

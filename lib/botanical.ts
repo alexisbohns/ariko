@@ -4,6 +4,7 @@ import {
   type Bean,
   type Media,
   type Plant,
+  type PlantRole,
   type Pod,
   type Sprout,
   type Text,
@@ -200,6 +201,19 @@ export function updatePlantContent(slug: string, patch: ContentPatch): Promise<v
 
 export function updatePodContent(slug: string, patch: ContentPatch): Promise<void> {
   return writeContent("pods", slug, patch);
+}
+
+/**
+ * Writes a plant's role — and nothing else.
+ *
+ * A SIBLING of writeContent and updateSproutMedia, not a widening of anything.
+ * `role` is named explicitly rather than spread for the reason those two give:
+ * a spread is what would let a later, widened caller reach `visibility` or
+ * `natures` from a form that has no business touching them.
+ */
+export async function updatePlantRole(slug: string, role: PlantRole): Promise<void> {
+  const db = await getDb();
+  await db.collection<Plant>("plants").updateOne({ slug }, { $set: { role } });
 }
 
 /**

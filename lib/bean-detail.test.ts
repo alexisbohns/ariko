@@ -4,7 +4,7 @@ import { buildDataset, type RawGarden } from "./data";
 import { beanDetail } from "./bean-detail";
 
 const SEED: RawGarden = {
-  plants: [{ slug: "bohns-music", name: "Bohns Music", natures: ["work"], description: "" }],
+  plants: [{ slug: "bohns-music", name: "Bohns Music", natures: ["work"], role: { kind: "owner" as const }, description: "" }],
   pods: [{ slug: "rom", name: "Republic", description: "", parents: ["plant:bohns-music"] }],
   beans: [
     { slug: "rom-win", name: "Win", parents: ["pod:rom"] },
@@ -35,7 +35,7 @@ test("plant resolves via the pod parent", () => {
 
 test("beanDetail resolves the plant slug for the admin view", () => {
   const d = buildDataset({
-    plants: [{ slug: "pl", name: "P", natures: ["work"], description: "" }],
+    plants: [{ slug: "pl", name: "P", natures: ["work"], role: { kind: "owner" as const }, description: "" }],
     pods: [{ slug: "m", name: "M", description: "", parents: ["plant:pl"] }],
     beans: [{ slug: "a", name: "A", parents: ["pod:m"] }],
   });

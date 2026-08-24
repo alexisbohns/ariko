@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
-import { resolveText } from "@/lib/data";
+import { resolveText, textPart } from "@/lib/data";
+import { roleLine } from "@/lib/plant-role";
 import { getPublicDataset } from "@/lib/store";
 import { resolveEntity } from "@/lib/entity-resolve";
 import { Prose } from "@/components/markdown";
@@ -14,6 +15,13 @@ export default async function PlantPage({ params }: { params: Promise<{ slug: st
   // A private container 404s rather than existing as an empty public shell.
   if (!plant) notFound();
 
+  // The role's one line of context. Never markdown — plants already have
+  // `content` for prose, so this renders as plain text (fr falls back to en,
+  // like every other read surface).
+  const roleDetail = (
+    textPart(plant.role.detail, "en") || textPart(plant.role.detail, "fr")
+  ).trim();
+
   const pods = data.podsForPlant(slug);
   const beans = data.beansForPlant(slug);
 
@@ -23,7 +31,11 @@ export default async function PlantPage({ params }: { params: Promise<{ slug: st
         <h1 className="font-heading text-2xl font-medium tracking-tight">
           {resolveText(plant.name)}
         </h1>
+        {/* The role leads: it is the claim a visitor most needs, and it wears
+            the strong `default` badge so it reads ahead of the natures rather
+            than as one more tag among them. */}
         <div className="flex flex-wrap gap-1.5">
+          <Badge>{roleLine(plant.role)}</Badge>
           {plant.natures.map((nature) => (
             <Badge key={nature} variant="secondary">
               {nature}
@@ -33,6 +45,7 @@ export default async function PlantPage({ params }: { params: Promise<{ slug: st
         {resolveText(plant.description ?? "").trim() ? (
           <p className="text-base text-muted-foreground">{resolveText(plant.description)}</p>
         ) : null}
+        {roleDetail ? <p className="text-sm text-muted-foreground">{roleDetail}</p> : null}
       </header>
 
       {/* The narrative — where the argument lives. Its entity refs resolve

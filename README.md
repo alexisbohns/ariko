@@ -14,6 +14,12 @@
 
 ### Architecture
 
+* **Plant**: the root tier — a name, `natures[]` (`work | tool`), a description, and a **`role`**:
+  what Alexis *is* to it. `role.kind` is a required four-value enum (`owner | co-owner | lead |
+  contributor`); `role.title` is the real local job title ("Head of Product"), rendered *beside* the
+  enum label rather than replacing it; `role.detail` is one optional line of context, never markdown.
+  It is a public credibility signal — there is no such thing as a private role. Authored through the
+  role card on `/admin/plant/[slug]`; the vocabulary → label mapping lives once, in `lib/plant-role.ts`.
 * **Pod**: has a name, domain (`music | design | podcast`), and contains beans
 * **Bean**: has a name, an optional description (one bilingual line — what the Directory, the graph and future preview cards show), belongs to a pod (optional — can be standalone), and contains sprouts
 * **Sprout**: has a name, type, date, description, state (`draft | private | published`), carried media/source, tags, and flexible per-type properties. `parents` refs (`pod:slug` / `bean:slug`) express **containment only** — future non-containment links (lineage, "featured in") will live in a separate `relations[]`.
@@ -22,9 +28,9 @@
 
 ## Pages
 
-* `/` — Directory. For each plant (+ its pods, + an "Unrooted" group for orphan pods and beans): name, natures, description, and the beans beneath it — each bean a link to /bean/[id] with its own one-line description.
+* `/` — Directory. For each plant (+ its pods, + an "Unrooted" group for orphan pods and beans): name, role line, natures, description, and the beans beneath it — each bean a link to /bean/[id] with its own one-line description.
 * `/beanstalk` — The beanstalk (formerly `/timeline`, which 308-redirects). Authored sprouts and exhibited pollen feed events, sorted by date descending. Above the list: a `<ul>` of domain filter buttons (`all | music | design | podcast`). Below: a `<ul>` of filtered results.
-* `/plant/[slug]` and `/pod/[slug]` — Container pages: name, description, the container's own `content` narrative (entity refs resolved live), then a mechanical index of what is inside.
+* `/plant/[slug]` and `/pod/[slug]` — Container pages: name, the plant's role badge ahead of its natures, description, the role's `detail` line, the container's own `content` narrative (entity refs resolved live), then a mechanical index of what is inside.
 * `/bean/[id]` — Bean detail. `<h1>` bean name, then for each sprout: `<h2>` sprout name, `<ul>` of all key-value properties.
 
 ## Rich content
@@ -74,6 +80,9 @@ As of the Ingestion Spine slice, content can be captured into Mongo via API inst
 * Set `CLOUDINARY_URL` in `.env.local` (from the Cloudinary dashboard, e.g. `cloudinary://<key>:<secret>@<cloud_name>`) — required for `/api/upload` to store images.
 * Set `ARTICLES_TOKEN` in `.env.local` — a single bearer token for `POST /api/articles`; unset means the door is closed (fails closed, `401` on every request).
 * `npm run validators` — applies the DB-side `$jsonSchema` validators and seed indexes. Run once after pulling this change, and again after any validator edit.
+* `npm run backfill:plant-roles` — one-shot, idempotent: gives every pre-`role` plant `{ kind: "owner" }`.
+  Run it **before** `npm run validators` (which tightens `role` to required), then correct the
+  non-owner plants by hand in `/admin/plant/[slug]`.
 
 ### `POST /api/inbox`
 

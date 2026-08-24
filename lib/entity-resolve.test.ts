@@ -4,7 +4,7 @@ import { buildDataset, filterPublic, type RawGarden } from "./data";
 import { resolveEntity } from "./entity-resolve";
 
 const garden: RawGarden = {
-  plants: [{ slug: "paulopus", name: "Paulopus", natures: ["work"], description: "The oracle." }],
+  plants: [{ slug: "paulopus", name: "Paulopus", natures: ["work"], role: { kind: "owner" as const }, description: "The oracle." }],
   pods: [{ slug: "celesta", name: "Celesta", description: "An album.", parents: ["plant:paulopus"] }],
   beans: [
     { slug: "karma", name: "Karma", description: "How it scores.", parents: ["plant:paulopus"] },
@@ -82,7 +82,7 @@ test("a bean with no images resolves with no cover key at all", () => {
 
 test("plant and pod refs never carry a cover — those tiers have no media field", () => {
   const data = buildDataset({
-    plants: [{ slug: "pl", name: "P", natures: ["work"], description: "" }],
+    plants: [{ slug: "pl", name: "P", natures: ["work"], role: { kind: "owner" as const }, description: "" }],
     pods: [{ slug: "po", name: "Po", description: "", parents: ["plant:pl"] }],
   });
   assert.equal(resolveEntity(data, "plant:pl")?.cover, undefined);

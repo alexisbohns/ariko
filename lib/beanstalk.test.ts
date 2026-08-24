@@ -23,7 +23,7 @@ function sproutEntry(slug: string, date: string, plantSlug: string | null = "pbb
   return {
     sprout: { slug, name: slug, type: "feature", date, description: "", parents: [] },
     bean: null,
-    plant: plantSlug ? { slug: plantSlug, name: plantSlug, natures: ["work"], description: "" } : null,
+    plant: plantSlug ? { slug: plantSlug, name: plantSlug, natures: ["work"], role: { kind: "owner" as const }, description: "" } : null,
   };
 }
 
