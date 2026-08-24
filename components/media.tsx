@@ -1,5 +1,10 @@
 import type { Media, MediaEmbed } from "@/lib/data";
 import { embedSrc, type EmbedFrame } from "@/lib/embed-src";
+// Shared, not local: lib/graph.ts needs the same predicate for the cover URL it
+// puts on the wire, and a security check with two copies has two behaviours.
+// lib/url.ts also records why an href is guarded here and an <img src> below is
+// deliberately not.
+import { isHttpUrl } from "@/lib/url";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -58,24 +63,6 @@ function hostOf(url: string): string {
   }
 }
 
-// http(s) or nothing. A stored URL is never scheme-checked on the way in
-// (lib/inbox.ts requires only a non-empty string, deliberately — spec §3), so
-// this is where a `javascript:` or `data:` href would otherwise reach an
-// anchor. React 19 does sanitize javascript: hrefs in its production server
-// builds, but that is React's guarantee to withdraw, not ours to rely on, and
-// nothing in this file said so. A non-http URL renders as text: still visible,
-// still copyable, simply not clickable. It also catches a stored "not a url",
-// which as an href would resolve RELATIVE to the page and navigate to an
-// in-site 404.
-function isHttpUrl(url: string): boolean {
-  try {
-    const { protocol } = new URL(url);
-    return protocol === "http:" || protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
 const CARD = "flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm";
 
 /** The fallback for everything embedSrc cannot frame. */
@@ -92,6 +79,8 @@ function LinkCard({ media }: { media: MediaEmbed }) {
     </>
   );
 
+  // A non-http URL renders as text: still visible, still copyable, simply not
+  // clickable. Same card, no anchor — see lib/url.ts for what that prevents.
   if (!isHttpUrl(media.url)) return <div className={CARD}>{body}</div>;
 
   return (

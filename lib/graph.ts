@@ -3,6 +3,7 @@ import {
   byDateDesc, parentsWithPrefix, resolveText, type PlantNature, type RawGarden, type Sprout, type Text,
 } from "./data";
 import { coverFor } from "./cover";
+import { isHttpUrl } from "./url";
 
 // Graph projection of a RawGarden (roadmap G1) — the graph playground's data
 // contract. Projection-agnostic: serializes whatever seed it is given, so the
@@ -74,7 +75,16 @@ export function toGraph(raw: RawGarden): Graph {
 
   const beanCover = (slug: string): Pick<GraphNode, "cover"> => {
     const cover = coverFor(sproutsByBean.get(slug) ?? []);
-    if (!cover) return {};
+    // Scheme-vetted HERE, unlike the two HTML consumers of the same cover.
+    // They render an <img src>, which is a fetch sink where a hostile scheme
+    // can only fail to paint. This payload leaves for an unknown client
+    // renderer — D1's graph playground is the intended one — which may put the
+    // URL in an href, a CSS url(), or anywhere else. A JSON boundary cannot
+    // vet its consumer's sink, so it vets the value: a cover whose scheme is
+    // not http(s) is simply not emitted, exactly like a bean with no image.
+    // (A stored URL is never scheme-checked on the way in — lib/inbox.ts,
+    // spec §3 — so this is the first place it could be.)
+    if (!cover || !isHttpUrl(cover.url)) return {};
     return {
       cover: {
         url: cover.url,

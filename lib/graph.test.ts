@@ -540,6 +540,42 @@ test("the graph's cover omits storageKey", () => {
   assert.equal(JSON.stringify(graph).includes("secret"), false);
 });
 
+// The one cover consumer that cannot vet its own sink: /api/graph hands this
+// URL to an unknown client renderer, which may put it in an href. A stored
+// media URL is never scheme-checked on the way in (lib/inbox.ts, spec §3), so
+// this boundary is the first place it could be.
+test("a cover whose URL is not http(s) is not emitted at all", () => {
+  const withCover = (url: string) =>
+    toGraph({
+      beans: [{ slug: "b", name: "B", parents: [] }],
+      sprouts: [
+        {
+          slug: "s",
+          name: "S",
+          type: "t",
+          date: "2026-01-01",
+          description: "",
+          parents: ["bean:b"],
+          media: [{ kind: "image", storageKey: "k", url }],
+        },
+      ],
+    }).nodes.find((n) => n.id === "bean:b")?.cover;
+
+  for (const url of [
+    "javascript:alert(1)",
+    "JavaScript:alert(1)",
+    "data:text/html,<script>1</script>",
+    "not a url",
+    "",
+  ]) {
+    assert.equal(withCover(url), undefined, `a ${url || "blank"} cover must not reach the payload`);
+  }
+
+  // Non-vacuous, and the guard must not be over-eager either.
+  assert.deepEqual(withCover("https://cdn/x.jpg"), { url: "https://cdn/x.jpg" });
+  assert.deepEqual(withCover("http://cdn/x.jpg"), { url: "http://cdn/x.jpg" });
+});
+
 test("a bean with no images emits no cover key", () => {
   const graph = toGraph({ beans: [{ slug: "b", name: "B", parents: [] }] });
   const bean = graph.nodes.find((n) => n.id === "bean:b");
