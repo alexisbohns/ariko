@@ -585,8 +585,9 @@ missed a defect that made the editor fail to mount on every page.
 `lib/**/*.test.ts` only, so `components/media.tsx` — the file that turns every derivation in this
 slice into HTML — was pinned by nothing, and a test written beside it would have passed silently by
 never executing. Every gate in the security argument was tested up to `lib/embed-src.ts`, and then
-the last link was not. The glob now covers `{lib,components}/**/*.test.{ts,tsx}`, and
-`tsconfig.test.json` overrides `jsx` to the automatic runtime, because under the repo's `preserve`
+the last link was not. The glob now names `components/` as well as `lib/`, and `.tsx` as well as `.ts` — four plain
+patterns rather than one brace expression, so nothing depends on how a given Node version expands
+braces; a pattern that matches nothing is not an error. `tsconfig.test.json` overrides `jsx` to the automatic runtime, because under the repo's `preserve`
 (which Next rewrites back on every build) tsx uses the classic transform and any component rendered
 from a test throws "React is not defined".
 

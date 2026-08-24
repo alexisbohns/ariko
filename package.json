@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "TSX_TSCONFIG_PATH=tsconfig.test.json node --import tsx --test \"{lib,components}/**/*.test.{ts,tsx}\" \"scripts/lab-note/*.test.mjs\"",
+    "test": "TSX_TSCONFIG_PATH=tsconfig.test.json node --import tsx --test \"lib/**/*.test.ts\" \"lib/**/*.test.tsx\" \"components/**/*.test.ts\" \"components/**/*.test.tsx\" \"scripts/lab-note/*.test.mjs\"",
     "migrate": "node --env-file=.env.local --import tsx scripts/migrate-garden.ts",
     "validators": "node --env-file=.env.local --import tsx scripts/apply-validators.ts",
     "pollen:validate": "node --import tsx scripts/pollen-validate.ts",
