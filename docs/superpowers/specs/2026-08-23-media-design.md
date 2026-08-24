@@ -582,7 +582,19 @@ Recorded so nothing is silently dropped:
 - **Ausha and Figma iframes** — §5.2, on stated evidence. One table row and one test each, later.
 - **Deleting a Cloudinary asset** when it is removed from `media[]`. Removal unlinks; the asset
   stays. That is also what makes removal safely undoable.
-- **`next/image` optimization** — §5.4.
+- **`next/image` optimization** — §5.4. Note this is *not* the same as leaving thumbnails
+  unoptimised: `lib/image-url.ts` rewrites a Cloudinary delivery URL to ask for a sized derivative
+  (`w_,h_,c_fill,q_auto,f_auto`), which needs no optimizer, no `images.remotePatterns`, and no new
+  dependency. Without it the Directory downloaded multi-megabyte originals to paint 40px squares —
+  the byte-to-pixel ratio `components/media.tsx` reasonably accepts for a full-size image does not
+  survive being reused for a list of thumbnails.
+
+  **Derived at render, not stored at write**, for the same reasons the cover itself is: a stored
+  thumbnail URL would need a backfill for every existing `MediaImage`, would lock in one size when
+  the two consumers already want different ones (80×80 and 1440×256 from the same original), and
+  would go stale the moment a box is resized. The transform is a URL parse and two string
+  operations — cheaper than the `Map` lookup beside it — so there is no axis on which storing it
+  wins. A non-Cloudinary URL passes through untouched, since §3 deliberately allows a hotlink.
 - **Container media.** `Plant` and `Pod` have no `media` field (`lib/data.ts` — only `Sprout:125`
   and `Seed:155` carry one). This is out of *model* scope, not merely out of slice scope.
 - **Per-media privacy.** §3: anything on a published sprout is public. Changing that is a model
