@@ -92,6 +92,14 @@ matters to the north star) and an **explanation** (what it entails / where it or
   - *Explanation:* wire the already-built `POST /api/upload` (Cloudinary) into the admin capture bar,
     with UX that lets a capture survive an image-upload failure ("media pending"). *(Origin: 2a, 2b-i,
     2b-ii plans.)*
+  - *Status:* **shipped 2026-08-24.** The capture bar and `/admin/sprout/[slug]` both carry a media
+    picker; uploads go through `uploadImageAction`; the editor's `/image` puts a picture inside an
+    article. The picker is the second deliberate client-JS island (`CLAUDE.md`), bounded by a rule
+    that its *absence* never costs anything — a form it merely adds to still submits, and a form
+    that is only the picker goes inert rather than destructive. `updateVersion`'s "never touches
+    media" guarantee was preserved by giving media its own narrow writer, so the metadata form's
+    blast radius is unchanged. Also fixed a latent Cloudinary defect the slice would have triggered:
+    `public_id` derived from the filename, so two same-named uploads silently replaced each other.
 
 - **B3 · Rich content + media embed rendering (exhibition dependency)**
   - *Intention:* actually *show* the work — render `content` markdown and media embeds (SoundCloud,
@@ -117,6 +125,19 @@ matters to the north star) and an **explanation** (what it entails / where it or
     was editing `data/garden.yml` and running `npm run migrate`. Track A still owes an admin surface
     for *editing* a container's narrative: today, correcting a published one means re-privatizing
     the container or editing the database directly.
+    **The media half closed 2026-08-24, and B3 with it.** `media[]` renders on `/bean/[id]`:
+    images as images, derivable embeds as players (youtube, vimeo, soundcloud, spotify, deezer),
+    with ausha, figma and Deezer shows as link cards — each because its embed contract could not be
+    verified, not by oversight. Host matching hardened from substring to exact (`vimeo.com.evil.test`
+    no longer detects as vimeo), and the provider is now **derived** from the URL on every write
+    rather than accepted from a payload — hardening detection while trusting a declared provider
+    would have locked the front door and left the side one. A `frame-src`/`object-src` CSP, the
+    repo's first, is generated from the same allowlist `lib/embed-src.ts` builds URLs from, and its
+    test fails loudly if a provider is added without an allowlist entry. The cover convention landed
+    derived, as specced: `coverFor` scans newest-first for the first sprout carrying an image, and
+    the Directory, entity cards and `/api/graph` bean nodes all consume it — reversing G1's
+    withholding, which had pointed at exactly this. **D1's dependency is satisfied.**
+
     **Slice 5 (Tiptap) closed that on 2026-08-23** — `/admin/plant/[slug]` and `/admin/pod/[slug]`
     edit a container's narrative directly, and revising a sprout's prose no longer requires a
     re-post through `/api/articles`. Container *name/description/visibility* editing remains open
@@ -256,8 +277,16 @@ current work. Full context lives in the originating plan's "Deferred follow-ups"
 
 ## Recommended next
 
-With A2, G1, B1, and G2 shipped, the functional runway to D1 narrows to Track B's remaining media
-work: **B2 (image attach on the capture bar)** then **B3 (rich content + embed rendering, with the
-embed host-matching hardening)** — B3 is the last gate before **D1, the graph playground itself**
-(G1's contract + G2's edges are live and waiting for it). A4/G3 (molecule detail on a shared
-`neighbors()` resolver) and a relations authoring UI are good parallel fillers.
+With A2, G1, B1, G2, **B2 and B3** shipped, **D1 — the graph playground — is unblocked.** Every
+public node now carries name, description and (for beans) a cover, which is what a focused node
+needs to show; G1's contract and G2's edges have been live and waiting.
+
+Two observations from building the media slice are D1's to resolve, recorded in
+[`specs/2026-08-23-media-design.md`](specs/2026-08-23-media-design.md) §5.4 rather than left to be
+rediscovered: media can land far from the prose it belongs to (the article comes from the first
+sprout *carrying content* while cards render strictly newest-first), and a sprout card now reads as
+a spec sheet capped with photographs — muted key/value traceability rows beside images meant to be
+looked at. Neither is broken; both are exactly what an exhibition slice exists to fix.
+
+A4/G3 (molecule detail on a shared `neighbors()` resolver) and a relations authoring UI remain good
+parallel fillers.
