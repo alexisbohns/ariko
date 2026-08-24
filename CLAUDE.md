@@ -46,6 +46,13 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
   write without the picker's `__ready` marker, as defence in depth against a
   POST that never rendered a button at all.
 
+  The plant **Logo card** (`app/admin/_components/logo-card.tsx`, the plant
+  status/logo slice) is the sprout media card's case again, not a new one: it is
+  nothing but the picker, it hands the picker its submit button, and
+  `buildPlantLogoPatch` enforces the same `__ready` rule. It caps the list at
+  one with the picker's `max` prop — a plant has one mark. The Meta card beside
+  it stays zero-client-JS, which is *why* the logo needs a card of its own.
+
   Images upload through `uploadImageAction`, never from the browser to a third
   party, and a pasted link's `provider` is always derived server-side.
 

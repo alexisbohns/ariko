@@ -44,6 +44,7 @@ export function MediaPicker({
   name,
   initial = [],
   links = false,
+  max,
   submitLabel,
 }: {
   /** The hidden field name — "image" on the capture bar, "media" on a sprout. */
@@ -52,6 +53,17 @@ export function MediaPicker({
   initial?: Media[];
   /** Offer an "add link" input, which joins the same ordered list. */
   links?: boolean;
+  /**
+   * Cap on how many entries the list may hold. Unset means no cap, which is
+   * every surface but the plant Logo card — a plant has ONE mark.
+   *
+   * It withdraws the ADD controls when the list is full, never the editing
+   * ones: a capped row stays removable, or a logo could never be changed once
+   * set. Advisory, the way checkUploadFile is: buildPlantLogoPatch takes the
+   * first image whatever arrives, so a crafted POST cannot use this to store
+   * more than one.
+   */
+  max?: number;
   /**
    * Renders the form's submit button INSIDE the island when set.
    *
@@ -200,6 +212,10 @@ export function MediaPicker({
   if (!mounted) return null;
 
   const pending = rows.filter((r) => r.state !== "settled").length;
+  // Counts EVERY row, in-flight and failed included. Counting only settled ones
+  // would let a second file be picked while the first is still uploading, and
+  // the cap would be breached the moment both landed.
+  const full = max !== undefined && rows.length >= max;
 
   return (
     <div className="flex flex-col gap-3">
@@ -214,22 +230,27 @@ export function MediaPicker({
           rather than aspirational. */}
       <input type="hidden" name={`${name}__ready`} value="1" />
 
-      <div className="flex flex-col gap-2">
-        <Label htmlFor={`${name}-file`}>Images</Label>
-        {/* The registry Input, not a raw element: it already ships this
-            project's file: styling, and Base UI's Field.Control forwards the
-            ref to the real <input>, so the post-pick reset below still works. */}
-        <Input
-          id={`${name}-file`}
-          ref={fileRef}
-          type="file"
-          accept={ALLOWED_TYPES.join(",")}
-          multiple
-          onChange={(e) => addFiles(e.target.files)}
-        />
-      </div>
+      {/* Withdrawn once the list is full — the cap is expressed by having
+          nowhere to add, not by a disabled control explaining itself. */}
+      {full ? null : (
+        <div className="flex flex-col gap-2">
+          <Label htmlFor={`${name}-file`}>Images</Label>
+          {/* The registry Input, not a raw element: it already ships this
+              project's file: styling, and Base UI's Field.Control forwards the
+              ref to the real <input>, so the post-pick reset below still
+              works. */}
+          <Input
+            id={`${name}-file`}
+            ref={fileRef}
+            type="file"
+            accept={ALLOWED_TYPES.join(",")}
+            multiple
+            onChange={(e) => addFiles(e.target.files)}
+          />
+        </div>
+      )}
 
-      {links ? (
+      {links && !full ? (
         <div className="flex items-end gap-2">
           <div className="flex flex-1 flex-col gap-2">
             <Label htmlFor={`${name}-link`}>Add a link</Label>

@@ -246,8 +246,22 @@ Node's test runner, `npm test`, matching the existing `lib/**/*.test.ts` layout.
 - A plant with no `status` lands in `active`.
 - All-active input yields an empty `inactive` (so the divider is not rendered).
 
-**`components/media-picker-mount.test.ts`** (existing, extended)
-- With `max={1}` and one entry, the add-controls are not rendered; the remove control still is.
+**`lib/media-picker-max.test.ts`** (new)
+The `max` cap only exists past mount, and `lib/media-picker-mount.test.ts` is a
+`renderToStaticMarkup` test — deliberately DOM-free, since "the picker renders nothing without
+script" is exactly what it pins. So the cap gets a sibling file that mounts the island for real
+(jsdom + `createRoot` + `React.act`, the first client-mount harness in the suite, shaped after
+`lib/editor-mount.test.ts`):
+
+- No `max` ⇒ the file input is always offered.
+- `max={1}` with one entry ⇒ neither the file input nor the link field renders, and the row stays
+  removable.
+- `max={1}` on an empty picker ⇒ the file input renders.
+- The `__ready` marker renders whatever the cap says.
+
+One trap worth recording: assert on `el === null`, never `assert.equal(el, null)`. A failing
+`assert.equal` tries to serialize a jsdom element into its diff, which takes ~27 seconds and reports
+nothing.
 
 ## 10. Out of scope
 

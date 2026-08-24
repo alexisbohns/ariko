@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { resolveText, textPart } from "@/lib/data";
 import { roleLine } from "@/lib/plant-role";
+import { statusLabel, statusOf } from "@/lib/plant-status";
+import { cloudinaryThumb } from "@/lib/image-url";
 import { getPublicDataset } from "@/lib/store";
 import { resolveEntity } from "@/lib/entity-resolve";
 import { Prose } from "@/components/markdown";
@@ -27,7 +29,20 @@ export default async function PlantPage({ params }: { params: Promise<{ slug: st
 
   return (
     <article className="flex flex-col gap-8">
-      <header className="flex flex-col gap-2">
+      <header className="flex flex-col gap-3">
+        {/* Same mark, same shape as the landing gallery — a page reached
+            directly from a link or the graph should look like the section the
+            visitor would otherwise have come from. Decorative: the name is the
+            next element. */}
+        {plant.logo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={cloudinaryThumb(plant.logo.url, { width: 96, height: 96 })}
+            alt=""
+            decoding="async"
+            className="h-12 w-12 rounded-xl object-cover"
+          />
+        ) : null}
         <h1 className="font-heading text-2xl font-medium tracking-tight">
           {resolveText(plant.name)}
         </h1>
@@ -41,6 +56,15 @@ export default async function PlantPage({ params }: { params: Promise<{ slug: st
               {nature}
             </Badge>
           ))}
+          {/* Only when inactive. This page has no "Inactive" heading above it
+              to carry the fact the way the landing gallery does, so the badge
+              is where the status becomes visible at all. An ACTIVE plant wears
+              nothing: active is the unmarked default everywhere else in this
+              feature, and a badge saying so on every plant page would be
+              noise. */}
+          {statusOf(plant) === "inactive" ? (
+            <Badge variant="secondary">{statusLabel("inactive")}</Badge>
+          ) : null}
         </div>
         {resolveText(plant.description ?? "").trim() ? (
           <p className="text-base text-muted-foreground">{resolveText(plant.description)}</p>

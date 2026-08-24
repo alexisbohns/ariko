@@ -46,6 +46,17 @@ export interface Relation {
 
 export type PlantNature = "work" | "tool";
 
+// Whether the plant is current work or a finished chapter. Public, and read
+// literally: the landing gallery groups by it and the plant page badges it.
+//
+// Default-tolerant, the OPPOSITE of the choice `role` makes below — and
+// deliberately so. `role` is required because there is no honest default; an
+// "unclassified plant" is not a thing. This has one: an unmarked plant is a
+// plant still being worked on, which is a TRUE reading of absence rather than a
+// convenient one. So `status ?? "active"` is a promise the database keeps, and
+// this slice needs no backfill.
+export type PlantStatus = "active" | "inactive";
+
 // What Alexis IS to a plant — a public credibility signal, not an internal
 // organizing fact. `kind` is the vocabulary spine (badges, the admin column);
 // `title` is the real local job title, which renders BESIDE the enum label
@@ -78,6 +89,12 @@ export interface Plant {
   // public" `visibility`) were NOT followed: a tolerant read (`role ?? owner`)
   // would make this type a promise the database does not keep.
   role: PlantRole;
+  status?: PlantStatus; // absent ⇒ treated as "active" (see PlantStatus)
+  // The plant's mark. ONE image, not Media[]: a plant has one logo, and an
+  // array would make "the first entry is the logo" a rule enforced nowhere —
+  // while admitting a MediaEmbed, a SoundCloud player, into a field that is a
+  // square image by definition.
+  logo?: MediaImage;
   description: Text;
   content?: Text; // optional narrative — the container's own page (slice 3)
   visibility?: Visibility; // default treated as "public", same rule as pods

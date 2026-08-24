@@ -3,6 +3,7 @@ import { ensureSeedIndexes } from "../lib/seeds";
 import { ensureBotanicalIndexes } from "../lib/botanical";
 import { ensurePollenIndexes } from "../lib/pollen-store";
 import { PLANT_ROLE_KINDS } from "../lib/plant-role";
+import { PLANT_STATUSES } from "../lib/plant-status";
 
 // Applies a $jsonSchema validator to a collection, creating it if absent.
 // Idempotent: safe to re-run. validationLevel "moderate" only validates inserts
@@ -96,6 +97,22 @@ async function main() {
         bsonType: "object",
         required: ["kind"],
         properties: { kind: { enum: [...PLANT_ROLE_KINDS] } },
+      },
+      // NOT added to `required` above, unlike `role` — absence is a valid and
+      // meaningful state here (it reads as "active"), which is what lets this
+      // ship with no backfill.
+      status: { enum: [...PLANT_STATUSES] },
+      // Constrained to an image, which is the whole reason `logo` is a single
+      // MediaImage rather than a Media[]: the database refuses an embed here,
+      // not just the picker.
+      logo: {
+        bsonType: "object",
+        required: ["kind", "storageKey", "url"],
+        properties: {
+          kind: { enum: ["image"] },
+          storageKey: { bsonType: "string" },
+          url: { bsonType: "string" },
+        },
       },
       relations: {
         bsonType: "array",

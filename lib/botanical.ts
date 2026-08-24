@@ -1,8 +1,10 @@
+import type { UpdateFilter } from "mongodb";
 import { getDb } from "./db";
 import {
   resolveText,
   type Bean,
   type Media,
+  type MediaImage,
   type Plant,
   type PlantRole,
   type Pod,
@@ -13,6 +15,7 @@ import {
 import type { SproutInput } from "./promote";
 import type { SproutPatch } from "./sprout-edit";
 import type { ContentPatch } from "./content-edit";
+import type { PlantMetaPatch } from "./plant-meta";
 
 // Thrown when a create hits the unique slug index. Lets the server action turn a
 // collision into a friendly message instead of a 500.
@@ -214,6 +217,45 @@ export function updatePodContent(slug: string, patch: ContentPatch): Promise<voi
 export async function updatePlantRole(slug: string, role: PlantRole): Promise<void> {
   const db = await getDb();
   await db.collection<Plant>("plants").updateOne({ slug }, { $set: { role } });
+}
+
+/**
+ * Writes a plant's name, description and status — and nothing else.
+ *
+ * A SIBLING of updatePlantRole, for the reason that one gives: the three
+ * fields are named explicitly rather than spread, so a later, widened caller
+ * cannot reach `visibility`, `natures`, `logo` or `content` from a form that
+ * has no business touching them. `slug` is not among them either — it is what
+ * every parents[] ref points at.
+ *
+ * A null description is an `$unset`, not a stored "": the Meta card must be
+ * able to REMOVE a description, and a stored empty string renders as a
+ * dangling line on the landing gallery.
+ */
+export async function updatePlantMeta(slug: string, patch: PlantMetaPatch): Promise<void> {
+  const db = await getDb();
+  await db.collection<Plant>("plants").updateOne({ slug }, {
+    $set: { name: patch.name, status: patch.status },
+    ...(patch.description === null
+      ? { $unset: { description: "" } }
+      : { $set: { description: patch.description } }),
+  } as UpdateFilter<Plant>);
+}
+
+/**
+ * Writes a plant's logo — and nothing else. `null` clears it.
+ *
+ * A SIBLING again. Clearing is an `$unset` rather than a stored null, so an
+ * absent logo has ONE representation in the database and every read surface
+ * only has to handle `logo === undefined`.
+ */
+export async function updatePlantLogo(slug: string, logo: MediaImage | null): Promise<void> {
+  const db = await getDb();
+  await db
+    .collection<Plant>("plants")
+    .updateOne({ slug }, (logo === null
+      ? { $unset: { logo: "" } }
+      : { $set: { logo } }) as UpdateFilter<Plant>);
 }
 
 /**

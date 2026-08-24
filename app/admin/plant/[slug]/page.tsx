@@ -5,7 +5,11 @@ import { editContainerContentAction } from "../../actions";
 import { AdminBar } from "../../_components/admin-bar";
 import { ContentCard } from "../../_components/content-card";
 import { RoleCard } from "../../_components/role-card";
+import { MetaCard } from "../../_components/meta-card";
+import { LogoCard } from "../../_components/logo-card";
 import { roleLine } from "@/lib/plant-role";
+import { statusLabel, statusOf } from "@/lib/plant-status";
+import { cloudinaryThumb } from "@/lib/image-url";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,12 +46,26 @@ export default async function AdminPlantPage({
           >
             ← garden
           </a>
-          <h1 className="font-heading text-2xl font-medium tracking-tight">
-            {resolveText(plant.name)}
-          </h1>
+          <div className="flex items-center gap-3">
+            {/* The mark as the admin will see it published, at the size the
+                landing uses — so a crop that goes wrong is visible here rather
+                than only in production. */}
+            {plant.logo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={cloudinaryThumb(plant.logo.url, { width: 96, height: 96 })}
+                alt=""
+                className="h-12 w-12 shrink-0 rounded-xl object-cover"
+              />
+            ) : null}
+            <h1 className="font-heading text-2xl font-medium tracking-tight">
+              {resolveText(plant.name)}
+            </h1>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">plant:{plant.slug}</Badge>
             <Badge>{roleLine(plant.role)}</Badge>
+            <Badge variant="secondary">{statusLabel(statusOf(plant))}</Badge>
             <Badge variant={plant.visibility === "public" ? "default" : "secondary"}>
               {plant.visibility ?? "public"}
             </Badge>
@@ -63,7 +81,11 @@ export default async function AdminPlantPage({
           </Alert>
         ) : null}
 
+        <MetaCard plant={plant} />
+
         <RoleCard plant={plant} />
+
+        <LogoCard plant={plant} />
 
         <ContentCard
           raw={raw}

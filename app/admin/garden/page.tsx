@@ -2,6 +2,7 @@ import { resolveText, textPart } from "@/lib/data";
 import { loadRawGarden } from "@/lib/store";
 import { AdminBar } from "../_components/admin-bar";
 import { roleLine } from "@/lib/plant-role";
+import { statusLabel, statusOf } from "@/lib/plant-status";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -30,6 +31,7 @@ export default async function AdminGardenPage() {
       visibility: p.visibility ?? "public",
       hasNarrative: textPart(p.content, "en").trim().length > 0,
       role: roleLine(p.role),
+      status: statusLabel(statusOf(p)),
       href: `/admin/plant/${p.slug}`,
     })),
     ...(raw.pods ?? []).map((p) => ({
@@ -38,8 +40,11 @@ export default async function AdminGardenPage() {
       name: resolveText(p.name),
       visibility: p.visibility ?? "public",
       hasNarrative: textPart(p.content, "en").trim().length > 0,
-      // Roles live at the plant tier only — a pod's cell stays empty.
+      // Roles and statuses live at the plant tier only — a pod's cells stay
+      // empty. A pod under an inactive plant IS inactive, by containment; a
+      // second stored flag would be a second source of truth.
       role: null,
+      status: null,
       href: `/admin/pod/${p.slug}`,
     })),
   ].sort((a, b) => a.tier.localeCompare(b.tier) || a.name.localeCompare(b.name));
@@ -57,6 +62,7 @@ export default async function AdminGardenPage() {
               <TableHead>name</TableHead>
               <TableHead>tier</TableHead>
               <TableHead>role</TableHead>
+              <TableHead>status</TableHead>
               <TableHead>visibility</TableHead>
               <TableHead>narrative</TableHead>
             </TableRow>
@@ -74,6 +80,7 @@ export default async function AdminGardenPage() {
                   <Badge variant="outline">{row.tier}</Badge>
                 </TableCell>
                 <TableCell className="text-muted-foreground">{row.role ?? "—"}</TableCell>
+                <TableCell className="text-muted-foreground">{row.status ?? "—"}</TableCell>
                 <TableCell className="text-muted-foreground">{row.visibility}</TableCell>
                 <TableCell className="text-muted-foreground">
                   {row.hasNarrative ? "yes" : "—"}
