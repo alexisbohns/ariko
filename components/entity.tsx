@@ -23,22 +23,28 @@ export function EntityCard({
     ) : null;
   }
   return (
-    <Card className="not-prose my-4 overflow-hidden">
+    <Card className="not-prose my-4">
       {entity.cover ? (
-        <a href={entity.href} aria-hidden="true" tabIndex={-1}>
-          {/* Decorative HERE specifically: the link below carries the
-              accessible name, so describing the image again would announce the
-              same destination twice. This is not the same as the empty alt on
-              a public MediaList image, which is a genuine gap.
-              eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={entity.cover.url}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            className="h-32 w-full object-cover"
-          />
-        </a>
+        // A direct child of Card, deliberately: components/ui/card.tsx ships
+        // `has-[>img:first-child]:pt-0` and `*:[img:first-child]:rounded-t-xl`
+        // for exactly this, and both selectors match a direct-child <img> only
+        // — wrapping it in an anchor silently opted out of the treatment and
+        // produced an inset band with square corners instead of a flush one.
+        //
+        // Not a link, and that is the point. The card's name below is the
+        // link; making the image a second anchor to the same href meant one
+        // aria-hidden, one tabIndex={-1}, and a duplicate destination to
+        // suppress. Not rendering it as a link removes the problem rather than
+        // managing it. Decorative alt for the same reason: the name carries
+        // the accessible name.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={entity.cover.url}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="h-32 w-full object-cover"
+        />
       ) : null}
       <CardContent className="flex flex-col gap-1 py-4">
         <a href={entity.href} className="text-sm font-medium underline-offset-4 hover:underline">
