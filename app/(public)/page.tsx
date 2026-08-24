@@ -1,6 +1,7 @@
 import { resolveText } from "@/lib/data";
 import { getPublicDataset } from "@/lib/store";
 import { coverFor } from "@/lib/cover";
+import { cloudinaryThumb } from "@/lib/image-url";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -31,7 +32,11 @@ export default async function DirectoryPage() {
               {cover ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={cover.url}
+                  // A 40px row painting a full-size Cloudinary original could
+                  // cost several MB per bean; cloudinaryThumb asks Cloudinary
+                  // for an already-shrunk derivative instead. 80 (not 40) so
+                  // the thumbnail stays sharp on a 2x display.
+                  src={cloudinaryThumb(cover.url, { width: 80, height: 80 })}
                   alt=""
                   loading="lazy"
                   decoding="async"

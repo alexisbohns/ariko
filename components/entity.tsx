@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { EntityResolver } from "@/lib/entity-resolve";
+import { cloudinaryThumb } from "@/lib/image-url";
 import { Card, CardContent } from "@/components/ui/card";
 
 // Fail-closed (spec §2.3): an unresolved ref renders NOTHING on a public page —
@@ -39,7 +40,14 @@ export function EntityCard({
         // the accessible name.
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={entity.cover.url}
+          // The card renders at the reading column's full width
+          // (app/(public)/layout.tsx: `max-w-3xl px-6` -> 768px - 2*24px =
+          // 720px at its widest) and h-32 (128px) tall, so 1440x256 is that
+          // box doubled for a 2x display. Matching the box's own aspect ratio
+          // (~5.6:1), rather than picking a rounder but narrower number, keeps
+          // Cloudinary's c_fill crop aligned with what object-cover shows
+          // instead of cropping a differently-shaped box.
+          src={cloudinaryThumb(entity.cover.url, { width: 1440, height: 256 })}
           alt=""
           loading="lazy"
           decoding="async"
