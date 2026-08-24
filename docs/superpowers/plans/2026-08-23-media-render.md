@@ -75,15 +75,27 @@ test("the vimeo id comes from a path segment, not from anywhere in the string", 
   assert.equal(detectEmbed("https://vimeo.com/notanumber").embedId, undefined);
 });
 
-// AMENDED: this originally asserted 999 for the showcase form, taking the FIRST
-// numeric segment. 999 is the showcase's id, so embedSrc would have built
-// player.vimeo.com/video/999 and embedded the wrong video. Vimeo nests the
-// video id under a collection id in several share forms and the collection's id
-// always comes first, so the LAST numeric segment is the right rule.
-test("a collection URL yields the video's id, not the collection's", () => {
-  assert.equal(detectEmbed("https://vimeo.com/showcase/999/video/123456").embedId, "123456");
-  assert.equal(detectEmbed("https://vimeo.com/groups/123/videos/456").embedId, "456");
-  assert.equal(detectEmbed("https://vimeo.com/album/999/video/123456").embedId, "123456");
+// AMENDED TWICE. This first asserted 999 for the showcase form, taking the
+// FIRST numeric segment — 999 is the showcase's id, so embedSrc would have
+// built player.vimeo.com/video/999 and embedded the wrong video. The fix
+// written here next was "take the LAST numeric segment", which is equally
+// wrong the other way: the unlisted-share form vimeo.com/{id}/{hash} ends in a
+// privacy hash that is routinely all digits. What shipped is a keyword anchor
+// with a first-numeric fallback (see Step 3), and the test covers every share
+// form rather than one shape.
+test("the vimeo id is found in every share form", () => {
+  const id = (u: string) => detectEmbed(u).embedId;
+  assert.equal(id("https://vimeo.com/123456"), "123456", "bare");
+  assert.equal(id("https://vimeo.com/channels/staffpicks/123456"), "123456", "channel slug");
+  assert.equal(id("https://player.vimeo.com/video/123456"), "123456", "player");
+  // Collection forms: the collection's id comes FIRST, the video's last.
+  assert.equal(id("https://vimeo.com/showcase/999/video/123456"), "123456", "showcase");
+  assert.equal(id("https://vimeo.com/groups/123/videos/456"), "456", "group");
+  assert.equal(id("https://vimeo.com/album/999/video/123456"), "123456", "album");
+  // Unlisted and review forms: the video's id comes FIRST, an all-digit hash last.
+  assert.equal(id("https://vimeo.com/76979871/576845123"), "76979871", "unlisted private link");
+  assert.equal(id("https://vimeo.com/user123/review/76979871/12345678"), "76979871", "review page");
+  assert.equal(id("https://vimeo.com/notanumber"), undefined, "no id at all");
 });
 
 test("a youtu.be lookalike does not reach the short-URL id path", () => {
@@ -143,21 +155,51 @@ function youtubeId(url: string): string | undefined {
   }
 }
 
-// The LAST numeric path segment. Not the first: Vimeo nests the video id under
-// a collection id in several share forms — /showcase/{id}/video/{id},
-// /groups/{id}/videos/{id}, /album/{id}/video/{id} — all of which lead with the
-// COLLECTION's id, so taking the first embeds the wrong video. The last is
-// right for every form, including the bare vimeo.com/123456.
+// Vimeo's share forms disagree about WHERE the video id sits, so no positional
+// rule is right for all of them:
 //
-// Still a path-segment scan rather than a regex over the whole URL: the regex
-// this replaced could lift an id out of a query string.
+//   vimeo.com/123456                          bare
+//   vimeo.com/channels/staffpicks/123456      collection slug, id last
+//   vimeo.com/showcase/999/video/123456       collection id FIRST, video last
+//   vimeo.com/groups/123/videos/456           same shape
+//   vimeo.com/76979871/576845123              unlisted: id FIRST, hash last
+//   vimeo.com/user/review/76979871/12345678   review: id first, review id last
+//
+// THIRD attempt, and the two rejected ones are why this looks the way it does:
+// a regex over the whole URL (what this replaces) could lift an id out of a
+// query string; the FIRST numeric segment embeds the collection on the
+// showcase/groups/album forms; the LAST numeric segment embeds the privacy
+// hash on the unlisted and review forms, since that hash is routinely all
+// digits. Both of the latter are wrong-video bugs rather than security ones
+// (the host stays allowlisted either way), and both are silent.
+//
+// So: anchor on the `video`/`videos` keyword that every collection form
+// contains, and take the numeric segment immediately after it. Absent that
+// keyword, the id is the FIRST numeric segment — correct for the bare,
+// unlisted, and review forms alike.
+//
+// Known miss, stated at its real width: absent the keyword, ANY numeric segment
+// sitting before the id wins — an all-numeric channel slug
+// (vimeo.com/channels/12345/67890), and equally vimeo.com/12345/review/678/90,
+// which is one of the very forms the fallback exists to serve. What keeps this
+// from biting is a platform convention rather than anything structural here:
+// Vimeo usernames are `user12345678`, never bare digits. Left as a documented
+// limitation because the guard that would close it costs more than a miss that
+// requires Vimeo to change its username format — and, like every other miss in
+// this function, it fails to a wrong video rather than an unsafe host.
 function vimeoId(url: string): string | undefined {
+  let segments: string[];
   try {
-    const numeric = new URL(url).pathname.split("/").filter((s) => /^\d+$/.test(s));
-    return numeric[numeric.length - 1];
+    segments = new URL(url).pathname.split("/").filter(Boolean);
   } catch {
     return undefined;
   }
+  const anchor = segments.findIndex((s) => s === "video" || s === "videos");
+  if (anchor !== -1) {
+    const next = segments[anchor + 1];
+    if (next && /^\d+$/.test(next)) return next;
+  }
+  return segments.find((s) => /^\d+$/.test(s));
 }
 ```
 

@@ -313,14 +313,39 @@ detection while leaving the fourth open would lock the front door and leave the 
    (`hostname.includes("youtu.be")`). It uses the hardened helper.
 3. **`:36`** — `vimeoId()` regexes the **whole URL** (`/vimeo\.com\/(\d+)/`), so it can lift an id
    out of a query string, and it returns the wrong id for
-   `vimeo.com/channels/staffpicks/123456`. Replaced with: parse the URL, take the **last** numeric
-   path segment.
+   `vimeo.com/channels/staffpicks/123456`. Replaced with: parse the URL, split the path, and
+   **anchor on the `video`/`videos` segment** — the id is the numeric segment immediately after
+   it. Absent that keyword, the id is the **first** numeric segment.
 
-   *Amended during implementation:* this first said the **first** numeric segment. That still
-   embeds the wrong video — Vimeo nests the video id under a collection id in `/showcase/…/video/…`,
-   `/groups/…/videos/…` and `/album/…/video/…`, and the collection's id always comes first. The
-   last segment is correct for every form. Worth recording because the plan's own test asserted the
-   wrong value, which would have shipped the bug pinned as intended behaviour.
+   *Amended twice during implementation.* What shipped is the **third** attempt at replacing the
+   regex, and the two rejected ones are recorded here because each looked right until a share form
+   disproved it:
+
+   - **A regex over the whole URL** — what was there before this slice. Not positional at all, so
+     it could lift an id out of a query string.
+   - **The first numeric path segment.** Vimeo nests the video under a collection in
+     `/showcase/{id}/video/{id}`, `/groups/{id}/videos/{id}` and `/album/{id}/video/{id}`, where
+     the collection's id comes first — so this embeds the collection, not the video.
+   - **The last numeric path segment.** Fixes the collection forms and breaks the unlisted-share
+     form `vimeo.com/{id}/{hash}`, whose privacy hash is routinely all digits — so this embeds the
+     hash. Same for the review form `vimeo.com/{user}/review/{id}/{hash}`.
+   - **The keyword anchor with a first-numeric fallback** — shipped. Correct for all six known
+     forms: bare, channel, showcase, groups, unlisted, review.
+
+   An earlier version of this amendment asserted that "the last segment is correct for every form",
+   and the plan's test pinned it. That was wrong — and it was wrong in the very note written to
+   record that *a test pinning wrong behaviour is worse than no test, because it ships the bug
+   labelled as intended*. Anyone reconciling code to spec from that sentence would have put the
+   unlisted-hash bug back. **The paragraph above describes `lib/embeds.ts` as it actually stands;
+   re-read the function before trusting any prose about it, including this.**
+
+   **Known miss, stated at its real width.** Absent the keyword, *any* numeric segment sitting
+   before the id wins — an all-numeric channel slug (`vimeo.com/channels/12345/67890`), and equally
+   `vimeo.com/12345/review/678/90`, which is one of the very forms the fallback exists to serve.
+   What keeps it harmless is a platform convention rather than anything structural here: Vimeo
+   usernames are `user12345678`, never bare digits. Left documented rather than closed, because
+   every miss in this function fails to a *wrong video on an allowlisted host* — never to an
+   unsafe one.
 
 And in `lib/inbox.ts`:
 
@@ -518,7 +543,7 @@ missed a defect that made the editor fail to mount on every page.
 
 | Test | Asserts |
 |---|---|
-| `lib/embeds.test.ts` *(extended)* | `vimeo.com.evil.test`, `evilvimeo.com`, `notyoutu.be` → `link`; both id-extraction fixes, including `vimeo.com/channels/staffpicks/123456` |
+| `lib/embeds.test.ts` *(extended)* | `vimeo.com.evil.test`, `evilvimeo.com`, `notyoutu.be` → `link`; both id-extraction fixes, with the Vimeo id pinned across **every** share form — bare, channel, player, showcase, groups, album, unlisted `{id}/{hash}` and review — because a positional rule got it wrong twice (§5.1) |
 | `lib/inbox.test.ts` *(extended)* | a declared `provider`/`embedId` is ignored in favour of detection (§5.1 fix 4); a declared provider that agrees with the URL is unaffected |
 | `lib/embed-src.test.ts` | one derived and one non-derived case per provider; `link` never yields a src; **every host `embedSrc` can emit is in `EMBED_FRAME_HOSTS`** |
 | `lib/cover.test.ts` | first image wins; scans past an image-less newest sprout; embeds are not covers; none → `null` |
