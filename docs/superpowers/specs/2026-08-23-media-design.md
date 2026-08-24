@@ -477,7 +477,13 @@ State is **not** re-checked, and that is deliberate: the public page passes the 
 projected dataset, so "published" is already enforced upstream (§3, Privacy). One projection, one
 place — the same stance and the same comment as `articleFor`.
 
-**Consumers:**
+**Consumers.** Three, and one deliberate non-consumer. The "Inside" lists on `/plant/[slug]` and
+`/pod/[slug]` render bean names as plain links and do **not** get a cover. That is not an oversight:
+they already omit the descriptions the Directory shows, and carry their own note — *"Mechanical
+index — an aggregation with no argument to make"*. The container page's prose makes the argument;
+the list is navigation. Covers on the Directory continue that existing asymmetry rather than
+introducing one.
+
 - `resolveEntity` gains `cover?: MediaImage` for `bean:` refs, via `dataset.sproutsForBean(slug)`.
   `EntityCard` renders a thumbnail. Plant and pod refs never carry one — those tiers have no
   `media` field (§3).
