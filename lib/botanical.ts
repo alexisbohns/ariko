@@ -15,7 +15,7 @@ import {
 import type { SproutInput } from "./promote";
 import type { SproutPatch } from "./sprout-edit";
 import type { ContentPatch } from "./content-edit";
-import type { PlantMetaPatch } from "./plant-meta";
+import { plantMetaUpdate, type PlantMetaPatch } from "./plant-meta";
 
 // Thrown when a create hits the unique slug index. Lets the server action turn a
 // collision into a friendly message instead of a 500.
@@ -234,12 +234,12 @@ export async function updatePlantRole(slug: string, role: PlantRole): Promise<vo
  */
 export async function updatePlantMeta(slug: string, patch: PlantMetaPatch): Promise<void> {
   const db = await getDb();
-  await db.collection<Plant>("plants").updateOne({ slug }, {
-    $set: { name: patch.name, status: patch.status },
-    ...(patch.description === null
-      ? { $unset: { description: "" } }
-      : { $set: { description: patch.description } }),
-  } as UpdateFilter<Plant>);
+  // The update document is built by plantMetaUpdate, not inline: composing it
+  // here with a spread produced two `$set` keys and silently dropped two of the
+  // three fields (see that function's comment). Pure, so it is pinned by a test.
+  await db
+    .collection<Plant>("plants")
+    .updateOne({ slug }, plantMetaUpdate(patch) as UpdateFilter<Plant>);
 }
 
 /**

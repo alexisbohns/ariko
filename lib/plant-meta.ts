@@ -57,3 +57,36 @@ export function buildPlantMetaPatch(form: FormData): PlantMetaPatch {
 
   return { name, description: description === "" ? null : description, status: raw };
 }
+
+/** The Mongo update document for a meta patch. Pure, so it can be pinned. */
+export interface PlantMetaUpdate {
+  $set: Record<string, unknown>;
+  $unset?: Record<string, "">;
+}
+
+/**
+ * Pure. Builds the update document — split out of the writer because getting
+ * this shape wrong is silent.
+ *
+ * The first version composed it with a spread:
+ *
+ *   { $set: { name, status }, ...(description === null ? { $unset } : { $set: { description } }) }
+ *
+ * which produces an object literal with TWO `$set` keys whenever a description
+ * is present. The later one wins, so the write carried the description alone
+ * and dropped the name and the status. Mongo reported nothing, the action
+ * redirected as though it had worked, and the symptom was "the status will not
+ * change" on every plant that has a description — which is every real one.
+ * TypeScript does not flag a duplicate key introduced by a spread.
+ *
+ * So the fields are accumulated into ONE `$set`, and `$unset` is added beside
+ * it (the two operators are legal together; two `$set`s are not).
+ */
+export function plantMetaUpdate(patch: PlantMetaPatch): PlantMetaUpdate {
+  const $set: Record<string, unknown> = { name: patch.name, status: patch.status };
+  if (patch.description !== null) {
+    $set.description = patch.description;
+    return { $set };
+  }
+  return { $set, $unset: { description: "" } };
+}

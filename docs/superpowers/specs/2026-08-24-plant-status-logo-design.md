@@ -127,6 +127,13 @@ render.
   spreading a patch, for the reason `updatePlantRole` gives: a spread is what would let a later
   caller reach `visibility`, `natures` or `logo` from a form that has no business touching them.
   A blank description arrives as an explicit `$unset` of `description`; status is always `$set`.
+  The update DOCUMENT is built by a pure `plantMetaUpdate(patch)` in `lib/plant-meta.ts` rather
+  than inline, and pinned by a test. Composing it inline with a spread —
+  `{ $set: { name, status }, ...(blank ? { $unset } : { $set: { description } }) }` — yields an
+  object literal with two `$set` keys; the later one wins, so the write carried the description
+  and silently dropped the name and the status on every plant that has one. TypeScript does not
+  flag a duplicate key introduced by a spread, Mongo reports nothing, and the action redirects as
+  though it had worked. This was caught only by trying it against the real database.
 - **`editPlantMetaAction`** in `app/admin/actions.ts` — mirrors `editPlantRoleAction`: load raw,
   404-guard the slug, build, catch the two errors into `?error=`, write, then `revalidatePath` the
   same surfaces the role action does (the landing and the plant page both render these fields) plus

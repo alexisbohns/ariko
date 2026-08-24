@@ -4,6 +4,7 @@ import {
   buildPlantMetaPatch,
   BlankPlantNameError,
   InvalidPlantStatusError,
+  plantMetaUpdate,
 } from "./plant-meta";
 
 const form = (fields: Record<string, string>): FormData => {
@@ -62,4 +63,39 @@ test("an unknown status throws rather than falling back to active", () => {
 
 test("a missing status field reads as active", () => {
   assert.equal(buildPlantMetaPatch(form({ name: "Ariko" })).status, "active");
+});
+
+/**
+ * Regression: the update document was first written as an object literal with
+ * TWO `$set` keys — one for name/status, one added by a spread for the
+ * description. The second silently replaced the first, so on any plant that
+ * HAS a description (which is every real one), saving the Meta card wrote the
+ * description and dropped the name and the status on the floor. It looked
+ * exactly like "the status will not change", with no error anywhere.
+ *
+ * The shape is now built as one object, and this test pins it. `$set` and
+ * `$unset` are legal together; two `$set`s in one literal are not, and TypeScript
+ * does not catch a duplicate key produced by a spread.
+ */
+test("the update document sets all three fields in ONE $set", () => {
+  const update = plantMetaUpdate({
+    name: "Enerfip",
+    description: "Crowdfunding for renewables",
+    status: "inactive",
+  });
+  assert.deepEqual(update, {
+    $set: {
+      name: "Enerfip",
+      description: "Crowdfunding for renewables",
+      status: "inactive",
+    },
+  });
+});
+
+test("a cleared description becomes an $unset without costing the other two", () => {
+  const update = plantMetaUpdate({ name: "Ariko", description: null, status: "active" });
+  assert.deepEqual(update, {
+    $set: { name: "Ariko", status: "active" },
+    $unset: { description: "" },
+  });
 });
