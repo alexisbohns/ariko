@@ -7,10 +7,18 @@ import { buildSeedBody } from "@/lib/seed-form";
 import { validateInboxPayload } from "@/lib/inbox";
 import { createOrUpdateSeed, getSeed, markSeedPromoted, discardSeed } from "@/lib/seeds";
 import { loadRawGarden } from "@/lib/store";
-import { publishCascade, unpublishCascade, unpublishCascadeForBeans, PLANT_PREFIX, POD_PREFIX } from "@/lib/data";
+import {
+  publishCascade,
+  unpublishCascade,
+  unpublishCascadeForBeans,
+  PLANT_PREFIX,
+  POD_PREFIX,
+  type MediaImage,
+} from "@/lib/data";
 import { resolveParentChoice, buildSproutInput, buildNewBean, validateSproutInput } from "@/lib/promote";
 import { buildSproutPatch, validateSproutPatch, shouldCascadePublish } from "@/lib/sprout-edit";
 import { buildContentPatch } from "@/lib/content-edit";
+import { buildMediaPatch } from "@/lib/media-edit";
 import { runSync } from "@/lib/pollen-run";
 import {
   createPod,
@@ -25,7 +33,10 @@ import {
   updateSproutContent,
   updatePlantContent,
   updatePodContent,
+  updateSproutMedia,
 } from "@/lib/botanical";
+import { uploadImage } from "@/lib/storage";
+import { checkUploadFile, uploadedFilename } from "@/lib/upload-input";
 import {
   requireSession,
   setSessionCookie,
@@ -270,6 +281,25 @@ export async function editContentAction(formData: FormData): Promise<void> {
   redirect(`/admin/sprout/${encodeURIComponent(slug)}`);
 }
 
+// A sprout's media[] — its own form, its own action, its own narrow writer.
+// Separate from BOTH the metadata form and the prose editor, which is what
+// keeps each surface's blast radius to its own fields (spec §4.4).
+export async function editSproutMediaAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+
+  const existing = await getSprout(slug);
+  if (!existing) redirect("/admin/vault");
+
+  const result = buildMediaPatch(existing, formData);
+  // Dirty-gated, same rule as editContentAction: opening a sprout and saving
+  // it untouched writes nothing at all.
+  if (result.dirty) await updateSproutMedia(slug, result.media);
+
+  revalidatePath("/admin");
+  redirect(`/admin/sprout/${encodeURIComponent(slug)}`);
+}
+
 // Plant and pod narrative. One action for both tiers: the ref carries the tier,
 // and the two collections differ only in which writer runs.
 export async function editContainerContentAction(formData: FormData): Promise<void> {
@@ -315,4 +345,42 @@ export async function syncNowAction(): Promise<void> {
       ? `/admin/beanstalk?error=${encodeURIComponent(failed.map((f) => `${f.feedId}: ${f.error ?? "unknown"}`).join(" · "))}`
       : "/admin/beanstalk",
   );
+}
+
+export type UploadResult = { ok: true; media: MediaImage } | { ok: false; error: string };
+
+/**
+ * The admin's upload door (spec §4.1). Called DIRECTLY by a client component
+ * (components/admin/media-picker.tsx), not through a `<form action>`, so it
+ * RETURNS a result rather than redirecting.
+ *
+ * It never throws to the client: a Cloudinary failure becomes { ok: false },
+ * because a failed upload must not take the capture down with it. That is the
+ * same stance app/api/upload/route.ts states as "upload failure never costs a
+ * seed" — honoured here by construction, since the island uploads first and
+ * captures second.
+ *
+ * /api/upload is deliberately NOT reused: its guarantee is "bearer or nothing",
+ * and a browser cannot hold that token.
+ */
+export async function uploadImageAction(formData: FormData): Promise<UploadResult> {
+  await requireSession();
+
+  const file = formData.get("file");
+  if (!(file instanceof Blob)) return { ok: false, error: "no file was sent" };
+
+  const check = checkUploadFile({ size: file.size, type: file.type });
+  if (!check.ok) return { ok: false, error: check.error };
+
+  const filename = uploadedFilename(file);
+  try {
+    const media = await uploadImage(Buffer.from(await file.arrayBuffer()), filename);
+    return { ok: true, media };
+  } catch (err) {
+    // Never throws to the client — but an unexpected failure must not vanish
+    // either. Without this, a real bug is indistinguishable from an ordinary
+    // upload failure and leaves no server-side trace.
+    console.error("[upload] uploadImageAction failed", err);
+    return { ok: false, error: err instanceof Error ? err.message : "upload failed" };
+  }
 }

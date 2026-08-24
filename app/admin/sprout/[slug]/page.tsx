@@ -1,12 +1,13 @@
 import { notFound } from "next/navigation";
 import { buildDataset, resolveText, textPart } from "@/lib/data";
 import { getSprout } from "@/lib/botanical";
-import { editVersionAction, deleteVersionAction, editContentAction } from "../../actions";
+import { editVersionAction, deleteVersionAction, editContentAction, editSproutMediaAction } from "../../actions";
 import { AdminBar } from "../../_components/admin-bar";
 import { ContentCard } from "../../_components/content-card";
+import { MediaPicker } from "@/components/admin/media-picker";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -98,6 +99,49 @@ export default async function EditVersionPage({
           action={editContentAction}
           hidden={{ slug: version.slug }}
         />
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-heading text-base tracking-tight">Media</CardTitle>
+            {/* Order is load-bearing and its consequence is invisible from here:
+                the first image becomes the bean's public cover. Saying so on
+                screen, not only in a comment, is the difference between an
+                authoring act and an accident. */}
+            <CardDescription className="text-xs">
+              The first image becomes this bean&apos;s cover.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {/* Its own form — not part of the metadata form below, and not part
+                of the content form above. A bean's cover is the FIRST image in
+                this list (spec §5.5), so the order here is an authoring act. */}
+            <form action={editSproutMediaAction} className="flex flex-col gap-4">
+              <input type="hidden" name="slug" value={version.slug} />
+              {/* The key re-seeds the island after a save. MediaPicker reads
+                  `initial` ONCE, in its useState initializer, so without this
+                  React reconciles the same instance after the action redirects
+                  and the picker keeps showing its own local state — including a
+                  just-added link still carrying provider:"" where the server has
+                  since derived the real one. Re-saving is idempotent
+                  (parseMediaField re-derives), so this is not a correctness bug;
+                  the picker should simply show what the database actually holds. */}
+              {/* submitLabel, so the button is rendered BY the island rather
+                  than around it: this form's entire meaningful content is the
+                  picker, and a server-rendered button would let a script-off
+                  browser submit a form carrying nothing. Now script-off sees no
+                  button at all and the form is simply not operable — which is
+                  what CLAUDE.md's "no capture or edit ever depends on it"
+                  actually asserts. */}
+              <MediaPicker
+                key={JSON.stringify(version.media ?? [])}
+                name="media"
+                initial={version.media ?? []}
+                links
+                submitLabel="Save media"
+              />
+            </form>
+          </CardContent>
+        </Card>
 
         {content ? (
           <Card>

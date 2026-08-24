@@ -9,6 +9,8 @@ import type { EntityOption } from "@/lib/entity-options";
 import { buildEditorExtensions, type MenuState } from "./editor-extensions";
 import { SuggestionMenu } from "./suggestion-menu";
 import { Button } from "@/components/ui/button";
+import { uploadImageAction } from "@/app/admin/actions";
+import { checkUploadFile, ALLOWED_TYPES } from "@/lib/upload-input";
 
 export function ProseEditor({
   initialMarkdown,
@@ -40,9 +42,29 @@ export function ProseEditor({
   // document is idempotent.
   const baselineRef = useRef<string | null>(null);
 
+  // The `/image` command's async half. The extension deletes the typed text
+  // and calls onInsertImage; this opens the picker, uploads through the same
+  // server action the media picker uses, and inserts at the cursor the
+  // deletion left behind.
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [imageBusy, setImageBusy] = useState(false);
+  // Mirrors `imageBusy` for `onInsertImage`, for exactly the reason `menuRef`
+  // mirrors `menu` above: that callback is captured in the useMemo below,
+  // which the editor reads ONCE at mount (see its comment), so reading the
+  // `imageBusy` STATE there would close over `false` forever and the
+  // one-at-a-time guard would never fire.
+  const imageBusyRef = useRef(false);
+
   const show = (next: MenuState | null): void => {
     menuRef.current = next;
     setMenu(next);
+  };
+
+  // Same ref-alongside-state shape as `show`.
+  const setBusy = (next: boolean): void => {
+    imageBusyRef.current = next;
+    setImageBusy(next);
   };
 
   // The schema, markdown wiring, and `@`/`/` suggestion plugins — built by
@@ -63,7 +85,18 @@ export function ProseEditor({
   // that is a property of how this component happens to be used, not
   // something this hook enforces.
   const extensions = useMemo(
-    () => buildEditorExtensions({ entities, onMenu: show, getMenu: () => menuRef.current }),
+    () =>
+      buildEditorExtensions({
+        entities,
+        onMenu: show,
+        getMenu: () => menuRef.current,
+        onInsertImage: () => {
+          // One at a time. Without this the author, seeing no feedback, runs
+          // /image again and both uploads resolve into two inserted images.
+          if (imageBusyRef.current) return;
+          imageInputRef.current?.click();
+        },
+      }),
     [entities],
   );
 
@@ -136,6 +169,51 @@ export function ProseEditor({
     });
   };
 
+  const insertImage = async (file: File): Promise<void> => {
+    // Explicit, like `save` above rather than an `editor?.` that silently
+    // no-ops: if this invariant ever broke, the upload would still succeed
+    // and the asset would sit in Cloudinary with nothing inserted and
+    // nothing reported.
+    if (!editor) return;
+    setImageError(null);
+    // Advisory guard, same reason as components/admin/media-picker.tsx: the
+    // server re-checks and stays authoritative, but next.config.ts's
+    // bodySizeLimit sits only 64KiB above MAX_UPLOAD_BYTES, so anything far
+    // over — a phone photo — is rejected by the platform BEFORE the action
+    // runs, and the author sees an opaque framework error instead of "the file
+    // is too large (max 4MB)".
+    const check = checkUploadFile({ size: file.size, type: file.type });
+    if (!check.ok) {
+      setImageError(check.error);
+      return;
+    }
+    const formData = new FormData();
+    formData.set("file", file);
+    setBusy(true);
+    try {
+      const result = await uploadImageAction(formData);
+      if (!result.ok) {
+        setImageError(result.error);
+        return;
+      }
+      // toMediaImage never sets alt (lib/storage.ts) — it is not something
+      // Cloudinary knows — so it has to be asked for here or the image ships
+      // with alt="" forever: this is a WYSIWYG, and the author has no way to
+      // reach the markdown afterwards. window.prompt matches the Link button
+      // in this same file rather than introducing a second modal idiom.
+      // Cancelling yields "", which is the correct markup for an image the
+      // author declines to describe.
+      const alt = window.prompt("Alt text (describe the image, or leave blank if decorative)") ?? "";
+      editor.chain().focus().setImage({ src: result.media.url, alt }).run();
+    } catch (e) {
+      // Same rejection semantics as `save` above — see its comment.
+      unstable_rethrow(e);
+      setImageError(e instanceof Error ? e.message : "upload failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-3">
       {editor ? (
@@ -162,13 +240,37 @@ export function ProseEditor({
         <EditorContent editor={editor} />
       </div>
 
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept={ALLOWED_TYPES.join(",")}
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          // A previous failure's red line must not outlive the attempt the
+          // author is making right now.
+          setImageError(null);
+          if (file) void insertImage(file);
+        }}
+      />
+      {imageBusy ? (
+        <p className="font-heading text-xs text-muted-foreground" aria-live="polite">Uploading image…</p>
+      ) : null}
+      {imageError ? (
+        <p className="font-heading text-xs text-destructive" role="alert">Could not add image: {imageError}</p>
+      ) : null}
+
       <p className="font-heading text-xs text-muted-foreground">
         Type <strong>@</strong> to mention an entity inline, <strong>/</strong> at the start of a line
-        for headings, lists, tables and reference cards. Select text to format it.
+        for headings, lists, tables, images and reference cards. Select text to format it.
       </p>
 
       <div className="flex items-center gap-3">
-        <Button type="button" onClick={save} disabled={pending || !editor}>
+        {/* Also disabled mid-upload: saving now would persist a document
+            missing the image that is seconds from being inserted, and the
+            author would have to notice and save again. */}
+        <Button type="button" onClick={save} disabled={pending || imageBusy || !editor}>
           {pending ? "Saving…" : "Save content"}
         </Button>
         {unchanged ? (

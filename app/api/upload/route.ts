@@ -1,5 +1,6 @@
 import { hasValidToken, parseTokens } from "../../../lib/auth";
 import { uploadImage } from "../../../lib/storage";
+import { checkUploadFile, uploadedFilename } from "../../../lib/upload-input";
 
 export async function POST(request: Request): Promise<Response> {
   const tokens = parseTokens(process.env.INBOX_TOKENS);
@@ -19,8 +20,13 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: "missing 'file' field" }, { status: 400 });
   }
 
+  const check = checkUploadFile({ size: file.size, type: file.type });
+  if (!check.ok) {
+    return Response.json({ error: check.error }, { status: 400 });
+  }
+
   const bytes = Buffer.from(await file.arrayBuffer());
-  const filename = typeof (file as File).name === "string" ? (file as File).name : undefined;
+  const filename = uploadedFilename(file);
 
   try {
     const media = await uploadImage(bytes, filename);

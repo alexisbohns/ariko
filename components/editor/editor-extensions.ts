@@ -25,7 +25,7 @@ export interface MenuState {
 }
 
 /** A `/` command that is not an entity card. */
-const BLOCKS: Array<{ id: string; label: string; run: (e: Editor, r: Range) => void }> = [
+const STATIC_BLOCKS: Array<{ id: string; label: string; run: (e: Editor, r: Range) => void }> = [
   { id: "h2", label: "Heading", run: (e, r) => e.chain().focus().deleteRange(r).setNode("heading", { level: 2 }).run() },
   { id: "h3", label: "Subheading", run: (e, r) => e.chain().focus().deleteRange(r).setNode("heading", { level: 3 }).run() },
   { id: "ul", label: "Bullet list", run: (e, r) => e.chain().focus().deleteRange(r).toggleBulletList().run() },
@@ -34,6 +34,38 @@ const BLOCKS: Array<{ id: string; label: string; run: (e: Editor, r: Range) => v
   { id: "code", label: "Code block", run: (e, r) => e.chain().focus().deleteRange(r).toggleCodeBlock().run() },
   { id: "table", label: "Table", run: (e, r) => e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 2, withHeaderRow: true }).run() },
 ];
+
+/** A `/` command row. */
+export interface BlockCommand {
+  id: string;
+  label: string;
+  run: (e: Editor, r: Range) => void;
+}
+
+/**
+ * The `/` menu's block rows. A function rather than a constant because the
+ * Image row needs the host's file picker: the command deletes the typed
+ * text and hands off, and the ASYNC half (open a picker, upload, insert)
+ * lives in components/editor/prose-editor.tsx where it can hold React state.
+ *
+ * Exported so lib/editor-mount.test.ts can run a row against a real Editor
+ * without a DOM file dialog.
+ */
+export function buildBlocks(onInsertImage: () => void): BlockCommand[] {
+  return [
+    ...STATIC_BLOCKS,
+    {
+      id: "image",
+      label: "Image",
+      run: (e, r) => {
+        // Delete the typed "/image" NOW, before the file dialog takes focus,
+        // so the insertion later lands at a clean cursor.
+        e.chain().focus().deleteRange(r).run();
+        onInsertImage();
+      },
+    },
+  ];
+}
 
 const matches = (haystack: string, query: string): boolean =>
   haystack.toLowerCase().includes(query.toLowerCase());
@@ -57,6 +89,12 @@ export interface BuildEditorExtensionsOptions {
    * null`.
    */
   getMenu: () => MenuState | null;
+  /**
+   * Ask the host to pick an image file and insert it. Called by the `/image`
+   * command AFTER the typed text is deleted. A headless caller
+   * (lib/editor-mount.test.ts) can pass a no-op.
+   */
+  onInsertImage: () => void;
 }
 
 /**
@@ -65,7 +103,8 @@ export interface BuildEditorExtensionsOptions {
  * `content`. Exported so `prose-editor.tsx` and the mount smoke test drive
  * the exact same array.
  */
-export function buildEditorExtensions({ entities, onMenu, getMenu }: BuildEditorExtensionsOptions) {
+export function buildEditorExtensions({ entities, onMenu, getMenu, onInsertImage }: BuildEditorExtensionsOptions) {
+  const blocks = buildBlocks(onInsertImage);
   // One suggestion plugin per trigger character. `render` drives menu state
   // via `onMenu`; `onKeyDown` returns true to swallow the key from the editor.
   const suggestion = (
@@ -233,14 +272,14 @@ export function buildEditorExtensions({ entities, onMenu, getMenu }: BuildEditor
     suggestion(
       "/",
       (query) => [
-        ...BLOCKS.filter((b) => matches(b.label, query)).map((b) => ({ id: b.id, label: b.label })),
+        ...blocks.filter((b) => matches(b.label, query)).map((b) => ({ id: b.id, label: b.label })),
         ...entities
           .filter((e) => matches(e.name, query) || matches(e.ref, query))
           .slice(0, 20)
           .map((e) => ({ id: `card:${e.ref}`, label: `Card: ${e.name}`, hint: e.ref })),
       ],
       (editor, range, item) => {
-        const block = BLOCKS.find((b) => b.id === item.id);
+        const block = blocks.find((b) => b.id === item.id);
         if (block) return block.run(editor, range);
         // Same guard as the `@` handler above, for the same reason: no ref,
         // no entityCard node.

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { validateInboxPayload, normalizeMedia } from "./inbox";
+import { validateInboxPayload, normalizeMedia, validateMediaEntry } from "./inbox";
 
 test("rejects a non-object body", () => {
   const r = validateInboxPayload(null);
@@ -163,4 +163,50 @@ test("canonical plantSlug wins over the legacy moleculeSlug; podSlug passes thro
   });
   assert.ok(r.ok);
   if (r.ok) assert.deepEqual(r.value.suggested, { plantSlug: "ariko", podSlug: "celesta" });
+});
+
+test("validateMediaEntry accepts a bare embed, leaving provider for normalizeMedia", () => {
+  const r = validateMediaEntry({ kind: "embed", url: "https://youtu.be/abc123" });
+  assert.equal(r.ok, true);
+  if (r.ok) assert.deepEqual(r.value, { kind: "embed", url: "https://youtu.be/abc123" });
+});
+
+test("validateMediaEntry accepts an image with its optional fields", () => {
+  const r = validateMediaEntry({
+    kind: "image",
+    storageKey: "beanstalk/k",
+    url: "https://res.cloudinary.com/x.jpg",
+    alt: "a cat",
+    width: 800,
+    height: 600,
+  });
+  assert.equal(r.ok, true);
+  if (r.ok) {
+    assert.equal(r.value.kind, "image");
+    if (r.value.kind === "image") {
+      assert.equal(r.value.alt, "a cat");
+      assert.equal(r.value.width, 800);
+    }
+  }
+});
+
+// The exact strings validateInboxPayload has always returned. They are part of
+// /api/inbox's contract, so the extraction must not reword them.
+test("validateMediaEntry returns the established error strings", () => {
+  assert.deepEqual(validateMediaEntry(null), {
+    ok: false,
+    error: "each media entry must be an object",
+  });
+  assert.deepEqual(validateMediaEntry({ kind: "embed" }), {
+    ok: false,
+    error: "embed media requires a url",
+  });
+  assert.deepEqual(validateMediaEntry({ kind: "image", url: "https://x" }), {
+    ok: false,
+    error: "image media requires storageKey and url",
+  });
+  assert.deepEqual(validateMediaEntry({ kind: "video", url: "https://x" }), {
+    ok: false,
+    error: "media entry kind must be 'embed' or 'image'",
+  });
 });

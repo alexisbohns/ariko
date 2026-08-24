@@ -2,6 +2,7 @@ import { type Seed, resolveText } from "@/lib/data";
 import { listSeeds } from "@/lib/seeds";
 import { createSeedAction } from "./actions";
 import { AdminBar } from "./_components/admin-bar";
+import { MediaPicker } from "@/components/admin/media-picker";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -108,6 +109,11 @@ export default async function AdminPage({
                   placeholder="another URL (optional)"
                 />
               </div>
+              {/* The one client-JS island in this otherwise zero-JS form
+                  (CLAUDE.md). It renders nothing until it mounts, so without
+                  script this form is exactly what it was, and a capture never
+                  waits on an upload. */}
+              <MediaPicker name="image" />
               <div>
                 <Button type="submit">Add to inbox</Button>
               </div>
