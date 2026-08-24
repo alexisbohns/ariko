@@ -1,0 +1,41 @@
+# The gate that was missing. Until this landed, `npm test` ran only when someone
+# remembered to run it — 722 tests with nothing enforcing them, which is how a
+# test-glob gap that made an entire directory unreachable survived a full slice:
+# CI was never going to catch it, because CI did not run the suite at all.
+#
+# No secrets, deliberately. All three steps are environment-free: the 34
+# DB-backed tests skip themselves without MONGODB_URI (the test script does not
+# load .env.local, so a developer's local run is already this run), lib/db.ts
+# reads its env inside a function rather than at module load, and every page is
+# force-dynamic so nothing touches a database at build time. Verified by running
+# all three under `env -i`. Keep it that way: a gate that needs a secret is a
+# gate that silently stops running when the secret rotates.
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Types first: a type error explains itself better than the test failure
+      # it would otherwise cause.
+      - run: npx tsc --noEmit
+      - run: npm test
+      # The build is its own check, not a formality — next.config.ts imports
+      # from lib/, so a runtime import added to lib/upload-input.ts or
+      # lib/embed-src.ts breaks config loading in every environment at once,
+      # and nothing but a build would notice.
+      - run: npm run build
