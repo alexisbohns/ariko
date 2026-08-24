@@ -14,3 +14,8 @@ next-env.d.ts
 
 # scratch probes from agent verification runs — never committed
 __probe*
+
+# The Profane display face is licensed, not open — serving it from our own
+# CDN is permitted, publishing a copy in this PUBLIC repo is not (EULA §7).
+# See app/fonts.ts.
+/app/fonts/Profane-*
