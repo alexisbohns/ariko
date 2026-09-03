@@ -240,7 +240,12 @@ that publishes the case study.
 ## Appendix A — the 36 stubs
 
 Names and descriptions are **provisional**, derived from parent-spec §5.3's
-subject column. They exist so a bean page is not blank and a card is not
+subject column. **No description contains `: `** — a colon-space breaks an
+unquoted YAML scalar, and these are written into `data/garden.yml` unquoted, so
+four of them use an em dash where the prose wanted a colon. Do not "restore" a
+colon here without quoting the scalar there.
+
+ They exist so a bean page is not blank and a card is not
 nameless; the authoring wave replaces both (and adds the FR half), at which point
 the stub's line leaves `garden.yml` per §5.3's rule. Plain strings, not `{en, fr}`
 — the pod tier's convention, and the bilingual pair arrives with the article.
@@ -277,7 +282,7 @@ the stub's line leaves `garden.yml` per §5.3's rule. Plain strings, not `{en, f
 |---|---|---|
 | `pbbls-record-flow` | The Recording Flow | Fifteen steps, then seconds, then two composers. |
 | `pbbls-cards` | The Cards | Beck, hidden in plain sight. |
-| `pbbls-drafts` | Drafts | Keeping the half-formed thoughts: a table of its own, never a status column. |
+| `pbbls-drafts` | Drafts | Keeping the half-formed thoughts — a table of its own, never a status column. |
 
 ### `pod:pbbls-pebble`
 | Slug | Name | Description |
@@ -298,7 +303,7 @@ the stub's line leaves `garden.yml` per §5.3's rule. Plain strings, not `{en, f
 | Slug | Name | Description |
 |---|---|---|
 | `pbbls-reward-not-prison` | Reward, Not Prison | An economy that rewards recording without ever becoming a streak to protect. |
-| `pbbls-badges` | Badges | Achievements: idempotent, permanent, and paid at unlock. |
+| `pbbls-badges` | Badges | Achievements — idempotent, permanent, and paid at unlock. |
 
 ### `pod:pbbls-souls`
 | Slug | Name | Description |
@@ -311,7 +316,7 @@ the stub's line leaves `garden.yml` per §5.3's rule. Plain strings, not `{en, f
 | Slug | Name | Description |
 |---|---|---|
 | `pbbls-profiles-handles` | Handles | A handle is a pointer, not an archive. |
-| `pbbls-sharing` | Sharing | What a share link exposes: one row, and nothing else. |
+| `pbbls-sharing` | Sharing | What a share link exposes — one row, and nothing else. |
 | `pbbls-privacy-grades` | Privacy Grades | Secret and private, as connections-visible and shared. |
 | `pbbls-deletion-consent` | Deletion & Consent | Anonymising rather than destroying, so what someone bought keeps rendering. |
 
@@ -322,7 +327,7 @@ the stub's line leaves `garden.yml` per §5.3's rule. Plain strings, not `{en, f
 | `pbbls-pivot` | The Pivot | From Beck's columns to a pebble. |
 | `pbbls-psychology` | The Psychology | Beck, Barrett, Maslow, Kahneman, Clear, Lembke, SDT. |
 | `pbbls-agentic` | The Agentic Method | One author, and the co-author trailers on most of the commits. |
-| `pbbls-arkaik` | Arkaik | Sixty-seven nodes to four hundred and sixty: the map that updates itself. |
+| `pbbls-arkaik` | Arkaik | Sixty-seven nodes to four hundred and sixty — the map that updates itself. |
 | `pbbls-harnesses` | The Harnesses | Proof rather than simulation — the audit programme, and the contract harnesses that became a merge gate. |
 
 36 stubs. The six authored beans that already exist — `pbbls-wallet`,

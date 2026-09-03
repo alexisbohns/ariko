@@ -102,13 +102,18 @@ test("retireLegacyBeans drops every legacy bean", () => {
   assert.equal(slugs.has("unrelated"), true, "unrelated beans survive");
 });
 
-test("retireLegacyBeans adds every missing stub, private, under an existing pod", () => {
-  const out = retireLegacyBeans(fixture());
+test("retireLegacyBeans adds every MISSING stub as a private bean under a pod ref", () => {
+  const input = fixture();
+  const preexisting = new Set((input.beans ?? []).map((b) => b.slug));
+  const out = retireLegacyBeans(input);
   const bySlug = new Map((out.beans ?? []).map((b) => [b.slug, b]));
   const podSlugs = new Set(STUB_BEANS.flatMap((b) => b.parents));
   for (const stub of STUB_BEANS) {
     const got = bySlug.get(stub.slug);
     assert.ok(got, `${stub.slug} must exist`);
+    // A slug the garden already carries is left exactly as authored (see the
+    // next test), so only the stubs this run ADDED can be asserted private.
+    if (preexisting.has(stub.slug)) continue;
     assert.equal(got.visibility, "private", `${stub.slug} must be private`);
   }
   // Every stub parents into a pod ref, never a plant ref.
