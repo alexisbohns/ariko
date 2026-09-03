@@ -414,3 +414,68 @@ test(
 test.after(async () => {
   if (hasDb) await closeDb();
 });
+
+// --- Bilingual door (#53) -------------------------------------------------
+
+test("writes a bilingual narrative and bilingual articles verbatim", { skip: !hasDb }, async () => {
+  const db = await getDb();
+  const slug = "__test__bi";
+  await db.collection("plants").updateOne(
+    { slug },
+    { $set: { slug, name: "T", description: "d", natures: ["work"], role: { kind: "owner" }, visibility: "private" } },
+    { upsert: true },
+  );
+
+  const res = await writeArticles({
+    container: `plant:${slug}`,
+    narrative: { en: "## Context", fr: "## Contexte" },
+    articles: [
+      {
+        slug: "__test__bi-a",
+        name: { en: "Name", fr: "Nom" },
+        description: { en: "Desc", fr: "Description" },
+        date: "2026-09-03",
+        content: { en: "prose", fr: "de la prose" },
+      },
+    ],
+  });
+  assert.deepEqual(res, { ok: true, written: 1, narrative: true });
+
+  const plant = await db.collection("plants").findOne({ slug });
+  assert.deepEqual(plant?.content, { en: "## Context", fr: "## Contexte" });
+
+  const bean = await db.collection("beans").findOne({ slug: "__test__bi-a" });
+  assert.deepEqual(bean?.name, { en: "Name", fr: "Nom" });
+  assert.deepEqual(bean?.description, { en: "Desc", fr: "Description" });
+
+  const sprout = await db.collection("sprouts").findOne({ slug: "__test__bi-a-0" });
+  assert.deepEqual(sprout?.content, { en: "prose", fr: "de la prose" });
+
+  await cleanup();
+});
+
+test("a public container carrying only FR prose is still refused", { skip: !hasDb }, async () => {
+  // The refusal is "public AND carries prose", and prose in EITHER language
+  // counts: resolveText falls back across parts, and the Mongo-side mirror in
+  // containerStillWritableFilter reproduces that fallback.
+  const db = await getDb();
+  const slug = "__test__frguard";
+  await db.collection("plants").updateOne(
+    { slug },
+    {
+      $set: {
+        slug, name: "T", description: "d", natures: ["work"],
+        role: { kind: "owner" }, visibility: "public",
+        content: { fr: "prose fran\u00e7aise" },
+      },
+    },
+    { upsert: true },
+  );
+
+  const res = await writeArticles({ container: `plant:${slug}`, narrative: "replacement" });
+  assert.equal(res.ok, false);
+
+  const plant = await db.collection("plants").findOne({ slug });
+  assert.deepEqual(plant?.content, { fr: "prose fran\u00e7aise" });
+  await cleanup();
+});

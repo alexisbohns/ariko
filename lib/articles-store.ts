@@ -143,7 +143,9 @@ export async function writeArticles(payload: ArticlesPayload): Promise<WriteResu
     // creation and never re-asserted, so a later re-post can't undo a human
     // re-parenting or publishing the bean that happens after this write.
     const beanSet: Record<string, unknown> = { name: a.name };
-    if (a.description && a.description.trim() !== "") beanSet.description = a.description;
+    // Blank means blank in EVERY language: resolveText falls back across parts,
+    // so { fr: "…" } is non-blank here and correctly reaches the bean.
+    if (resolveText(a.description ?? "").trim() !== "") beanSet.description = a.description;
     await db.collection("beans").updateOne(
       { slug: a.slug },
       {

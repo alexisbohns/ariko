@@ -3,6 +3,7 @@ import { resolveText, textPart } from "@/lib/data";
 import { roleLine } from "@/lib/plant-role";
 import { statusLabel, statusOf } from "@/lib/plant-status";
 import { cloudinaryThumb } from "@/lib/image-url";
+import { currentLang } from "@/lib/locale-server";
 import { getPublicDataset } from "@/lib/store";
 import { resolveEntity } from "@/lib/entity-resolve";
 import { Prose } from "@/components/markdown";
@@ -12,6 +13,7 @@ export const dynamic = "force-dynamic";
 
 export default async function PlantPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+  const lang = await currentLang();
   const data = await getPublicDataset();
   const plant = data.getPlant(slug);
   // A private container 404s rather than existing as an empty public shell.
@@ -44,7 +46,7 @@ export default async function PlantPage({ params }: { params: Promise<{ slug: st
           />
         ) : null}
         <h1 className="font-heading text-2xl font-medium tracking-tight">
-          {resolveText(plant.name)}
+          {resolveText(plant.name, lang)}
         </h1>
         {/* The role leads: it is the claim a visitor most needs, and it wears
             the strong `default` badge so it reads ahead of the natures rather
@@ -66,15 +68,18 @@ export default async function PlantPage({ params }: { params: Promise<{ slug: st
             <Badge variant="secondary">{statusLabel("inactive")}</Badge>
           ) : null}
         </div>
-        {resolveText(plant.description ?? "").trim() ? (
-          <p className="text-base text-muted-foreground">{resolveText(plant.description)}</p>
+        {resolveText(plant.description ?? "", lang).trim() ? (
+          <p className="text-base text-muted-foreground">{resolveText(plant.description, lang)}</p>
         ) : null}
         {roleDetail ? <p className="text-sm text-muted-foreground">{roleDetail}</p> : null}
       </header>
 
       {/* The narrative — where the argument lives. Its entity refs resolve
           against the public dataset, so anything hidden renders as nothing. */}
-      <Prose content={plant.content} resolve={(ref) => resolveEntity(data, ref)} />
+      <Prose
+          lang={lang}
+          content={plant.content}
+          resolve={(ref) => resolveEntity(data, ref, lang)} />
 
       {/* Mechanical index — an aggregation with no argument to make (spec §5). */}
       {pods.length > 0 || beans.length > 0 ? (
@@ -86,7 +91,7 @@ export default async function PlantPage({ params }: { params: Promise<{ slug: st
             {pods.map((pod) => (
               <li key={pod.slug}>
                 <a href={`/pod/${pod.slug}`} className="text-sm underline-offset-4 hover:underline">
-                  {resolveText(pod.name)}
+                  {resolveText(pod.name, lang)}
                 </a>
               </li>
             ))}
@@ -96,7 +101,7 @@ export default async function PlantPage({ params }: { params: Promise<{ slug: st
                   href={`/bean/${bean.slug}`}
                   className="text-sm underline-offset-4 hover:underline"
                 >
-                  {resolveText(bean.name)}
+                  {resolveText(bean.name, lang)}
                 </a>
               </li>
             ))}

@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
+import { cookies } from "next/headers";
 
 import { ArikoLogo } from "@/components/brand/ariko-logo";
+import { LangSwitch } from "@/components/lang-switch";
+import { LANG_COOKIE, resolveLang } from "@/lib/locale";
 
 /**
  * The inner exhibition pages: site header + a reading-width column.
@@ -10,7 +13,10 @@ import { ArikoLogo } from "@/components/brand/ariko-logo";
  * large and centred instead of a header bar — which is why the header lives in
  * this nested layout rather than in the zone root.
  */
-export default function ChromeLayout({ children }: { children: ReactNode }) {
+export default async function ChromeLayout({ children }: { children: ReactNode }) {
+  // The layout renders the switch; each PAGE resolves the language again for its
+  // own prose. Both read the same cookie, so they cannot disagree.
+  const lang = resolveLang(undefined, (await cookies()).get(LANG_COOKIE)?.value);
   return (
     <>
       <header className="border-b border-border">
@@ -36,6 +42,9 @@ export default function ChromeLayout({ children }: { children: ReactNode }) {
               </a>
             </li>
           </ul>
+          <div className="ml-auto">
+            <LangSwitch lang={lang} />
+          </div>
         </nav>
       </header>
       <main className="mx-auto max-w-3xl px-6 py-10">{children}</main>

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Markdown, { type Components } from "react-markdown";
 import { resolveText, type Text } from "@/lib/data";
+import { DEFAULT_LANG, type Lang } from "@/lib/locale";
 import type { EntityResolver } from "@/lib/entity-resolve";
 import { EntityCard, EntityLink } from "@/components/entity";
 import { remarkPlugins, rehypePlugins } from "@/lib/markdown";
@@ -42,12 +43,14 @@ export function Prose({
   content,
   resolve,
   showUnresolved,
+  lang = DEFAULT_LANG,
 }: {
   content?: Text;
   resolve?: EntityResolver;
   showUnresolved?: boolean;
+  lang?: Lang;
 }) {
-  const source = resolveText(content ?? "").trim();
+  const source = resolveText(content ?? "", lang).trim();
   if (!source) return null;
 
   // Built per render so it can close over the resolver: server components have

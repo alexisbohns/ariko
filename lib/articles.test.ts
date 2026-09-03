@@ -61,3 +61,88 @@ test("duplicate slugs within a batch are refused", () => {
 test("unknown top-level keys are ignored, like the pollen envelope", () => {
   assert.deepEqual(validateArticlesPayload({ ...ok, futureThing: 1 }), { ok: true });
 });
+
+// --- Bilingual door (#53) -------------------------------------------------
+
+const bi = { en: "Karma & Accountability", fr: "Karma et responsabilité" };
+
+test("every prose field accepts a bilingual object", () => {
+  assert.deepEqual(
+    validateArticlesPayload({
+      container: "plant:pbbls",
+      narrative: { en: "## Context", fr: "## Contexte" },
+      articles: [{ ...article, name: bi, description: bi, content: bi }],
+    }),
+    { ok: true },
+  );
+});
+
+test("a single-language object is enough", () => {
+  assert.deepEqual(
+    validateArticlesPayload({ container: "plant:pbbls", narrative: { fr: "## Contexte" } }),
+    { ok: true },
+  );
+});
+
+test("plain strings still pass — no migration", () => {
+  assert.deepEqual(validateArticlesPayload(ok), { ok: true });
+});
+
+test("an unknown language key is refused rather than silently dropped", () => {
+  // {eng: "..."} would otherwise store as an empty Text and publish a blank page.
+  assert.match(
+    (validateArticlesPayload({ container: "plant:pbbls", narrative: { eng: "x" } }) as { error: string })
+      .error,
+    /narrative: unknown language key: eng/,
+  );
+});
+
+test("a non-string language part is refused", () => {
+  assert.match(
+    (validateArticlesPayload({ container: "plant:pbbls", narrative: { en: 42 } }) as { error: string })
+      .error,
+    /narrative\.en must be a string/,
+  );
+});
+
+test("an empty object carries no prose and is refused", () => {
+  assert.match(
+    (validateArticlesPayload({ container: "plant:pbbls", narrative: {} }) as { error: string }).error,
+    /narrative must carry at least one language/,
+  );
+});
+
+test("an array is not a Text value", () => {
+  assert.match(
+    (validateArticlesPayload({ container: "plant:pbbls", narrative: ["x"] }) as { error: string }).error,
+    /narrative must be a string or/,
+  );
+});
+
+test("a required name must be non-blank in at least one language", () => {
+  assert.match(
+    (
+      validateArticlesPayload({
+        container: "plant:pbbls",
+        articles: [{ ...article, name: { en: "   ", fr: "" } }],
+      }) as { error: string }
+    ).error,
+    /name is required/,
+  );
+});
+
+test("the size cap applies per language part, not to the pair", () => {
+  const big = "x".repeat(64 * 1024 + 1);
+  const fits = "x".repeat(60 * 1024);
+  assert.match(
+    (
+      validateArticlesPayload({ container: "plant:pbbls", narrative: { en: big } }) as { error: string }
+    ).error,
+    /narrative\.en must be at most 64 KiB/,
+  );
+  // 120 KiB across two parts is fine: neither part exceeds the cap.
+  assert.deepEqual(
+    validateArticlesPayload({ container: "plant:pbbls", narrative: { en: fits, fr: fits } }),
+    { ok: true },
+  );
+});
