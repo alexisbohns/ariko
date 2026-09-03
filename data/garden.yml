@@ -14,6 +14,67 @@ pods:
     description: A dark and political alternative rock album
     parents:
       - plant:bohns-music
+  # Pebbles case-study pod tier (spec 2026-09-02-pbbls-case-study-design 5.2).
+  # Explicitly private: the seed's `visibility` is $set on every migrate, so an
+  # omitted value would default these PUBLIC on first insert and put eleven empty
+  # pods on the live site. Publish via the admin cascade when a pod has its
+  # narrative and a published bean -- and drop its `visibility` line here first,
+  # or the next migrate will pull it back to private.
+  - slug: pbbls-web
+    name: The Web App
+    parents: [plant:pbbls]
+    visibility: private
+    description: The Next.js PWA where Pebbles first became usable, and the surface everything else was ported from.
+  - slug: pbbls-ios
+    name: The iOS App
+    parents: [plant:pbbls]
+    visibility: private
+    description: The native SwiftUI app, and the jump that settled whether Pebbles was an app or a website.
+  - slug: pbbls-android
+    name: The Android App
+    parents: [plant:pbbls]
+    visibility: private
+    description: Kotlin and Jetpack Compose, bootstrapped from nothing to parity in six days.
+  - slug: pbbls-backstage
+    name: Backstage
+    parents: [plant:pbbls]
+    visibility: private
+    description: The admin surface, holding analytics, glyph moderation, emotion palettes and the in-app Lab.
+  - slug: pbbls-record
+    name: Recording a Pebble
+    parents: [plant:pbbls]
+    visibility: private
+    description: The capture flow, from a fifteen-step form to a gesture that takes seconds.
+  - slug: pbbls-pebble
+    name: Pebbles & Glyphs
+    parents: [plant:pbbls]
+    visibility: private
+    description: The object itself, its shape, valence and colour, and the glyphs people carve by hand.
+  - slug: pbbls-path
+    name: The Path
+    parents: [plant:pbbls]
+    visibility: private
+    description: Browsing a life backwards, through the timeline, the weeks and the collections.
+  - slug: pbbls-karma
+    name: Karma & the Glyph Market
+    parents: [plant:pbbls]
+    visibility: private
+    description: The economy, a currency earned by recording and spent on symbols other people drew.
+  - slug: pbbls-souls
+    name: Souls & Domains
+    parents: [plant:pbbls]
+    visibility: private
+    description: The people who appear in someone's pebbles, and the life dimensions a moment belongs to.
+  - slug: pbbls-public
+    name: Connecting & Sharing
+    parents: [plant:pbbls]
+    visibility: private
+    description: How a private journal grew a public face without becoming a social network.
+  - slug: pbbls-atelier
+    name: The Workshop
+    parents: [plant:pbbls]
+    visibility: private
+    description: How Pebbles got made, from the naming and the pivot to the psychology and the agents.
 beans:
   - slug: rom-act-of-war
     name: Act of War
