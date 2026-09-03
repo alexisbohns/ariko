@@ -13,6 +13,7 @@
     "pollen:rebuild": "node --env-file=.env.local --import tsx scripts/pollen-rebuild.ts",
     "migrate:botanical": "node --env-file=.env.local --import tsx scripts/migrate-botanical.ts",
     "migrate:retier": "node --env-file=.env.local --import tsx scripts/migrate-retier.ts",
+    "migrate:pbbls-legacy": "node --env-file=.env.local --import tsx scripts/migrate-pbbls-legacy.ts",
     "backfill:plant-roles": "node --env-file=.env.local --import tsx scripts/backfill-plant-roles.ts"
   },
   "dependencies": {
