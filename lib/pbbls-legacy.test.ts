@@ -1,0 +1,148 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import {
+  AUTHORED_BEANS,
+  LEGACY_BEANS,
+  MILESTONE_TYPE,
+  SPROUT_MAP,
+  STUB_BEANS,
+  retireLegacyBeans,
+} from "./pbbls-legacy";
+import type { RawGarden } from "./data";
+
+// A miniature garden with one of everything the transform cares about: a
+// legacy bean with a mapped sprout, an authored bean whose slug is also in
+// STUB_BEANS, and a sprout nothing maps.
+function fixture(): RawGarden {
+  return {
+    pods: [
+      { slug: "pbbls-pebble", name: "Pebbles & Glyphs", description: "", parents: ["plant:pbbls"] },
+      { slug: "pbbls-web", name: "The Web App", description: "", parents: ["plant:pbbls"] },
+    ],
+    beans: [
+      { slug: "pbbls-webapp", name: "Pebbles Webapp", parents: ["plant:pbbls"] },
+      { slug: "pbbls-valence", name: { en: "How a memory became a shape" }, parents: ["pod:pbbls-pebble"] },
+      { slug: "unrelated", name: "Unrelated", parents: ["plant:ariko"] },
+    ],
+    sprouts: [
+      {
+        slug: "pbbls-webapp-emotion-pearl",
+        name: "Emotion Pearl",
+        type: "feature",
+        date: "2026-03-29",
+        description: "",
+        parents: ["bean:pbbls-webapp"],
+        state: "published",
+      },
+      {
+        slug: "untouched",
+        name: "Untouched",
+        type: "song",
+        date: "2026-01-01",
+        description: "",
+        parents: ["bean:unrelated"],
+        state: "published",
+      },
+    ],
+  };
+}
+
+test("retireLegacyBeans drops every legacy bean", () => {
+  const out = retireLegacyBeans(fixture());
+  const slugs = new Set((out.beans ?? []).map((b) => b.slug));
+  for (const slug of LEGACY_BEANS) assert.equal(slugs.has(slug), false, `${slug} must be gone`);
+  assert.equal(slugs.has("unrelated"), true, "unrelated beans survive");
+});
+
+test("retireLegacyBeans adds every MISSING stub as a private bean under a pod ref", () => {
+  const input = fixture();
+  const preexisting = new Set((input.beans ?? []).map((b) => b.slug));
+  const out = retireLegacyBeans(input);
+  const bySlug = new Map((out.beans ?? []).map((b) => [b.slug, b]));
+  const podSlugs = new Set(STUB_BEANS.flatMap((b) => b.parents));
+  for (const stub of STUB_BEANS) {
+    const got = bySlug.get(stub.slug);
+    assert.ok(got, `${stub.slug} must exist`);
+    // A slug the garden already carries is left exactly as authored (see the
+    // next test), so only the stubs this run ADDED can be asserted private.
+    if (preexisting.has(stub.slug)) continue;
+    assert.equal(got.visibility, "private", `${stub.slug} must be private`);
+  }
+  // Every stub parents into a pod ref, never a plant ref.
+  for (const ref of podSlugs) assert.match(ref, /^pod:/);
+});
+
+test("retireLegacyBeans never overwrites a bean that already exists", () => {
+  const out = retireLegacyBeans(fixture());
+  const valence = (out.beans ?? []).find((b) => b.slug === "pbbls-valence");
+  // pbbls-valence is in STUB_BEANS, but the fixture already has an authored
+  // one. The catalog must not touch it — this is the rule that keeps a
+  // migrate re-run from reverting an authored title to a placeholder.
+  assert.deepEqual(valence?.name, { en: "How a memory became a shape" });
+  assert.equal(valence?.visibility, undefined);
+  assert.equal((out.beans ?? []).filter((b) => b.slug === "pbbls-valence").length, 1, "no duplicate");
+});
+
+test("retireLegacyBeans re-parents and retypes exactly the mapped sprouts", () => {
+  const out = retireLegacyBeans(fixture());
+  const bySlug = new Map((out.sprouts ?? []).map((s) => [s.slug, s]));
+  const pearl = bySlug.get("pbbls-webapp-emotion-pearl");
+  assert.deepEqual(pearl?.parents, ["bean:pbbls-valence"]);
+  assert.equal(pearl?.type, MILESTONE_TYPE);
+  assert.equal(pearl?.date, "2026-03-29", "everything else is preserved");
+  assert.equal(pearl?.state, "published");
+});
+
+test("retireLegacyBeans leaves an unmapped sprout strictly untouched", () => {
+  const input = fixture();
+  const out = retireLegacyBeans(input);
+  const before = (input.sprouts ?? []).find((s) => s.slug === "untouched");
+  const after = (out.sprouts ?? []).find((s) => s.slug === "untouched");
+  // Same object reference: the transform must not copy what it does not change.
+  assert.equal(after, before);
+});
+
+test("retireLegacyBeans is idempotent", () => {
+  const once = retireLegacyBeans(fixture());
+  const twice = retireLegacyBeans(once);
+  assert.deepStrictEqual(twice, once);
+});
+
+test("the catalogs are disjoint and cover every bean in _SLUGS.md", () => {
+  const stubs = new Set(STUB_BEANS.map((b) => b.slug));
+  const authored = new Set<string>(AUTHORED_BEANS);
+  for (const slug of authored) {
+    assert.equal(stubs.has(slug), false, `${slug} is authored and must not be stubbed`);
+  }
+  assert.equal(stubs.size, 36);
+  assert.equal(authored.size, 6);
+
+  // The writers' reference is the other half of this contract. Legacy slugs
+  // are subtracted rather than asserted absent, so this passes both before and
+  // after Task 5 edits the doc.
+  const doc = readFileSync(
+    join(process.cwd(), "docs", "pbbls-atelier-editorial", "payloads", "_SLUGS.md"),
+    "utf8",
+  );
+  const legacy = new Set<string>(LEGACY_BEANS);
+  const referenced = new Set(
+    [...doc.matchAll(/bean:(pbbls-[a-z0-9-]+)/g)].map((m) => m[1]).filter((s) => !legacy.has(s)),
+  );
+  assert.deepEqual(
+    [...referenced].sort(),
+    [...stubs, ...authored].sort(),
+    "_SLUGS.md and the catalogs have drifted",
+  );
+});
+
+test("SPROUT_MAP names twelve sprouts and only beans that will exist", () => {
+  const entries = Object.entries(SPROUT_MAP);
+  assert.equal(entries.length, 12);
+  const known = new Set([...STUB_BEANS.map((b) => b.slug), ...AUTHORED_BEANS]);
+  for (const [sprout, bean] of entries) {
+    assert.equal(known.has(bean), true, `${sprout} -> ${bean} is not a bean this work creates`);
+    assert.equal(new Set<string>(LEGACY_BEANS).has(bean), false, `${sprout} must not stay on a legacy bean`);
+  }
+});
