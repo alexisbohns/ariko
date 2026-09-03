@@ -5,6 +5,7 @@ import { listPollen } from "@/lib/pollen-store";
 import { exhibitedPollen, mergeBeanstalk, plantSlugOf } from "@/lib/beanstalk";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { currentLang } from "@/lib/locale-server";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,7 @@ export default async function BeanstalkPage({
   searchParams: Promise<{ plant?: string }>;
 }) {
   const { plant } = await searchParams;
+  const lang = await currentLang();
   const [raw, allPollen] = await Promise.all([loadRawGarden(), listPollen()]);
   const pub = filterPublic(raw);
   const data = buildDataset(pub);
@@ -65,10 +67,10 @@ export default async function BeanstalkPage({
                     href={`/bean/${e.entry.bean.slug}`}
                     className="underline-offset-4 transition-colors hover:underline"
                   >
-                    {resolveText(e.entry.sprout.name)}
+                    {resolveText(e.entry.sprout.name, lang)}
                   </a>
                 ) : (
-                  resolveText(e.entry.sprout.name)
+                  resolveText(e.entry.sprout.name, lang)
                 )}
               </span>
               <span className="flex flex-wrap items-center gap-2 font-heading text-xs text-muted-foreground">
@@ -81,10 +83,10 @@ export default async function BeanstalkPage({
               <span className="text-base">
                 {e.url ? (
                   <a href={e.url} className="underline-offset-4 transition-colors hover:underline">
-                    {resolveText(e.pollen.title)}
+                    {resolveText(e.pollen.title, lang)}
                   </a>
                 ) : (
-                  resolveText(e.pollen.title)
+                  resolveText(e.pollen.title, lang)
                 )}
               </span>
               <span className="flex flex-wrap items-center gap-2 font-heading text-xs text-muted-foreground">

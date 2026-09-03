@@ -1,5 +1,6 @@
 import { resolveText } from "@/lib/data";
 import type { Bean, Plant, Pod } from "@/lib/data";
+import { currentLang } from "@/lib/locale-server";
 import { getPublicDataset } from "@/lib/store";
 import { coverFor } from "@/lib/cover";
 import { roleLine } from "@/lib/plant-role";
@@ -31,6 +32,7 @@ type Entry = {
 };
 
 export default async function DirectoryPage() {
+  const lang = await currentLang();
   const data = await getPublicDataset();
   const { active, inactive } = splitPlantsByStatus(data.getPlants());
   const unrooted = data.unrootedPods();
@@ -43,9 +45,9 @@ export default async function DirectoryPage() {
   const beanEntry = (bean: Bean): Entry => ({
     key: `bean:${bean.slug}`,
     href: `/bean/${bean.slug}`,
-    title: resolveText(bean.name),
+    title: resolveText(bean.name, lang),
     // One muted line, never markdown: descriptions are one-liners, content is not (spec §5).
-    description: resolveText(bean.description ?? ""),
+    description: resolveText(bean.description ?? "", lang),
     coverUrl: beanCover(bean),
   });
 
@@ -57,8 +59,8 @@ export default async function DirectoryPage() {
     return {
       key: `pod:${pod.slug}`,
       href: `/pod/${pod.slug}`,
-      title: resolveText(pod.name),
-      description: resolveText(pod.description ?? ""),
+      title: resolveText(pod.name, lang),
+      description: resolveText(pod.description ?? "", lang),
       coverUrl: beans.map(beanCover).find(Boolean) ?? null,
     };
   };
@@ -148,7 +150,7 @@ export default async function DirectoryPage() {
           <div className="flex flex-col gap-2">
             <h2 className="font-display text-3xl font-normal tracking-tight sm:text-4xl">
               <a href={`/plant/${plant.slug}`} className="underline-offset-4 hover:underline">
-                {resolveText(plant.name)}
+                {resolveText(plant.name, lang)}
               </a>
             </h2>
             {/* A subtitle, not a badge: a pill beside a text-4xl display
@@ -158,9 +160,9 @@ export default async function DirectoryPage() {
             <p className="font-heading text-xs uppercase tracking-widest text-muted-foreground">
               {roleLine(plant.role)}
             </p>
-            {resolveText(plant.description ?? "").trim() ? (
+            {resolveText(plant.description ?? "", lang).trim() ? (
               <p className="max-w-2xl text-sm text-muted-foreground">
-                {resolveText(plant.description)}
+                {resolveText(plant.description, lang)}
               </p>
             ) : null}
           </div>

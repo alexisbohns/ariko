@@ -1,4 +1,5 @@
 import { BEAN_PREFIX, PLANT_PREFIX, POD_PREFIX, resolveText, type Dataset, type MediaImage } from "./data";
+import { DEFAULT_LANG, type Lang } from "./locale";
 import { coverFor } from "./cover";
 
 export interface ResolvedEntity {
@@ -25,7 +26,11 @@ export type EntityResolver = (ref: string) => ResolvedEntity | null;
 // nothing without any extra check. sprout: refs resolve to null too: sprouts
 // have no public URL yet, and a card that cannot link anywhere is worse than no
 // card (spec §4).
-export function resolveEntity(dataset: Dataset, ref: string): ResolvedEntity | null {
+export function resolveEntity(
+  dataset: Dataset,
+  ref: string,
+  lang: Lang = DEFAULT_LANG,
+): ResolvedEntity | null {
   const found = ref.startsWith(PLANT_PREFIX)
     ? ({ kind: "plant", base: "/plant/", doc: dataset.getPlant(ref.slice(PLANT_PREFIX.length)) } as const)
     : ref.startsWith(POD_PREFIX)
@@ -35,7 +40,7 @@ export function resolveEntity(dataset: Dataset, ref: string): ResolvedEntity | n
         : null;
   if (!found?.doc) return null;
 
-  const description = resolveText(found.doc.description ?? "").trim();
+  const description = resolveText(found.doc.description ?? "", lang).trim();
   // sproutsForBean is already newest-first (buildDataset sorts with byDateDesc),
   // which is the ordering coverFor documents that it expects.
   const cover = found.kind === "bean" ? coverFor(dataset.sproutsForBean(found.doc.slug)) : null;
@@ -43,7 +48,7 @@ export function resolveEntity(dataset: Dataset, ref: string): ResolvedEntity | n
     ref,
     kind: found.kind,
     href: found.base + found.doc.slug,
-    name: resolveText(found.doc.name),
+    name: resolveText(found.doc.name, lang),
     ...(description ? { description } : {}),
     ...(cover ? { cover } : {}),
   };
