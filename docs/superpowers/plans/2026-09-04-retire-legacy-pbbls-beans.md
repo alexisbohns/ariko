@@ -4,7 +4,7 @@
 
 **Goal:** Delete the four seeded `pbbls-*` beans, re-parent their twelve changelog sprouts onto the beans the Pebbles case study actually uses, and seed the 36 missing beans as private stubs so every ref in `_SLUGS.md` resolves.
 
-**Architecture:** One pure, idempotent transform (`lib/pbbls-legacy.ts`) is the single definition of "migrated". It is applied to Mongo by a `--dry-run`-capable one-shot script, and to `data/garden.yml` **by hand** — because `yaml.dump` erases the file's nine load-bearing comments, including the one this work has to add. The test suite closes that loop: it asserts `data/garden.yml` is already a fixed point of the transform, so a hand edit that drifts fails the build.
+**Architecture:** One pure, idempotent transform (`lib/pbbls-legacy.ts`) is the single definition of "migrated". It is applied to Mongo by a one-shot script that is **dry by default** (writing needs `-- --apply`), and to `data/garden.yml` **by hand** — because `yaml.dump` erases the file's nine load-bearing comments, including the one this work has to add. The test suite closes that loop: it asserts `data/garden.yml` is already a fixed point of the transform, so a hand edit that drifts fails the build.
 
 **Tech Stack:** TypeScript, `node --test` + `node:assert/strict`, `js-yaml` (CORE_SCHEMA), MongoDB driver, `tsx`.
 
@@ -1192,7 +1192,7 @@ milestone ledger — #55.
 In the `## Database & development` list, add after the `npm run migrate` bullet:
 
 ```markdown
-* `npm run migrate:pbbls-legacy` — one-shot (#54), idempotent and safe to re-run: retired the four seeded `pbbls-*` beans (backed up to `data/retired/`), refiled their twelve changelog sprouts as milestones, and seeded the case study's bean tier private. Takes `-- --dry-run`. Deliberately does **not** rewrite `data/garden.yml` — `yaml.dump` would erase the file's comments, so that half is a hand edit held in place by `lib/pbbls-legacy.test.ts`.
+* `npm run migrate:pbbls-legacy` — one-shot (#54), idempotent and safe to re-run: retired the four seeded `pbbls-*` beans (backed up to `data/retired/`), refiled their twelve changelog sprouts as milestones, and seeded the case study's bean tier private. **Dry by default** — it writes nothing to Mongo unless you pass `-- --apply`, and refuses any argument it does not recognise. Deliberately does **not** rewrite `data/garden.yml` — `yaml.dump` would erase the file's comments, so that half is a hand edit held in place by `lib/pbbls-legacy.test.ts`.
 ```
 
 - [ ] **Step 5: Verify the docs still agree with the catalogs**
@@ -1249,8 +1249,8 @@ narrative, so those four beans and twelve sprouts were its entire public content
 pages, two of which were literally blank.
 
 **How it is safe.** One pure idempotent transform (`lib/pbbls-legacy.ts`) is the
-single definition of "migrated". The script applies it to Mongo behind
-`--dry-run` and backs the deleted beans up to `data/retired/` before removing
+single definition of "migrated". The script applies it to Mongo dry-by-default (destruction needs `-- --apply`), runs a read-only
+pre-flight, and backs the deleted beans up to `data/retired/` before removing
 them. It deliberately does *not* rewrite `data/garden.yml` — `yaml.dump` erases
 comments, and the file's comments are load-bearing — so that half is a hand edit,
 held in place by a test asserting the seed is already a fixed point of the
