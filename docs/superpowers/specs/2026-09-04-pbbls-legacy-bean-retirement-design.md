@@ -138,19 +138,30 @@ Two rules the transform keeps, both about not destroying authored work:
 `npm run migrate:pbbls-legacy [-- --dry-run]`, ordered so every intermediate
 state is readable if the run is interrupted:
 
-1. Load `data/garden.yml`, compute the transform, hold the result.
-2. Mongo: insert missing stub beans (`$setOnInsert`, so an existing doc is
+1. Mongo: insert missing stub beans (`$setOnInsert`, so an existing doc is
    untouched even if the guard in 5.1 were ever wrong).
-3. Mongo: `$set` `parents` and `type` on the twelve sprouts — diffed per doc, so
+2. Mongo: `$set` `parents` and `type` on the twelve sprouts — diffed per doc, so
    an idempotent re-run logs no writes.
-4. Mongo: read the four legacy beans, write them to
+3. Mongo: read the four legacy beans, write them to
    `data/retired/2026-09-04-legacy-pbbls-beans.json`, then delete them. Beans go
    **last**, when nothing points at them any more.
-5. Write `data/garden.yml` — only once the Mongo half is fully through, so a
-   connection failure has zero side effects.
 
 The backup file is committed. It is small, it is the reversal path, and a
 deletion with an uncommitted backup is a deletion.
+
+**The script does not write `data/garden.yml`** — this is the one place the
+`migrate-retier` precedent is deliberately not followed. That script ends with
+`writeFileSync(path, yaml.dump(after))`, and `yaml.dump` erases comments.
+`garden.yml` now carries nine comment lines that are all load-bearing, including
+the pod tier's publish warning — and including the warning §5.3 requires this
+work to *add*. A script that rewrote the file would delete its own instructions.
+
+So the YAML half is a **hand edit**, and the transform's role there is to be the
+oracle that proves the hand edit is right: `lib/pbbls-legacy.test.ts` asserts
+that `data/garden.yml` already satisfies every post-migration property, and that
+running `retireLegacyBeans` over it changes nothing. Hand-editing the file back
+fails the suite. The transform is still the single definition of what "migrated"
+means; only the application to YAML is manual.
 
 ### 5.3 `data/garden.yml`
 
@@ -172,6 +183,8 @@ deletion with an uncommitted backup is a deletion.
 
 Against the real `data/garden.yml`, so every assertion holds before and after:
 
+- `data/garden.yml` already satisfies every post-migration property, and
+  `retireLegacyBeans` over it is a no-op — the hand edit's proof (§5.2);
 - the transform is idempotent (`f(f(x)) === f(x)`);
 - no output bean carries a `LEGACY_BEANS` slug;
 - every `SPROUT_MAP` value resolves to a bean in the output;
