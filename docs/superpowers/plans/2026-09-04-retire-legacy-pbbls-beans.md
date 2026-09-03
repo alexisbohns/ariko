@@ -619,6 +619,34 @@ Now insert into `data/garden.yml`, immediately **before** the `sprouts:` line (i
 
 then the whole contents of `/tmp/stub-block.yml`. Order matters: the stubs must be in `STUB_BEANS` order and at the end of the list, or the fixed-point test fails on array ordering.
 
+- [ ] **Step 3d: Fix the one other test that reads the seed**
+
+`lib/retier.test.ts` also loads the real `data/garden.yml`, and the worked example
+in `retierGarden re-parents promoted pods' beans to plant: refs and leaves album
+beans on pod: refs` is `pbbls-webapp` — which Step 3a just deleted. The assertion
+becomes `undefined?.parents` and the test fails.
+
+Swap it for a bean in the same structural role: one parented to a *promoted*
+plant (`lib/retier.ts`'s `PROMOTED` list), which `ff-paris-paloma` is. Replace:
+
+```ts
+  assert.ok(bySlug.get("pbbls-webapp")?.parents?.includes("plant:pbbls"));
+  assert.equal(bySlug.get("pbbls-webapp")?.parents?.includes("pod:pbbls"), false);
+```
+
+with:
+
+```ts
+  // The worked example is a femfolk bean, not a pbbls one: #54 retired the four
+  // seeded pbbls beans, so pbbls no longer has a bean of its own in the seed.
+  assert.ok(bySlug.get("ff-paris-paloma")?.parents?.includes("plant:femfolk"));
+  assert.equal(bySlug.get("ff-paris-paloma")?.parents?.includes("pod:femfolk"), false);
+```
+
+Leave the paired `felina` / `pod:celesta` album assertions alone. This is the only
+non-fixture reader of the seed that Task 2 breaks — `lib/data.test.ts` and
+`lib/inbox.test.ts` mention the slug but build their own fixtures.
+
 - [ ] **Step 4: Run the tests to verify they pass**
 
 ```bash
@@ -643,7 +671,7 @@ Expected: `59 beans, 39 sprouts, 14 pods` (27 beans − 4 legacy + 36 stubs).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add data/garden.yml lib/pbbls-legacy.test.ts
+git add data/garden.yml lib/pbbls-legacy.test.ts lib/retier.test.ts
 git commit -m "chore: retire the legacy pbbls beans and seed the bean tier in garden.yml"
 ```
 
