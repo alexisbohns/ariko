@@ -736,7 +736,7 @@ git commit -m "chore: retire the legacy pbbls beans and seed the bean tier in ga
 - Create: `scripts/migrate-pbbls-legacy.ts`
 - Modify: `package.json`
 
-No new tests: the transform this script applies is already covered, and the script itself is I/O over the same catalogs. Its safety comes from `--dry-run` and from the abort guard in step 3.
+No new tests: the transform this script applies is already covered, and the script itself is I/O over the same catalogs. Its safety comes from being dry by default (writing is opt-in via `--apply`), from the read-only pre-flight that aborts before any write, and from the merged backup it leaves behind.
 
 - [ ] **Step 1: Write the script**
 
@@ -746,39 +746,94 @@ Create `scripts/migrate-pbbls-legacy.ts`:
 // One-shot (#54): retires the four seeded pbbls beans, files their twelve
 // changelog sprouts under the beans they advance, and seeds the 36 missing
 // bean stubs. Catalogs and rules live in lib/pbbls-legacy.ts.
-// Usage: npm run migrate:pbbls-legacy [-- --dry-run]
-// Operator sequence: dry-run, read the plan, run for real, dry-run again
-// expecting all no-ops, then commit the backup file it wrote.
+// Usage: npm run migrate:pbbls-legacy            (dry run — the default)
+//        npm run migrate:pbbls-legacy -- --apply (writes, and DELETES)
+// Operator sequence: run it bare, read the plan and the backup it wrote, then
+// re-run with `-- --apply`, then bare again expecting all no-ops, then commit
+// the backup file.
 //
 // Unlike scripts/migrate-retier.ts this NEVER writes data/garden.yml. That
 // script ends in yaml.dump, which erases comments; garden.yml's comments are
 // load-bearing and one of them is the warning this work adds. The YAML half is
 // a hand edit, proven correct by lib/pbbls-legacy.test.ts.
 //
-// Idempotent: stubs are $setOnInsert, sprout writes are diffed per doc, and the
-// delete is a no-op once the beans are gone.
-import { mkdirSync, writeFileSync } from "node:fs";
+// Idempotent: stubs are $setOnInsert, sprout writes are diffed per doc, the
+// backup merges rather than replaces, and the delete is a no-op once the beans
+// are gone.
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { getDb, closeDb } from "../lib/db";
 import { LEGACY_BEANS, MILESTONE_TYPE, SPROUT_MAP, STUB_BEANS } from "../lib/pbbls-legacy";
 import type { Bean, Sprout } from "../lib/data";
 
-const DRY = process.argv.includes("--dry-run");
+const KNOWN = new Set(["--apply", "--dry-run"]);
+const UNKNOWN = process.argv.slice(2).filter((a) => !KNOWN.has(a));
+// Dry by default: the only destructive step here is a delete against live data,
+// so it must be typed for deliberately. `--dry-run` stays accepted as an
+// explicit no-op, because npm swallows it without the `--` separator and an
+// operator who types it must never get a live run by accident.
+const DRY = !process.argv.includes("--apply");
 const p = () => (DRY ? "[dry] " : "");
 const BACKUP_DIR = join(process.cwd(), "data", "retired");
 const BACKUP = join(BACKUP_DIR, "2026-09-04-legacy-pbbls-beans.json");
 
+// What the backup file holds: the beans about to be deleted, and the pre-image
+// of every sprout whose parents/type this run overwrites in place. Step 2 is a
+// destructive $set with no history of its own, so its pre-image belongs here
+// next to the deleted rows.
+type Backup = { beans: Bean[]; sprouts: Sprout[] };
+
 async function main() {
+  if (UNKNOWN.length > 0) {
+    throw new Error(`unrecognised argument(s): ${UNKNOWN.join(" ")} — refusing to run`);
+  }
+
   const db = await getDb();
+  // Identity banner first: getDb() falls back to the "beanstalk" database when
+  // MONGODB_DB is unset, and .env.local is the only thing choosing the cluster.
+  // An operator must never have to infer which database is about to lose rows.
+  console.log(
+    `${DRY ? "DRY RUN" : "*** LIVE RUN — WILL DELETE ***"}  db=${db.databaseName}  host=${new URL(process.env.MONGODB_URI!).host}`,
+  );
+
   const beansCol = db.collection<Bean>("beans");
   const sproutsCol = db.collection<Sprout>("sprouts");
-
-  // Precondition, checked BEFORE any write: a sprout sitting on a legacy bean
-  // that SPROUT_MAP does not name would be orphaned by the delete at the end.
-  // Mongo carries admin-authored sprouts the seed does not, so this is a real
-  // possibility -- and checking it first means a trip leaves the database
-  // exactly as it was, rather than half-migrated.
   const legacyRefs = LEGACY_BEANS.map((s) => `bean:${s}`);
+
+  // ---- Pre-flight. All reads, all BEFORE any write, so a trip leaves the
+  // database exactly as it was rather than half-migrated.
+
+  // FATAL: pollen would resurrect what we delete. lib/projected-beans.ts
+  // materialises a bean for any envelope anchor with no authored bean, and
+  // marks it PUBLIC when the anchored plant is exhibited — data/federation.yml
+  // exhibits plant:pbbls. So an envelope anchored at a retired slug, or a
+  // doomed bean carrying `projected`, means the next pollen sync or
+  // `npm run pollen:rebuild` republishes exactly the slugs being retired for
+  // slug-shadowing. Both are 0 today; this refuses if that ever changes.
+  const anchored = await db.collection("pollen").countDocuments({ "anchors.bean": { $in: legacyRefs } });
+  const projected = await beansCol.countDocuments({ slug: { $in: [...LEGACY_BEANS] }, projected: { $exists: true } });
+  if (anchored > 0 || projected > 0) {
+    throw new Error(
+      `pollen would resurrect a retired bean: ${anchored} envelope(s) anchor a legacy bean and ` +
+        `${projected} doomed bean(s) carry a \`projected\` field. A projected bean on an exhibited ` +
+        `plant is materialised PUBLIC, so the delete would be undone publicly at the very slugs ` +
+        `being retired. Nothing was written. Re-anchor those envelopes, or drop their feed, first.`,
+    );
+  }
+
+  // WARNING, not fatal: a dangling ref renders as nothing (resolveEntity returns
+  // null), so it can neither crash nor leak — but a published narrative quietly
+  // loses a card, and the operator should hear about it rather than discover it.
+  for (const name of ["sprouts", "plants", "pods"] as const) {
+    const n = await db.collection(name).countDocuments({ "relations.ref": { $in: legacyRefs } });
+    if (n > 0) console.warn(`${p()}WARN ${n} ${name} doc(s) link a legacy bean in relations[] — those cards will render as nothing`);
+  }
+  const suggested = await db.collection("seeds").countDocuments({ "suggested.beanSlug": { $in: [...LEGACY_BEANS] } });
+  if (suggested > 0) console.warn(`${p()}WARN ${suggested} seed(s) suggest a legacy bean — triage will offer a slug that no longer exists`);
+
+  // FATAL: a sprout sitting on a legacy bean that SPROUT_MAP does not name
+  // would be orphaned by the delete. Mongo carries admin-authored sprouts the
+  // seed does not, so this is a real possibility.
   const unroutable = await sproutsCol
     .find(
       { parents: { $in: legacyRefs }, slug: { $nin: Object.keys(SPROUT_MAP) } },
@@ -788,11 +843,21 @@ async function main() {
   if (unroutable.length > 0) {
     for (const s of unroutable) console.error(`  unroutable: ${s.slug} ${JSON.stringify(s.parents)}`);
     throw new Error(
-      `${unroutable.length} sprout(s) sit on a legacy bean that SPROUT_MAP does not name, and ` +
-        `would be orphaned by the delete. Nothing was written. Extend SPROUT_MAP in ` +
-        `lib/pbbls-legacy.ts, or re-parent them by hand, then re-run.`,
+      `${unroutable.length} sprout(s) sit on a legacy bean that SPROUT_MAP does not name, and would ` +
+        `be orphaned by the delete. Nothing was written.\n` +
+        `Do NOT add them to SPROUT_MAP: the suite pins it at exactly twelve entries and requires every ` +
+        `key to exist in data/garden.yml, and seeding a Mongo-only sprout would let migrate-garden ` +
+        `overwrite its authored fields — the trap AUTHORED_BEANS exists to avoid.\n` +
+        `The admin cannot re-parent a sprout either (updateVersion never touches parents, and the bean ` +
+        `is read-only on the sprout page). Two real options: $set the sprout's parents[] directly in ` +
+        `Mongo, or delete it and re-promote it from the inbox onto the right bean. Then re-run.`,
     );
   }
+
+  // What the operator is really authorising: these move from public beans to
+  // private stubs, so they leave the public site. Intended, and stated out loud.
+  const published = await sproutsCol.countDocuments({ slug: { $in: Object.keys(SPROUT_MAP) }, state: "published" });
+  console.log(`${p()}${published} published sprout(s) will leave the public site (public bean -> private stub)`);
 
   // 1) Stubs FIRST — step 2 re-parents sprouts onto them, so they must exist
   //    before anything points at them.
@@ -812,17 +877,23 @@ async function main() {
     }
   }
 
-  // 2) Re-parent and retype the twelve, diffed so a re-run logs nothing.
+  // 2) Re-parent and retype the twelve, diffed so a re-run logs nothing. The
+  //    pre-image of every doc this rewrites is kept for the backup file: the
+  //    $set below is destructive and leaves no history of its own.
+  const sproutBackup: Sprout[] = [];
   let moved = 0;
   for (const [slug, bean] of Object.entries(SPROUT_MAP)) {
-    const doc = await sproutsCol.findOne({ slug }, { projection: { _id: 0, parents: 1, type: 1 } });
+    const doc = await sproutsCol.findOne({ slug }, { projection: { _id: 0 } });
     if (!doc) {
       console.warn(`${p()}WARN sprout ${slug} not found in Mongo — skipped`);
       continue;
     }
     const parents = [`bean:${bean}`];
     if (doc.type === MILESTONE_TYPE && JSON.stringify(doc.parents) === JSON.stringify(parents)) continue;
-    console.log(`${p()}re-parent sprout ${slug} -> bean:${bean}, type ${MILESTONE_TYPE}`);
+    // Log the change, not just the destination: a second parent about to be
+    // dropped is then visible rather than silent.
+    console.log(`${p()}re-parent sprout ${slug}: ${JSON.stringify(doc.parents)}/${doc.type} -> ${JSON.stringify(parents)}/${MILESTONE_TYPE}`);
+    sproutBackup.push(doc);
     moved++;
     if (!DRY) await sproutsCol.updateOne({ slug }, { $set: { parents, type: MILESTONE_TYPE } });
   }
@@ -839,28 +910,64 @@ async function main() {
     }
   }
 
-  const doomed = await beansCol.find({ slug: { $in: [...LEGACY_BEANS] } }, { projection: { _id: 0 } }).toArray();
-  if (doomed.length === 0) {
+  // _id is kept for the delete so "what was backed up is what was deleted" is
+  // true by construction, and stripped for the file. Restoring from the backup
+  // mints new ObjectIds, which is harmless: everything refs by slug.
+  const doomedDocs = await beansCol.find({ slug: { $in: [...LEGACY_BEANS] } }).toArray();
+  const doomed: Bean[] = doomedDocs.map(({ _id, ...rest }) => rest);
+  if (doomed.length > 0 && doomed.length !== LEGACY_BEANS.length) {
+    console.warn(
+      `${p()}WARN found ${doomed.length} of ${LEGACY_BEANS.length} legacy beans — an earlier run was ` +
+        `probably interrupted mid-delete. The backup MERGES, so the rows already deleted keep theirs.`,
+    );
+  }
+
+  if (doomed.length === 0 && sproutBackup.length === 0) {
     console.log(`${p()}no legacy bean left to delete`);
   } else {
-    // Written even on a dry run: it is a read of the DB, and the operator
-    // should be able to read the backup BEFORE authorising the delete. Guarded
-    // by the length check above so a re-run cannot clobber it with [].
+    // Written even on a dry run: it is a read of the DB, and the operator must
+    // be able to read the backup BEFORE authorising the delete.
+    //
+    // MERGED, never replaced. `doomed.length === 0` alone would stop an empty
+    // clobber but not a partial one: a run that died mid-deleteMany leaves two
+    // beans, and a naive re-run would overwrite a complete four-bean backup
+    // with two, destroying the reversal path for the other two before Task 4
+    // ever commits the file.
+    const prior: Backup = existsSync(BACKUP)
+      ? (JSON.parse(readFileSync(BACKUP, "utf8")) as Backup)
+      : { beans: [], sprouts: [] };
+    const merged: Backup = {
+      beans: [...(prior.beans ?? []).filter((b) => !doomed.some((d) => d.slug === b.slug)), ...doomed],
+      sprouts: [...(prior.sprouts ?? []).filter((s) => !sproutBackup.some((d) => d.slug === s.slug)), ...sproutBackup],
+    };
+    if (merged.beans.length < (prior.beans ?? []).length || merged.sprouts.length < (prior.sprouts ?? []).length) {
+      throw new Error("backup would shrink — refusing to overwrite");
+    }
     mkdirSync(BACKUP_DIR, { recursive: true });
-    writeFileSync(BACKUP, JSON.stringify(doomed, null, 2) + "\n", "utf8");
-    console.log(`${p()}backed up ${doomed.length} bean(s) to ${BACKUP}`);
+    writeFileSync(BACKUP, JSON.stringify(merged, null, 2) + "\n", "utf8");
+    console.log(`${p()}backed up ${merged.beans.length} bean(s) + ${merged.sprouts.length} sprout pre-image(s) to ${BACKUP}`);
     for (const b of doomed) console.log(`${p()}delete bean ${b.slug}`);
-    if (!DRY) await beansCol.deleteMany({ slug: { $in: [...LEGACY_BEANS] } });
+    if (!DRY && doomedDocs.length > 0) {
+      await beansCol.deleteMany({ _id: { $in: doomedDocs.map((d) => d._id) } });
+    }
   }
 
   console.log(
-    `${p()}done — ${inserted} stub(s) inserted, ${moved} sprout(s) refiled, ${doomed.length} bean(s) retired.`,
+    DRY
+      ? `[dry] done — ${inserted} stub(s) would be inserted, ${moved} sprout(s) would be refiled, ${doomed.length} bean(s) would be retired. Re-run with \`-- --apply\` to write.`
+      : `done — ${inserted} stub(s) inserted, ${moved} sprout(s) refiled, ${doomed.length} bean(s) retired.`,
   );
   await closeDb();
 }
 
+// No `finally { closeDb() }`: the catch exits the process, which drops the
+// connection anyway, and a close racing a thrown error would only obscure it.
+// Success ends the process naturally — process.exit() here would truncate
+// piped output, and an operator will want `| tee`.
 main()
-  .then(() => process.exit(0))
+  .then(() => {
+    process.exitCode = 0;
+  })
   .catch((err) => {
     console.error(err);
     process.exit(1);
@@ -901,22 +1008,30 @@ Needs `MONGODB_URI` and `MONGODB_DB` in `.env.local` and the cluster reachable.
 
 - [ ] **Step 1: Dry run, and read the plan it prints**
 
+The script is **dry by default** — writing is opt-in via `--apply`. This is deliberate: `npm run migrate:pbbls-legacy --dry-run` without the `--` separator is swallowed by npm and never reaches `process.argv`, so a flag-shaped typo must not be able to delete anything.
+
 ```bash
-npm run migrate:pbbls-legacy -- --dry-run
+npm run migrate:pbbls-legacy
 ```
 
 Expected, in this order:
+- `DRY RUN  db=…  host=…` — **check the database and host before reading any further**
+- `[dry] 12 published sprout(s) will leave the public site (public bean -> private stub)`
 - `[dry] insert stub bean …` × **36**
-- `[dry] re-parent sprout … -> bean:…, type milestone` × **12**
-- `[dry] backed up 4 bean(s) to …/data/retired/2026-09-04-legacy-pbbls-beans.json`
+- `[dry] re-parent sprout …: ["bean:pbbls-webapp"]/feature -> ["bean:…"]/milestone` × **12**
+- `[dry] backed up 4 bean(s) + 12 sprout pre-image(s) to …/data/retired/2026-09-04-legacy-pbbls-beans.json`
 - `[dry] delete bean pbbls-webapp` / `pbbls-ios` / `pbbls-path` / `pbbls-recorder`
-- `[dry] done — 36 stub(s) inserted, 12 sprout(s) refiled, 4 bean(s) retired.`
+- `[dry] done — 36 stub(s) would be inserted, 12 sprout(s) would be refiled, 4 bean(s) would be retired. Re-run with -- --apply to write.`
 
-It must exit 0: the delete preview is reachable on a dry run, which is what makes Step 2 possible.
+It must exit 0: the delete preview and the backup are reachable on a dry run, which is what makes Step 2 possible.
+
+Any `WARN … relations[]` or `WARN … seed(s) suggest` lines are informational — a dangling ref renders as nothing, so nothing breaks, but note what will quietly lose a card.
 
 If any `WARN sprout … not found` appears, **stop** — the seed and Mongo have diverged and `SPROUT_MAP` needs checking before anything is deleted.
 
-If it aborts with `unroutable: …` lines instead, the precondition caught a sprout sitting on a legacy bean that `SPROUT_MAP` does not name. Nothing was written, in a dry run or a real one. Extend `SPROUT_MAP` in `lib/pbbls-legacy.ts` (which means re-doing Tasks 1–3) or re-parent that sprout by hand, then start Task 4 again.
+If it aborts on **pollen**, stop: an envelope anchored at a legacy bean, or a doomed bean carrying `projected`, means the next sync or `npm run pollen:rebuild` would re-materialise the deleted bean — and publicly, since `data/federation.yml` exhibits `plant:pbbls`. Nothing was written. Re-anchor those envelopes or drop their feed first.
+
+If it aborts with `unroutable: …` lines, the precondition caught a sprout sitting on a legacy bean that `SPROUT_MAP` does not name. Nothing was written. **Do not add it to `SPROUT_MAP`** — the suite pins the map at exactly twelve entries and requires every key to exist in `data/garden.yml`, and seeding a Mongo-only sprout would let `migrate-garden` overwrite its authored fields, which is the trap `AUTHORED_BEANS` exists to avoid. The admin cannot re-parent a sprout either (`updateVersion` never touches `parents`, and the bean is read-only on the sprout page). The two real options are a direct `$set` on that sprout's `parents[]` in Mongo, or deleting it and re-promoting it from the inbox onto the right bean. Then start Task 4 again.
 
 - [ ] **Step 2: Read the backup the dry run wrote**
 
@@ -924,27 +1039,28 @@ If it aborts with `unroutable: …` lines instead, the precondition caught a spr
 cat data/retired/2026-09-04-legacy-pbbls-beans.json
 ```
 
-Expected: four objects, each with `slug`, `name`, `parents: ["plant:pbbls"]`, `visibility: "public"`. This is the reversal path — confirm it is not empty before running for real.
+Expected: `{ "beans": [...], "sprouts": [...] }` — four beans, each with `slug`, `name`, `parents: ["plant:pbbls"]`, `visibility: "public"`, and twelve sprout pre-images carrying their original `parents` and `type: "feature"`. This is the whole reversal path: the beans cover the delete, the sprouts cover the in-place `$set` that has no history of its own. Confirm both arrays are populated before running for real.
 
 - [ ] **Step 3: Run for real**
+
+```bash
+npm run migrate:pbbls-legacy -- --apply
+```
+
+Expected: the banner reads `*** LIVE RUN — WILL DELETE ***`, then the same lines without the `[dry]` prefix, ending `done — 36 stub(s) inserted, 12 sprout(s) refiled, 4 bean(s) retired.`
+
+- [ ] **Step 4: Dry run again — everything must be a no-op**
 
 ```bash
 npm run migrate:pbbls-legacy
 ```
 
-Expected: the same lines without the `[dry]` prefix.
-
-- [ ] **Step 4: Dry run again — everything must be a no-op**
-
-```bash
-npm run migrate:pbbls-legacy -- --dry-run
-```
-
 Expected:
+- `[dry] 0 published sprout(s) will leave the public site (public bean -> private stub)`
 - `[dry] bean … already present — untouched` × **36**
 - no `re-parent sprout` lines at all
-- `[dry] no legacy bean left to delete`
-- `[dry] done — 0 stub(s) inserted, 0 sprout(s) refiled, 0 bean(s) retired.`
+- `[dry] no legacy bean left to delete` — and the backup file from Step 1 is left untouched
+- `[dry] done — 0 stub(s) would be inserted, 0 sprout(s) would be refiled, 0 bean(s) would be retired. Re-run with -- --apply to write.`
 
 - [ ] **Step 5: Verify the live state directly**
 
