@@ -33,7 +33,7 @@ export const AUTHORED_BEANS = [
 // Spec 2026-09-02 §6 calls these "milestone sprouts": dated, content-free, one
 // per shipped deliverable. The twelve below were seeded as `feature`; retyping
 // makes them one set with the deliverable.shipped events #55 will import.
-export const MILESTONE_TYPE = "milestone";
+export const MILESTONE_TYPE = "milestone" as const;
 
 // The twelve changelog sprouts, and the bean each one actually advances.
 // Four assignments are named in spec 2026-09-02 §9.2; three were judgement
@@ -127,16 +127,27 @@ const legacy = new Set<string>(LEGACY_BEANS);
  */
 export function retireLegacyBeans(raw: RawGarden): RawGarden {
   const inBeans = raw.beans ?? [];
-  const present = new Set(inBeans.map((b) => b.slug));
+  const kept = inBeans.filter((b) => !legacy.has(b.slug));
+  // `present` is derived from the SURVIVORS, not from the input: a slug that is
+  // both retired and stubbed must come back as the stub in one pass, not vanish
+  // on the first run and reappear on the second.
+  const present = new Set(kept.map((b) => b.slug));
 
   const beans = [
-    ...inBeans.filter((b) => !legacy.has(b.slug)),
+    ...kept,
     ...STUB_BEANS.filter((b) => !present.has(b.slug)).map((b) => structuredClone(b)),
   ];
 
   const sprouts = (raw.sprouts ?? []).map((s) => {
+    // Own properties only: every slug is a legal key, and a sprout slugged
+    // `constructor` would otherwise inherit Object.prototype and re-parent onto
+    // a ref built from a function source.
+    if (!Object.hasOwn(SPROUT_MAP, s.slug)) return s;
     const target = SPROUT_MAP[s.slug];
-    if (!target) return s;
+    // The parents array is REPLACED, not appended to: these twelve are seeded
+    // changelog sprouts with exactly one parent, and the whole point is to move
+    // them off the bean that retires. A second parent would be dropped — which
+    // is why the move is by explicit catalog entry and never by slug prefix.
     const parents = [`bean:${target}`];
     if (s.type === MILESTONE_TYPE && JSON.stringify(s.parents) === JSON.stringify(parents)) return s;
     return { ...s, parents, type: MILESTONE_TYPE };

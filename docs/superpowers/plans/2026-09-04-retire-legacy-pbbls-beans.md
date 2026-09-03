@@ -69,6 +69,9 @@ function fixture(): RawGarden {
     ],
     beans: [
       { slug: "pbbls-webapp", name: "Pebbles Webapp", parents: ["plant:pbbls"] },
+      { slug: "pbbls-ios", name: "Pebbles iOS", parents: ["plant:pbbls"] },
+      { slug: "pbbls-path", name: "The Path", parents: ["plant:pbbls"] },
+      { slug: "pbbls-recorder", name: "The Recorder", parents: ["plant:pbbls"] },
       { slug: "pbbls-valence", name: { en: "How a memory became a shape" }, parents: ["pod:pbbls-pebble"] },
       { slug: "unrelated", name: "Unrelated", parents: ["plant:ariko"] },
     ],
@@ -107,7 +110,6 @@ test("retireLegacyBeans adds every MISSING stub as a private bean under a pod re
   const preexisting = new Set((input.beans ?? []).map((b) => b.slug));
   const out = retireLegacyBeans(input);
   const bySlug = new Map((out.beans ?? []).map((b) => [b.slug, b]));
-  const podSlugs = new Set(STUB_BEANS.flatMap((b) => b.parents));
   for (const stub of STUB_BEANS) {
     const got = bySlug.get(stub.slug);
     assert.ok(got, `${stub.slug} must exist`);
@@ -116,8 +118,6 @@ test("retireLegacyBeans adds every MISSING stub as a private bean under a pod re
     if (preexisting.has(stub.slug)) continue;
     assert.equal(got.visibility, "private", `${stub.slug} must be private`);
   }
-  // Every stub parents into a pod ref, never a plant ref.
-  for (const ref of podSlugs) assert.match(ref, /^pod:/);
 });
 
 test("retireLegacyBeans never overwrites a bean that already exists", () => {
@@ -128,6 +128,7 @@ test("retireLegacyBeans never overwrites a bean that already exists", () => {
   // migrate re-run from reverting an authored title to a placeholder.
   assert.deepEqual(valence?.name, { en: "How a memory became a shape" });
   assert.equal(valence?.visibility, undefined);
+  assert.equal(valence?.description, undefined, "not even a partial merge of the placeholder");
   assert.equal((out.beans ?? []).filter((b) => b.slug === "pbbls-valence").length, 1, "no duplicate");
 });
 
@@ -156,14 +157,34 @@ test("retireLegacyBeans is idempotent", () => {
   assert.deepStrictEqual(twice, once);
 });
 
+test("retireLegacyBeans handles an empty garden, and stays idempotent on it", () => {
+  const once = retireLegacyBeans({});
+  assert.equal(once.beans?.length, STUB_BEANS.length, "every stub is seeded from nothing");
+  // `sprouts: []` where the input had no key at all. Pinned, not fixed:
+  // retierGarden normalises the same way, and both migrations write the two
+  // collections unconditionally.
+  assert.deepEqual(once.sprouts, []);
+  assert.deepStrictEqual(retireLegacyBeans(once), once);
+});
+
 test("the catalogs are disjoint and cover every bean in _SLUGS.md", () => {
   const stubs = new Set(STUB_BEANS.map((b) => b.slug));
   const authored = new Set<string>(AUTHORED_BEANS);
   for (const slug of authored) {
     assert.equal(stubs.has(slug), false, `${slug} is authored and must not be stubbed`);
   }
+  // A slug that both retires and stubs would be removed and re-added in the
+  // same pass. The transform survives that (it derives its guard from the
+  // survivors); this keeps it from ever arising.
+  for (const slug of LEGACY_BEANS) {
+    assert.equal(stubs.has(slug), false, `${slug} retires and must not be stubbed`);
+  }
   assert.equal(stubs.size, 36);
   assert.equal(authored.size, 6);
+
+  // Every stub parents into a pod ref, never a plant ref.
+  const stubParentRefs = new Set(STUB_BEANS.flatMap((b) => b.parents));
+  for (const ref of stubParentRefs) assert.match(ref, /^pod:/);
 
   // The writers' reference is the other half of this contract. Legacy slugs
   // are subtracted rather than asserted absent, so this passes both before and
@@ -187,9 +208,10 @@ test("SPROUT_MAP names twelve sprouts and only beans that will exist", () => {
   const entries = Object.entries(SPROUT_MAP);
   assert.equal(entries.length, 12);
   const known = new Set([...STUB_BEANS.map((b) => b.slug), ...AUTHORED_BEANS]);
+  const legacy = new Set<string>(LEGACY_BEANS);
   for (const [sprout, bean] of entries) {
     assert.equal(known.has(bean), true, `${sprout} -> ${bean} is not a bean this work creates`);
-    assert.equal(new Set<string>(LEGACY_BEANS).has(bean), false, `${sprout} must not stay on a legacy bean`);
+    assert.equal(legacy.has(bean), false, `${sprout} must not stay on a legacy bean`);
   }
 });
 ```
@@ -242,7 +264,7 @@ export const AUTHORED_BEANS = [
 // Spec 2026-09-02 §6 calls these "milestone sprouts": dated, content-free, one
 // per shipped deliverable. The twelve below were seeded as `feature`; retyping
 // makes them one set with the deliverable.shipped events #55 will import.
-export const MILESTONE_TYPE = "milestone";
+export const MILESTONE_TYPE = "milestone" as const;
 
 // The twelve changelog sprouts, and the bean each one actually advances.
 // Four assignments are named in spec 2026-09-02 §9.2; three were judgement
@@ -336,16 +358,27 @@ const legacy = new Set<string>(LEGACY_BEANS);
  */
 export function retireLegacyBeans(raw: RawGarden): RawGarden {
   const inBeans = raw.beans ?? [];
-  const present = new Set(inBeans.map((b) => b.slug));
+  const kept = inBeans.filter((b) => !legacy.has(b.slug));
+  // `present` is derived from the SURVIVORS, not from the input: a slug that is
+  // both retired and stubbed must come back as the stub in one pass, not vanish
+  // on the first run and reappear on the second.
+  const present = new Set(kept.map((b) => b.slug));
 
   const beans = [
-    ...inBeans.filter((b) => !legacy.has(b.slug)),
+    ...kept,
     ...STUB_BEANS.filter((b) => !present.has(b.slug)).map((b) => structuredClone(b)),
   ];
 
   const sprouts = (raw.sprouts ?? []).map((s) => {
+    // Own properties only: every slug is a legal key, and a sprout slugged
+    // `constructor` would otherwise inherit Object.prototype and re-parent onto
+    // a ref built from a function source.
+    if (!Object.hasOwn(SPROUT_MAP, s.slug)) return s;
     const target = SPROUT_MAP[s.slug];
-    if (!target) return s;
+    // The parents array is REPLACED, not appended to: these twelve are seeded
+    // changelog sprouts with exactly one parent, and the whole point is to move
+    // them off the bean that retires. A second parent would be dropped — which
+    // is why the move is by explicit catalog entry and never by slug prefix.
     const parents = [`bean:${target}`];
     if (s.type === MILESTONE_TYPE && JSON.stringify(s.parents) === JSON.stringify(parents)) return s;
     return { ...s, parents, type: MILESTONE_TYPE };
