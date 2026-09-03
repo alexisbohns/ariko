@@ -773,6 +773,27 @@ async function main() {
   const beansCol = db.collection<Bean>("beans");
   const sproutsCol = db.collection<Sprout>("sprouts");
 
+  // Precondition, checked BEFORE any write: a sprout sitting on a legacy bean
+  // that SPROUT_MAP does not name would be orphaned by the delete at the end.
+  // Mongo carries admin-authored sprouts the seed does not, so this is a real
+  // possibility -- and checking it first means a trip leaves the database
+  // exactly as it was, rather than half-migrated.
+  const legacyRefs = LEGACY_BEANS.map((s) => `bean:${s}`);
+  const unroutable = await sproutsCol
+    .find(
+      { parents: { $in: legacyRefs }, slug: { $nin: Object.keys(SPROUT_MAP) } },
+      { projection: { _id: 0, slug: 1, parents: 1 } },
+    )
+    .toArray();
+  if (unroutable.length > 0) {
+    for (const s of unroutable) console.error(`  unroutable: ${s.slug} ${JSON.stringify(s.parents)}`);
+    throw new Error(
+      `${unroutable.length} sprout(s) sit on a legacy bean that SPROUT_MAP does not name, and ` +
+        `would be orphaned by the delete. Nothing was written. Extend SPROUT_MAP in ` +
+        `lib/pbbls-legacy.ts, or re-parent them by hand, then re-run.`,
+    );
+  }
+
   // 1) Stubs FIRST — step 2 re-parents sprouts onto them, so they must exist
   //    before anything points at them.
   let inserted = 0;
@@ -807,13 +828,15 @@ async function main() {
   }
 
   // 3) Back up, then delete. LAST, when nothing points at them any more.
-  const legacyRefs = LEGACY_BEANS.map((s) => `bean:${s}`);
-  const stillHeld = await sproutsCol.countDocuments({ parents: { $in: legacyRefs } });
-  if (stillHeld > 0) {
-    throw new Error(
-      `${stillHeld} sprout(s) still parented to a legacy bean — aborting before the delete. ` +
-        `Re-run without --dry-run to move them first, or extend SPROUT_MAP.`,
-    );
+  // Postcondition: after the moves, nothing may point at a legacy bean. Skipped
+  // on a dry run, where nothing was written and the twelve are still on their
+  // old beans by definition -- which is exactly what made the old single guard
+  // abort every dry run before it could show the delete.
+  if (!DRY) {
+    const stillHeld = await sproutsCol.countDocuments({ parents: { $in: legacyRefs } });
+    if (stillHeld > 0) {
+      throw new Error(`${stillHeld} sprout(s) still parented to a legacy bean after the move — aborting before the delete.`);
+    }
   }
 
   const doomed = await beansCol.find({ slug: { $in: [...LEGACY_BEANS] } }, { projection: { _id: 0 } }).toArray();
@@ -889,7 +912,11 @@ Expected, in this order:
 - `[dry] delete bean pbbls-webapp` / `pbbls-ios` / `pbbls-path` / `pbbls-recorder`
 - `[dry] done — 36 stub(s) inserted, 12 sprout(s) refiled, 4 bean(s) retired.`
 
+It must exit 0: the delete preview is reachable on a dry run, which is what makes Step 2 possible.
+
 If any `WARN sprout … not found` appears, **stop** — the seed and Mongo have diverged and `SPROUT_MAP` needs checking before anything is deleted.
+
+If it aborts with `unroutable: …` lines instead, the precondition caught a sprout sitting on a legacy bean that `SPROUT_MAP` does not name. Nothing was written, in a dry run or a real one. Extend `SPROUT_MAP` in `lib/pbbls-legacy.ts` (which means re-doing Tasks 1–3) or re-parent that sprout by hand, then start Task 4 again.
 
 - [ ] **Step 2: Read the backup the dry run wrote**
 
