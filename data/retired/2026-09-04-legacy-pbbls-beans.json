@@ -1,0 +1,170 @@
+{
+  "beans": [
+    {
+      "slug": "pbbls-ios",
+      "name": "Pebbles iOS",
+      "parents": [
+        "plant:pbbls"
+      ],
+      "visibility": "public"
+    },
+    {
+      "slug": "pbbls-path",
+      "name": "Pebbles Path",
+      "parents": [
+        "plant:pbbls"
+      ],
+      "visibility": "public"
+    },
+    {
+      "slug": "pbbls-recorder",
+      "name": "Pebbles Recorder",
+      "parents": [
+        "plant:pbbls"
+      ],
+      "visibility": "public"
+    },
+    {
+      "slug": "pbbls-webapp",
+      "name": "Pebbles Webapp",
+      "parents": [
+        "plant:pbbls"
+      ],
+      "visibility": "public"
+    }
+  ],
+  "sprouts": [
+    {
+      "slug": "pbbls-webapp-core",
+      "date": "2026-03-27",
+      "description": "The core app is alive: a path timeline, full collections and a detailed view of each pebble, with the ability to add new pebbles and edit existing ones",
+      "name": "Path, Collections & Pebble Detail",
+      "parents": [
+        "bean:pbbls-webapp"
+      ],
+      "state": "published",
+      "type": "feature"
+    },
+    {
+      "slug": "pbbls-webapp-color",
+      "date": "2026-03-28",
+      "description": "Chose from 5 color themes to set the emotional tone of your Pebbles experience. Blush Quartz by default.",
+      "name": "Color World Themes",
+      "parents": [
+        "bean:pbbls-webapp"
+      ],
+      "state": "published",
+      "type": "feature"
+    },
+    {
+      "slug": "pbbls-webapp-record-flow",
+      "date": "2026-03-28",
+      "description": "A multi-step recording flow that guides users through the process of capturing and organizing their Pebbles.",
+      "name": "Multi step recording flow",
+      "parents": [
+        "bean:pbbls-webapp"
+      ],
+      "state": "published",
+      "type": "feature"
+    },
+    {
+      "slug": "pbbls-webapp-emotion-pearl",
+      "date": "2026-03-29",
+      "description": "See your emotion pearl take shape in real time as you record a pebble, a visual that captures how you felt.",
+      "name": "Emotion Pearl",
+      "parents": [
+        "bean:pbbls-webapp"
+      ],
+      "state": "published",
+      "type": "feature"
+    },
+    {
+      "slug": "pbbls-webapp-pwa",
+      "date": "2026-03-30",
+      "description": "Progressive Web App support for a seamless Pebbles experience across devices.",
+      "name": "PWA Support",
+      "parents": [
+        "bean:pbbls-webapp"
+      ],
+      "state": "published",
+      "type": "feature"
+    },
+    {
+      "slug": "pbbls-webapp-karma",
+      "date": "2026-04-01",
+      "description": "A system that tracks karma and bounce within the Pebbles app, enhancing user engagement and interaction.",
+      "name": "Karma and Bounce system",
+      "parents": [
+        "bean:pbbls-webapp"
+      ],
+      "state": "published",
+      "type": "feature"
+    },
+    {
+      "slug": "pbbls-ios-core",
+      "date": "2026-04-12",
+      "description": "The core iOS app is now available, allowing users to access their Pebbles on the go with a native experience.",
+      "name": "Core iOS App",
+      "parents": [
+        "bean:pbbls-ios"
+      ],
+      "state": "published",
+      "type": "feature"
+    },
+    {
+      "slug": "pbbls-ios-record-flow",
+      "date": "2026-04-13",
+      "description": "A multi-step recording flow that guides users through the process of capturing and organizing their Pebbles.",
+      "name": "Multi step recording flow",
+      "parents": [
+        "bean:pbbls-ios"
+      ],
+      "state": "published",
+      "type": "feature"
+    },
+    {
+      "slug": "pbbls-ios-profile",
+      "date": "2026-04-13",
+      "description": "Profile and settings management for the iOS app, allowing users to customize their experience and manage their account.",
+      "name": "Profile and Settings",
+      "parents": [
+        "bean:pbbls-ios"
+      ],
+      "state": "published",
+      "type": "feature"
+    },
+    {
+      "slug": "pbbls-ios-pebble-detail",
+      "date": "2026-04-14",
+      "description": "A detailed view of each pebble in the iOS app, providing users with an in-depth look at their memories and moments.",
+      "name": "Pebble Detail View",
+      "parents": [
+        "bean:pbbls-ios"
+      ],
+      "state": "published",
+      "type": "feature"
+    },
+    {
+      "slug": "pbbls-ios-pebble-render",
+      "date": "2026-04-15",
+      "description": "The Pebble Render Engine powers the visual representation of pebbles in the iOS app, providing a rich and immersive experience.",
+      "name": "Pebble Render Engine",
+      "parents": [
+        "bean:pbbls-ios"
+      ],
+      "state": "published",
+      "type": "feature"
+    },
+    {
+      "slug": "pbbls-ios-emotion-colored-pebbles",
+      "date": "2026-04-16",
+      "description": "Emotion Colored Pebbles feature allows users to see their pebbles in different colors based on their emotions, enhancing the visual experience.",
+      "name": "Emotion Colored Pebbles",
+      "parents": [
+        "bean:pbbls-ios"
+      ],
+      "state": "published",
+      "type": "feature"
+    }
+  ]
+}
