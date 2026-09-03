@@ -44,8 +44,10 @@ test("retierGarden keeps the albums as pods under plant:bohns-music", () => {
 test("retierGarden re-parents promoted pods' beans to plant: refs and leaves album beans on pod: refs", () => {
   const out = retierGarden(currentGarden());
   const bySlug = new Map((out.beans ?? []).map((b) => [b.slug, b]));
-  assert.ok(bySlug.get("pbbls-webapp")?.parents?.includes("plant:pbbls"));
-  assert.equal(bySlug.get("pbbls-webapp")?.parents?.includes("pod:pbbls"), false);
+  // The worked example is a femfolk bean, not a pbbls one: #54 retired the four
+  // seeded pbbls beans, so pbbls no longer has a bean of its own in the seed.
+  assert.ok(bySlug.get("ff-paris-paloma")?.parents?.includes("plant:femfolk"));
+  assert.equal(bySlug.get("ff-paris-paloma")?.parents?.includes("pod:femfolk"), false);
   assert.ok(bySlug.get("felina")?.parents?.includes("pod:celesta"));
   assert.equal(bySlug.get("felina")?.parents?.includes("plant:celesta"), false);
 });

@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import yaml from "js-yaml";
 import {
   AUTHORED_BEANS,
   LEGACY_BEANS,
@@ -167,4 +168,74 @@ test("SPROUT_MAP names twelve sprouts and only beans that will exist", () => {
     assert.equal(known.has(bean), true, `${sprout} -> ${bean} is not a bean this work creates`);
     assert.equal(legacy.has(bean), false, `${sprout} must not stay on a legacy bean`);
   }
+});
+
+// --- data/garden.yml conformance. The seed is edited by hand (yaml.dump would
+// erase its comments), so these tests are the proof that the hand edit is
+// exactly what the transform would have produced. Editing the seed back fails
+// the suite.
+
+function currentGarden(): RawGarden {
+  const file = readFileSync(join(process.cwd(), "data", "garden.yml"), "utf8");
+  // CORE_SCHEMA keeps dates as plain YYYY-MM-DD strings, same as scripts/migrate-garden.ts.
+  return (yaml.load(file, { schema: yaml.CORE_SCHEMA }) as RawGarden) ?? {};
+}
+
+test("data/garden.yml is already a fixed point of retireLegacyBeans", () => {
+  const before = currentGarden();
+  assert.deepStrictEqual(retireLegacyBeans(before), before);
+});
+
+test("data/garden.yml carries no legacy pbbls bean", () => {
+  const slugs = new Set((currentGarden().beans ?? []).map((b) => b.slug));
+  for (const slug of LEGACY_BEANS) assert.equal(slugs.has(slug), false, `${slug} must be gone`);
+});
+
+test("data/garden.yml seeds every stub, private, under a pod that exists", () => {
+  const raw = currentGarden();
+  const bySlug = new Map((raw.beans ?? []).map((b) => [b.slug, b]));
+  const podSlugs = new Set((raw.pods ?? []).map((p) => p.slug));
+  for (const stub of STUB_BEANS) {
+    const got = bySlug.get(stub.slug);
+    assert.ok(got, `${stub.slug} must be seeded`);
+    assert.equal(got.visibility, "private", `${stub.slug} must be private`);
+    assert.deepEqual(got.parents, stub.parents, `${stub.slug} parents`);
+    assert.equal(got.name, stub.name, `${stub.slug} name`);
+    assert.equal(got.description, stub.description, `${stub.slug} description`);
+    for (const ref of got.parents) {
+      assert.equal(podSlugs.has(ref.slice("pod:".length)), true, `${stub.slug} -> ${ref} is dangling`);
+    }
+  }
+});
+
+test("data/garden.yml never seeds a bean that is already authored in Mongo", () => {
+  // Seeding one would make `npm run migrate` $set its real title back to a
+  // placeholder. This is the rule the stub block's comment states.
+  const slugs = new Set((currentGarden().beans ?? []).map((b) => b.slug));
+  for (const slug of AUTHORED_BEANS) {
+    assert.equal(slugs.has(slug), false, `${slug} is authored and must stay out of the seed`);
+  }
+});
+
+test("data/garden.yml files the twelve changelog sprouts as milestones", () => {
+  const bySlug = new Map((currentGarden().sprouts ?? []).map((s) => [s.slug, s]));
+  for (const [slug, bean] of Object.entries(SPROUT_MAP)) {
+    const s = bySlug.get(slug);
+    assert.ok(s, `${slug} must still be in the seed`);
+    assert.deepEqual(s.parents, [`bean:${bean}`], `${slug} parents`);
+    assert.equal(s.type, MILESTONE_TYPE, `${slug} type`);
+  }
+});
+
+test("the only seed-dangling sprout target is pbbls-wallet, which is authored", () => {
+  // Consequence of the rule above, pinned so nobody "fixes" it by seeding
+  // pbbls-wallet: exactly one of the twelve advances an already-authored bean,
+  // so the seed carries exactly one bean: ref it does not itself define. Mongo
+  // resolves it; buildDataset tolerates a dangling parent by design.
+  const raw = currentGarden();
+  const seeded = new Set((raw.beans ?? []).map((b) => b.slug));
+  const dangling = Object.entries(SPROUT_MAP)
+    .filter(([, bean]) => !seeded.has(bean))
+    .map(([sprout, bean]) => `${sprout} -> ${bean}`);
+  assert.deepEqual(dangling, ["pbbls-webapp-karma -> pbbls-wallet"]);
 });
