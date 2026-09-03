@@ -497,17 +497,35 @@ test("data/garden.yml files the twelve changelog sprouts as milestones", () => {
   }
 });
 
-test("the only seed-dangling sprout target is pbbls-wallet, which is authored", () => {
+test("data/garden.yml's only dangling bean ref is pbbls-wallet, which is authored", () => {
   // Consequence of the rule above, pinned so nobody "fixes" it by seeding
   // pbbls-wallet: exactly one of the twelve advances an already-authored bean,
   // so the seed carries exactly one bean: ref it does not itself define. Mongo
   // resolves it; buildDataset tolerates a dangling parent by design.
+  //
+  // Swept over the seed's own sprouts rather than over SPROUT_MAP, which makes
+  // it strictly stronger: a thirteenth sprout left on a retired bean, or any
+  // broken bean: ref anywhere in the file, shows up here too.
   const raw = currentGarden();
   const seeded = new Set((raw.beans ?? []).map((b) => b.slug));
-  const dangling = Object.entries(SPROUT_MAP)
-    .filter(([, bean]) => !seeded.has(bean))
-    .map(([sprout, bean]) => `${sprout} -> ${bean}`);
+  const dangling = (raw.sprouts ?? []).flatMap((s) =>
+    (s.parents ?? [])
+      .filter((p) => p.startsWith("bean:") && !seeded.has(p.slice("bean:".length)))
+      .map((p) => `${s.slug} -> ${p.slice("bean:".length)}`),
+  );
   assert.deepEqual(dangling, ["pbbls-webapp-karma -> pbbls-wallet"]);
+});
+
+test("data/garden.yml keeps the stub block at the tail, in catalog order", () => {
+  // NOT implied by the fixed-point test: once every stub is present the
+  // transform adds nothing and returns the input order, whatever it is. This
+  // is asserted for reviewability -- it is what lets the block be diffed
+  // against a regeneration from STUB_BEANS.
+  const slugs = (currentGarden().beans ?? []).map((b) => b.slug);
+  assert.deepEqual(
+    slugs.slice(-STUB_BEANS.length),
+    STUB_BEANS.map((b) => b.slug),
+  );
 });
 ```
 
@@ -579,18 +597,23 @@ The 36 stubs are already committed as `STUB_BEANS` in `lib/pbbls-legacy.ts`, so 
 node --import tsx -e '
 import { STUB_BEANS } from "./lib/pbbls-legacy.ts";
 import yaml from "js-yaml";
-process.stdout.write(
-  STUB_BEANS.map((b) =>
-    yaml.dump([b], { lineWidth: 100 }).split("\n").filter(Boolean).map((l) => "  " + l).join("\n"),
-  ).join("\n") + "\n",
-);
+// One "# pod:<slug>" separator per group, mirroring how lib/pbbls-legacy.ts
+// groups the catalog -- so a regeneration still matches the file byte for byte.
+let group = "";
+const out = [];
+for (const b of STUB_BEANS) {
+  if (b.parents[0] !== group) out.push(`  # ${(group = b.parents[0])}`);
+  out.push(yaml.dump([b], { lineWidth: 100 }).split("\n").filter(Boolean).map((l) => "  " + l).join("\n"));
+}
+process.stdout.write(out.join("\n") + "\n");
 ' > /tmp/stub-block.yml
-head -12 /tmp/stub-block.yml
+head -13 /tmp/stub-block.yml
 ```
 
-Expected first twelve lines:
+Expected first thirteen lines:
 
 ```yaml
+  # pod:pbbls-web
   - slug: pbbls-web-shell
     name: The Web Shell
     parents:
@@ -615,9 +638,39 @@ Now insert into `data/garden.yml`, immediately **before** the `sprouts:` line (i
   # authored through the admin, DELETE ITS ENTRY HERE -- or the next migrate
   # reverts the real title to the placeholder. The six already authored
   # (wallet, market, d8, connections, cut, unbuilt) are absent for that reason.
+  # Deleting an entry here is only step one: also move its slug from
+  # STUB_BEANS to AUTHORED_BEANS in lib/pbbls-legacy.ts, and bump the two
+  # catalog-size assertions in lib/pbbls-legacy.test.ts -- otherwise the
+  # transform re-appends it and the seed stops being a fixed point.
 ```
 
-then the whole contents of `/tmp/stub-block.yml`. Order matters: the stubs must be in `STUB_BEANS` order and at the end of the list, or the fixed-point test fails on array ordering.
+The second paragraph is not decoration. The first tells a maintainer to delete an
+entry; doing only that leaves the slug in `STUB_BEANS`, so the transform re-appends
+it and two tests fail — one with an unreadable 59-element diff, the other advising
+the maintainer to re-seed exactly the entry they were just told to delete. The
+comment is the only durable carrier of the rule, so it carries all of it.
+
+Then the whole contents of `/tmp/stub-block.yml`, and finally a terminator line:
+
+```yaml
+  # --- end of the case-study stub block ---
+```
+
+Without it the warning reads as governing everything down to `sprouts:`, and a
+future author appending an unrelated bean lands it inside the block's apparent
+scope, where the text calls their entry a placeholder to be deleted.
+
+Keep the stubs in `STUB_BEANS` order at the end of the list. Note what does *not*
+enforce that: **the fixed-point test is order-blind here**, because once all 36
+stubs are present `STUB_BEANS.filter((b) => !present.has(b.slug))` is empty and the
+transform returns the input order unchanged. The ordering is enforced by
+`data/garden.yml keeps the stub block at the tail, in catalog order`, and it is
+worth enforcing because it is what lets this 231-line block be diffed against a
+regeneration from the catalog — which is how the splice is verified:
+
+```bash
+diff <(sed -n '/^  # pod:pbbls-web$/,/^  # --- end of the case-study stub block ---$/p' data/garden.yml | sed '$d') /tmp/stub-block.yml
+```
 
 - [ ] **Step 3d: Fix the one other test that reads the seed**
 

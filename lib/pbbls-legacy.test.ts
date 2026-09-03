@@ -203,6 +203,9 @@ test("data/garden.yml seeds every stub, private, under a pod that exists", () =>
     assert.equal(got.name, stub.name, `${stub.slug} name`);
     assert.equal(got.description, stub.description, `${stub.slug} description`);
     for (const ref of got.parents) {
+      // Guarded rather than sliced blind: a non-pod: ref would slice to `t:foo`
+      // and be reported as a dangling pod instead of as the wrong tier.
+      assert.ok(ref.startsWith("pod:"), `${stub.slug} -> ${ref} must be a pod ref`);
       assert.equal(podSlugs.has(ref.slice("pod:".length)), true, `${stub.slug} -> ${ref} is dangling`);
     }
   }
@@ -227,15 +230,33 @@ test("data/garden.yml files the twelve changelog sprouts as milestones", () => {
   }
 });
 
-test("the only seed-dangling sprout target is pbbls-wallet, which is authored", () => {
+test("data/garden.yml's only dangling bean ref is pbbls-wallet, which is authored", () => {
   // Consequence of the rule above, pinned so nobody "fixes" it by seeding
   // pbbls-wallet: exactly one of the twelve advances an already-authored bean,
   // so the seed carries exactly one bean: ref it does not itself define. Mongo
   // resolves it; buildDataset tolerates a dangling parent by design.
+  //
+  // Swept over the seed's own sprouts rather than over SPROUT_MAP, which makes
+  // it strictly stronger: a thirteenth sprout left on a retired bean, or any
+  // broken bean: ref anywhere in the file, shows up here too.
   const raw = currentGarden();
   const seeded = new Set((raw.beans ?? []).map((b) => b.slug));
-  const dangling = Object.entries(SPROUT_MAP)
-    .filter(([, bean]) => !seeded.has(bean))
-    .map(([sprout, bean]) => `${sprout} -> ${bean}`);
+  const dangling = (raw.sprouts ?? []).flatMap((s) =>
+    (s.parents ?? [])
+      .filter((p) => p.startsWith("bean:") && !seeded.has(p.slice("bean:".length)))
+      .map((p) => `${s.slug} -> ${p.slice("bean:".length)}`),
+  );
   assert.deepEqual(dangling, ["pbbls-webapp-karma -> pbbls-wallet"]);
+});
+
+test("data/garden.yml keeps the stub block at the tail, in catalog order", () => {
+  // NOT implied by the fixed-point test: once every stub is present the
+  // transform adds nothing and returns the input order, whatever it is. This
+  // is asserted for reviewability -- it is what lets the block be diffed
+  // against a regeneration from STUB_BEANS.
+  const slugs = (currentGarden().beans ?? []).map((b) => b.slug);
+  assert.deepEqual(
+    slugs.slice(-STUB_BEANS.length),
+    STUB_BEANS.map((b) => b.slug),
+  );
 });

@@ -46,6 +46,11 @@ test("retierGarden re-parents promoted pods' beans to plant: refs and leaves alb
   const bySlug = new Map((out.beans ?? []).map((b) => [b.slug, b]));
   // The worked example is a femfolk bean, not a pbbls one: #54 retired the four
   // seeded pbbls beans, so pbbls no longer has a bean of its own in the seed.
+  // Like for like, including the weakness: the seed is already retiered, so
+  // this bean is parented to plant:femfolk before the transform runs and
+  // promoteRef is a no-op on it -- exactly as it was on pbbls-webapp. The live
+  // half of this test is the felina / pod:celesta pair below, which proves an
+  // album bean is NOT promoted.
   assert.ok(bySlug.get("ff-paris-paloma")?.parents?.includes("plant:femfolk"));
   assert.equal(bySlug.get("ff-paris-paloma")?.parents?.includes("pod:femfolk"), false);
   assert.ok(bySlug.get("felina")?.parents?.includes("pod:celesta"));

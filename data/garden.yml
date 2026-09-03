@@ -186,6 +186,11 @@ beans:
   # authored through the admin, DELETE ITS ENTRY HERE -- or the next migrate
   # reverts the real title to the placeholder. The six already authored
   # (wallet, market, d8, connections, cut, unbuilt) are absent for that reason.
+  # Deleting an entry here is only step one: also move its slug from
+  # STUB_BEANS to AUTHORED_BEANS in lib/pbbls-legacy.ts, and bump the two
+  # catalog-size assertions in lib/pbbls-legacy.test.ts -- otherwise the
+  # transform re-appends it and the seed stops being a fixed point.
+  # pod:pbbls-web
   - slug: pbbls-web-shell
     name: The Web Shell
     parents:
@@ -198,6 +203,7 @@ beans:
       - pod:pbbls-web
     visibility: private
     description: The Path as a wall of polaroids, dealt round-robin rather than height-balanced.
+  # pod:pbbls-ios
   - slug: pbbls-ios-jump
     name: The Jump to SwiftUI
     parents:
@@ -216,6 +222,7 @@ beans:
       - pod:pbbls-ios
     visibility: private
     description: The Live Activity that device evidence killed, and the widget target left behind.
+  # pod:pbbls-android
   - slug: pbbls-android-six-days
     name: Six Days to Parity
     parents:
@@ -234,6 +241,7 @@ beans:
       - pod:pbbls-android
     visibility: private
     description: Duplicated draft glue, kept on purpose, with the debt named and enforceable.
+  # pod:pbbls-backstage
   - slug: pbbls-analytics
     name: Analytics
     parents:
@@ -254,6 +262,7 @@ beans:
       - pod:pbbls-backstage
     visibility: private
     description: The in-app changelog, prefilled from the clipboard.
+  # pod:pbbls-record
   - slug: pbbls-record-flow
     name: The Recording Flow
     parents:
@@ -272,6 +281,7 @@ beans:
       - pod:pbbls-record
     visibility: private
     description: Keeping the half-formed thoughts — a table of its own, never a status column.
+  # pod:pbbls-pebble
   - slug: pbbls-valence
     name: Valence
     parents:
@@ -302,6 +312,7 @@ beans:
       - pod:pbbls-pebble
     visibility: private
     description: Emotion categories, palettes, and per-surface tinting.
+  # pod:pbbls-path
   - slug: pbbls-path-nav
     name: The Path
     parents:
@@ -314,6 +325,7 @@ beans:
       - pod:pbbls-path
     visibility: private
     description: Stack, Pack and Track — three ways of gathering pebbles.
+  # pod:pbbls-karma
   - slug: pbbls-reward-not-prison
     name: Reward, Not Prison
     parents:
@@ -326,6 +338,7 @@ beans:
       - pod:pbbls-karma
     visibility: private
     description: Achievements — idempotent, permanent, and paid at unlock.
+  # pod:pbbls-souls
   - slug: pbbls-souls-not-users
     name: Souls, Not Users
     parents:
@@ -344,6 +357,7 @@ beans:
       - pod:pbbls-souls
     visibility: private
     description: The emotion model as it actually shipped.
+  # pod:pbbls-public
   - slug: pbbls-profiles-handles
     name: Handles
     parents:
@@ -368,6 +382,7 @@ beans:
       - pod:pbbls-public
     visibility: private
     description: Anonymising rather than destroying, so what someone bought keeps rendering.
+  # pod:pbbls-atelier
   - slug: pbbls-naming
     name: Nomen Omen
     parents:
@@ -406,6 +421,7 @@ beans:
     description: >-
       Proof rather than simulation — the audit programme, and the contract harnesses that became a
       merge gate.
+  # --- end of the case-study stub block ---
 sprouts:
   - slug: wait-for-the-sun-0
     name: Wait for the Sun
