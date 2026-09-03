@@ -179,6 +179,15 @@ means; only the application to YAML is manual.
   This is the accepted cost of the pod-tier precedent, stated where someone will
   read it.
 
+**One dangling ref, on purpose.** Exactly one of the twelve —
+`pbbls-webapp-karma` — advances `pbbls-wallet`, which is authored and therefore
+deliberately absent from the seed. So `garden.yml` ends up carrying one `bean:`
+ref it does not itself define. Mongo resolves it and `buildDataset` tolerates a
+dangling parent by design, so nothing breaks; the alternative — seeding
+`pbbls-wallet` — would revert its real title to a placeholder on the next
+migrate. §5.4 pins this in a test naming the single expected case, so nobody
+"fixes" it later.
+
 ### 5.4 `lib/pbbls-legacy.test.ts`
 
 Against the real `data/garden.yml`, so every assertion holds before and after:
@@ -193,6 +202,9 @@ Against the real `data/garden.yml`, so every assertion holds before and after:
 - every stub's `parents` names a pod that exists;
 - a fixture bean with a stub's slug and an authored name survives untouched;
 - a sprout not in `SPROUT_MAP` is untouched;
+- no authored bean is present in the seed;
+- the set of `SPROUT_MAP` targets absent from the seed is exactly
+  `{pbbls-webapp-karma -> pbbls-wallet}` (§5.3);
 - `STUB_BEANS` and the six authored slugs are disjoint, and together equal the
   42 of `_SLUGS.md` minus the two legacy ones.
 
