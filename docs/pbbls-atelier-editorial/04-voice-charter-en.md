@@ -263,9 +263,16 @@ Target 1,800–3,000 words. Longer needs a reason.
 
 ## 5b. Trust the neighbours
 
-There are 35 beans. **Your piece is one of them and does not have to explain the
-product.** When a subject belongs to another bean, name it in one clause, link it
-with `::entity{ref=bean:…}`, and move on.
+There are 42 beans, and every one of them exists — six written, the rest private
+stubs (`payloads/_SLUGS.md`). **Your piece is one of them and does not have to
+explain the product.** When a subject belongs to another bean, name it in one
+clause, link it, and move on.
+
+Mid-sentence, the link is `:entity[Label]{ref=bean:slug}` — **single colon, with
+a label**. The double-colon `::entity{ref=…}` form is a *block* directive and is
+inert inside a paragraph: it renders as literal text. Every ref in the first wave
+was written the wrong way for this reason. Use `::entity{ref=…}` only on a line
+of its own, where you want a card.
 
 This is where list-creep comes back in disguise. The D8 pilot drifted from "the
 lock" into purchase transactions, unique constraints, default prices, delisting,
@@ -358,8 +365,28 @@ code: no feed, no directory, no search, no follower graph, connections by invite
 or QR only. The first is *complicated* — bounce existed since April, but became
 visible on a public profile in July.
 
-Write both halves and the distinction between them. Do not flatten it into a
-betrayal, and do not pretend nothing changed.
+**The position, recorded 2026-09-03 and statable as fact:** the mechanic never
+broke the promise. Bounce is a rank on a rolling window that *erodes* — not a
+chain that breaks and punishes. July changed **who can see it**, not what it does
+to you, and April's promise was about punishment.
+
+Still say plainly that the streak became social in July and that no decision
+entry records the change. The position is that visibility is not punishment, not
+that nothing happened. Do not overstate it into "the promise was never touched",
+and do not flatten it into a betrayal.
+
+**Why the market is community-supplied, recorded 2026-09-03:** so you can share
+a mark you carved and be rewarded for sharing it, and so the symbols on someone's
+memory were drawn by another person who records rather than by a design team.
+
+⚠️ **With one factual caution: most community glyphs live today were drawn by
+Alexis.** Never imply a large third-party creator base. That is the design's
+intent, not yet its population.
+
+**Act I is trimmed (2026-09-03).** Anything pre-March-2026 that traces only to a
+digest or a `brouillons/` draft is **cut**, not marked — the primaries are in no
+repo. Keep only what the pbbls repo, decision log, specs, migrations, changelog
+or Arkaik journal carry on their own. See spec §4.2.
 
 ## 8. Bilingual
 
