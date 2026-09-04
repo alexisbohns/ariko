@@ -12,8 +12,10 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
 - Primitives live in `components/ui/`. Add more with
   `npx shadcn@latest add <name>` — never hand-roll one the registry already has.
 - Chrome belongs to the zones, not the root layout: `app/(public)/layout.tsx`
-  (site header) and `app/admin/layout.tsx` + `app/admin/_components/admin-bar.tsx`
-  (tooling bar). The root layout owns only the document shell and the fonts.
+  (site header) and `app/admin/layout.tsx` + `app/admin/_components/admin-chrome.tsx`
+  (a floating icon rail on the left edge, plus the public-site and log-out icon
+  buttons top-right, which withdraws itself on the login page). The root layout
+  owns only the document shell and the fonts.
 - **The admin's *metadata* forms stay zero-client-JS**: they post to server
   actions and must work without script. Use the styled *native* controls in
   `components/ui/native-controls.tsx` (`NativeSelect`, `NativeRadio`,
