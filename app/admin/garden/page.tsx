@@ -2,7 +2,7 @@ import { resolveText, textPart } from "@/lib/data";
 import { loadRawGarden } from "@/lib/store";
 import { roleLine } from "@/lib/plant-role";
 import { statusLabel, statusOf } from "@/lib/plant-status";
-import { Badge } from "@/components/ui/badge";
+import { EntityAvatar, TierGlyph, VisibilityGlyph } from "@/components/admin/glyphs";
 import {
   Table,
   TableBody,
@@ -31,6 +31,10 @@ export default async function AdminGardenPage() {
       hasNarrative: textPart(p.content, "en").trim().length > 0,
       role: roleLine(p.role),
       status: statusLabel(statusOf(p)),
+      // A plant has a mark; a pod never does (no `logo` field at that tier), so
+      // its avatar is always the initials fallback — which is exactly why the
+      // avatar primitive is the right thing here rather than a bare <img>.
+      logoUrl: p.logo?.url,
       href: `/admin/plant/${p.slug}`,
     })),
     ...(raw.pods ?? []).map((p) => ({
@@ -44,6 +48,7 @@ export default async function AdminGardenPage() {
       // second stored flag would be a second source of truth.
       role: null,
       status: null,
+      logoUrl: undefined,
       href: `/admin/pod/${p.slug}`,
     })),
   ].sort((a, b) => a.tier.localeCompare(b.tier) || a.name.localeCompare(b.name));
@@ -69,17 +74,24 @@ export default async function AdminGardenPage() {
             {rows.map((row) => (
               <TableRow key={`${row.tier}:${row.slug}`}>
                 <TableCell>
-                  <a href={row.href} className="underline-offset-4 hover:underline">
-                    {row.name}
-                  </a>
-                  <span className="ml-2 font-heading text-xs text-muted-foreground">{row.slug}</span>
+                  <div className="flex items-center gap-2.5">
+                    <EntityAvatar mark={{ name: row.name, logoUrl: row.logoUrl }} />
+                    <div className="flex flex-col leading-tight">
+                      <a href={row.href} className="underline-offset-4 hover:underline">
+                        {row.name}
+                      </a>
+                      <span className="font-heading text-xs text-muted-foreground">{row.slug}</span>
+                    </div>
+                  </div>
                 </TableCell>
                 <TableCell>
-                  <Badge variant="outline">{row.tier}</Badge>
+                  <TierGlyph tier={row.tier} />
                 </TableCell>
                 <TableCell className="text-muted-foreground">{row.role ?? "—"}</TableCell>
                 <TableCell className="text-muted-foreground">{row.status ?? "—"}</TableCell>
-                <TableCell className="text-muted-foreground">{row.visibility}</TableCell>
+                <TableCell>
+                  <VisibilityGlyph visibility={row.visibility} />
+                </TableCell>
                 <TableCell className="text-muted-foreground">
                   {row.hasNarrative ? "yes" : "—"}
                 </TableCell>
