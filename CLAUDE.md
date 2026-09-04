@@ -94,9 +94,13 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
   - The vault's filter popovers (`app/admin/_components/vault-filters.tsx`) are
     a container only — every option inside is the same `<a href>` the page
     rendered inline before, filtering stays server-side in `lib/vault.ts`, and
-    filter URLs stay shareable. What script-off *does* cost there is
-    **discovery**: the triggers no longer open, so the filters cannot be found
-    from the page, only typed as a query string.
+    filter URLs stay shareable. The `s`/`p`/`t` hotkeys that open the status,
+    plant and tag popovers are the same kind of shell affordance as the seed
+    overlay's `k`, and the popovers open in the primitive's `trap-focus` mode so
+    Tab and Shift+Tab cycle the options rather than walking off into the table
+    behind. What script-off *does* cost there is **discovery**: the triggers no
+    longer open and the keys do nothing, so the filters cannot be found from the
+    page, only typed as a query string.
 
 Orientation lives in
 [`README.md`](README.md); the sequenced plan lives in
