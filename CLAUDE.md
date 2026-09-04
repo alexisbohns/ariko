@@ -83,37 +83,66 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
   on its way to triage, and the sprout media card downstream carries the full
   picker).
 
-  Every *other* admin metadata form is unchanged and still zero-client-JS. Two
-  neighbours of this slice are worth naming so they are not mistaken for
-  further exceptions:
+- **The ⌘K command palette is the fourth, and the mildest of the four**
+  (`app/admin/_components/command-palette.tsx`, the palette slice). ⌘K (Ctrl+K
+  off macOS) anywhere in the admin but the login page opens the seed overlay's
+  blurred sheet, one octave up: a bare centred input over a filtered list of
+  every section, plant, pod, bean, sprout and inbox seed. Script-off it renders
+  **nothing** — no ⌘K, and no search button either, because the island is gated
+  behind a mount flag exactly like the media picker's.
 
-  - The chrome (`app/admin/_components/admin-chrome.tsx`) is a client component
-    so it can read the pathname, but it is chrome, not a form: its nav items
-    are plain `<a href>` and Log out is still a real `<form>` with a real
-    submit button.
-  - The vault's filter popovers (`app/admin/_components/vault-filters.tsx`) are
-    a container only — every option inside is the same `<a href>` the page
-    rendered inline before, filtering stays server-side in `lib/vault.ts`, and
-    filter URLs stay shareable. The `s`/`p`/`t` hotkeys that open the status,
-    plant and tag popovers are the same kind of shell affordance as the seed
-    overlay's `k`, and the popovers open in the primitive's `trap-focus` mode so
-    Tab and Shift+Tab cycle the options rather than walking off into the table
-    behind. What script-off *does* cost there is **discovery**: the triggers no
-    longer open and the keys do nothing, so the filters cannot be found from the
-    page, only typed as a query string.
-  - The three admin tables' glyphs (`components/admin/glyphs.tsx`) are a third
-    such neighbour. The inbox's source column, the vault's plant column and the
-    garden's name/tier/visibility columns now *draw* their values — a lucide
-    icon for the capture route, a shadcn-on-Base-UI `Avatar` for the plant (its
-    logo, or its initials when it has none), a tooltip carrying the word. That
-    is one client island for all three tables and not nine: lucide, Avatar and
-    Tooltip are each already `"use client"` modules, so the choice was never
-    "none" but "one boundary or many". Nothing there is a form control and
-    nothing writes — the tables around it are the same server-rendered links and
-    cells they were. Script-off costs the *hover* label only: every glyph also
-    carries its word in an `sr-only` span (from `lib/glyphs.ts`, the one place a
-    display form is decided, exactly as `lib/plant-status.ts` is for its enum),
-    so no value is icon-only in the accessibility tree.
+  What makes it mild is that **its absence costs nothing**, in the strong sense
+  the media picker's rule uses: the palette adds no destination of its own. Every
+  row is a faster route to a page that still has its slow route — the four
+  sections from the rail, everything else from the list page that already links
+  to it. And it **never writes**: no form, no server action, no submit. It is a
+  navigator, not a command runner, which is what keeps it small enough to trust.
+
+  Its index comes from `GET /admin/palette`, fetched on each open. That route
+  lives under `/admin` rather than `/api` on purpose: `middleware.ts` already
+  matches `/admin/:path*`, so the index inherits the session gate with **zero
+  new auth code**. Nothing is loaded until ⌘K is pressed, so no admin page's
+  render cost changes.
+
+  One split is load-bearing and easy to undo by accident: `lib/palette.ts`
+  imports `lib/data.ts`, which opens with `node:fs`, so it is **server-only**.
+  The client half — the row type, the group order, the four sections, the
+  grouping — lives in `lib/palette-items.ts`. Importing the wrong one from the
+  palette component does not merely bloat the bundle; it fails the build.
+
+Those four are the whole list. Every *other* admin metadata form is unchanged
+and still zero-client-JS. Three neighbours are worth naming so they are not
+mistaken for further exceptions:
+
+- The chrome (`app/admin/_components/admin-chrome.tsx`) is a client component so
+  it can read the pathname, but it is chrome, not a form: its nav items are
+  plain `<a href>` and Log out is still a real `<form>` with a real submit
+  button. It renders the palette, which is the one thing inside it that is an
+  island rather than chrome.
+- The vault's filter popovers (`app/admin/_components/vault-filters.tsx`) are a
+  container only — every option inside is the same `<a href>` the page rendered
+  inline before, filtering stays server-side in `lib/vault.ts`, and filter URLs
+  stay shareable. The `s`/`p`/`t` hotkeys that open the status, plant and tag
+  popovers are the same kind of shell affordance as the seed overlay's `k`, and
+  the popovers open in the primitive's `trap-focus` mode so Tab and Shift+Tab
+  cycle the options rather than walking off into the table behind. What
+  script-off *does* cost there is **discovery**: the triggers no longer open and
+  the keys do nothing, so the filters cannot be found from the page, only typed
+  as a query string.
+- The three admin tables' glyphs (`components/admin/glyphs.tsx`). The inbox's
+  source column, the vault's plant column and the garden's name/tier/visibility
+  columns *draw* their values — a lucide icon for the capture route, a
+  shadcn-on-Base-UI `Avatar` for the plant (its logo, or its initials when it
+  has none), a tooltip carrying the word. That is one client island for all
+  three tables and not nine: lucide, Avatar and Tooltip are each already
+  `"use client"` modules, so the choice was never "none" but "one boundary or
+  many". Nothing there is a form control and nothing writes — the tables around
+  it are the same server-rendered links and cells they were. Script-off costs
+  the *hover* label only: every glyph also carries its word in an `sr-only` span
+  (from `lib/glyphs.ts`, the one place a display form is decided, exactly as
+  `lib/plant-status.ts` is for its enum), so no value is icon-only in the
+  accessibility tree. **The palette draws plant rows with the same
+  `EntityAvatar`**, which is why that island is imported rather than reproduced.
 
 Orientation lives in
 [`README.md`](README.md); the sequenced plan lives in

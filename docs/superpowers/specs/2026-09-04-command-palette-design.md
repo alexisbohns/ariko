@@ -1,7 +1,7 @@
 # Command palette — design
 
 **Date:** 2026-09-04
-**Status:** approved, ready to implement
+**Status:** implemented (2026-09-05)
 **Slice:** ⌘K — the admin gets a way to go anywhere without looking for it
 
 ---
@@ -64,10 +64,24 @@ parts. The sheet is the popup; nothing here is anchored to a field.
 
 | File | Responsibility |
 |---|---|
-| `lib/palette.ts` | **Pure and JSX-free**, so `npm test` reaches it. Owns `PaletteItem` and `buildPaletteIndex`. |
+| `lib/palette-items.ts` | **Client-safe.** `PaletteItem`, `GROUPS`, `sectionItems`, `groupPaletteItems`. |
+| `lib/palette.ts` | **Pure and JSX-free**, so `npm test` reaches it. Owns `buildPaletteIndex`, re-exports the above. |
 | `app/admin/palette/route.ts` | `GET` returning the index as JSON. |
 | `components/ui/autocomplete.tsx` | The registry-shaped wrapper over Base UI `Autocomplete` (§2). |
 | `app/admin/_components/command-palette.tsx` | The client component: hotkey, dialog, fetch, render. |
+
+### `lib/palette-items.ts` and `lib/palette.ts`
+
+**A split the design did not anticipate, added during implementation and load-bearing.**
+`lib/data.ts` opens with `import { readFileSync } from "node:fs"`, so anything importing it is
+server-only — and `lib/palette.ts` needs `resolveText` and the ref prefixes from it. The palette is
+a client component. Importing the index builder from the browser does not merely bloat the bundle:
+webpack fails with `UnhandledSchemeError: Reading from "node:fs" is not handled`, and the build
+stops. So the half the browser needs — the row type, the group order, the four sections, the
+grouping — lives in `lib/palette-items.ts`, which imports only `lib/admin-nav.ts`.
+
+`sectionItems()` therefore has exactly one definition, called by the server builder *and* by the
+client as its starting index. There is no second list of sections to keep in step.
 
 ### `lib/palette.ts`
 
@@ -106,8 +120,13 @@ Group order is fixed by the function, not by the client: `Go to`, `Garden` (plan
 ### `app/admin/palette/route.ts`
 
 `GET`, `export const dynamic = "force-dynamic"`, responding with `Cache-Control: no-store`. It loads
-`getFullDataset()` and `listSeeds({ status: "inbox" })`, hands both to `buildPaletteIndex`, and
+`loadRawGarden()` and `listSeeds({ status: "inbox" })`, hands both to `buildPaletteIndex`, and
 returns `{ items }`.
+
+`loadRawGarden()` rather than `getFullDataset()`, changed during implementation for the reason
+`lib/entity-options.ts` already gives: `Dataset` has no whole-bean accessor, and composing
+`beansForPlant` + `beansForPod` + `standaloneBeans` to fake one is three ways to miss a bean.
+`RawGarden` carries sprouts too, so one read covers every kind.
 
 **It lives under `/admin`, not under `/api`, and that is the whole point.** `middleware.ts` matches
 `/admin/:path*` and already redirects an unauthenticated request to the login page. Putting the
@@ -121,6 +140,17 @@ Rendered by `AdminChrome`, placed **after** its `pathname === "/admin/login"` ea
 palette withdraws on the login page along with the rail and the account cluster, for free, with no
 second route constant.
 
+**Two components, not one**, decided during implementation. The outer `CommandPalette` is nothing
+but the media picker's mount gate — `mounted` false on the server, so it returns `null`. The inner
+`Palette` holds everything else. Two things depend on that being an *outer* component rather than a
+flag inside one:
+
+- The search trigger is a `<button>`, not a link. Server-rendering it would put a pressable control
+  into the script-off HTML that does nothing when pressed — precisely the failure §7's
+  "costs nothing" claim forbids. Absent is better than dead.
+- `useRouter()` is then never called on a path that has no router, which is also what makes the
+  component renderable in the tests below.
+
 `useHotkey("Mod+K", …)` from `@tanstack/react-hotkeys`, already a dependency. Two of the library's
 defaults are relied on deliberately and should not be overridden:
 
@@ -129,6 +159,11 @@ defaults are relied on deliberately and should not be overridden:
   seed overlay's fields — which is what a palette must do.
 - **`preventDefault` defaults to `true`**, which is what takes ⌘K back from the browser's own
   address-bar search.
+
+Filtering is Base UI's own, over `itemToStringValue` — **not** `itemToStringLabel`, which
+`AutocompleteRoot` omits from its props. Rows are real `<a href>` elements (`render=`), so ⌘-click
+and "open in new tab" work and the status bar shows the destination; the click handler is what keeps
+an ordinary click a soft navigation.
 
 The shell is `components/ui/dialog.tsx` with the seed overlay's exact treatment — a
 `bg-background/70 backdrop-blur-xl` overlay under a transparent full-bleed popup, `initialFocus` on
@@ -217,7 +252,16 @@ Three files, following conventions the repo already has.
   assert status, JSON shape and the `no-store` header.
 - **`lib/palette-mount.test.ts`** — following `lib/media-picker-mount.test.ts`, and for the same
   reason. `renderToStaticMarkup` proves the palette emits **nothing** server-side, pinning the §7
-  claim against a future change that server-renders rows "for a faster first paint".
+  claim against a future change that server-renders rows "for a faster first paint", and pinning
+  that no dead search button reaches the script-off HTML.
+- **`lib/palette-render.test.ts`** — added during implementation, following
+  `lib/editor-mount.test.ts`'s jsdom discipline. The three files above cannot reach the part that
+  was actually uncertain: Base UI's Autocomplete driven with `inline` + `open`, fed **grouped**
+  items, filtering as the query changes. This mounts the real component behind a stub router and a
+  stub `fetch` and drives it: opening fetches once and renders every row under headings in `GROUPS`
+  order; typing filters across kinds at once; an emptied group loses its heading; a query matching
+  nothing says so; clicking a row calls `router.push` with its href and closes; reopening refetches
+  and starts on an empty query; and a failed refresh keeps the list it had, with no error line.
 
 ## 9. Accepted edges
 
