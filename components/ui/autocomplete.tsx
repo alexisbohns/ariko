@@ -97,6 +97,15 @@ function AutocompleteCollection({
   )
 }
 
+/**
+ * Renders its CHILDREN only when the list is empty — the element itself stays
+ * mounted always, so screen readers can announce the change. `empty:hidden` is
+ * therefore load-bearing, not decoration: without it this is an ever-present
+ * 48px of blank space wedged between the input and the first row. (The
+ * registry's combobox.tsx solves the same problem with a
+ * `group-data-empty/combobox-content:flex` rule, which needs the popup wrapper
+ * this file does not have.)
+ */
 function AutocompleteEmpty({
   className,
   ...props
@@ -105,7 +114,7 @@ function AutocompleteEmpty({
     <AutocompletePrimitive.Empty
       data-slot="autocomplete-empty"
       className={cn(
-        "w-full shrink-0 py-6 text-center text-sm text-muted-foreground",
+        "w-full shrink-0 py-6 text-center text-sm text-muted-foreground empty:hidden",
         className
       )}
       {...props}
@@ -114,9 +123,9 @@ function AutocompleteEmpty({
 }
 
 /**
- * A politely-announced status line. Its element must stay mounted for screen
- * readers to announce changes consistently — conditionally render its
- * CHILDREN, never the component.
+ * A politely-announced status line. Same always-mounted rule as Empty above,
+ * and the same `empty:hidden` for the same reason: conditionally render its
+ * CHILDREN, never the component, and give it no box when it has nothing to say.
  */
 function AutocompleteStatus({
   className,
@@ -126,7 +135,7 @@ function AutocompleteStatus({
     <AutocompletePrimitive.Status
       data-slot="autocomplete-status"
       className={cn(
-        "empty:hidden w-full shrink-0 py-6 text-center text-sm text-muted-foreground",
+        "w-full shrink-0 py-6 text-center text-sm text-muted-foreground empty:hidden",
         className
       )}
       {...props}

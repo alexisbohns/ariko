@@ -230,8 +230,10 @@ function Palette() {
             // `items-start`: the column below has to REACH the bottom padding
             // for the list to have a height to fill. And `overflow-hidden`
             // rather than `overflow-y-auto` — exactly one thing on this sheet
-            // scrolls, and it is the list.
-            className="fixed inset-0 z-50 flex justify-center overflow-hidden p-6 pt-[12vh] outline-none duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0"
+            // scrolls, and it is the list. No bottom padding either: the list
+            // runs to the bottom edge of the viewport, so a long one reads as
+            // continuing rather than as ending in a margin.
+            className="fixed inset-0 z-50 flex justify-center overflow-hidden px-6 pb-0 pt-[12vh] outline-none duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0"
             // The popup covers the viewport, so nothing is ever "outside" it
             // for the primitive's own outside-press dismissal to catch. Only a
             // press that both starts and ends on the empty surround dismisses —
@@ -267,7 +269,10 @@ function Palette() {
                   className="w-full shrink-0 border-0 bg-transparent text-center font-heading text-3xl tracking-tight outline-none placeholder:text-muted-foreground/40 focus:outline-none"
                 />
 
-                <div className="flex min-h-0 flex-1 flex-col border-t pt-2">
+                {/* `border-t` and nothing else. Any padding here is padding
+                    the list cannot use, and it shows as a band between the
+                    divider and the first row. */}
+                <div className="flex min-h-0 flex-1 flex-col border-t">
                   {/* Must stay mounted for screen readers to announce it, so
                       the CHILDREN are conditional, never the component. */}
                   <AutocompleteStatus>

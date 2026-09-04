@@ -248,6 +248,22 @@ test("opening fetches the index and renders it grouped, in GROUPS order", async 
   assert.deepEqual(groupLabels(), ["Go to", "Garden", "Vault"]);
 });
 
+test("the always-mounted announcement boxes collapse when they have nothing to say", () => {
+  // Base UI keeps Empty and Status in the DOM at all times so screen readers
+  // can announce changes — only their CHILDREN are conditional. Each is
+  // therefore a `py-6` box sitting between the input and the first row unless
+  // it is told to collapse, which is exactly the blank band this pins against.
+  for (const slot of ["autocomplete-empty", "autocomplete-status"]) {
+    const el = window.document.querySelector(`[data-slot='${slot}']`);
+    assert.ok(el, `${slot} is not mounted — screen readers need it to be`);
+    assert.equal(el.childNodes.length, 0, `${slot} has content it should not have here`);
+    assert.ok(
+      el.className.split(/\s+/).includes("empty:hidden"),
+      `${slot} would render an empty box between the input and the list`,
+    );
+  }
+});
+
 test("typing filters across every kind at once", async () => {
   await type("pebb");
   assert.deepEqual(names(), ["Pebbles", "Pebbles case study"]);
