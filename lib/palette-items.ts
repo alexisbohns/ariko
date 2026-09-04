@@ -26,6 +26,10 @@ export interface PaletteItem {
   label: string;
   /** The containing thing's name, where there is one; a note snippet for a seed. */
   sublabel?: string;
+  /** A stored logo, for the kinds drawn as a mark rather than an icon (plants).
+   *  Absent ⇒ `EntityAvatar` falls back to the initials, so a plant always has
+   *  a mark and the row gutter never goes ragged. */
+  logoUrl?: string;
   href: string;
   /** The group heading. Order is fixed by GROUPS, not by the client. */
   group: string;

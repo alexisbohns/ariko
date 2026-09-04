@@ -35,6 +35,15 @@ its kind on the right.
 - ↑↓ moves the highlight, Enter navigates, Escape closes and restores focus, a click navigates.
   Navigation is `router.push` — a soft navigation, like every other link in the admin.
 - **Nothing in the palette writes.** There is no submit, no server action, no form.
+- **A plant is drawn with its mark, not an icon** — added after the admin-table glyphs slice landed
+  on `main`. Plant rows render `EntityAvatar` from `components/admin/glyphs.tsx`: the stored logo,
+  or the initials when there is none. Imported rather than reproduced, so a plant looks the same in
+  the palette as in the garden and vault tables, and the squircle radius and the `initialsOf` rule
+  stay decided in one place. Every other kind keeps its lucide icon.
+
+  The gutter is a fixed `size-6` box whichever it draws. An avatar is 24px and a lucide icon 16px,
+  so without it the labels would step left and right down the list depending on the row's kind. The
+  whole gutter is `aria-hidden`: the mark's name is the very next thing in the row.
 
 A small **search icon button joins the top-right cluster**, beside "Public site". It is the visible
 handle that gives ⌘K a discoverable twin, exactly as the `+` beside the inbox title does for `k`.
@@ -93,6 +102,7 @@ export interface PaletteItem {
   kind: PaletteKind;
   label: string;     // already resolved out of Text — the client never sees a bilingual object
   sublabel?: string; // the parent's name where there is one; the note snippet for a seed
+  logoUrl?: string;  // plants only — the stored logo. Absent ⇒ the avatar falls back to initials
   href: string;
   group: string;     // the group heading: "Go to" | "Garden" | "Vault" | "Inbox"
 }
@@ -107,6 +117,8 @@ Three things this function owns, and each is why it is a module rather than a li
 
 - **Bilingual resolution.** Every `name`/`title` goes through `resolveText` here. The wire format is
   plain strings, so the client component holds no opinion about language.
+- **The plant logo, as a URL and nothing more.** `EntityAvatar` needs no more than that, and a whole
+  `MediaImage` would put alt text, dimensions and a storage key into every plant row for nothing.
 - **Sections come from `NAV_ITEMS`** in `lib/admin-nav.ts` — imported, not re-typed. One source of
   truth for the rail and the palette; a fifth section appears in both or in neither.
 - **Href construction**, matching the links the admin already renders:

@@ -95,7 +95,15 @@ const INDEX: PaletteItem[] = [
     id: "plant:pebbles",
     kind: "plant",
     label: "Pebbles",
+    logoUrl: "https://res.cloudinary.com/demo/image/upload/v1/pebbles.png",
     href: "/admin/plant/pebbles",
+    group: "Garden",
+  },
+  {
+    id: "plant:new-wave",
+    kind: "plant",
+    label: "New Wave",
+    href: "/admin/plant/new-wave",
     group: "Garden",
   },
   {
@@ -179,11 +187,20 @@ function rows(): HTMLElement[] {
   return [...window.document.querySelectorAll("[data-slot='autocomplete-item']")] as HTMLElement[];
 }
 
-/** A row's spans, joined — `textContent` alone runs them together, since the
- *  gap between label, sublabel and kind is layout, not whitespace. */
+/**
+ * A row's text spans, joined — `textContent` alone runs them together, since
+ * the gap between label, sublabel and kind is layout, not whitespace.
+ *
+ * `:scope > span:not([aria-hidden])` and not `span`: the left gutter is an
+ * aria-hidden span too, and for a plant it contains the avatar's fallback
+ * initials. Those are decoration, not the row's text, and a bare `span` query
+ * would splice them into every assertion below.
+ */
 function labels(): string[] {
   return rows().map((r) =>
-    [...r.querySelectorAll("span")].map((s) => (s.textContent ?? "").trim()).join(" "),
+    [...r.querySelectorAll(":scope > span:not([aria-hidden])")]
+      .map((s) => (s.textContent ?? "").trim())
+      .join(" "),
   );
 }
 
@@ -194,9 +211,11 @@ function groupLabels(): string[] {
   );
 }
 
-/** Just the row's first span: the label itself. */
+/** Just the row's first text span: the label itself. */
 function names(): string[] {
-  return rows().map((r) => (r.querySelector("span")?.textContent ?? "").trim());
+  return rows().map((r) =>
+    (r.querySelector(":scope > span:not([aria-hidden])")?.textContent ?? "").trim(),
+  );
 }
 
 function input(): HTMLInputElement {
@@ -239,6 +258,7 @@ test("opening fetches the index and renders it grouped, in GROUPS order", async 
     "Inbox",
     "Vault",
     "Pebbles plant",
+    "New Wave plant",
     "Pebbles case study Pebbles pod",
     "Weekly digest Digest sprout",
   ]);
@@ -262,6 +282,34 @@ test("the always-mounted announcement boxes collapse when they have nothing to s
       `${slot} would render an empty box between the input and the list`,
     );
   }
+});
+
+test("a plant is drawn with its mark; every other kind keeps a lucide icon", () => {
+  // The gutter is a fixed-size box either way — that is what keeps the labels
+  // in one column rather than stepping left and right by row kind.
+  const gutters = rows().map((r) => r.querySelector(":scope > span[aria-hidden]"));
+  assert.ok(
+    gutters.every((g) => g?.className.includes("size-6")),
+    "a row gutter lost its fixed box",
+  );
+
+  // Both plants carry a real Avatar…
+  for (const i of [2, 3]) {
+    assert.ok(
+      rows()[i].querySelector("[data-slot='avatar']"),
+      `row ${i} (a plant) is not drawn with an avatar`,
+    );
+  }
+  // …and the logo-less one still has a mark, because the fallback makes one out
+  // of the name. That is what keeps the gutter from going ragged.
+  assert.equal(
+    rows()[3].querySelector("[data-slot='avatar-fallback']")?.textContent,
+    "NW",
+  );
+
+  // Every other kind is a lucide icon, not a mark.
+  assert.equal(rows()[0].querySelector("[data-slot='avatar']"), null);
+  assert.ok(rows()[0].querySelector("svg"), "a section row lost its icon");
 });
 
 test("typing filters across every kind at once", async () => {

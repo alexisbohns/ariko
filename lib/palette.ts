@@ -78,6 +78,10 @@ export function buildPaletteIndex(input: { garden: RawGarden; seeds: Seed[] }): 
       id: PLANT_PREFIX + plant.slug,
       kind: "plant",
       label: resolveText(plant.name),
+      // The same field the garden and vault tables draw. Only the URL crosses
+      // the wire: `EntityAvatar` needs nothing else, and a whole MediaImage
+      // would put alt text and dimensions in every palette row for nothing.
+      ...(plant.logo?.url ? { logoUrl: plant.logo.url } : {}),
       href: `/admin/plant/${encodeURIComponent(plant.slug)}`,
       group: "Garden",
     });

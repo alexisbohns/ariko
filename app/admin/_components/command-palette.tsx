@@ -24,6 +24,7 @@ import {
   type PaletteItem,
   type PaletteKind,
 } from "@/lib/palette-items";
+import { EntityAvatar } from "@/components/admin/glyphs";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -63,6 +64,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 
 const ICONS: Record<PaletteKind, ComponentType<{ className?: string }>> = {
   section: Waypoints,
+  // Only ever reached if a plant row somehow arrives without a name to make
+  // initials from — RowMark below draws plants as avatars, not icons.
   plant: Flower2,
   pod: Package,
   bean: Bean,
@@ -82,6 +85,35 @@ const SECTION_ICONS: Record<string, ComponentType<{ className?: string }>> = {
 function iconFor(item: PaletteItem): ComponentType<{ className?: string }> {
   if (item.kind === "section") return SECTION_ICONS[item.href] ?? ICONS.section;
   return ICONS[item.kind];
+}
+
+/**
+ * A row's left gutter: an avatar for a plant, a lucide icon for everything else.
+ *
+ * Plants get the mark the garden and vault tables already draw — the same
+ * `EntityAvatar` from components/admin/glyphs.tsx, imported rather than
+ * reproduced, so a plant looks the same everywhere it is listed and there is
+ * one place the squircle radius and the initials rule are decided.
+ *
+ * The fixed `size-6` box is what keeps the two kinds of mark in one column: an
+ * avatar is 24px and a lucide icon is 16px, so without it the labels would step
+ * left and right down the list depending on the row's kind.
+ *
+ * `aria-hidden` on the whole gutter: the avatar is decorative here (its name is
+ * the very next thing in the row), and an icon that repeated the group heading
+ * would only make every row read twice.
+ */
+function RowMark({ item }: { item: PaletteItem }) {
+  const Icon = iconFor(item);
+  return (
+    <span aria-hidden className="flex size-6 shrink-0 items-center justify-center">
+      {item.kind === "plant" ? (
+        <EntityAvatar mark={{ name: item.label, ...(item.logoUrl ? { logoUrl: item.logoUrl } : {}) }} />
+      ) : (
+        <Icon className="size-4 text-muted-foreground" />
+      )}
+    </span>
+  );
 }
 
 const KIND_LABEL: Record<PaletteKind, string> = {
@@ -293,39 +325,36 @@ function Palette() {
                       <AutocompleteGroup key={group.value} items={group.items}>
                         <AutocompleteLabel>{group.value}</AutocompleteLabel>
                         <AutocompleteCollection>
-                          {(item: PaletteItem) => {
-                            const Icon = iconFor(item);
-                            return (
-                              <AutocompleteItem
-                                key={item.id}
-                                value={item}
-                                // A row is a destination, so it is a real link:
-                                // ⌘-click and "open in new tab" work, and the
-                                // status bar shows where Enter goes. The click
-                                // handler is what keeps it a soft navigation.
-                                render={<a href={item.href} />}
-                                onClick={(e) => {
-                                  // Let the browser have the modified clicks.
-                                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
-                                  e.preventDefault();
-                                  go(item);
-                                }}
-                              >
-                                <Icon className="size-4 shrink-0 text-muted-foreground" />
-                                <span className="truncate">{item.label}</span>
-                                {item.sublabel ? (
-                                  <span className="truncate text-xs text-muted-foreground">
-                                    {item.sublabel}
-                                  </span>
-                                ) : null}
-                                {KIND_LABEL[item.kind] ? (
-                                  <span className="ml-auto shrink-0 font-heading text-[10px] uppercase tracking-wider text-muted-foreground/60">
-                                    {KIND_LABEL[item.kind]}
-                                  </span>
-                                ) : null}
-                              </AutocompleteItem>
-                            );
-                          }}
+                          {(item: PaletteItem) => (
+                            <AutocompleteItem
+                              key={item.id}
+                              value={item}
+                              // A row is a destination, so it is a real link:
+                              // ⌘-click and "open in new tab" work, and the
+                              // status bar shows where Enter goes. The click
+                              // handler is what keeps it a soft navigation.
+                              render={<a href={item.href} />}
+                              onClick={(e) => {
+                                // Let the browser have the modified clicks.
+                                if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+                                e.preventDefault();
+                                go(item);
+                              }}
+                            >
+                              <RowMark item={item} />
+                              <span className="truncate">{item.label}</span>
+                              {item.sublabel ? (
+                                <span className="truncate text-xs text-muted-foreground">
+                                  {item.sublabel}
+                                </span>
+                              ) : null}
+                              {KIND_LABEL[item.kind] ? (
+                                <span className="ml-auto shrink-0 font-heading text-[10px] uppercase tracking-wider text-muted-foreground/60">
+                                  {KIND_LABEL[item.kind]}
+                                </span>
+                              ) : null}
+                            </AutocompleteItem>
+                          )}
                         </AutocompleteCollection>
                       </AutocompleteGroup>
                     )}

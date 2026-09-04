@@ -13,6 +13,11 @@ const GARDEN: RawGarden = {
       natures: ["work"],
       role: { kind: "owner" },
       description: "",
+      logo: {
+        kind: "image",
+        url: "https://res.cloudinary.com/demo/image/upload/v1/p.png",
+        storageKey: "p",
+      },
     },
   ],
   pods: [
@@ -71,6 +76,32 @@ test("bilingual names are resolved to plain strings before they cross the wire",
   const plant = byId(items, "plant:pebbles");
   assert.equal(plant.label, "Pebbles");
   assert.equal(typeof plant.label, "string");
+});
+
+test("a plant carries its logo url, and only the url", () => {
+  const plant = byId(buildPaletteIndex({ garden: GARDEN, seeds: [] }), "plant:pebbles");
+  assert.equal(plant.logoUrl, "https://res.cloudinary.com/demo/image/upload/v1/p.png");
+});
+
+test("a plant with no logo carries no url — EntityAvatar makes a mark from the name", () => {
+  const items = buildPaletteIndex({
+    garden: {
+      plants: [
+        { slug: "bare", name: "New Wave", natures: ["work"], role: { kind: "owner" }, description: "" },
+      ],
+    },
+    seeds: [],
+  });
+  assert.equal(byId(items, "plant:bare").logoUrl, undefined);
+});
+
+test("no other kind carries a logo — only plants are drawn as marks", () => {
+  const items = buildPaletteIndex({ garden: GARDEN, seeds: [seed()] });
+  for (const item of items) {
+    if (item.kind !== "plant") {
+      assert.equal(item.logoUrl, undefined, `${item.id} carries a logo it cannot draw`);
+    }
+  }
 });
 
 test("the sublabel names the containing thing, across tiers", () => {
