@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { VaultFilters, type FilterGroup } from "../_components/vault-filters";
 
 export const dynamic = "force-dynamic";
 
@@ -60,27 +61,20 @@ export default async function VaultPage({
   const plantOptions = ["all", ...distinctPlants(all)];
   const tagOptions = ["all", ...distinctTags(all)];
 
-  const filterRow = (label: string, key: keyof Active, options: string[]) => {
-    const current = active[key] ?? "all";
-    return (
-      <div className="flex flex-wrap items-baseline gap-2">
-        <span className="w-12 shrink-0 font-heading text-xs uppercase tracking-widest text-muted-foreground">
-          {label}
-        </span>
-        {options.map((opt) =>
-          opt === current ? (
-            <Badge key={opt}>{opt}</Badge>
-          ) : (
-            <a key={opt} href={vaultHref(active, key, opt)}>
-              <Badge variant="outline" className="transition-colors hover:bg-accent">
-                {opt}
-              </Badge>
-            </a>
-          ),
-        )}
-      </div>
-    );
-  };
+  // The hrefs are still built here, by vaultHref, so the popovers stay a
+  // presentation of links this page already knew how to make.
+  const groups: FilterGroup[] = (
+    [
+      ["state", STATE_OPTIONS],
+      ["plant", plantOptions],
+      ["tag", tagOptions],
+    ] as const
+  ).map(([key, options]) => ({
+    key,
+    options,
+    current: active[key] ?? "all",
+    hrefs: options.map((opt) => vaultHref(active, key, opt)),
+  }));
 
   return (
     <article>
@@ -88,11 +82,7 @@ export default async function VaultPage({
       <div className="flex flex-col gap-6">
         <h1 className="font-heading text-2xl font-medium tracking-tight">Vault</h1>
 
-        <div className="flex flex-col gap-3">
-          {filterRow("state", "state", STATE_OPTIONS)}
-          {filterRow("plant", "plant", plantOptions)}
-          {filterRow("tag", "tag", tagOptions)}
-        </div>
+        <VaultFilters groups={groups} />
 
         <p className="text-sm text-muted-foreground">
           showing {entries.length} of {all.length}
