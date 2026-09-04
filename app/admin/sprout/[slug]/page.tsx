@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { buildDataset, resolveText, textPart } from "@/lib/data";
 import { getSprout } from "@/lib/botanical";
 import { editVersionAction, deleteVersionAction, editContentAction, editSproutMediaAction } from "../../actions";
-import { AdminBar } from "../../_components/admin-bar";
 import { ContentCard } from "../../_components/content-card";
 import { MediaPicker } from "@/components/admin/media-picker";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -48,7 +47,6 @@ export default async function EditVersionPage({
 
   return (
     <article>
-      <AdminBar current="/admin/vault" />
 
       <div className="flex flex-col gap-8">
         <div className="flex flex-col gap-3">

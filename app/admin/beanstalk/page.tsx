@@ -4,7 +4,6 @@ import { getFederation } from "@/lib/federation";
 import { countRefusalsByFeed, listCursors, listPollen, listRefusals } from "@/lib/pollen-store";
 import { mergeBeanstalk } from "@/lib/beanstalk";
 import { syncNowAction } from "../actions";
-import { AdminBar } from "../_components/admin-bar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,7 +42,6 @@ export default async function AdminBeanstalkPage({
 
   return (
     <article>
-      <AdminBar current="/admin/beanstalk" />
 
       <div className="flex flex-col gap-8">
         <div className="flex flex-wrap items-baseline justify-between gap-2">

@@ -1,6 +1,5 @@
 import { resolveText, textPart } from "@/lib/data";
 import { loadRawGarden } from "@/lib/store";
-import { AdminBar } from "../_components/admin-bar";
 import { roleLine } from "@/lib/plant-role";
 import { statusLabel, statusOf } from "@/lib/plant-status";
 import { Badge } from "@/components/ui/badge";
@@ -51,7 +50,6 @@ export default async function AdminGardenPage() {
 
   return (
     <article>
-      <AdminBar current="/admin/garden" />
 
       <div className="flex flex-col gap-6">
         <h1 className="font-heading text-2xl font-medium tracking-tight">Garden</h1>

@@ -1,7 +1,6 @@
 import { getFullDataset } from "@/lib/store";
 import { resolveText, type TimelineEntry } from "@/lib/data";
 import { filterVaultEntries, distinctPlants, distinctTags } from "@/lib/vault";
-import { AdminBar } from "../_components/admin-bar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -49,7 +48,6 @@ export default async function VaultPage({
   if (all === null) {
     return (
       <article>
-        <AdminBar current="/admin/vault" />
         <h1 className="mb-4 font-heading text-2xl font-medium tracking-tight">Vault</h1>
         <Alert variant="destructive" role="alert">
           <AlertDescription>Couldn&apos;t load the vault.</AlertDescription>
@@ -86,7 +84,6 @@ export default async function VaultPage({
 
   return (
     <article>
-      <AdminBar current="/admin/vault" />
 
       <div className="flex flex-col gap-6">
         <h1 className="font-heading text-2xl font-medium tracking-tight">Vault</h1>

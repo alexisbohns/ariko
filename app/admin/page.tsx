@@ -1,7 +1,6 @@
 import { type Seed, resolveText } from "@/lib/data";
 import { listSeeds } from "@/lib/seeds";
 import { createSeedAction } from "./actions";
-import { AdminBar } from "./_components/admin-bar";
 import { MediaPicker } from "@/components/admin/media-picker";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -63,7 +62,6 @@ export default async function AdminPage({
 
   return (
     <article>
-      <AdminBar current="/admin" />
 
       <div className="flex flex-col gap-8">
         <Card>
