@@ -53,6 +53,38 @@ Unknown top-level keys are **ignored** by Ariko — a repo may keep extra keys
 for its own tooling in the same block (pbbls does exactly this for its Lab
 admin).
 
+## `nodes:` — only for repos with a hosted arkaik map
+
+Two repos send their note to a second destination as well: **arkaik** and
+**pbbls** each map to a hosted arkaik project, and the GitHub App turns the
+merged note into a `deliverable.shipped` entry on that project's changelog.
+That entry renders a **Touched** list of the product-graph nodes the change
+moved — and the delivery can only ever work out the *acceptances* on its own,
+by reading an `AC-…` id in the PR title or body. Views, flows, API endpoints,
+data models and decisions have to be named:
+
+```yaml
+en:
+  title: "Your photos, right where you start"
+  summary: "Recording a pebble now opens straight onto your photo library."
+nodes: [V-record-photo-step, F-record-pebble-flow, AC-record-pebble-flow]
+```
+
+- **List the ids the change actually touched, most important first.** They lead
+  the entry, in your order; acceptances the body mentions follow.
+- **Only ids you know exist.** They are checked against the project's map, and
+  one that matches nothing is left off the entry and named back at you in the
+  delivery response — never guessed at. Same rule as `suggested.atom`.
+- **Omit the key** when the change touched no node, and in every repo without a
+  hosted map (`ariko`, `femfolk`, `melogram`) — there it is simply an ignored
+  top-level key, like the rest of pbbls' Lab-admin fields.
+- A malformed `nodes:` never costs you the note: unusable entries are dropped
+  one at a time and the note still posts to both destinations.
+
+The ids live in that repo's map — `docs/arkaik/bundle.json`, or the hosted
+project the `arkaik` skill reads. Read them there rather than reconstructing an
+id from a screen name.
+
 ## `suggested.molecule` per repo
 
 | Repo | molecule slug | Note |

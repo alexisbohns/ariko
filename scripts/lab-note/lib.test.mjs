@@ -142,6 +142,19 @@ test("parseLabNote: junk suggested entries are dropped, not fatal", () => {
   assert.equal("suggested" in r.note, false);
 });
 
+test("parseLabNote: arkaik's `nodes:` key is carried by the note but never posted", () => {
+  // pbbls and arkaik PRs land in TWO places: the Ariko inbox (this script) and,
+  // via the GitHub App, a hosted arkaik project's journal. `nodes:` is for the
+  // second — it names graph entities, which the inbox knows nothing about. It
+  // must therefore be an ordinary ignored top-level key here: present in a body
+  // this parser reads every day, and absent from everything it sends.
+  const r = parseLabNote(["en:", "  title: T", "  summary: S", "nodes: [V-a, F-b]"].join("\n"));
+  assert.equal(r.ok, true);
+  assert.equal(r.note.nodes, undefined);
+  const payload = buildInboxPayload(r.note, { repo: "alexisbohns/pbbls", number: 9, url: "u" });
+  assert.equal(JSON.stringify(payload).includes("V-a"), false);
+});
+
 test("buildInboxPayload: full bilingual mapping (spec §4)", () => {
   const { note } = parseLabNote(VALID);
   const p = buildInboxPayload(note, { repo: "alexisbohns/pbbls", number: 12, url: "https://github.com/alexisbohns/pbbls/pull/12" });
