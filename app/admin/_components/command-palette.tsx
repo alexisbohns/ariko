@@ -226,7 +226,12 @@ function Palette() {
             aria-label="Search the admin"
             initialFocus={inputRef}
             finalFocus={triggerRef}
-            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-6 pt-[18vh] outline-none duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0"
+            // `items-stretch` (the flex default, so unstated) rather than
+            // `items-start`: the column below has to REACH the bottom padding
+            // for the list to have a height to fill. And `overflow-hidden`
+            // rather than `overflow-y-auto` — exactly one thing on this sheet
+            // scrolls, and it is the list.
+            className="fixed inset-0 z-50 flex justify-center overflow-hidden p-6 pt-[12vh] outline-none duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0"
             // The popup covers the viewport, so nothing is ever "outside" it
             // for the primitive's own outside-press dismissal to catch. Only a
             // press that both starts and ends on the empty surround dismisses —
@@ -237,7 +242,11 @@ function Palette() {
           >
             <DialogTitle className="sr-only">Search the admin</DialogTitle>
 
-            <div className="flex w-full max-w-xl flex-col gap-4">
+            {/* `min-h-0` at every level of this column: a flex child's default
+                `min-height: auto` refuses to shrink below its content, which is
+                what makes an overflowing list push past the bottom of the
+                viewport and get clipped by it instead of scrolling inside it. */}
+            <div className="flex min-h-0 w-full max-w-xl flex-col gap-4">
               {/* `inline` renders the list without the primitive's own popup —
                   this sheet IS the popup — and it requires `open` stated
                   unconditionally so the list counts as visible. */}
@@ -255,10 +264,10 @@ function Palette() {
                   ref={inputRef}
                   aria-label="Search"
                   placeholder="Go to…"
-                  className="w-full border-0 bg-transparent text-center font-heading text-3xl tracking-tight outline-none placeholder:text-muted-foreground/40 focus:outline-none"
+                  className="w-full shrink-0 border-0 bg-transparent text-center font-heading text-3xl tracking-tight outline-none placeholder:text-muted-foreground/40 focus:outline-none"
                 />
 
-                <div className="border-t pt-2">
+                <div className="flex min-h-0 flex-1 flex-col border-t pt-2">
                   {/* Must stay mounted for screen readers to announce it, so
                       the CHILDREN are conditional, never the component. */}
                   <AutocompleteStatus>
@@ -271,7 +280,10 @@ function Palette() {
 
                   <AutocompleteEmpty>Nothing matches.</AutocompleteEmpty>
 
-                  <AutocompleteList className="max-h-[45vh]">
+                  {/* No height cap: the list takes every pixel the input and
+                      the sheet's padding leave, down to the bottom edge, and
+                      scrolls inside that. `min-h-0` is what lets it. */}
+                  <AutocompleteList className="min-h-0 flex-1">
                     {(group: { value: string; items: PaletteItem[] }) => (
                       <AutocompleteGroup key={group.value} items={group.items}>
                         <AutocompleteLabel>{group.value}</AutocompleteLabel>

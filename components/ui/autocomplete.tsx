@@ -105,7 +105,7 @@ function AutocompleteEmpty({
     <AutocompletePrimitive.Empty
       data-slot="autocomplete-empty"
       className={cn(
-        "w-full py-6 text-center text-sm text-muted-foreground",
+        "w-full shrink-0 py-6 text-center text-sm text-muted-foreground",
         className
       )}
       {...props}
@@ -126,7 +126,7 @@ function AutocompleteStatus({
     <AutocompletePrimitive.Status
       data-slot="autocomplete-status"
       className={cn(
-        "empty:hidden w-full py-6 text-center text-sm text-muted-foreground",
+        "empty:hidden w-full shrink-0 py-6 text-center text-sm text-muted-foreground",
         className
       )}
       {...props}
