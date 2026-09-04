@@ -1,14 +1,7 @@
 import { type Seed, resolveText } from "@/lib/data";
 import { listSeeds } from "@/lib/seeds";
-import { createSeedAction } from "./actions";
-import { MediaPicker } from "@/components/admin/media-picker";
+import { SeedOverlay } from "./_components/seed-overlay";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { ChoiceLabel, NativeRadio } from "@/components/ui/native-controls";
 import {
   Table,
   TableBody,
@@ -62,68 +55,17 @@ export default async function AdminPage({
 
   return (
     <article>
-
       <div className="flex flex-col gap-8">
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-heading text-lg tracking-tight">Seed</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {error ? (
-              <Alert variant="destructive" role="alert" className="mb-4">
-                <AlertDescription>Could not save: {error}</AlertDescription>
-              </Alert>
-            ) : null}
-            <form action={createSeedAction} className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="seed-title">Title</Label>
-                <Input id="seed-title" type="text" name="title" required />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="seed-note">Note</Label>
-                <Textarea id="seed-note" name="note" rows={2} />
-              </div>
-              <fieldset className="flex flex-col gap-2">
-                <legend className="text-sm font-medium">Note language</legend>
-                <div className="flex items-center gap-4 pt-1">
-                  <ChoiceLabel>
-                    <NativeRadio name="lang" value="en" defaultChecked /> en
-                  </ChoiceLabel>
-                  <ChoiceLabel>
-                    <NativeRadio name="lang" value="fr" /> fr
-                  </ChoiceLabel>
-                </div>
-              </fieldset>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="seed-link-1">Link</Label>
-                <Input id="seed-link-1" type="url" name="link" placeholder="paste a URL" />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="seed-link-2">Link</Label>
-                <Input
-                  id="seed-link-2"
-                  type="url"
-                  name="link"
-                  placeholder="another URL (optional)"
-                />
-              </div>
-              {/* The one client-JS island in this otherwise zero-JS form
-                  (CLAUDE.md). It renders nothing until it mounts, so without
-                  script this form is exactly what it was, and a capture never
-                  waits on an upload. */}
-              <MediaPicker name="image" />
-              <div>
-                <Button type="submit">Add to inbox</Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-
         <section className="flex flex-col gap-4">
-          <h2 className="font-heading text-lg tracking-tight">
-            Inbox{" "}
-            {seeds ? <span className="text-muted-foreground">({seeds.length})</span> : null}
-          </h2>
+          <div className="flex items-center gap-3">
+            <h1 className="font-heading text-2xl font-medium tracking-tight">
+              Inbox{" "}
+              {seeds ? <span className="text-muted-foreground">({seeds.length})</span> : null}
+            </h1>
+            <div className="ml-auto">
+              <SeedOverlay error={error} />
+            </div>
+          </div>
           {seeds === null ? (
             <Alert variant="destructive" role="alert">
               <AlertDescription>Couldn&apos;t load the inbox.</AlertDescription>
