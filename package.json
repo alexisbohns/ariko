@@ -32,7 +32,6 @@
     "class-variance-authority": "^0.7.1",
     "cloudinary": "^2.10.0",
     "clsx": "^2.1.1",
-    "cn": "^0.2.5",
     "js-yaml": "^4.1.0",
     "lucide-react": "^1.33.0",
     "mongodb": "^6.21.0",
