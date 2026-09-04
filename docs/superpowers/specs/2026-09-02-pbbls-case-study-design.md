@@ -96,6 +96,64 @@ outside the app. The aim is to send someone out into their life to collect
 something worth keeping, not to hold them on a screen. **Time-in-app is not the
 metric.**
 
+### 4.1 Recorded positions (author, 2026-09-03) — statable as fact
+
+These close review markers that were open across the first wave. They are
+**sourced to the author** and may be stated in prose without a marker. Anything
+beyond them still gets marked.
+
+**The streak clause — the mechanic never broke the promise.** Bounce is a rank
+on a rolling window that *erodes*; it is not a chain that breaks and punishes.
+July made it visible to other people, which changed **who can see it**, not what
+it does to you. April's promise was about punishment, and that still holds.
+
+Write it that way, and keep the distinction sharp: the pieces should still say
+plainly that the streak became social in July and that no decision entry records
+the change. The position is that visibility is not punishment — not that nothing
+happened. Do not overstate it into "the promise was never touched".
+
+**Why the market is community-supplied — sharing your own marks, and being
+rewarded for it.** Both proposed readings were accepted, with the emphasis on
+the maker: the point is that you can share a thing you carved and get rewarded
+for sharing it, and that the symbols on someone's memory were drawn by another
+person who also records rather than by a design team.
+
+**Factual correction that comes with it:** most of the community glyphs live
+today were **drawn by Alexis**. The pieces must not imply a large third-party
+creator base. This is consistent with what the code already says — first-party
+glyphs are admin-owned normal listings — but the prose should not lean on
+"other pebblers drew these" as a description of the *current* catalogue. It is
+the design's intent, not yet its population. `pbbls-market` and `pbbls-d8` both
+need a pass for this.
+
+### 4.2 Act I is trimmed to what is independently sourced (author, 2026-09-03)
+
+The pre-March-2026 material — Beck, the Notion template, the SvelteKit webapp,
+the Wasted Sunday, the Emotion Pearls' reasoning — survives only in
+agent-written digests (`00-chronologie.md`, `_digests/apple-journal.md`) and in
+the `brouillons/`. The primaries (`draft.md`, the 37 Apple Journal entries) are
+in **neither repo**.
+
+**Decision: cut anything that traces only to a digest.** Keep what the pbbls
+repo, the decision log, the specs, the migrations, the changelog or the Arkaik
+journal can carry on their own. Act I becomes considerably thinner, and that is
+accepted.
+
+Consequences to apply:
+
+- `plant-pbbls` Context — trim to sourced facts; the existing `[TO VERIFY]`
+  there becomes a cut instead.
+- `pbbls-cut` — its largest `[TO VERIFY]` covers exactly this material (the
+  SvelteKit retro, the Sunday engine, the sidebar, Emotion Pearls, Moss Pool).
+  Those reasons come out; the *events* stay where a primary confirms them.
+- Future atelier beans (`pbbls-naming`, `pbbls-pivot`, `pbbls-psychology`)
+  shrink accordingly, or wait for primaries to resurface.
+
+If the primaries are ever recovered, this reverses — but no piece may assume
+they will be.
+
+---
+
 The April 2026 onboarding promise was *"No streak to protect, no feed to scroll."*
 The second clause is kept absolutely and enforced by decree dated before any code
 existed: no feed, no directory, no search, no follower graph, connections by
@@ -276,7 +334,10 @@ with Apple on Android and the rest of the 16 July audit) · open explorations
 (the bounce Path A / Path B question, unresolved since mid-May). Never present a
 lower grade as a higher one, and never promise a date.
 
-Total: 11 pods, 35 beans. 5 tier-A, 20 tier-B, 10 tier-C.
+Total: 11 pods, **42 beans. 7 tier-A, 23 tier-B, 12 tier-C** — corrected
+2026-09-04 (#54) by counting the tables above; the previous "35 beans, 5/20/10"
+never matched them. §10's "five tier-A pieces" is still right: it describes
+wave 1, which does not include the two ledger beans of §5.3b.
 
 ## 6. Sprouts — the account, and the ledger
 
@@ -407,16 +468,28 @@ is written twice.
 
 ### 9.2 The legacy bean migration
 
-`bean:pbbls-webapp` and `bean:pbbls-ios` currently hold the twelve seeded
-changelog sprouts, and `bean:pbbls-ios` collides with the intended
-`pod:pbbls-ios`. Both beans retire; their sprouts re-parent onto the domain beans
-they actually advance (Emotion Pearl → `pbbls-valence`, PWA → `pbbls-web-shell`,
-Karma & Bounce → `pbbls-wallet`, and so on). Requires a one-shot script plus a
-`data/garden.yml` edit so `npm run migrate` stays idempotent.
+**Done, 2026-09-04 (#54).** Spec:
+`docs/superpowers/specs/2026-09-04-pbbls-legacy-bean-retirement-design.md`.
 
-Opportunity while there: only 12 of the pbbls changelog's 47 entries were ever
-imported. The remaining 35, plus 217 `deliverable.shipped` journal events, are a
-ready-made milestone ledger.
+Two things this section got wrong, found while surveying:
+
+- **Four beans, not two.** `bean:pbbls-path` and `bean:pbbls-recorder` were
+  public with nothing in them, rendering as empty pages on the live site.
+- **Two slug shadows, not one.** `bean:pbbls-path` shadowed `pod:pbbls-path`
+  exactly as `bean:pbbls-ios` shadowed `pod:pbbls-ios`.
+
+All four were deleted (backed up to `data/retired/`), the twelve changelog
+sprouts were refiled as `type: milestone` under the beans they advance, and the
+36 beans of §5.3 that did not exist yet were seeded as private stubs so every
+ref in `payloads/_SLUGS.md` resolves.
+
+Consequence, accepted at the time: `plant:pbbls` is public and carries no
+narrative, so those four beans were its entire public content. `/plant/pbbls` is
+deliberately empty until the case study publishes.
+
+Still open: only 12 of the pbbls changelog's 47 entries were ever imported. The
+remaining 35, plus 217 `deliverable.shipped` journal events, are a ready-made
+milestone ledger — #55.
 
 ## 10. Wave 1
 

@@ -152,22 +152,6 @@ beans:
     name: Damned Thoughts
     parents:
       - pod:republic-of-masquerade
-  - slug: pbbls-webapp
-    name: Pebbles Webapp
-    parents:
-      - plant:pbbls
-  - slug: pbbls-ios
-    name: Pebbles iOS
-    parents:
-      - plant:pbbls
-  - slug: pbbls-path
-    name: Pebbles Path
-    parents:
-      - plant:pbbls
-  - slug: pbbls-recorder
-    name: Pebbles Recorder
-    parents:
-      - plant:pbbls
   # Slice 5 — digest containers (spec §3). Private: the shelter cascade keeps
   # even PUBLISHED digest sprouts off the public beanstalk; publish here means
   # reviewed-and-final. The machine writes sprouts only, never beans.
@@ -195,6 +179,252 @@ beans:
       - plant:ariko
     visibility: private
     description: The cross-plant weekly wrap — lede, tally, quiet plants, next. References the per-plant digests, never restates them.
+  # Pebbles case-study bean tier (spec 2026-09-04-pbbls-legacy-bean-retirement, #54).
+  # PLACEHOLDER names and descriptions, seeded private so every ref in
+  # payloads/_SLUGS.md resolves instead of rendering as a hole mid-sentence.
+  # migrate $sets name, description AND visibility on EVERY run, so the day a
+  # bean is authored through the admin, DELETE ITS ENTRY HERE -- or the next
+  # migrate reverts the real title to the placeholder AND pulls the bean back to
+  # private, silently un-publishing it. That second half is the one that bites
+  # during an authoring wave, and it is why editing the entry in place is not a
+  # substitute for deleting it. The six already authored (wallet, market, d8,
+  # connections, cut, unbuilt) are absent for that reason.
+  # Deleting an entry here is only step one: also move its slug from
+  # STUB_BEANS to AUTHORED_BEANS in lib/pbbls-legacy.ts, and bump the two
+  # catalog-size assertions in lib/pbbls-legacy.test.ts -- otherwise the
+  # transform re-appends it and the seed stops being a fixed point.
+  # pod:pbbls-web
+  - slug: pbbls-web-shell
+    name: The Web Shell
+    parents:
+      - pod:pbbls-web
+    visibility: private
+    description: The PWA that stopped pretending to be offline.
+  - slug: pbbls-polaroid-wall
+    name: The Polaroid Wall
+    parents:
+      - pod:pbbls-web
+    visibility: private
+    description: The Path as a wall of polaroids, dealt round-robin rather than height-balanced.
+  # pod:pbbls-ios
+  - slug: pbbls-ios-jump
+    name: The Jump to SwiftUI
+    parents:
+      - pod:pbbls-ios
+    visibility: private
+    description: Web to native, and the TestFlight builds that settled whether Pebbles was an app.
+  - slug: pbbls-ios-two-composers
+    name: Two Composers
+    parents:
+      - pod:pbbls-ios
+    visibility: private
+    description: Why two ways of writing a pebble coexist on purpose.
+  - slug: pbbls-ios-live-activity
+    name: The Live Activity
+    parents:
+      - pod:pbbls-ios
+    visibility: private
+    description: The Live Activity that device evidence killed, and the widget target left behind.
+  # pod:pbbls-android
+  - slug: pbbls-android-six-days
+    name: Six Days to Parity
+    parents:
+      - pod:pbbls-android
+    visibility: private
+    description: Bootstrap to parity in six days, across nine milestones.
+  - slug: pbbls-android-parity-audit
+    name: The Parity Audit
+    parents:
+      - pod:pbbls-android
+    visibility: private
+    description: The July audit that counted what was still missing, and found three defects in shipped code.
+  - slug: pbbls-android-divergence
+    name: Deliberate Divergence
+    parents:
+      - pod:pbbls-android
+    visibility: private
+    description: Duplicated draft glue, kept on purpose, with the debt named and enforceable.
+  # pod:pbbls-backstage
+  - slug: pbbls-analytics
+    name: Analytics
+    parents:
+      - pod:pbbls-backstage
+    visibility: private
+    description: Measuring the product without making the numbers the point.
+  - slug: pbbls-moderation
+    name: The Glyph Queue
+    parents:
+      - pod:pbbls-backstage
+    visibility: private
+    description: >-
+      Human review of submitted glyphs, and the read that exists because the market policy would not
+      be weakened.
+  - slug: pbbls-lab
+    name: The Lab
+    parents:
+      - pod:pbbls-backstage
+    visibility: private
+    description: The in-app changelog, prefilled from the clipboard.
+  # pod:pbbls-record
+  - slug: pbbls-record-flow
+    name: The Recording Flow
+    parents:
+      - pod:pbbls-record
+    visibility: private
+    description: Fifteen steps, then seconds, then two composers.
+  - slug: pbbls-cards
+    name: The Cards
+    parents:
+      - pod:pbbls-record
+    visibility: private
+    description: Beck, hidden in plain sight.
+  - slug: pbbls-drafts
+    name: Drafts
+    parents:
+      - pod:pbbls-record
+    visibility: private
+    description: Keeping the half-formed thoughts — a table of its own, never a status column.
+  # pod:pbbls-pebble
+  - slug: pbbls-valence
+    name: Valence
+    parents:
+      - pod:pbbls-pebble
+    visibility: private
+    description: How a memory became a shape.
+  - slug: pbbls-wobble
+    name: The Wobble
+    parents:
+      - pod:pbbls-pebble
+    visibility: private
+    description: The petroglyph wobble, computed at runtime on the device.
+  - slug: pbbls-glyph-carving
+    name: Carving a Glyph
+    parents:
+      - pod:pbbls-pebble
+    visibility: private
+    description: How a symbol gets drawn by hand, submitted, and accepted.
+  - slug: pbbls-render
+    name: The Render Engine
+    parents:
+      - pod:pbbls-pebble
+    visibility: private
+    description: Compose once on the server, parse everywhere.
+  - slug: pbbls-colour
+    name: Colour
+    parents:
+      - pod:pbbls-pebble
+    visibility: private
+    description: Emotion categories, palettes, and per-surface tinting.
+  # pod:pbbls-path
+  - slug: pbbls-path-nav
+    name: The Path
+    parents:
+      - pod:pbbls-path
+    visibility: private
+    description: Neither a list, nor a thread, nor stories.
+  - slug: pbbls-collections
+    name: Collections
+    parents:
+      - pod:pbbls-path
+    visibility: private
+    description: Stack, Pack and Track — three ways of gathering pebbles.
+  # pod:pbbls-karma
+  - slug: pbbls-reward-not-prison
+    name: Reward, Not Prison
+    parents:
+      - pod:pbbls-karma
+    visibility: private
+    description: An economy that rewards recording without ever becoming a streak to protect.
+  - slug: pbbls-badges
+    name: Badges
+    parents:
+      - pod:pbbls-karma
+    visibility: private
+    description: Achievements — idempotent, permanent, and paid at unlock.
+  # pod:pbbls-souls
+  - slug: pbbls-souls-not-users
+    name: Souls, Not Users
+    parents:
+      - pod:pbbls-souls
+    visibility: private
+    description: Why the people in someone's pebbles are called souls.
+  - slug: pbbls-domains-greek
+    name: The Greek Domains
+    parents:
+      - pod:pbbls-souls
+    visibility: private
+    description: Five Greek domains seeded, and the eighteen plain-English ones entered four days later.
+  - slug: pbbls-emotions
+    name: The Emotion Model
+    parents:
+      - pod:pbbls-souls
+    visibility: private
+    description: The emotion model as it actually shipped.
+  # pod:pbbls-public
+  - slug: pbbls-profiles-handles
+    name: Handles
+    parents:
+      - pod:pbbls-public
+    visibility: private
+    description: A handle is a pointer, not an archive.
+  - slug: pbbls-sharing
+    name: Sharing
+    parents:
+      - pod:pbbls-public
+    visibility: private
+    description: What a share link exposes — one row, and nothing else.
+  - slug: pbbls-privacy-grades
+    name: Privacy Grades
+    parents:
+      - pod:pbbls-public
+    visibility: private
+    description: Secret and private, as connections-visible and shared.
+  - slug: pbbls-deletion-consent
+    name: Deletion & Consent
+    parents:
+      - pod:pbbls-public
+    visibility: private
+    description: Anonymising rather than destroying, so what someone bought keeps rendering.
+  # pod:pbbls-atelier
+  - slug: pbbls-naming
+    name: Nomen Omen
+    parents:
+      - pod:pbbls-atelier
+    visibility: private
+    description: How Pebbles got its name.
+  - slug: pbbls-pivot
+    name: The Pivot
+    parents:
+      - pod:pbbls-atelier
+    visibility: private
+    description: From Beck's columns to a pebble.
+  - slug: pbbls-psychology
+    name: The Psychology
+    parents:
+      - pod:pbbls-atelier
+    visibility: private
+    description: Beck, Barrett, Maslow, Kahneman, Clear, Lembke, SDT.
+  - slug: pbbls-agentic
+    name: The Agentic Method
+    parents:
+      - pod:pbbls-atelier
+    visibility: private
+    description: One author, and the co-author trailers on most of the commits.
+  - slug: pbbls-arkaik
+    name: Arkaik
+    parents:
+      - pod:pbbls-atelier
+    visibility: private
+    description: Sixty-seven nodes to four hundred and sixty — the map that updates itself.
+  - slug: pbbls-harnesses
+    name: The Harnesses
+    parents:
+      - pod:pbbls-atelier
+    visibility: private
+    description: >-
+      Proof rather than simulation — the audit programme, and the contract harnesses that became a
+      merge gate.
+  # --- end of the case-study stub block ---
 sprouts:
   - slug: wait-for-the-sun-0
     name: Wait for the Sun
@@ -311,110 +541,110 @@ sprouts:
       - bean:rom-damned-thoughts
   - slug: pbbls-webapp-core
     name: Path, Collections & Pebble Detail
-    type: feature
+    type: milestone
     date: '2026-03-27'
     description: >-
       The core app is alive: a path timeline, full collections and a detailed view of each pebble,
       with the ability to add new pebbles and edit existing ones
     parents:
-      - bean:pbbls-webapp
+      - bean:pbbls-path-nav
   - slug: pbbls-webapp-color
     name: Color World Themes
-    type: feature
+    type: milestone
     date: '2026-03-28'
     description: >-
       Chose from 5 color themes to set the emotional tone of your Pebbles experience. Blush Quartz
       by default.
     parents:
-      - bean:pbbls-webapp
+      - bean:pbbls-colour
   - slug: pbbls-webapp-record-flow
     name: Multi step recording flow
-    type: feature
+    type: milestone
     date: '2026-03-28'
     description: >-
       A multi-step recording flow that guides users through the process of capturing and organizing
       their Pebbles.
     parents:
-      - bean:pbbls-webapp
+      - bean:pbbls-record-flow
   - slug: pbbls-webapp-emotion-pearl
     name: Emotion Pearl
-    type: feature
+    type: milestone
     date: '2026-03-29'
     description: >-
       See your emotion pearl take shape in real time as you record a pebble, a visual that captures
       how you felt.
     parents:
-      - bean:pbbls-webapp
+      - bean:pbbls-valence
   - slug: pbbls-webapp-pwa
     name: PWA Support
-    type: feature
+    type: milestone
     date: '2026-03-30'
     description: Progressive Web App support for a seamless Pebbles experience across devices.
     parents:
-      - bean:pbbls-webapp
+      - bean:pbbls-web-shell
   - slug: pbbls-webapp-karma
     name: Karma and Bounce system
-    type: feature
+    type: milestone
     date: '2026-04-01'
     description: >-
       A system that tracks karma and bounce within the Pebbles app, enhancing user engagement and
       interaction.
     parents:
-      - bean:pbbls-webapp
+      - bean:pbbls-wallet
   - slug: pbbls-ios-core
     name: Core iOS App
-    type: feature
+    type: milestone
     date: '2026-04-12'
     description: >-
       The core iOS app is now available, allowing users to access their Pebbles on the go with a
       native experience.
     parents:
-      - bean:pbbls-ios
+      - bean:pbbls-ios-jump
   - slug: pbbls-ios-record-flow
     name: Multi step recording flow
-    type: feature
+    type: milestone
     date: '2026-04-13'
     description: >-
       A multi-step recording flow that guides users through the process of capturing and organizing
       their Pebbles.
     parents:
-      - bean:pbbls-ios
+      - bean:pbbls-record-flow
   - slug: pbbls-ios-profile
     name: Profile and Settings
-    type: feature
+    type: milestone
     date: '2026-04-13'
     description: >-
       Profile and settings management for the iOS app, allowing users to customize their experience
       and manage their account.
     parents:
-      - bean:pbbls-ios
+      - bean:pbbls-ios-jump
   - slug: pbbls-ios-pebble-detail
     name: Pebble Detail View
-    type: feature
+    type: milestone
     date: '2026-04-14'
     description: >-
       A detailed view of each pebble in the iOS app, providing users with an in-depth look at their
       memories and moments.
     parents:
-      - bean:pbbls-ios
+      - bean:pbbls-path-nav
   - slug: pbbls-ios-pebble-render
     name: Pebble Render Engine
-    type: feature
+    type: milestone
     date: '2026-04-15'
     description: >-
       The Pebble Render Engine powers the visual representation of pebbles in the iOS app, providing
       a rich and immersive experience.
     parents:
-      - bean:pbbls-ios
+      - bean:pbbls-render
   - slug: pbbls-ios-emotion-colored-pebbles
     name: Emotion Colored Pebbles
-    type: feature
+    type: milestone
     date: '2026-04-16'
     description: >-
       Emotion Colored Pebbles feature allows users to see their pebbles in different colors based on
       their emotions, enhancing the visual experience.
     parents:
-      - bean:pbbls-ios
+      - bean:pbbls-colour
   - slug: rom-act-of-war-0
     name: Act of War
     type: song
