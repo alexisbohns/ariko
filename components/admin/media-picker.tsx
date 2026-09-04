@@ -42,20 +42,20 @@ type Row =
   | { key: string; state: "uploading"; file: File }
   | { key: string; state: "failed"; file: File; error: string };
 
-export function MediaPicker({
-  name,
-  initial = [],
-  links = false,
-  max,
-  compact = false,
-  submitLabel,
-}: {
+/**
+ * The props, as a UNION rather than one object, so `compact` cannot be combined
+ * with the two props its branch never consults. `submitLabel` is the mechanism
+ * that keeps CLAUDE.md's "a form that is only the picker goes inert rather than
+ * destructive" rule literal, so a `<MediaPicker compact submitLabel="Save" />`
+ * that silently rendered no button would be a quiet hole in that rule rather
+ * than a missing nicety. `links` is the same shape of mistake, minus the teeth.
+ * The union makes both a type error at the call site instead.
+ */
+type MediaPickerProps = {
   /** The hidden field name — "image" on the capture bar, "media" on a sprout. */
   name: string;
   /** Stored entries to open with. Empty on the capture bar. */
   initial?: Media[];
-  /** Offer an "add link" input, which joins the same ordered list. */
-  links?: boolean;
   /**
    * Cap on how many entries the list may hold. Unset means no cap, which is
    * every surface but the plant Logo card — a plant has ONE mark.
@@ -67,36 +67,60 @@ export function MediaPicker({
    * more than one.
    */
   max?: number;
-  /**
-   * Render as a single icon trigger with inline thumbnails instead of the
-   * labelled field + row list. For a control row that has no space for a
-   * labelled file input — the seed overlay.
-   *
-   * A presentation, not a second component: same rows, same uploads, same
-   * `__ready` marker, same settled-rows-only serialization. It drops the
-   * alt-text field and the reorder controls, which is the honest cost — a seed
-   * is on its way to triage, and the sprout media card downstream carries the
-   * full picker.
-   */
-  compact?: boolean;
-  /**
-   * Renders the form's submit button INSIDE the island when set.
-   *
-   * For a form whose entire meaningful content is this picker — the sprout
-   * media card — a server-rendered submit button would still be clickable
-   * without script, and would submit a form carrying nothing. The
-   * `${name}__ready` marker makes that write safe, but "safe" is not the claim
-   * CLAUDE.md makes: it says no edit ever DEPENDS on this island. A button that
-   * appears to work, does nothing, and redirects as though it worked is a form
-   * that plainly depends on it. Rendering the button here means script-off sees
-   * no button at all, and the form is simply not operable — which is the rule,
-   * literally.
-   *
-   * Omitted on the capture bar, whose submit belongs to the capture form and
-   * must keep working without script.
-   */
-  submitLabel?: string;
-}) {
+} & (
+  | {
+      /**
+       * Render as a single icon trigger with inline thumbnails instead of the
+       * labelled field + row list. For a control row that has no space for a
+       * labelled file input — the seed overlay.
+       *
+       * A presentation, not a second component: same rows, same uploads, same
+       * `__ready` marker, same settled-rows-only serialization. What it drops is
+       * the alt-text field and the reorder controls, which is the honest cost —
+       * a seed is on its way to triage, and the sprout media card downstream
+       * carries the full picker. Failure is NOT among the costs: a failed chip
+       * is a Retry button, and the pending count still says out loud that
+       * sending now leaves something out.
+       *
+       * It consults neither `links` nor `submitLabel`, which is why the union
+       * above forbids both alongside it.
+       */
+      compact: true;
+      links?: never;
+      submitLabel?: never;
+    }
+  | {
+      compact?: false;
+      /** Offer an "add link" input, which joins the same ordered list. */
+      links?: boolean;
+      /**
+       * Renders the form's submit button INSIDE the island when set.
+       *
+       * For a form whose entire meaningful content is this picker — the sprout
+       * media card — a server-rendered submit button would still be clickable
+       * without script, and would submit a form carrying nothing. The
+       * `${name}__ready` marker makes that write safe, but "safe" is not the
+       * claim CLAUDE.md makes: it says no edit ever DEPENDS on this island. A
+       * button that appears to work, does nothing, and redirects as though it
+       * worked is a form that plainly depends on it. Rendering the button here
+       * means script-off sees no button at all, and the form is simply not
+       * operable — which is the rule, literally.
+       *
+       * Omitted on the capture bar, whose submit belongs to the capture form and
+       * must keep working without script.
+       */
+      submitLabel?: string;
+    }
+);
+
+export function MediaPicker({
+  name,
+  initial = [],
+  links = false,
+  max,
+  compact = false,
+  submitLabel,
+}: MediaPickerProps) {
   const [mounted, setMounted] = useState(false);
   // `initial` is read ONCE: past mount this list is the picker's own, and a
   // later `initial` prop is ignored — the same uncontrolled shape as
@@ -234,79 +258,100 @@ export function MediaPicker({
 
   if (compact) {
     return (
-      <div className="flex items-center gap-1.5">
-        {/* The same marker the full layout emits, for the same reason: a list
-            the admin emptied and a picker that never mounted must not look
-            alike to the server. */}
-        <input type="hidden" name={`${name}__ready`} value="1" />
+      // A column, so the pending line below can exist without the single
+      // control row reflowing around it.
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-1.5">
+          {/* The same marker the full layout emits, for the same reason: a list
+              the admin emptied and a picker that never mounted must not look
+              alike to the server. */}
+          <input type="hidden" name={`${name}__ready`} value="1" />
 
-        {rows.map((row, index) => (
-          <span key={row.key} className="relative">
-            {row.state === "settled" && row.media.kind === "image" ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img
-                src={cloudinaryThumb(row.media.url, { width: 64, height: 64 })}
-                alt=""
-                loading="lazy"
-                decoding="async"
-                className="size-8 rounded object-cover"
-              />
-            ) : row.state === "uploading" ? (
-              <span className="flex size-8 animate-pulse items-center justify-center rounded bg-muted" />
-            ) : row.state === "failed" ? (
-              <span
-                title={`${row.file.name}: ${row.error}`}
-                className="flex size-8 items-center justify-center rounded bg-destructive/15 font-heading text-xs text-destructive"
-              >
-                !
-              </span>
-            ) : (
-              <span className="flex size-8 items-center justify-center rounded bg-muted font-heading text-xs">
-                ↗
-              </span>
-            )}
-            <Button
-              type="button"
-              size="icon-xs"
-              variant="ghost"
-              aria-label={`Remove item ${index + 1}`}
-              onClick={() => remove(row.key)}
-              className="absolute -right-1.5 -top-1.5 rounded-full bg-background shadow-sm"
-            >
-              ×
-            </Button>
-            {row.state === "settled" ? (
-              <input type="hidden" name={name} value={JSON.stringify(row.media)} />
-            ) : null}
-          </span>
-        ))}
-
-        {full ? null : (
-          <>
-            {/* sr-only rather than hidden: a visually hidden input is still
-                focusable and still labellable, so the icon below is a real
-                <label> and the control keeps its keyboard path. */}
-            <input
-              id={`${name}-file`}
-              ref={fileRef}
-              type="file"
-              accept={ALLOWED_TYPES.join(",")}
-              multiple
-              className="sr-only"
-              onChange={(e) => addFiles(e.target.files)}
-            />
-            <label
-              htmlFor={`${name}-file`}
-              aria-label="Add an image"
-              className={cn(
-                buttonVariants({ variant: "ghost", size: "icon" }),
-                "cursor-pointer text-muted-foreground",
+          {rows.map((row, index) => (
+            <span key={row.key} className="relative">
+              {row.state === "settled" && row.media.kind === "image" ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={cloudinaryThumb(row.media.url, { width: 64, height: 64 })}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="size-8 rounded object-cover"
+                />
+              ) : row.state === "uploading" ? (
+                <span className="flex size-8 animate-pulse items-center justify-center rounded bg-muted" />
+              ) : row.state === "failed" ? (
+                /* A button, not a decorated span: the full layout offers Retry and
+                   there is no reason a narrower presentation should not. The whole
+                   message rides on aria-label rather than the `title` this used to
+                   carry — a tooltip is hover-only, so it was invisible to a
+                   keyboard and unreachable on touch. */
+                <button
+                  type="button"
+                  aria-label={`Retry ${row.file.name} — ${row.error}`}
+                  onClick={() => retry(row.key, row.file)}
+                  className="flex size-8 items-center justify-center rounded bg-destructive/15 font-heading text-xs text-destructive transition-colors hover:bg-destructive/25"
+                >
+                  ↻
+                </button>
+              ) : (
+                <span className="flex size-8 items-center justify-center rounded bg-muted font-heading text-xs">
+                  ↗
+                </span>
               )}
-            >
-              <ImageIcon className="size-4" />
-            </label>
-          </>
-        )}
+              <Button
+                type="button"
+                size="icon-xs"
+                variant="ghost"
+                aria-label={`Remove item ${index + 1}`}
+                onClick={() => remove(row.key)}
+                className="absolute -right-1.5 -top-1.5 rounded-full bg-background shadow-sm"
+              >
+                ×
+              </Button>
+              {row.state === "settled" ? (
+                <input type="hidden" name={name} value={JSON.stringify(row.media)} />
+              ) : null}
+            </span>
+          ))}
+
+          {full ? null : (
+            <>
+              {/* sr-only rather than hidden: a visually hidden input is still
+                  focusable and still labellable, so the icon below is a real
+                  <label> and the control keeps its keyboard path. */}
+              <input
+                id={`${name}-file`}
+                ref={fileRef}
+                type="file"
+                accept={ALLOWED_TYPES.join(",")}
+                multiple
+                className="sr-only"
+                onChange={(e) => addFiles(e.target.files)}
+              />
+              <label
+                htmlFor={`${name}-file`}
+                aria-label="Add an image"
+                className={cn(
+                  buttonVariants({ variant: "ghost", size: "icon" }),
+                  "cursor-pointer text-muted-foreground",
+                )}
+              >
+                <ImageIcon className="size-4" />
+              </label>
+            </>
+          )}
+        </div>
+
+        {/* The same warning the full layout carries, for the same reason: without
+            it an author whose photo failed presses Send and the seed is stored
+            with no image and nothing said about the loss. Visible text rather
+            than a tooltip — being SEEN is the entire point of it. */}
+        {pending > 0 ? (
+          <p className="font-heading text-xs text-muted-foreground">
+            {pending} not ready — sending now leaves {pending === 1 ? "it" : "them"} out.
+          </p>
+        ) : null}
       </div>
     );
   }
