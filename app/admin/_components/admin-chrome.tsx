@@ -5,6 +5,7 @@ import { Archive, ExternalLink, Inbox, LogOut, Sprout, Waypoints } from "lucide-
 import type { ComponentType, ReactNode } from "react";
 import { NAV_ITEMS, resolveNavItem } from "@/lib/admin-nav";
 import { logoutAction } from "../actions";
+import { CommandPalette } from "./command-palette";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -83,6 +84,13 @@ export function AdminChrome() {
       </nav>
 
       <div className="fixed right-4 top-4 z-40 flex items-center gap-1">
+        {/* The palette rides with the chrome rather than the page: rendered
+            here, it is behind the same login-page withdrawal above — one route
+            constant, now three consumers — and ⌘K works on every admin route
+            without a page having to opt in. It is still an island: it fetches
+            nothing until it is opened. */}
+        <CommandPalette />
+
         <Tooltip>
           <TooltipTrigger
             render={
