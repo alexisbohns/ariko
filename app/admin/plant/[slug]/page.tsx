@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { buildDataset, resolveText } from "@/lib/data";
 import { loadRawGarden } from "@/lib/store";
 import { editContainerContentAction } from "../../actions";
-import { AdminBar } from "../../_components/admin-bar";
 import { ContentCard } from "../../_components/content-card";
 import { RoleCard } from "../../_components/role-card";
 import { MetaCard } from "../../_components/meta-card";
@@ -36,7 +35,6 @@ export default async function AdminPlantPage({
 
   return (
     <article>
-      <AdminBar current="/admin/garden" />
 
       <div className="flex flex-col gap-8">
         <div className="flex flex-col gap-3">

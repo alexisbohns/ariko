@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { buildDataset, resolveText } from "@/lib/data";
 import { loadRawGarden } from "@/lib/store";
 import { editContainerContentAction } from "../../actions";
-import { AdminBar } from "../../_components/admin-bar";
 import { ContentCard } from "../../_components/content-card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +27,6 @@ export default async function AdminPodPage({
 
   return (
     <article>
-      <AdminBar current="/admin/garden" />
 
       <div className="flex flex-col gap-8">
         <div className="flex flex-col gap-3">

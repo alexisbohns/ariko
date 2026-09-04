@@ -3,7 +3,6 @@ import { getSeed } from "@/lib/seeds";
 import { listPlants, listPods, listBeans } from "@/lib/botanical";
 import { resolveText, textPart } from "@/lib/data";
 import { promoteSeedAction, discardSeedAction } from "../../actions";
-import { AdminBar } from "../../_components/admin-bar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,7 +43,6 @@ export default async function TriagePage({
 
   return (
     <article>
-      <AdminBar current="/admin" />
 
       <div className="flex flex-col gap-8">
         <div className="flex flex-col gap-3">

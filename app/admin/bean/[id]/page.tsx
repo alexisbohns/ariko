@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { resolveText } from "@/lib/data";
 import { getFullDataset } from "@/lib/store";
 import { beanDetail, type BeanDetailView } from "@/lib/bean-detail";
-import { AdminBar } from "../../_components/admin-bar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,7 +36,6 @@ export default async function AdminBeanPage({ params }: { params: Promise<{ id: 
   if (failed) {
     return (
       <article>
-        <AdminBar current="/admin/vault" />
         <h1 className="mb-4 font-heading text-2xl font-medium tracking-tight">Bean</h1>
         <Alert variant="destructive" role="alert">
           <AlertDescription>Couldn&apos;t load the bean.</AlertDescription>
@@ -52,7 +50,6 @@ export default async function AdminBeanPage({ params }: { params: Promise<{ id: 
 
   return (
     <article>
-      <AdminBar current="/admin/vault" />
 
       <div className="flex flex-col gap-8">
         <div className="flex flex-col gap-3">
