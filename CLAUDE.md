@@ -58,6 +58,44 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
 
   Widening this to any *further* form is a decision, not a convenience.
 
+- **Seed capture is the third**, and unlike the first two it is a real loss
+  rather than a contained one (`app/admin/_components/seed-overlay.tsx`, the
+  fluid-admin slice). The capture form left the inbox page: it is now a
+  full-screen overlay opened by the `+` beside the page title or by the `k`
+  key, with an autofocused title and no labels. **Without script there is no
+  way to capture a seed** — the `+` and `k` both do nothing, and `/admin` is
+  the inbox list alone.
+
+  That was taken deliberately. An overlay that opens on a keystroke,
+  autofocuses and blurs the page behind it cannot exist without script, and the
+  only alternative — a second server-rendered form at its own route, writing
+  the same seed — would be maintained by nobody and exercised by no one.
+  Nothing is destroyed and nothing is silently mis-saved: the overlay simply is
+  not there.
+
+  The exception is the **shell**, never the write path. The overlay posts to
+  the same `createSeedAction` with the same field names `lib/seed-form.ts`
+  already reads, and the media picker inside it is the same island under its
+  `compact` presentation — same `__ready` marker, same settled-rows-only
+  serialization, minus the alt-text field and the reorder controls (a seed is
+  on its way to triage, and the sprout media card downstream carries the full
+  picker).
+
+  Every *other* admin metadata form is unchanged and still zero-client-JS. Two
+  neighbours of this slice are worth naming so they are not mistaken for
+  further exceptions:
+
+  - The chrome (`app/admin/_components/admin-chrome.tsx`) is a client component
+    so it can read the pathname, but it is chrome, not a form: its nav items
+    are plain `<a href>` and Log out is still a real `<form>` with a real
+    submit button.
+  - The vault's filter popovers (`app/admin/_components/vault-filters.tsx`) are
+    a container only — every option inside is the same `<a href>` the page
+    rendered inline before, filtering stays server-side in `lib/vault.ts`, and
+    filter URLs stay shareable. What script-off *does* cost there is
+    **discovery**: the triggers no longer open, so the filters cannot be found
+    from the page, only typed as a query string.
+
 Orientation lives in
 [`README.md`](README.md); the sequenced plan lives in
 [`docs/superpowers/ROADMAP.md`](docs/superpowers/ROADMAP.md).
