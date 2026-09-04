@@ -182,10 +182,13 @@ beans:
   # Pebbles case-study bean tier (spec 2026-09-04-pbbls-legacy-bean-retirement, #54).
   # PLACEHOLDER names and descriptions, seeded private so every ref in
   # payloads/_SLUGS.md resolves instead of rendering as a hole mid-sentence.
-  # migrate $sets name and description on EVERY run, so the day a bean is
-  # authored through the admin, DELETE ITS ENTRY HERE -- or the next migrate
-  # reverts the real title to the placeholder. The six already authored
-  # (wallet, market, d8, connections, cut, unbuilt) are absent for that reason.
+  # migrate $sets name, description AND visibility on EVERY run, so the day a
+  # bean is authored through the admin, DELETE ITS ENTRY HERE -- or the next
+  # migrate reverts the real title to the placeholder AND pulls the bean back to
+  # private, silently un-publishing it. That second half is the one that bites
+  # during an authoring wave, and it is why editing the entry in place is not a
+  # substitute for deleting it. The six already authored (wallet, market, d8,
+  # connections, cut, unbuilt) are absent for that reason.
   # Deleting an entry here is only step one: also move its slug from
   # STUB_BEANS to AUTHORED_BEANS in lib/pbbls-legacy.ts, and bump the two
   # catalog-size assertions in lib/pbbls-legacy.test.ts -- otherwise the

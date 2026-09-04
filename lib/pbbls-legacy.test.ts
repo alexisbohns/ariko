@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import yaml from "js-yaml";
 import {
@@ -259,4 +259,34 @@ test("data/garden.yml keeps the stub block at the tail, in catalog order", () =>
     slugs.slice(-STUB_BEANS.length),
     STUB_BEANS.map((b) => b.slug),
   );
+});
+
+// --- The two artefacts outside the seed that this work is responsible for: the
+// committed reversal path, and the payload files that actually get published.
+
+test("data/retired holds the whole reversal path for the delete", () => {
+  // The spec calls this file the reversal path and justifies deleting rather
+  // than hiding the four beans BECAUSE it exists. Nothing else reads it, so
+  // without this a future tidy-up could truncate or drop it and stay green.
+  const backup = JSON.parse(
+    readFileSync(join(process.cwd(), "data", "retired", "2026-09-04-legacy-pbbls-beans.json"), "utf8"),
+  ) as { beans: { slug: string }[]; sprouts: { slug: string }[] };
+  assert.deepEqual(backup.beans.map((b) => b.slug).sort(), [...LEGACY_BEANS].sort());
+  assert.deepEqual(backup.sprouts.map((s) => s.slug).sort(), Object.keys(SPROUT_MAP).sort());
+});
+
+test("no authored payload links a bean that does not exist", () => {
+  // _SLUGS.md is the writers' reference; these are what actually gets posted.
+  // An unresolved ref renders as NOTHING in public — a hole mid-sentence — so a
+  // payload pointing at a retired bean fails silently on the live site.
+  const dir = join(process.cwd(), "docs", "pbbls-atelier-editorial", "payloads");
+  const known = new Set<string>([...STUB_BEANS.map((b) => b.slug), ...AUTHORED_BEANS]);
+  const bad: string[] = [];
+  for (const file of readdirSync(dir).filter((f) => f.endsWith(".md") && f !== "_SLUGS.md")) {
+    const text = readFileSync(join(dir, file), "utf8");
+    for (const m of text.matchAll(/bean:(pbbls-[a-z0-9-]+)/g)) {
+      if (!known.has(m[1])) bad.push(`${file} -> bean:${m[1]}`);
+    }
+  }
+  assert.deepEqual(bad, []);
 });

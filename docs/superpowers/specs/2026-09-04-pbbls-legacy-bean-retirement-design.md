@@ -113,9 +113,15 @@ edit rather than a second output of the script; §5.2 says why.
 
 ### 5.1 `lib/pbbls-legacy.ts` — the transform
 
-Exports three catalogs and one function.
+Exports four catalogs, one constant and one function.
 
 - `LEGACY_BEANS: string[]` — the four slugs that retire.
+- `AUTHORED_BEANS: string[]` — the six beans already written through the admin.
+  They live only in Mongo and must never be stubbed or seeded: `migrate` `$set`s
+  `name`, `description` and `visibility` on every run, so a seed entry would
+  revert their real titles and un-publish them.
+- `MILESTONE_TYPE` — `"milestone"`, the type the twelve sprouts are retyped to
+  (parent spec §6).
 - `SPROUT_MAP: Record<string, string>` — the twelve `sprout slug → bean slug`
   pairs of §4.
 - `STUB_BEANS: Bean[]` — the 36 stubs, each with `slug`, `name`, `description`,
@@ -138,16 +144,44 @@ Two rules the transform keeps, both about not destroying authored work:
 ### 5.2 `scripts/migrate-pbbls-legacy.ts` — the driver
 
 `npm run migrate:pbbls-legacy` to plan, `npm run migrate:pbbls-legacy -- --apply`
-to write, ordered so every intermediate state is readable if the run is
-interrupted:
+to write. **Dry is the default and any unrecognised argument is refused** — a
+deliberate inversion, because `npm run migrate:pbbls-legacy --dry-run` without
+the `--` separator is swallowed by npm and never reaches `process.argv`, so a
+flag-shaped typo must not be able to delete anything.
+
+It opens with an identity banner naming the database and host (`getDb()` falls
+back to `beanstalk` when `MONGODB_DB` is unset), then a **read-only pre-flight**,
+all of it before any write, so a trip leaves the database exactly as it was:
+
+- **Fatal** — any pollen envelope anchoring a legacy bean, or a doomed bean
+  carrying `projected`. `lib/projected-beans.ts` materialises a bean for an
+  unknown anchor and marks it **public** on an exhibited plant, and
+  `data/federation.yml` exhibits `plant:pbbls` — so either condition means the
+  next sync or `pollen:rebuild` republishes the very slugs being retired.
+- **Fatal** — any sprout on a legacy bean that `SPROUT_MAP` cannot route, which
+  the delete would orphan.
+- **Warning** — `relations[]` refs in sprouts/plants/pods, and seed suggestions.
+  A dangling ref renders as nothing rather than breaking, but a published
+  narrative quietly loses a card and the operator should know.
+- **Reported** — how many of the twelve are `state: published`, and so leave the
+  public site when they move to private stubs.
+
+Then, ordered so every intermediate state is readable if the run is interrupted:
 
 1. Mongo: insert missing stub beans (`$setOnInsert`, so an existing doc is
    untouched even if the guard in 5.1 were ever wrong).
 2. Mongo: `$set` `parents` and `type` on the twelve sprouts — diffed per doc, so
    an idempotent re-run logs no writes.
 3. Mongo: read the four legacy beans, write them to
-   `data/retired/2026-09-04-legacy-pbbls-beans.json`, then delete them. Beans go
+   `data/retired/2026-09-04-legacy-pbbls-beans.json`, then delete them by the
+   `_id`s just read, so what was backed up is what was deleted. Beans go
    **last**, when nothing points at them any more.
+
+The backup is `{ beans, sprouts }`: the four deleted beans, **and the pre-image
+of every sprout whose `parents`/`type` step 2 overwrites in place** — step 2 is
+destructive and has no history of its own. Writes merge by slug and refuse to
+shrink, so an interrupted delete followed by a re-run cannot replace a complete
+backup with a partial one.
 
 The backup file is committed. It is small, it is the reversal path, and a
 deletion with an uncommitted backup is a deletion.
@@ -173,9 +207,12 @@ means; only the application to YAML is manual.
 - A delimited stub block is added, carrying the same warning the pod tier
   carries, plus the one this tier adds:
 
-  > These are **stubs**. `migrate` `$set`s `name` and `description` on every run,
-  > so the day a bean is authored through the admin, **delete its line here** —
-  > or the next migrate reverts the title to the placeholder. The six already
+  > These are **stubs**. `migrate` `$set`s `name`, `description` **and
+  > `visibility`** on every run, so the day a bean is authored through the admin,
+  > **delete its line here** — or the next migrate reverts the title to the
+  > placeholder *and pulls the bean back to private, silently un-publishing it*.
+  > The second half is the one that bites during an authoring wave, and it is why
+  > editing the entry in place is not a substitute for deleting it. The six already
   > authored (`wallet`, `market`, `d8`, `connections`, `cut`, `unbuilt`) are
   > deliberately absent for exactly this reason.
 
@@ -205,6 +242,10 @@ Against the real `data/garden.yml`, so every assertion holds before and after:
 - every stub's `parents` names a pod that exists;
 - a fixture bean with a stub's slug and an authored name survives untouched;
 - a sprout not in `SPROUT_MAP` is untouched;
+- the stub block is the tail of `beans:`, in catalog order — **not** implied by
+  the fixed point, which is order-blind once every stub is present, and asserted
+  because it is what lets the block be diffed against a regeneration;
+- the transform is safe and idempotent on an empty garden;
 - no authored bean is present in the seed;
 - the set of `SPROUT_MAP` targets absent from the seed is exactly
   `{pbbls-webapp-karma -> pbbls-wallet}` (§5.3);
@@ -248,8 +289,7 @@ unquoted YAML scalar, and these are written into `data/garden.yml` unquoted, so
 four of them use an em dash where the prose wanted a colon. Do not "restore" a
 colon here without quoting the scalar there.
 
- They exist so a bean page is not blank and a card is not
-nameless; the authoring wave replaces both (and adds the FR half), at which point
+The placeholders exist so a bean page is not blank and a card is not nameless; the authoring wave replaces both (and adds the FR half), at which point
 the stub's line leaves `garden.yml` per §5.3's rule. Plain strings, not `{en, fr}`
 — the pod tier's convention, and the bilingual pair arrives with the article.
 

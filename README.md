@@ -10,7 +10,7 @@
 
 ### Seeding
 
-* pre-seeded from `/data/seed.yml` (human-authored), imported into Mongo via `npm run migrate`
+* pre-seeded from `/data/garden.yml` (human-authored), imported into Mongo via `npm run migrate`
 
 ### Architecture
 
@@ -65,10 +65,10 @@ Sprouts carry optional markdown in `content` (localizable — `Text`, like `name
 
 ## Database & development
 
-As of the Vault Spine slice, content lives in **MongoDB** (not the static seed). `data/seed.yml` is retained only as migration input.
+As of the Vault Spine slice, content lives in **MongoDB** (not the static seed). `data/garden.yml` is retained only as migration input.
 
 * Set `MONGODB_URI` and `MONGODB_DB` in `.env.local` (gitignored).
-* `npm run migrate` — one-time import of `data/seed.yml` into Mongo (idempotent).
+* `npm run migrate` — one-time import of `data/garden.yml` into Mongo (idempotent).
 * `npm run migrate:pbbls-legacy` — one-shot (#54), idempotent and safe to re-run: retired the four seeded `pbbls-*` beans (backed up to `data/retired/`), refiled their twelve changelog sprouts as milestones, and seeded the case study's bean tier private. **Dry by default** — it writes nothing to Mongo unless you pass `-- --apply`, and refuses any argument it does not recognise. Deliberately does **not** rewrite `data/garden.yml` — `yaml.dump` would erase the file's comments, so that half is a hand edit held in place by `lib/pbbls-legacy.test.ts`.
 * `npm run dev` — needs `MONGODB_URI` set and the cluster reachable (pages query Mongo at request time). The public pages (`/`, `/beanstalk`, `/bean/[id]`) are `force-dynamic`, so they read published-only from Mongo on every request and reflect a publish immediately — and `npm run build` no longer needs DB reachability to prerender them.
 * `npm test` — pure unit tests; DB-backed integration tests auto-skip unless `MONGODB_URI` is set (run them with `node --env-file=.env.local --import tsx --test "lib/**/*.test.ts"`).
