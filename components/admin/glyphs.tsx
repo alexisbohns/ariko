@@ -112,16 +112,37 @@ export interface EntityMark {
 
 const AVATAR_PX = 24; // size-6, the `sm` avatar — asked for at 2x below
 
+/**
+ * A squircle, not a circle, and no border ring.
+ *
+ * The admin's ghost icon buttons — the inbox's `+`, the chrome's rail and its
+ * top-right pair — are borderless rounded squares, so a circular mark would be
+ * the one round thing in the zone. This is the design system's OWN answer at
+ * this size rather than a number picked to look close: it is the exact radius
+ * `components/ui/button.tsx` gives its `icon-xs` (size-6) variant, which is why
+ * it is written as the same `min()` expression and not as `rounded-lg`.
+ * `rounded-lg` is 0.875rem — more than half of a 24px box, so it would clamp
+ * back to a circle and quietly undo the change.
+ *
+ * The border goes with it: `components/ui/avatar.tsx` ships a blend-mode ring
+ * on `::after` for a circular photo avatar, and against a table row it reads as
+ * a chip nobody asked for. Suppressed here, in the consumer — the registry
+ * primitive stays as shipped, so the next avatar in this repo starts round and
+ * ringed like every other shadcn one.
+ */
+const SQUIRCLE = "rounded-[min(var(--radius-md),10px)]";
+
 function AvatarMark({ mark, className }: { mark: EntityMark; className?: string }) {
   return (
-    <Avatar size="sm" className={cn("shrink-0", className)}>
+    <Avatar size="sm" className={cn("shrink-0 after:hidden", SQUIRCLE, className)}>
       {mark.logoUrl ? (
         <AvatarImage
+          className={SQUIRCLE}
           src={cloudinaryThumb(mark.logoUrl, { width: AVATAR_PX * 2, height: AVATAR_PX * 2 })}
           alt=""
         />
       ) : null}
-      <AvatarFallback className="font-heading text-[0.625rem] tracking-tight">
+      <AvatarFallback className={cn("font-heading text-[0.625rem] tracking-tight", SQUIRCLE)}>
         {initialsOf(mark.name)}
       </AvatarFallback>
     </Avatar>
@@ -153,7 +174,10 @@ export function EntityAvatarGlyph({ mark }: { mark: EntityMark }) {
       <TooltipTrigger
         delay={DELAY}
         type="button"
-        className="inline-flex cursor-default rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className={cn(
+          "inline-flex cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+          SQUIRCLE,
+        )}
       >
         <AvatarMark mark={mark} />
         <span className="sr-only">{label}</span>
