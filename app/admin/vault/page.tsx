@@ -1,6 +1,7 @@
 import { getFullDataset } from "@/lib/store";
 import { resolveText, type TimelineEntry } from "@/lib/data";
 import { filterVaultEntries, distinctPlants, distinctTags } from "@/lib/vault";
+import { EntityAvatarGlyph } from "@/components/admin/glyphs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -120,7 +121,19 @@ export default async function VaultPage({
                   <TableCell>
                     <Badge variant="secondary">{e.sprout.state ?? "—"}</Badge>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{e.plant?.slug ?? "—"}</TableCell>
+                  <TableCell>
+                    {e.plant ? (
+                      <EntityAvatarGlyph
+                        mark={{
+                          name: resolveText(e.plant.name),
+                          hint: e.plant.slug,
+                          ...(e.plant.logo ? { logoUrl: e.plant.logo.url } : {}),
+                        }}
+                      />
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{e.bean?.slug ?? "—"}</TableCell>
                   <TableCell className="text-muted-foreground">{e.sprout.date}</TableCell>
                   <TableCell className="text-muted-foreground">

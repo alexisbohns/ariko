@@ -1,6 +1,8 @@
-import { type Seed, resolveText } from "@/lib/data";
+import { type Plant, type Seed, resolveText } from "@/lib/data";
 import { listSeeds } from "@/lib/seeds";
+import { loadRawGarden } from "@/lib/store";
 import { SeedOverlay } from "./_components/seed-overlay";
+import { SeedSourceGlyph, type EntityMark } from "@/components/admin/glyphs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Table,
@@ -23,6 +25,23 @@ function mediaLabel(media: Seed["media"]): string {
   if (media.length === 0) return "—";
   if (media.length === 1) return `1 ${media[0].kind}`;
   return `${media.length} items`;
+}
+
+// The suggested plant, resolved against the garden — never trusted as a label.
+// `suggested.plantSlug` arrives over the wire from a sibling repo's lab note
+// (lib/inbox.ts aliases the legacy `moleculeSlug` onto it), so it can name a
+// plant that was renamed or never existed. A miss draws NOTHING: an avatar for
+// an entity the garden cannot show is worse than an unadorned source icon.
+function plantMark(seed: Seed, plants: Map<string, Plant>): EntityMark | undefined {
+  const slug = seed.suggested?.plantSlug;
+  if (!slug) return undefined;
+  const plant = plants.get(slug);
+  if (!plant) return undefined;
+  return {
+    name: resolveText(plant.name),
+    hint: plant.slug,
+    ...(plant.logo ? { logoUrl: plant.logo.url } : {}),
+  };
 }
 
 function ageLabel(createdAt: string, now: number): string {
@@ -49,6 +68,16 @@ export default async function AdminPage({
     seeds = await listSeeds({ status: "inbox" });
   } catch {
     seeds = null; // rendered as a load-failure line below
+  }
+
+  // The garden is read only to draw the source column's avatars. It is loaded
+  // separately from the seeds and fails separately too: an unreachable garden
+  // costs the marks, never the inbox.
+  let plants = new Map<string, Plant>();
+  try {
+    plants = new Map(((await loadRawGarden()).plants ?? []).map((p) => [p.slug, p]));
+  } catch {
+    plants = new Map();
   }
 
   const now = Date.now();
@@ -86,7 +115,9 @@ export default async function AdminPage({
               <TableBody>
                 {seeds.map((c) => (
                   <TableRow key={c.id}>
-                    <TableCell className="text-muted-foreground">{c.source.kind}</TableCell>
+                    <TableCell>
+                      <SeedSourceGlyph kind={c.source.kind} plant={plantMark(c, plants)} />
+                    </TableCell>
                     <TableCell>
                       <a
                         href={`/admin/triage/${c.id}`}

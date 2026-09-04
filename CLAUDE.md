@@ -101,6 +101,19 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
     behind. What script-off *does* cost there is **discovery**: the triggers no
     longer open and the keys do nothing, so the filters cannot be found from the
     page, only typed as a query string.
+  - The three admin tables' glyphs (`components/admin/glyphs.tsx`) are a third
+    such neighbour. The inbox's source column, the vault's plant column and the
+    garden's name/tier/visibility columns now *draw* their values — a lucide
+    icon for the capture route, a shadcn-on-Base-UI `Avatar` for the plant (its
+    logo, or its initials when it has none), a tooltip carrying the word. That
+    is one client island for all three tables and not nine: lucide, Avatar and
+    Tooltip are each already `"use client"` modules, so the choice was never
+    "none" but "one boundary or many". Nothing there is a form control and
+    nothing writes — the tables around it are the same server-rendered links and
+    cells they were. Script-off costs the *hover* label only: every glyph also
+    carries its word in an `sr-only` span (from `lib/glyphs.ts`, the one place a
+    display form is decided, exactly as `lib/plant-status.ts` is for its enum),
+    so no value is icon-only in the accessibility tree.
 
 Orientation lives in
 [`README.md`](README.md); the sequenced plan lives in
