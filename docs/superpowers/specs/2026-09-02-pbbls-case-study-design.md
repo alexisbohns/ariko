@@ -334,7 +334,10 @@ with Apple on Android and the rest of the 16 July audit) · open explorations
 (the bounce Path A / Path B question, unresolved since mid-May). Never present a
 lower grade as a higher one, and never promise a date.
 
-Total: 11 pods, 35 beans. 5 tier-A, 20 tier-B, 10 tier-C.
+Total: 11 pods, **42 beans. 7 tier-A, 23 tier-B, 12 tier-C** — corrected
+2026-09-04 (#54) by counting the tables above; the previous "35 beans, 5/20/10"
+never matched them. §10's "five tier-A pieces" is still right: it describes
+wave 1, which does not include the two ledger beans of §5.3b.
 
 ## 6. Sprouts — the account, and the ledger
 
@@ -465,16 +468,28 @@ is written twice.
 
 ### 9.2 The legacy bean migration
 
-`bean:pbbls-webapp` and `bean:pbbls-ios` currently hold the twelve seeded
-changelog sprouts, and `bean:pbbls-ios` collides with the intended
-`pod:pbbls-ios`. Both beans retire; their sprouts re-parent onto the domain beans
-they actually advance (Emotion Pearl → `pbbls-valence`, PWA → `pbbls-web-shell`,
-Karma & Bounce → `pbbls-wallet`, and so on). Requires a one-shot script plus a
-`data/garden.yml` edit so `npm run migrate` stays idempotent.
+**Done, 2026-09-04 (#54).** Spec:
+`docs/superpowers/specs/2026-09-04-pbbls-legacy-bean-retirement-design.md`.
 
-Opportunity while there: only 12 of the pbbls changelog's 47 entries were ever
-imported. The remaining 35, plus 217 `deliverable.shipped` journal events, are a
-ready-made milestone ledger.
+Two things this section got wrong, found while surveying:
+
+- **Four beans, not two.** `bean:pbbls-path` and `bean:pbbls-recorder` were
+  public with nothing in them, rendering as empty pages on the live site.
+- **Two slug shadows, not one.** `bean:pbbls-path` shadowed `pod:pbbls-path`
+  exactly as `bean:pbbls-ios` shadowed `pod:pbbls-ios`.
+
+All four were deleted (backed up to `data/retired/`), the twelve changelog
+sprouts were refiled as `type: milestone` under the beans they advance, and the
+36 beans of §5.3 that did not exist yet were seeded as private stubs so every
+ref in `payloads/_SLUGS.md` resolves.
+
+Consequence, accepted at the time: `plant:pbbls` is public and carries no
+narrative, so those four beans were its entire public content. `/plant/pbbls` is
+deliberately empty until the case study publishes.
+
+Still open: only 12 of the pbbls changelog's 47 entries were ever imported. The
+remaining 35, plus 217 `deliverable.shipped` journal events, are a ready-made
+milestone ledger — #55.
 
 ## 10. Wave 1
 

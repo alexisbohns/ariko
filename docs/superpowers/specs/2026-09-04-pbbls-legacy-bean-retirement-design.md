@@ -106,8 +106,10 @@ ledger should say so.
 
 The `migrate-retier` precedent, followed deliberately rather than reinvented: a
 **pure, idempotent transform** over a `RawGarden`, tested against the real
-`data/garden.yml`, driven by one `--dry-run`-capable script that applies the same
-transform to the YAML and to Mongo.
+`data/garden.yml`, driven by one script that applies that transform to Mongo.
+The script is **dry by default** and writes only when passed `--apply` — the
+inverse of `migrate-retier`, because this one deletes. The YAML half is a hand
+edit rather than a second output of the script; §5.2 says why.
 
 ### 5.1 `lib/pbbls-legacy.ts` — the transform
 
@@ -135,8 +137,9 @@ Two rules the transform keeps, both about not destroying authored work:
 
 ### 5.2 `scripts/migrate-pbbls-legacy.ts` — the driver
 
-`npm run migrate:pbbls-legacy [-- --dry-run]`, ordered so every intermediate
-state is readable if the run is interrupted:
+`npm run migrate:pbbls-legacy` to plan, `npm run migrate:pbbls-legacy -- --apply`
+to write, ordered so every intermediate state is readable if the run is
+interrupted:
 
 1. Mongo: insert missing stub beans (`$setOnInsert`, so an existing doc is
    untouched even if the guard in 5.1 were ever wrong).
