@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { unstable_rethrow } from "next/navigation";
+import { Image as ImageIcon } from "lucide-react";
 import type { Media } from "@/lib/data";
 import { ALLOWED_TYPES, checkUploadFile } from "@/lib/upload-input";
 import { cloudinaryThumb } from "@/lib/image-url";
+import { cn } from "@/lib/utils";
 import { uploadImageAction } from "@/app/admin/actions";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -45,6 +47,7 @@ export function MediaPicker({
   initial = [],
   links = false,
   max,
+  compact = false,
   submitLabel,
 }: {
   /** The hidden field name — "image" on the capture bar, "media" on a sprout. */
@@ -64,6 +67,18 @@ export function MediaPicker({
    * more than one.
    */
   max?: number;
+  /**
+   * Render as a single icon trigger with inline thumbnails instead of the
+   * labelled field + row list. For a control row that has no space for a
+   * labelled file input — the seed overlay.
+   *
+   * A presentation, not a second component: same rows, same uploads, same
+   * `__ready` marker, same settled-rows-only serialization. It drops the
+   * alt-text field and the reorder controls, which is the honest cost — a seed
+   * is on its way to triage, and the sprout media card downstream carries the
+   * full picker.
+   */
+  compact?: boolean;
   /**
    * Renders the form's submit button INSIDE the island when set.
    *
@@ -216,6 +231,85 @@ export function MediaPicker({
   // would let a second file be picked while the first is still uploading, and
   // the cap would be breached the moment both landed.
   const full = max !== undefined && rows.length >= max;
+
+  if (compact) {
+    return (
+      <div className="flex items-center gap-1.5">
+        {/* The same marker the full layout emits, for the same reason: a list
+            the admin emptied and a picker that never mounted must not look
+            alike to the server. */}
+        <input type="hidden" name={`${name}__ready`} value="1" />
+
+        {rows.map((row, index) => (
+          <span key={row.key} className="relative">
+            {row.state === "settled" && row.media.kind === "image" ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={cloudinaryThumb(row.media.url, { width: 64, height: 64 })}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                className="size-8 rounded object-cover"
+              />
+            ) : row.state === "uploading" ? (
+              <span className="flex size-8 animate-pulse items-center justify-center rounded bg-muted" />
+            ) : row.state === "failed" ? (
+              <span
+                title={`${row.file.name}: ${row.error}`}
+                className="flex size-8 items-center justify-center rounded bg-destructive/15 font-heading text-xs text-destructive"
+              >
+                !
+              </span>
+            ) : (
+              <span className="flex size-8 items-center justify-center rounded bg-muted font-heading text-xs">
+                ↗
+              </span>
+            )}
+            <Button
+              type="button"
+              size="icon-xs"
+              variant="ghost"
+              aria-label={`Remove item ${index + 1}`}
+              onClick={() => remove(row.key)}
+              className="absolute -right-1.5 -top-1.5 rounded-full bg-background shadow-sm"
+            >
+              ×
+            </Button>
+            {row.state === "settled" ? (
+              <input type="hidden" name={name} value={JSON.stringify(row.media)} />
+            ) : null}
+          </span>
+        ))}
+
+        {full ? null : (
+          <>
+            {/* sr-only rather than hidden: a visually hidden input is still
+                focusable and still labellable, so the icon below is a real
+                <label> and the control keeps its keyboard path. */}
+            <input
+              id={`${name}-file`}
+              ref={fileRef}
+              type="file"
+              accept={ALLOWED_TYPES.join(",")}
+              multiple
+              className="sr-only"
+              onChange={(e) => addFiles(e.target.files)}
+            />
+            <label
+              htmlFor={`${name}-file`}
+              aria-label="Add an image"
+              className={cn(
+                buttonVariants({ variant: "ghost", size: "icon" }),
+                "cursor-pointer text-muted-foreground",
+              )}
+            >
+              <ImageIcon className="size-4" />
+            </label>
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-3">
