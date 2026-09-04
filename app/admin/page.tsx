@@ -63,7 +63,7 @@ export default async function AdminPage({
               {seeds ? <span className="text-muted-foreground">({seeds.length})</span> : null}
             </h1>
             <div className="ml-auto">
-              <SeedOverlay error={error} />
+              <SeedOverlay error={error} inboxCount={seeds?.length ?? 0} />
             </div>
           </div>
           {seeds === null ? (

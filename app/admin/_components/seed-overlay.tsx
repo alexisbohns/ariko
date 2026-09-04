@@ -41,10 +41,12 @@ import {
 const FIELD =
   "w-full border-0 bg-transparent outline-none placeholder:text-muted-foreground/40 focus:outline-none";
 
-export function SeedOverlay({ error }: { error?: string }) {
+export function SeedOverlay({ error, inboxCount }: { error?: string; inboxCount: number }) {
   const [open, setOpen] = useState(false);
   const [lang, setLang] = useState<"en" | "fr">("en");
   const [firstLink, setFirstLink] = useState("");
+  // The overlay's own record of how big the inbox was when it last saw it.
+  const [seenCount, setSeenCount] = useState(inboxCount);
 
   // The dialog is opened from two places (the button and the `k` hotkey), so
   // it is controlled rather than trigger-driven — which means the primitive
@@ -61,6 +63,26 @@ export function SeedOverlay({ error }: { error?: string }) {
   useEffect(() => {
     if (error) setOpen(true);
   }, [error]);
+
+  // createSeedAction redirects to /admin, which from /admin is a SOFT
+  // navigation — this component keeps its place in the tree, so nothing here
+  // resets itself. A save is therefore detected the only way the client
+  // honestly can: the server re-rendered the page with one more seed in the
+  // inbox. Closing unmounts the popup, and with it the MediaPicker, which is
+  // what clears its rows; `firstLink` is this component's own state and has to
+  // be cleared by hand. Without this the next capture inherits the previous
+  // one's link and images.
+  //
+  // It composes with the error effect above rather than fighting it: a rejected
+  // save leaves the inbox exactly as big as it was, so this does not fire and
+  // the overlay stays open on its banner.
+  useEffect(() => {
+    if (inboxCount !== seenCount) {
+      setSeenCount(inboxCount);
+      setOpen(false);
+      setFirstLink("");
+    }
+  }, [inboxCount, seenCount]);
 
   // The library's defaults are the ones this wants, and are relied on
   // deliberately: a bare single key defaults to ignoreInputs:true, so "k" does
