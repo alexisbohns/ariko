@@ -142,7 +142,11 @@ function AvatarMark({ mark, className }: { mark: EntityMark; className?: string 
           alt=""
         />
       ) : null}
-      <AvatarFallback className={cn("font-heading text-[0.625rem] tracking-tight", SQUIRCLE)}>
+      {/* 8px in a 24px box — a third of it, where a monogram avatar usually
+          sits at ~40%. Two uppercase letters is all this ever renders
+          (initialsOf caps it), so the mark reads as a mark and stops competing
+          with the row's own text. */}
+      <AvatarFallback className={cn("font-heading text-[0.5rem] tracking-tight", SQUIRCLE)}>
         {initialsOf(mark.name)}
       </AvatarFallback>
     </Avatar>
@@ -192,20 +196,20 @@ export function EntityAvatarGlyph({ mark }: { mark: EntityMark }) {
  *
  * `manual · · · (PB)` — the icon is the capture route, the avatar is the plant
  * the payload SUGGESTED, and the dots are the run between them. The suggestion
- * is a suggestion: an untriaged seed has no parent yet, so the avatar is drawn
- * dimmer than a settled one and simply is not there when nothing was suggested
- * (or when the suggested slug matches no plant in the garden — a dangling
- * suggestion draws nothing rather than an avatar for an entity that is gone).
+ * is a suggestion, not a parent: an untriaged seed has none yet. So the avatar
+ * is simply absent when nothing was suggested, and absent too when the
+ * suggested slug matches no plant in the garden — a dangling suggestion draws
+ * nothing rather than an avatar for an entity that is gone.
  */
 export function SeedSourceGlyph({ kind, plant }: { kind: string; plant?: EntityMark }) {
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <span className="inline-flex items-center gap-1">
       <SourceGlyph kind={kind} />
       {plant ? (
         <>
           <span
             aria-hidden
-            className="select-none text-[0.65rem] leading-none tracking-[0.2em] text-muted-foreground/50"
+            className="select-none text-[0.65rem] leading-none tracking-[0.05em] text-muted-foreground/50"
           >
             ···
           </span>
