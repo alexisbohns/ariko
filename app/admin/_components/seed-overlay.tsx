@@ -14,6 +14,7 @@ import {
   DialogPopup,
   DialogPortal,
 } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 /**
  * Seed capture — the THIRD deliberate client-JS exception in this codebase,
@@ -26,12 +27,18 @@ import {
  *
  * The shell is the registry's dialog primitive rather than a hand-rolled one,
  * so the modal claim is actually enforced: focus containment, scroll lock,
- * inert background, Escape and outside-press dismissal and focus restoration
- * all come from `Dialog.Root`'s `modal` default rather than from this file.
+ * inert background, Escape dismissal and focus restoration all come from
+ * `Dialog.Root`'s `modal` default rather than from this file. Outside-press
+ * dismissal is the one exception, hand-rolled on the backdrop below, because
+ * the popup is full-bleed and so nothing is ever "outside" it for the
+ * primitive to catch.
  *
  * The exception is the SHELL, never the write path: this posts to
  * createSeedAction with the field names lib/seed-form.ts already reads
- * (`title`, `note`, `lang`, repeated `link`, `image` + `image__ready`).
+ * (`title`, `note`, `lang`, repeated `link`, `image`). The picker also emits
+ * its `image__ready` marker here, but nothing on this path reads it —
+ * buildSeedBody does not, and only buildMediaPatch/buildPlantLogoPatch ever
+ * do. A create has no stored list to clear, so the marker is inert.
  *
  * Native inputs styled to look like bare text, not contenteditable. The
  * rendered result is the same and the native ones keep accented input, undo,
@@ -98,21 +105,47 @@ export function SeedOverlay({ error, inboxCount }: { error?: string; inboxCount:
   // race it.
   useHotkey("K", () => setOpen(true), { enabled: !open });
 
+  // A rejected save leaves the author on /admin?error=…, and the param outlives
+  // the overlay: close it, reload, and the banner comes back about a seed that
+  // no longer exists in any field. Dropped on close with replaceState rather
+  // than a router push — this is tidying the URL, not a navigation, and a
+  // navigation here would re-render the page under the closing dialog.
+  const handleOpenChange = (next: boolean): void => {
+    setOpen(next);
+    if (!next && typeof window !== "undefined" && window.location.search) {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has("error")) {
+        url.searchParams.delete("error");
+        window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+      }
+    }
+  };
+
   return (
     <>
-      <Button
-        ref={plusRef}
-        type="button"
-        size="icon"
-        variant="ghost"
-        aria-label="New seed"
-        title="New seed (k)"
-        onClick={() => setOpen(true)}
-      >
-        <Plus className="size-4" />
-      </Button>
+      {/* Its own provider: AdminChrome's wraps only the rail and the top-right
+          cluster, and the overlay is rendered by the page, outside both. */}
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                ref={plusRef}
+                type="button"
+                size="icon"
+                variant="ghost"
+                aria-label="New seed"
+                onClick={() => setOpen(true)}
+              >
+                <Plus className="size-4" />
+              </Button>
+            }
+          />
+          <TooltipContent side="bottom">New seed (k)</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogPortal>
           {/* The blurred surface itself. The popup above it is transparent and
               full-bleed, so the two together are the single blurred sheet this
@@ -132,7 +165,7 @@ export function SeedOverlay({ error, inboxCount }: { error?: string; inboxCount:
             // a drag that began inside the form and released outside is a text
             // selection, not a dismissal.
             onMouseDown={(e) => {
-              if (e.target === e.currentTarget) setOpen(false);
+              if (e.target === e.currentTarget) handleOpenChange(false);
             }}
           >
             <DialogClose

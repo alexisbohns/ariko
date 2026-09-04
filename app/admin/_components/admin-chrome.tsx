@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { Archive, ExternalLink, Inbox, LogOut, Sprout, Waypoints } from "lucide-react";
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { NAV_ITEMS, resolveNavItem } from "@/lib/admin-nav";
 import { logoutAction } from "../actions";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,15 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
  * a real <form> with a real submit button, so the zero-client-JS rule in
  * CLAUDE.md is untouched here. (The seed overlay is where this slice spends
  * its exception.)
+ *
+ * The spacing that clears the chrome lives here too, in AdminMain, because the
+ * decision is the same decision: a page with no chrome must not be padded as
+ * though it had some. One route constant, two consumers.
  */
+
+/** The one route the chrome withdraws from — and therefore the one route the
+ *  content column is centred rather than offset on. */
+const BARE = "/admin/login";
 
 const ICONS: Record<string, ComponentType<{ className?: string }>> = {
   "/admin": Inbox,
@@ -32,7 +40,7 @@ export function AdminChrome() {
   // The login page lives under /admin but gets no chrome. Under the old bar
   // this was expressed by the page simply not calling it; the layout owns the
   // chrome now, so it is expressed here.
-  if (pathname === "/admin/login") return null;
+  if (pathname === BARE) return null;
 
   const active = resolveNavItem(pathname);
 
@@ -104,5 +112,25 @@ export function AdminChrome() {
         </form>
       </div>
     </TooltipProvider>
+  );
+}
+
+/**
+ * The content column. A client component only so it can read the pathname: the
+ * layout is a server component and cannot, and without that the login card sat
+ * centred inside an off-centre box — padded on both sides for a rail and an
+ * account cluster that AdminChrome had already withdrawn.
+ *
+ * `pr-24` rather than `pr-16`: the top-right cluster is two ~32px buttons at
+ * `right-4`, so it occupies roughly the last 84px of the viewport. At and below
+ * 1024px the column's right edge sits at `vw - 96`, which clears it; `pr-16`
+ * put it at `vw - 64`, ~20px underneath a fixed element that wins every hit
+ * test — enough to swallow the tail of the right-aligned link on /admin/beanstalk.
+ */
+export function AdminMain({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const bare = pathname === BARE;
+  return (
+    <main className={"mx-auto max-w-5xl py-8 " + (bare ? "px-6" : "pl-20 pr-24")}>{children}</main>
   );
 }
