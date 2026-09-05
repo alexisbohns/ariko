@@ -18,10 +18,9 @@ import type { ReactNode } from "react";
  *  - It WORKS with script off, which the registry component does not. Hand-
  *    rolling is right exactly when the hand-rolled thing is more capable in the
  *    circumstances it is used in.
- *  - It is a label on hover, not a tooltip PRIMITIVE: no portal, no positioning
- *    engine, no focus management, no delay groups. Nothing the registry
- *    component earns its complexity for is needed by three fixed icons in a
- *    corner.
+ *  - The known limitation: there is no delay group, so a pointer crossing the
+ *    rail flashes each icon's label in turn. Acceptable for three fixed icons in
+ *    a corner; it would not be for a dense toolbar.
  *
  * The admin keeps the real Tooltip. This component is public-zone only.
  *

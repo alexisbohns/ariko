@@ -38,6 +38,12 @@ export function tocState(index: number, activeIndex: number): TocState {
   return index < activeIndex ? "passed" : "default";
 }
 
+/**
+ * Pass the FILTERED h2/h3 list — never a raw scan of every heading in the
+ * document. This reads only `.length`, so a caller that hands it everything it
+ * found gets a rail on a page that has no rail's worth of structure, and the
+ * type cannot tell the two arrays apart.
+ */
 export function shouldRenderToc(headings: readonly TocHeading[]): boolean {
   return headings.length >= TOC_MIN_HEADINGS;
 }

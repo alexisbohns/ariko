@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { shouldRenderToc, tocState, TOC_MIN_HEADINGS, type TocHeading } from "./toc";
+import { shouldRenderToc, tocState, type TocHeading } from "./toc";
 
 const h = (id: string, level: 2 | 3 = 2): TocHeading => ({ id, text: id, level });
 
@@ -25,7 +25,6 @@ test("an active index of -1 leaves every row default", () => {
 });
 
 test("a rail needs at least two headings", () => {
-  assert.equal(TOC_MIN_HEADINGS, 2);
   assert.equal(shouldRenderToc([]), false);
   assert.equal(shouldRenderToc([h("one")]), false);
   assert.equal(shouldRenderToc([h("one"), h("two")]), true);
