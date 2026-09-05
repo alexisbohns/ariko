@@ -113,11 +113,13 @@ export default async function AdminPlantPage({
           </Alert>
         ) : null}
 
-        {/* Unboxed, and NOT through ContentCard: that component IS the card,
-            and the pod and sprout pages still want it. Same editor, same
-            server action, same STRICT textPart — resolveText's fallback would
-            load the fr half into the editor and save it back as en. */}
+        {/* Unboxed twice over: no ContentCard around it (that component IS the
+            card, and the pod and sprout pages still want it) and `bare`, so the
+            editor draws no frame of its own either. Same editor, same server
+            action, same STRICT textPart — resolveText's fallback would load the
+            fr half into the editor and save it back as en. */}
         <ProseEditor
+          bare
           initialMarkdown={textPart(plant.content, "en")}
           entities={entityOptions(raw, `plant:${plant.slug}`)}
           action={editContainerContentAction}
