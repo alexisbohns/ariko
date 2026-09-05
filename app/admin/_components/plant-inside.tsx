@@ -83,7 +83,18 @@ export function PlantInside({ items, children }: { items: InsideItem[]; children
             </TooltipContent>
           </Tooltip>
 
-          <PopoverContent side="left" align="center" className="w-64 max-h-[70vh] overflow-y-auto">
+          {/* `side`/`align` are named rather than left to the primitive's
+              default (`bottom`, which would drop the panel off a vertically
+              centred rail), and `sideOffset` is measured rather than left at
+              the registry's 4px: the anchor is the BUTTON, but what the panel
+              has to clear is the pill around it — 1px border plus the rail's
+              `p-1.5`. At 4 the panel sat on the pill's edge. */}
+          <PopoverContent
+            side="left"
+            align="center"
+            sideOffset={16}
+            className="max-h-[70vh] w-64 overflow-y-auto"
+          >
             <p className="font-heading text-xs uppercase tracking-[0.15em] text-muted-foreground">
               Inside
             </p>
