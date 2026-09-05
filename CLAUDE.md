@@ -157,8 +157,31 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
   an absent status as `active`, so dropping the field outright would silently
   reactivate an inactive plant on every name edit.
 
-Those five are the whole list. Every *other* admin metadata form is unchanged
-and still zero-client-JS. Three neighbours are worth naming so they are not
+- **The public TOC rail is the sixth, and the first one outside the admin**
+  (`components/toc-rail.tsx`, the public-plant-page slice). `app/(public)` had
+  no client JS at all; it now has exactly one island. On plant, pod and bean
+  pages a column of dashes in the left gutter shows the reading position, in
+  three states — passed, active, default — and reveals the headings as links on
+  hover.
+
+  It is the mildest exception on this list. It **renders nothing until it
+  mounts**, so script-off the page is byte-for-byte what it was, and **its
+  absence costs nothing** in the media picker's strong sense: every heading it
+  indexes is already in the prose beneath it, in document order, with an `id` on
+  it. The rail adds no destination, no control and no information of its own —
+  it is a position indicator for a document you can already read. And it
+  **never writes**: no form, no server action, no submit.
+
+  Its headings come from a **DOM scan on mount** (`main h2[id], main h3[id]`),
+  not from a server-side extraction, and that is deliberate: `lib/markdown.ts`
+  already runs `rehypeSlug`, so scanning reads exactly what was emitted and the
+  anchors cannot drift from their targets. A server-side extractor would be a
+  *fourth reader of the one corpus* — the shape the tiptap slice's conformance
+  work found five defects in. Only the arithmetic is pure and tested
+  (`lib/toc.ts`, `lib/toc.test.ts`); `lib/toc-mount.test.ts` pins the absence.
+
+Those six are the whole list. Every *other* admin metadata form is unchanged
+and still zero-client-JS. Four neighbours are worth naming so they are not
 mistaken for further exceptions:
 
 - The chrome (`app/admin/_components/admin-chrome.tsx`) is a client component so
@@ -190,6 +213,27 @@ mistaken for further exceptions:
   `lib/plant-status.ts` is for its enum), so no value is icon-only in the
   accessibility tree. **The palette draws plant rows with the same
   `EntityAvatar`**, which is why that island is imported rather than reproduced.
+- The public chrome (`app/(public)/_components/public-chrome.tsx`) and the plant
+  head (`app/(public)/_components/plant-head.tsx`). Both are **server**
+  components, and both had to work at it. Two rules keep the public zone's
+  no-script promise while it grows a floating rail and an icon-and-label header:
+
+  > **No lucide in a public server component.** `lucide-react` routes every icon
+  > through an `Icon.mjs` carrying `"use client"`, so one `<Crown />` is one
+  > client boundary. `components/media.tsx` states the rule; this slice obeys it
+  > with `components/public-icons.tsx` — five inline `<svg aria-hidden>` glyphs
+  > carrying lucide's own path data (ISC), so the two zones still draw the same
+  > vocabulary.
+  >
+  > **No registry Tooltip in the public chrome.** It is `"use client"` too, and
+  > using it would make *navigation* script-dependent to gain a hover label.
+  > `components/icon-link.tsx` does the label in CSS instead, with the
+  > accessible name on the anchor's `aria-label` rather than on the visual span.
+
+  That second one is a deviation from "never hand-roll what the registry has",
+  and it is the good direction of the trade: the hand-rolled version is strictly
+  more capable *in this zone*, because it works with script off. The admin keeps
+  the real `Tooltip`.
 
 Orientation lives in
 [`README.md`](README.md); the sequenced plan lives in
