@@ -17,6 +17,7 @@ export function ProseEditor({
   entities,
   action,
   hidden,
+  bare = false,
 }: {
   initialMarkdown: string;
   entities: EntityOption[];
@@ -24,6 +25,18 @@ export function ProseEditor({
   action: (formData: FormData) => Promise<void>;
   /** Identifying fields the action needs, e.g. { slug } or { ref }. */
   hidden: Record<string, string>;
+  /**
+   * No frame, and a bigger type — for the ONE page where the editor is not a
+   * card's content but the page's own body (`/admin/plant/[slug]`).
+   *
+   * A prop rather than a global change, because the pod and sprout pages still
+   * reach this component through `ContentCard`: there the box is one border
+   * inside another, but it is also what separates the writing surface from the
+   * card's header and its neighbours. Here there is nothing to separate it
+   * from — the surface IS the page, and a rectangle drawn around the page's
+   * only content is a rectangle drawn around nothing.
+   */
+  bare?: boolean;
 }) {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [pending, startTransition] = useTransition();
@@ -111,7 +124,13 @@ export function ProseEditor({
     immediatelyRender: false, // Next SSR: the editor mounts on the client only.
     editorProps: {
       attributes: {
-        class: "prose prose-sm max-w-none dark:prose-invert min-h-48 focus:outline-none",
+        // Read ONCE, at mount: `useEditor` builds the editor from this config
+        // and a later prop would not reach it. `bare` never changes over an
+        // instance's life (it is a per-page constant), so that is fine here —
+        // but it is why this is not a place to put anything stateful.
+        class: bare
+          ? "prose max-w-none dark:prose-invert min-h-[60vh] focus:outline-none"
+          : "prose prose-sm max-w-none dark:prose-invert min-h-48 focus:outline-none",
       },
     },
     onCreate: ({ editor }) => {
@@ -236,7 +255,7 @@ export function ProseEditor({
         </BubbleMenu>
       ) : null}
 
-      <div className="rounded-lg border p-3">
+      <div className={bare ? undefined : "rounded-lg border p-3"}>
         <EditorContent editor={editor} />
       </div>
 

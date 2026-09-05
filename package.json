@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3333",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 3333",
     "test": "TSX_TSCONFIG_PATH=tsconfig.test.json node --import tsx --test \"lib/**/*.test.ts\" \"lib/**/*.test.tsx\" \"components/**/*.test.ts\" \"components/**/*.test.tsx\" \"scripts/lab-note/*.test.mjs\"",
     "migrate": "node --env-file=.env.local --import tsx scripts/migrate-garden.ts",
     "validators": "node --env-file=.env.local --import tsx scripts/apply-validators.ts",

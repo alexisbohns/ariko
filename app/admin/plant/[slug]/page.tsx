@@ -1,129 +1,131 @@
 import { notFound } from "next/navigation";
-import { buildDataset, resolveText } from "@/lib/data";
+import { buildDataset, resolveText, textPart } from "@/lib/data";
 import { loadRawGarden } from "@/lib/store";
+import { entityOptions } from "@/lib/entity-options";
 import { editContainerContentAction } from "../../actions";
-import { ContentCard } from "../../_components/content-card";
-import { RoleCard } from "../../_components/role-card";
-import { MetaCard } from "../../_components/meta-card";
-import { LogoCard } from "../../_components/logo-card";
-import { roleLine } from "@/lib/plant-role";
-import { statusLabel, statusOf } from "@/lib/plant-status";
-import { cloudinaryThumb } from "@/lib/image-url";
+import { PlantHero } from "../../_components/plant-hero";
+import { PlantInside, type InsideItem } from "../../_components/plant-inside";
+import { PlantMetaForm } from "../../_components/plant-meta-form";
+import { PlantRoleForm } from "../../_components/plant-role-form";
+import { PlantLogoForm } from "../../_components/plant-logo-form";
+import { ProseEditor } from "@/components/editor/prose-editor";
+import { roleParts } from "@/lib/plant-role";
+import { statusOf } from "@/lib/plant-status";
+import { visibilityOf } from "@/lib/plant-visibility";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * A plant, as one page rather than as five stacked cards.
+ *
+ * The mark, the name and three icons are the whole header; each editor is one
+ * click behind the thing it edits (the logo behind the logo, meta behind the
+ * title, the role behind the crown), and the two enum fields are toggles that
+ * write on the click itself. What is left in the column is the prose — unboxed,
+ * because it is the page's actual content and a card around it was a frame
+ * around the only thing worth looking at. The index of pods and beans moved to
+ * a floating panel on a right-hand rail, where it costs the page nothing until
+ * it is asked for.
+ */
 export default async function AdminPlantPage({
   params,
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; form?: string }>;
 }) {
   const { slug } = await params;
-  const { error } = await searchParams;
+  const { error, form } = await searchParams;
 
   const raw = await loadRawGarden();
   const plant = raw.plants?.find((p) => p.slug === slug);
   if (!plant) notFound();
 
   const dataset = buildDataset(raw);
-  const pods = dataset.podsForPlant(slug);
-  const beans = dataset.beansForPlant(slug);
+  const inside: InsideItem[] = [
+    ...dataset.podsForPlant(slug).map((pod) => ({
+      href: `/admin/pod/${pod.slug}`,
+      name: resolveText(pod.name),
+      ref: `pod:${pod.slug}`,
+    })),
+    ...dataset.beansForPlant(slug).map((bean) => ({
+      href: `/admin/bean/${bean.slug}`,
+      name: resolveText(bean.name),
+      ref: `bean:${bean.slug}`,
+    })),
+  ];
+
+  const { label, title } = roleParts(plant.role);
+  // Which sheet a rejected save came from — narrowed here rather than trusted:
+  // the value reaches the client as a union, and an unknown ?form= opens
+  // nothing and falls through to the page-level banner below.
+  const errorForm = form === "meta" || form === "role" ? form : undefined;
 
   return (
-    <article>
+    // PlantInside wraps the WHOLE body, not just the editor: its panel floats
+    // over the page and the page slides out from under it, so what slides has
+    // to be everything — a header that stayed put while the prose moved would
+    // read as a glitch rather than as a nudge.
+    <PlantInside items={inside}>
+      <article className="flex flex-col gap-10">
+        <a
+          href="/admin/garden"
+          className="self-start text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+        >
+          ← garden
+        </a>
 
-      <div className="flex flex-col gap-8">
-        <div className="flex flex-col gap-3">
-          <a
-            href="/admin/garden"
-            className="text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-          >
-            ← garden
-          </a>
-          <div className="flex items-center gap-3">
-            {/* The mark as the admin will see it published, at the size the
-                landing uses — so a crop that goes wrong is visible here rather
-                than only in production. */}
-            {plant.logo ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={cloudinaryThumb(plant.logo.url, { width: 96, height: 96 })}
-                alt=""
-                className="h-12 w-12 shrink-0 rounded-xl object-cover"
-              />
-            ) : null}
-            <h1 className="font-heading text-2xl font-medium tracking-tight">
-              {resolveText(plant.name)}
-            </h1>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">plant:{plant.slug}</Badge>
-            <Badge>{roleLine(plant.role)}</Badge>
-            <Badge variant="secondary">{statusLabel(statusOf(plant))}</Badge>
-            <Badge variant={plant.visibility === "public" ? "default" : "secondary"}>
-              {plant.visibility ?? "public"}
-            </Badge>
-          </div>
-          {resolveText(plant.description ?? "").trim() ? (
-            <p className="text-sm text-muted-foreground">{resolveText(plant.description)}</p>
-          ) : null}
-        </div>
+        <PlantHero
+          slug={plant.slug}
+          name={resolveText(plant.name)}
+          description={resolveText(plant.description ?? "").trim()}
+          logoUrl={plant.logo?.url}
+          status={statusOf(plant)}
+          visibility={visibilityOf(plant)}
+          role={{ label, title, detail: resolveText(plant.role.detail ?? "").trim() }}
+          error={error}
+          errorForm={errorForm}
+          metaForm={<PlantMetaForm plant={plant} />}
+          roleForm={<PlantRoleForm plant={plant} />}
+          logoForm={<PlantLogoForm plant={plant} />}
+          // Everything the three editors can write, as stored. The hero closes
+          // a sheet when this changes — the only honest signal a soft-navigating
+          // save landed. STRICT textPart on both halves, so an fr-only edit
+          // still moves the fingerprint (resolveText would fall back and hide
+          // it).
+          saved={JSON.stringify([
+            textPart(plant.name, "en"),
+            textPart(plant.name, "fr"),
+            textPart(plant.description, "en"),
+            textPart(plant.description, "fr"),
+            plant.role,
+            plant.logo?.url ?? null,
+          ])}
+        />
 
-        {error ? (
+        {/* Only an error no sheet will show: the hero reopens the sheet a
+            rejected meta or role save came from and renders the message inside
+            it, so repeating it here would say it twice. */}
+        {error && !errorForm ? (
           <Alert variant="destructive" role="alert">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         ) : null}
 
-        <MetaCard plant={plant} />
-
-        <RoleCard plant={plant} />
-
-        <LogoCard plant={plant} />
-
-        <ContentCard
-          raw={raw}
-          content={plant.content}
-          selfRef={`plant:${plant.slug}`}
+        {/* Unboxed twice over: no ContentCard around it (that component IS the
+            card, and the pod and sprout pages still want it) and `bare`, so the
+            editor draws no frame of its own either. Same editor, same server
+            action, same STRICT textPart — resolveText's fallback would load the
+            fr half into the editor and save it back as en. */}
+        <ProseEditor
+          bare
+          initialMarkdown={textPart(plant.content, "en")}
+          entities={entityOptions(raw, `plant:${plant.slug}`)}
           action={editContainerContentAction}
           hidden={{ ref: `plant:${plant.slug}` }}
         />
-
-        {/* Mechanical: an index has no argument to make, so it takes no
-            authoring (umbrella §9). */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-heading text-base tracking-tight">Inside</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="flex flex-col gap-1 text-sm">
-              {pods.map((pod) => (
-                <li key={pod.slug}>
-                  <a href={`/admin/pod/${pod.slug}`} className="underline-offset-4 hover:underline">
-                    {resolveText(pod.name)}
-                  </a>{" "}
-                  <span className="font-heading text-xs text-muted-foreground">pod:{pod.slug}</span>
-                </li>
-              ))}
-              {beans.map((bean) => (
-                <li key={bean.slug}>
-                  <a href={`/admin/bean/${bean.slug}`} className="underline-offset-4 hover:underline">
-                    {resolveText(bean.name)}
-                  </a>{" "}
-                  <span className="font-heading text-xs text-muted-foreground">bean:{bean.slug}</span>
-                </li>
-              ))}
-              {pods.length === 0 && beans.length === 0 ? (
-                <li className="text-muted-foreground">nothing yet</li>
-              ) : null}
-            </ul>
-          </CardContent>
-        </Card>
-      </div>
-    </article>
+      </article>
+    </PlantInside>
   );
 }

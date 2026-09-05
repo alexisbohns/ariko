@@ -83,7 +83,7 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
   on its way to triage, and the sprout media card downstream carries the full
   picker).
 
-- **The ⌘K command palette is the fourth, and the mildest of the four**
+- **The ⌘K command palette is the fourth, and the mildest of them**
   (`app/admin/_components/command-palette.tsx`, the palette slice). ⌘K (Ctrl+K
   off macOS) anywhere in the admin but the login page opens the seed overlay's
   blurred sheet, one octave up: a bare centred input over a filtered list of
@@ -110,7 +110,54 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
   grouping — lives in `lib/palette-items.ts`. Importing the wrong one from the
   palette component does not merely bloat the bundle; it fails the build.
 
-Those four are the whole list. Every *other* admin metadata form is unchanged
+- **The plant page's header is the fifth**, and the largest single bite so far
+  (`app/admin/_components/plant-hero.tsx`, `plant-inside.tsx`, the
+  plant-page-pure slice). `/admin/plant/[slug]` stopped being five stacked
+  cards: the mark sits centred in a squircle with the name under it, and each
+  editor is now one click behind the thing it edits — the logo behind the logo
+  (a popover), name and description behind the page title (a sheet), the role
+  behind a crown (a popover that summarizes, then a sheet), and status and
+  visibility behind two icons that open their own vocabulary. The sheets are the
+  seed overlay's, extracted to `overlay-sheet.tsx` and now shared by three
+  callers; the shell is all that file carries, never a write path. The pods and
+  beans index left the page for a floating panel on a right-hand rail, the
+  mirror of the chrome's, which slides the page left rather than covering it.
+
+  Script-off, **nothing on the header can be edited** — no popover, no sheet, no
+  fields, five inert icons. That is a real loss, in the seed overlay's sense
+  rather than the media picker's, and it was taken deliberately: a header whose
+  editors open on the element they edit cannot exist without script, and the
+  alternative was the five cards this slice replaced. The header still READS
+  correctly — every trigger names its stored value in its accessible name, so
+  the mark, the name and all five values are there.
+
+  `lib/plant-hero-mount.test.ts` pins that absence, and it pins the *shape* of
+  it rather than the fact: the failure mode here is not a missing form but a
+  half-rendered one. Server-render a popover's fields "so they are there on
+  first paint" and the page grows a metadata form with no way to submit it —
+  and for the two enum fields, a `status` input beside a submit button is a
+  plant's visibility one stray press away from changing.
+
+  Which is the other rule this header carries: **neither enum field writes on
+  the click that opens it.** The icon opens the vocabulary as a list of native
+  radios, the author picks a member, and a Save button commits it — disabled
+  until the pick actually differs from what is stored, so the second click is a
+  confirmation rather than a formality. A one-click flip was the first shape
+  tried and the wrong one: a stray click on the globe unpublishes a project,
+  and the undo is another stray click on the same pixel.
+
+  Two things keep the write paths honest. The three big forms are
+  **server-rendered by the page and handed down as props** (`metaForm`,
+  `roleForm`, `logoForm`), so the client island never composes their payload and
+  never learns a field name. And the two it does render itself post **a named
+  member of a vocabulary** (`lib/plant-status.ts`, `lib/plant-visibility.ts`),
+  which the action re-validates rather than trusting — so a stale page can only
+  ever name a value the vocabulary already has. The Meta sheet still carries
+  `status` as a hidden input for a related reason: `buildPlantMetaPatch` reads
+  an absent status as `active`, so dropping the field outright would silently
+  reactivate an inactive plant on every name edit.
+
+Those five are the whole list. Every *other* admin metadata form is unchanged
 and still zero-client-JS. Three neighbours are worth naming so they are not
 mistaken for further exceptions:
 

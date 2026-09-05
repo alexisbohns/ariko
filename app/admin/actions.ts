@@ -15,6 +15,8 @@ import {
   POD_PREFIX,
   type MediaImage,
   type PlantRole,
+  type PlantStatus,
+  type Visibility,
 } from "@/lib/data";
 import { resolveParentChoice, buildSproutInput, buildNewBean, validateSproutInput } from "@/lib/promote";
 import { buildSproutPatch, validateSproutPatch, shouldCascadePublish } from "@/lib/sprout-edit";
@@ -28,6 +30,8 @@ import {
   type PlantMetaPatch,
 } from "@/lib/plant-meta";
 import { buildPlantLogoPatch } from "@/lib/plant-logo";
+import { isPlantStatus } from "@/lib/plant-status";
+import { isVisibility } from "@/lib/plant-visibility";
 import { runSync } from "@/lib/pollen-run";
 import {
   createPod,
@@ -46,6 +50,8 @@ import {
   updatePlantRole,
   updatePlantMeta,
   updatePlantLogo,
+  updatePlantStatus,
+  updatePlantVisibility,
 } from "@/lib/botanical";
 import { uploadImage } from "@/lib/storage";
 import { checkUploadFile, uploadedFilename } from "@/lib/upload-input";
@@ -371,7 +377,9 @@ export async function editPlantRoleAction(formData: FormData): Promise<void> {
     role = buildPlantRolePatch(formData);
   } catch (err) {
     if (!(err instanceof InvalidRoleKindError)) throw err;
-    redirect(`${back}?error=${encodeURIComponent(`could not save role: ${err.message}`)}`);
+    redirect(
+      `${back}?form=role&error=${encodeURIComponent(`could not save role: ${err.message}`)}`,
+    );
   }
 
   await updatePlantRole(slug, role);
@@ -409,7 +417,7 @@ export async function editPlantMetaAction(formData: FormData): Promise<void> {
     patch = buildPlantMetaPatch(formData);
   } catch (err) {
     if (!(err instanceof BlankPlantNameError) && !(err instanceof InvalidPlantStatusError)) throw err;
-    redirect(`${back}?error=${encodeURIComponent(`could not save: ${err.message}`)}`);
+    redirect(`${back}?form=meta&error=${encodeURIComponent(`could not save: ${err.message}`)}`);
   }
 
   await updatePlantMeta(slug, patch);
@@ -445,6 +453,73 @@ export async function editPlantLogoAction(formData: FormData): Promise<void> {
   revalidatePath("/admin");
   revalidatePath("/admin/garden");
   redirect(`/admin/plant/${encodeURIComponent(slug)}`);
+}
+
+/**
+ * The plant page's two one-click flips: the zap (status) and the globe/lock
+ * (visibility).
+ *
+ * One helper, two exports. Both are the same shape and the shape is the point:
+ * the form posts the value it WANTS rather than "flip it", so a page rendered
+ * before somebody else changed the field cannot flip it into a third state, and
+ * the action validates a named member of a vocabulary instead of trusting the
+ * client's arithmetic.
+ *
+ * Real <form>s posting to real server actions, so these two survive without
+ * script even though the header around them does not — the buttons are the
+ * whole form, and there is nothing else in the payload for a stray POST to
+ * damage. An unrecognized value redirects with an error rather than
+ * defaulting, the stance editPlantRoleAction takes: both fields are public
+ * claims (one shows on the landing gallery, the other decides whether the
+ * plant is on it at all).
+ */
+async function flipPlantField(
+  formData: FormData,
+  field: "status" | "visibility",
+  write: (slug: string, value: string) => Promise<void>,
+  valid: (raw: string) => boolean,
+): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+
+  // Existence first, so the error redirect below can only ever target a real
+  // page and can only interpolate a known-good stored slug.
+  const raw = await loadRawGarden();
+  const existing = raw.plants?.find((p) => p.slug === slug);
+  if (!existing) redirect("/admin/garden");
+
+  const back = `/admin/plant/${encodeURIComponent(slug)}`;
+  const value = String(formData.get(field) ?? "").trim();
+  if (!valid(value)) {
+    redirect(`${back}?error=${encodeURIComponent(`unknown ${field}: ${value || "(blank)"}`)}`);
+  }
+
+  await write(slug, value);
+
+  revalidatePath("/admin");
+  // /admin/garden tabulates both fields, so it is stale after either write in
+  // a way /admin/plant/[slug] (force-dynamic) is not. The public landing and
+  // plant pages are force-dynamic too — they re-read on the next request.
+  revalidatePath("/admin/garden");
+  redirect(back);
+}
+
+export async function setPlantStatusAction(formData: FormData): Promise<void> {
+  return flipPlantField(
+    formData,
+    "status",
+    (slug, value) => updatePlantStatus(slug, value as PlantStatus),
+    isPlantStatus,
+  );
+}
+
+export async function setPlantVisibilityAction(formData: FormData): Promise<void> {
+  return flipPlantField(
+    formData,
+    "visibility",
+    (slug, value) => updatePlantVisibility(slug, value as Visibility),
+    isVisibility,
+  );
 }
 
 // Manual pull of every configured feed — same core the cron Action calls.
