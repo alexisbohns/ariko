@@ -1,13 +1,11 @@
 import { notFound } from "next/navigation";
 import { resolveText, textPart } from "@/lib/data";
-import { roleLine } from "@/lib/plant-role";
-import { statusLabel, statusOf } from "@/lib/plant-status";
-import { cloudinaryThumb } from "@/lib/image-url";
 import { currentLang } from "@/lib/locale-server";
 import { getPublicDataset } from "@/lib/store";
 import { resolveEntity } from "@/lib/entity-resolve";
+import { PlantHead } from "@/app/(public)/_components/plant-head";
+import { ProfanePreload } from "@/components/brand/profane-preload";
 import { Prose } from "@/components/markdown";
-import { Badge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
 
@@ -31,48 +29,15 @@ export default async function PlantPage({ params }: { params: Promise<{ slug: st
 
   return (
     <article className="flex flex-col gap-8">
-      <header className="flex flex-col gap-3">
-        {/* Same mark, same shape as the landing gallery — a page reached
-            directly from a link or the graph should look like the section the
-            visitor would otherwise have come from. Decorative: the name is the
-            next element. */}
-        {plant.logo ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={cloudinaryThumb(plant.logo.url, { width: 96, height: 96 })}
-            alt=""
-            decoding="async"
-            className="h-12 w-12 rounded-xl object-cover"
-          />
-        ) : null}
-        <h1 className="font-heading text-2xl font-medium tracking-tight">
-          {resolveText(plant.name, lang)}
-        </h1>
-        {/* The role leads: it is the claim a visitor most needs, and it wears
-            the strong `default` badge so it reads ahead of the natures rather
-            than as one more tag among them. */}
-        <div className="flex flex-wrap gap-1.5">
-          <Badge>{roleLine(plant.role)}</Badge>
-          {plant.natures.map((nature) => (
-            <Badge key={nature} variant="secondary">
-              {nature}
-            </Badge>
-          ))}
-          {/* Only when inactive. This page has no "Inactive" heading above it
-              to carry the fact the way the landing gallery does, so the badge
-              is where the status becomes visible at all. An ACTIVE plant wears
-              nothing: active is the unmarked default everywhere else in this
-              feature, and a badge saying so on every plant page would be
-              noise. */}
-          {statusOf(plant) === "inactive" ? (
-            <Badge variant="secondary">{statusLabel("inactive")}</Badge>
-          ) : null}
-        </div>
-        {resolveText(plant.description ?? "", lang).trim() ? (
-          <p className="text-base text-muted-foreground">{resolveText(plant.description, lang)}</p>
-        ) : null}
-        {roleDetail ? <p className="text-sm text-muted-foreground">{roleDetail}</p> : null}
-      </header>
+      {/* Only pages that wear the face ask for it: the plant page is the
+          display face's second wearer, after the landing. */}
+      <ProfanePreload />
+      <PlantHead
+        plant={plant}
+        name={resolveText(plant.name, lang)}
+        description={resolveText(plant.description ?? "", lang).trim()}
+        roleDetail={roleDetail}
+      />
 
       {/* The narrative — where the argument lives. Its entity refs resolve
           against the public dataset, so anything hidden renders as nothing. */}
