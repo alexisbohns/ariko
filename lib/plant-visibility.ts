@@ -2,13 +2,13 @@ import type { Plant, Visibility } from "./data";
 
 /**
  * A plant's visibility as a vocabulary — the sibling of `lib/plant-status.ts`,
- * written when the plant page grew a one-click privacy toggle.
+ * written when the plant page grew a privacy control of its own.
  *
  * The WORDS are not here: `visibilityLabel` already lives in `lib/glyphs.ts`,
  * which is the one place a display form is decided for the value the admin
- * tables draw. This module owns the members, the default and the flip, so a
- * toggle never has to spell `visibility === "public" ? "private" : "public"`
- * inline — the expression that is easiest to get backwards.
+ * tables draw. This module owns the members and the default, and deliberately
+ * nothing else — the plant header renders the members as a LIST and posts the
+ * one the author picked, so nothing anywhere needs "the other one".
  */
 export const PLANT_VISIBILITIES: readonly Visibility[] = ["public", "private"];
 
@@ -23,16 +23,4 @@ export function visibilityOf(plant: Pick<Plant, "visibility">): Visibility {
 
 export function isVisibility(raw: string): raw is Visibility {
   return (PLANT_VISIBILITIES as readonly string[]).includes(raw);
-}
-
-/** The other one. A toggle posts the RESULT of this, never a bare "flip it". */
-export function nextVisibility(visibility: Visibility): Visibility {
-  return visibility === "public" ? "private" : "public";
-}
-
-export class InvalidVisibilityError extends Error {
-  constructor(public received: string) {
-    super(`unknown visibility: ${received || "(blank)"}`);
-    this.name = "InvalidVisibilityError";
-  }
 }

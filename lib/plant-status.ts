@@ -27,17 +27,6 @@ export function statusLabel(status: PlantStatus): string {
   return LABELS[status];
 }
 
-/**
- * The other member. Written when the plant page replaced the status select
- * with a one-click zap: the toggle posts the RESULT of this rather than a bare
- * "flip it", so the action still validates a named member and a stale page
- * cannot flip a status somebody already changed in another tab into a third
- * thing.
- */
-export function nextStatus(status: PlantStatus): PlantStatus {
-  return status === "active" ? "inactive" : "active";
-}
-
 export function isPlantStatus(raw: string): raw is PlantStatus {
   return (PLANT_STATUSES as readonly string[]).includes(raw);
 }

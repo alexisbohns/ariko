@@ -116,40 +116,46 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
   cards: the mark sits centred in a squircle with the name under it, and each
   editor is now one click behind the thing it edits — the logo behind the logo
   (a popover), name and description behind the page title (a sheet), the role
-  behind a crown (a popover that summarizes, then a sheet). The sheets are the
+  behind a crown (a popover that summarizes, then a sheet), and status and
+  visibility behind two icons that open their own vocabulary. The sheets are the
   seed overlay's, extracted to `overlay-sheet.tsx` and now shared by three
   callers; the shell is all that file carries, never a write path. The pods and
   beans index left the page for a floating panel on a right-hand rail, the
   mirror of the chrome's, which slides the page left rather than covering it.
 
-  Script-off, the **three editors are simply not reachable** — no popover, no
-  sheet, no fields. That is a real loss, in the seed overlay's sense rather than
-  the media picker's, and it was taken deliberately: a header whose editors open
-  on the element they edit cannot exist without script, and the alternative was
-  the five cards this slice replaced.
+  Script-off, **nothing on the header can be edited** — no popover, no sheet, no
+  fields, five inert icons. That is a real loss, in the seed overlay's sense
+  rather than the media picker's, and it was taken deliberately: a header whose
+  editors open on the element they edit cannot exist without script, and the
+  alternative was the five cards this slice replaced. The header still READS
+  correctly — every trigger names its stored value in its accessible name, so
+  the mark, the name and all five values are there.
 
-  What was NOT given up is the pair of one-click writes beside them: **status
-  (a zap, green when active) and visibility (globe/lock) are real `<form>`s**
-  posting a named vocabulary member to a one-field server action, so they work
-  with no script at all. So the header's script-off cost is exactly the seed
-  overlay's and the vault filters': the three *triggers* go inert (they open
-  nothing, like the inbox's `+`), while every write that can survive a dead
-  trigger does. `lib/plant-hero-mount.test.ts` pins both halves — the two
-  toggles reach the script-off HTML, none of the three editors' fields do —
-  because each is easy to break in the opposite direction: rewrite a toggle as
-  an onClick "since the header is an island anyway" and it joins the inert
-  triggers; server-render a sheet's fields "so they are there on first paint"
-  and the page grows a metadata form with no way to submit it.
+  `lib/plant-hero-mount.test.ts` pins that absence, and it pins the *shape* of
+  it rather than the fact: the failure mode here is not a missing form but a
+  half-rendered one. Server-render a popover's fields "so they are there on
+  first paint" and the page grows a metadata form with no way to submit it —
+  and for the two enum fields, a `status` input beside a submit button is a
+  plant's visibility one stray press away from changing.
 
-  Two things keep the write paths honest. The forms are **server-rendered by the
-  page and handed down as props** (`metaForm`, `roleForm`, `logoForm`), so the
-  client island never composes a payload and never learns a field name. And each
-  toggle posts **the value it wants**, not "flip it", so the action validates a
-  member of a vocabulary (`lib/plant-status.ts`, `lib/plant-visibility.ts`)
-  rather than trusting the client's arithmetic. The Meta sheet still carries
-  `status` as a hidden input for the same reason in reverse:
-  `buildPlantMetaPatch` reads an absent status as `active`, so dropping the
-  field outright would silently reactivate an inactive plant on every name edit.
+  Which is the other rule this header carries: **neither enum field writes on
+  the click that opens it.** The icon opens the vocabulary as a list of native
+  radios, the author picks a member, and a Save button commits it — disabled
+  until the pick actually differs from what is stored, so the second click is a
+  confirmation rather than a formality. A one-click flip was the first shape
+  tried and the wrong one: a stray click on the globe unpublishes a project,
+  and the undo is another stray click on the same pixel.
+
+  Two things keep the write paths honest. The three big forms are
+  **server-rendered by the page and handed down as props** (`metaForm`,
+  `roleForm`, `logoForm`), so the client island never composes their payload and
+  never learns a field name. And the two it does render itself post **a named
+  member of a vocabulary** (`lib/plant-status.ts`, `lib/plant-visibility.ts`),
+  which the action re-validates rather than trusting — so a stale page can only
+  ever name a value the vocabulary already has. The Meta sheet still carries
+  `status` as a hidden input for a related reason: `buildPlantMetaPatch` reads
+  an absent status as `active`, so dropping the field outright would silently
+  reactivate an inactive plant on every name edit.
 
 Those five are the whole list. Every *other* admin metadata form is unchanged
 and still zero-client-JS. Three neighbours are worth naming so they are not

@@ -7,18 +7,20 @@ import type { Plant } from "./data";
  * lib/palette-mount.test.ts, and the file that keeps this slice's entry in
  * CLAUDE.md honest.
  *
- * The header spends a real exception: the logo popover, the meta sheet and the
- * role sheet are all script-only, and script-off they are simply not there.
- * What must NOT be lost with them is the pair of one-click writes — status and
- * visibility are plain <form>s posting a named value to a one-field server
- * action, so they keep working. Both halves are asserted here, because both are
- * easy to break by accident in opposite directions:
+ * The header spends a real exception: all five editors — the logo popover, the
+ * meta sheet, the role sheet, and the status and visibility option popovers —
+ * are script-only, and script-off they are simply not there. What this file
+ * pins is that they are not there in the RIGHT way. The failure mode is not a
+ * missing form; it is a HALF-rendered one.
  *
- *  - Wire the toggles as onClick buttons "since the header is a client island
- *    anyway" and the script-off page grows two dead controls — the failure
- *    mode the media picker's rule exists to forbid.
- *  - Server-render a sheet's fields "so the form is there on first paint" and
- *    the script-off page grows a metadata form with no way to submit it.
+ * Server-render a popover's fields "so they are there on first paint" and the
+ * page grows a metadata form with no way to submit it. Worse for the two enum
+ * fields specifically: a `status` input reaching the script-off HTML alongside
+ * a submit is a plant's visibility one stray press away from changing, which is
+ * exactly what the confirm-then-save shape was introduced to prevent.
+ *
+ * The mark and the name DO survive — the header is readable without script,
+ * just not editable.
  *
  * No jsdom: the server render IS the script-off render (useEffect never runs),
  * and needing a DOM to check that would defeat the point.
@@ -56,9 +58,9 @@ async function hero(overrides: Partial<Plant> = {}): Promise<unknown> {
     status: statusOf(subject),
     visibility: visibilityOf(subject),
     role: { label, title, detail: "" },
-    // The three editors are server-rendered by the page and handed down. Given
-    // recognisable markers here: if any of them ever reaches the script-off
-    // HTML, the assertions below say so by name.
+    // The three big forms are server-rendered by the page and handed down.
+    // Given recognisable markers here: if any of them ever reaches the
+    // script-off HTML, the assertions below say so by name.
     metaForm: React.createElement("input", { name: "nameFr" }),
     roleForm: React.createElement("input", { name: "kind" }),
     logoForm: React.createElement("input", { name: "logo" }),
@@ -72,24 +74,33 @@ test("the name and the mark survive without script", async () => {
   assert.ok(html.includes("A listening machine"), html);
 });
 
-test("both one-click writes survive without script, posting the value they want", async () => {
-  const html = await renderScriptOff(await hero());
-  assert.ok(html.includes('name="status" value="inactive"'), html);
-  assert.ok(html.includes('name="visibility" value="private"'), html);
-  assert.ok(html.includes('name="slug" value="melogram"'), html);
-});
-
-test("each toggle posts the OTHER value — an inactive, private plant offers the way back", async () => {
-  const html = await renderScriptOff(
-    await hero({ status: "inactive", visibility: "private" }),
-  );
-  assert.ok(html.includes('name="status" value="active"'), html);
-  assert.ok(html.includes('name="visibility" value="public"'), html);
-});
-
-test("none of the three editors reaches the script-off HTML", async () => {
+test("no editor's fields reach the script-off HTML", async () => {
   const html = await renderScriptOff(await hero());
   for (const field of ['name="nameFr"', 'name="kind"', 'name="logo"']) {
     assert.ok(!html.includes(field), `${field} leaked into the script-off render:\n${html}`);
   }
+});
+
+test("neither enum field can be written from the script-off page", async () => {
+  for (const subject of [{}, { status: "inactive" as const, visibility: "private" as const }]) {
+    const html = await renderScriptOff(await hero(subject));
+    // No radio, no hidden input, no slug to aim a write at — and therefore no
+    // form at all on a page whose every trigger is inert.
+    assert.ok(!html.includes('name="status"'), html);
+    assert.ok(!html.includes('name="visibility"'), html);
+    assert.ok(!html.includes('name="slug"'), html);
+    assert.ok(!html.includes("<form"), html);
+  }
+});
+
+test("the triggers still NAME the stored values, so the header reads correctly", async () => {
+  const active = await renderScriptOff(await hero());
+  assert.ok(active.includes("Status: Active"), active);
+  assert.ok(active.includes("Visibility: Public"), active);
+
+  const hidden = await renderScriptOff(
+    await hero({ status: "inactive", visibility: "private" }),
+  );
+  assert.ok(hidden.includes("Status: Inactive"), hidden);
+  assert.ok(hidden.includes("Visibility: Private"), hidden);
 });
