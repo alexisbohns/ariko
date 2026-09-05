@@ -1215,11 +1215,17 @@ Expected: build succeeds with no type or import errors.
 
 - [ ] **Step 5: Confirm the public zone still has exactly one client module**
 
-Run: `grep -rln "use client" "app/(public)" components/public-icons.tsx components/icon-link.tsx "app/(public)/_components"`
+The greps must anchor on the DIRECTIVE, not on the phrase. Several files in this slice discuss
+`"use client"` and `lucide-react` in their comments — that prose is the documentation of the rule and
+must not be what trips the check. A directive is only a directive on the file's first line.
+
+Run: `grep -rl '^"use client"' "app/(public)" components/public-icons.tsx components/icon-link.tsx components/brand/profane-preload.tsx`
 Expected: **no output.** The only `"use client"` this slice adds is `components/toc-rail.tsx`, which lives outside those paths.
 
-Run: `grep -rn "lucide-react" "app/(public)" components/public-icons.tsx components/icon-link.tsx`
-Expected: **no output.**
+Run: `grep -rn '^import.*lucide-react\|from "lucide-react"' "app/(public)" components/public-icons.tsx components/icon-link.tsx`
+Expected: **no output.** (A bare `grep -rn "lucide-react"` will match comment prose in
+`components/public-icons.tsx` and `app/(public)/_components/public-chrome.tsx` — those hits are the
+rule being stated, not broken.)
 
 - [ ] **Step 6: Commit anything outstanding**
 
