@@ -315,6 +315,22 @@ the point.
 - **The landing page is untouched.** It sits outside `(chrome)` deliberately — it is the front door,
   not a destination reached from a nav, and the mark large and centred is the entire point. No rail,
   no lang switch, no TOC.
+
+  **And specifically: the status label does NOT follow the plant onto the landing.** §4.1 overturns
+  the "active is unmarked" rule *for the plant page only*. On the landing, a plant's status stays
+  expressed the way it already is — by the `Inactive` divider that separates the two groups, and by
+  nothing else. Each plant section keeps its `roleLine` subtitle and gains no icon, no label and no
+  badge.
+
+  The reason is the one §4.1 itself turns on. `⚡ Active` earns its place on a plant's own page
+  because it is one of exactly two facts stated about a single subject, in a centred head that
+  exists to state them. Repeated down a gallery of every plant, on a page that has *already* said
+  the same thing structurally by putting the inactive ones under their own heading, it stops being a
+  fact and becomes a refrain — and it would say "Active" loudest on precisely the plants where the
+  word carries the least information.
+
+  This is a constraint on later slices, not just a description of this one: the landing is the
+  obvious place for a "consistency" change to propagate to, and propagating it there would be wrong.
 - **The plant page's "Inside" index stays where it is.** The admin moved its equivalent to a floating
   right-hand panel; that is an authoring affordance, and a visitor's index is a list at the end of
   the page.
