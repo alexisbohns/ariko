@@ -27,9 +27,13 @@ import assert from "node:assert/strict";
  * early-return before a hook, so the DOM-scan useEffect cannot sit after
  * `if (!mounted) return null` in a single component. Merge them anyway and
  * these tests still pass — useEffect never runs during a server render either
- * way, so the markup is still "". Lint and the runtime catch that one; what
- * this file catches is the thing it actually asserts, which is the failure mode
- * that matters: that no markup at all reaches the script-off HTML.
+ * way, so the markup is still "". React itself catches that one, at runtime,
+ * by throwing on the conditional hook — and ONLY at runtime: this repo ships no
+ * ESLint (no config, no dependency, and CI runs tsc, npm test and npm run build
+ * and nothing else), so there is no react-hooks/rules-of-hooks to catch it
+ * statically. What this file catches is the thing it actually asserts, which is
+ * the failure mode that matters: that no markup at all reaches the script-off
+ * HTML.
  *
  * No jsdom, like lib/palette-mount.test.ts: renderToStaticMarkup is exactly the
  * no-DOM path being exercised, and needing a DOM to run it would defeat the
