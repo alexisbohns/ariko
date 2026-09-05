@@ -2,18 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
-import { Link2, Plus, Send, X } from "lucide-react";
+import { Link2, Plus, Send } from "lucide-react";
 import { createSeedAction } from "../actions";
 import { MediaPicker } from "@/components/admin/media-picker";
+import { OverlaySheet } from "./overlay-sheet";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogOverlay,
-  DialogPopup,
-  DialogPortal,
-} from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 /**
@@ -25,13 +19,12 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
  * script, and the alternative — a second server-rendered form at its own route,
  * writing the same seed — would be maintained by nobody.
  *
- * The shell is the registry's dialog primitive rather than a hand-rolled one,
- * so the modal claim is actually enforced: focus containment, scroll lock,
- * inert background, Escape dismissal and focus restoration all come from
- * `Dialog.Root`'s `modal` default rather than from this file. Outside-press
- * dismissal is the one exception, hand-rolled on the backdrop below, because
- * the popup is full-bleed and so nothing is ever "outside" it for the
- * primitive to catch.
+ * The shell is `OverlaySheet` — the registry's dialog primitive rather than a
+ * hand-rolled one, so the modal claim is actually enforced: focus containment,
+ * scroll lock, inert background, Escape dismissal and focus restoration all
+ * come from `Dialog.Root`'s `modal` default rather than from this file. That
+ * sheet is shared with the plant page's Meta and Role overlays now; it carries
+ * the shell ONLY, and this file keeps its own form and its own action.
  *
  * The exception is the SHELL, never the write path: this posts to
  * createSeedAction with the field names lib/seed-form.ts already reads
@@ -145,123 +138,91 @@ export function SeedOverlay({ error, inboxCount }: { error?: string; inboxCount:
         </Tooltip>
       </TooltipProvider>
 
-      <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogPortal>
-          {/* The blurred surface itself. The popup above it is transparent and
-              full-bleed, so the two together are the single blurred sheet this
-              overlay has always been, rather than a card on a scrim. */}
-          <DialogOverlay className="z-50 bg-background/70 backdrop-blur-xl supports-backdrop-filter:backdrop-blur-xl" />
-          <DialogPopup
-            aria-label="New seed"
-            initialFocus={titleRef}
-            finalFocus={plusRef}
-            // The fade matches the one the registry's backdrop already
-            // carries, so the sheet arrives as one surface rather than a
-            // fading blur with an instant form on top of it.
-            className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-6 outline-none duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0"
-            // The popup covers the viewport, so nothing is ever "outside" it
-            // for the primitive's own outside-press dismissal to catch. Only a
-            // press that both starts and ends on the empty surround dismisses —
-            // a drag that began inside the form and released outside is a text
-            // selection, not a dismissal.
-            onMouseDown={(e) => {
-              if (e.target === e.currentTarget) handleOpenChange(false);
-            }}
+      <OverlaySheet
+        open={open}
+        onOpenChange={handleOpenChange}
+        label="New seed"
+        initialFocus={titleRef}
+        finalFocus={plusRef}
+      >
+      <form action={createSeedAction} className="flex w-full max-w-xl flex-col gap-6">
+        {error ? (
+          <Alert variant="destructive" role="alert">
+            <AlertDescription>Could not save: {error}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        <input type="hidden" name="lang" value={lang} />
+
+        <input
+          ref={titleRef}
+          type="text"
+          name="title"
+          required
+          aria-label="Title"
+          placeholder="What is it?"
+          className={`${FIELD} text-center font-heading text-3xl tracking-tight`}
+        />
+
+        {/* field-sizing-content is Tailwind v4's `field-sizing: content` —
+            the textarea grows with its text, with no JS measuring it. */}
+        <textarea
+          name="note"
+          rows={2}
+          aria-label="Note"
+          placeholder="Say more…"
+          className={`${FIELD} field-sizing-content resize-none text-center text-base`}
+        />
+
+        <div className="flex items-center gap-3 border-t pt-4">
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            aria-label={`Note language: ${lang === "en" ? "English" : "French"}`}
+            onClick={() => setLang((l) => (l === "en" ? "fr" : "en"))}
           >
-            <DialogClose
-              render={
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  aria-label="Close"
-                  className="absolute right-4 top-4"
-                />
-              }
-            >
-              <X className="size-4" />
-            </DialogClose>
+            <span className="text-base leading-none">{lang === "en" ? "🇬🇧" : "🇫🇷"}</span>
+          </Button>
 
-            <form action={createSeedAction} className="flex w-full max-w-xl flex-col gap-6">
-              {error ? (
-                <Alert variant="destructive" role="alert">
-                  <AlertDescription>Could not save: {error}</AlertDescription>
-                </Alert>
-              ) : null}
-
-              <input type="hidden" name="lang" value={lang} />
-
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <Link2 className="size-4 shrink-0 text-muted-foreground" />
               <input
-                ref={titleRef}
-                type="text"
-                name="title"
-                required
-                aria-label="Title"
-                placeholder="What is it?"
-                className={`${FIELD} text-center font-heading text-3xl tracking-tight`}
+                type="url"
+                name="link"
+                value={firstLink}
+                onChange={(e) => setFirstLink(e.target.value)}
+                aria-label="Link"
+                placeholder="paste a URL"
+                className={`${FIELD} min-w-0 flex-1 text-sm`}
               />
-
-              {/* field-sizing-content is Tailwind v4's `field-sizing: content` —
-                  the textarea grows with its text, with no JS measuring it. */}
-              <textarea
-                name="note"
-                rows={2}
-                aria-label="Note"
-                placeholder="Say more…"
-                className={`${FIELD} field-sizing-content resize-none text-center text-base`}
-              />
-
-              <div className="flex items-center gap-3 border-t pt-4">
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  aria-label={`Note language: ${lang === "en" ? "English" : "French"}`}
-                  onClick={() => setLang((l) => (l === "en" ? "fr" : "en"))}
-                >
-                  <span className="text-base leading-none">{lang === "en" ? "🇬🇧" : "🇫🇷"}</span>
-                </Button>
-
-                <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  <div className="flex items-center gap-2">
-                    <Link2 className="size-4 shrink-0 text-muted-foreground" />
-                    <input
-                      type="url"
-                      name="link"
-                      value={firstLink}
-                      onChange={(e) => setFirstLink(e.target.value)}
-                      aria-label="Link"
-                      placeholder="paste a URL"
-                      className={`${FIELD} min-w-0 flex-1 text-sm`}
-                    />
-                  </div>
-                  {/* The second slot appears once the first is used. Both post
-                      under `link`; buildSeedBody reads getAll("link") and drops
-                      the blanks. */}
-                  {firstLink.trim() ? (
-                    <div className="flex items-center gap-2">
-                      <Link2 className="size-4 shrink-0 text-muted-foreground" />
-                      <input
-                        type="url"
-                        name="link"
-                        aria-label="Another link"
-                        placeholder="another URL"
-                        className={`${FIELD} min-w-0 flex-1 text-sm`}
-                      />
-                    </div>
-                  ) : null}
-                </div>
-
-                <MediaPicker name="image" compact />
-
-                <Button type="submit" size="icon" aria-label="Add to inbox" className="rounded-full">
-                  <Send className="size-4" />
-                </Button>
+            </div>
+            {/* The second slot appears once the first is used. Both post
+                under `link`; buildSeedBody reads getAll("link") and drops
+                the blanks. */}
+            {firstLink.trim() ? (
+              <div className="flex items-center gap-2">
+                <Link2 className="size-4 shrink-0 text-muted-foreground" />
+                <input
+                  type="url"
+                  name="link"
+                  aria-label="Another link"
+                  placeholder="another URL"
+                  className={`${FIELD} min-w-0 flex-1 text-sm`}
+                />
               </div>
-            </form>
-          </DialogPopup>
-        </DialogPortal>
-      </Dialog>
+            ) : null}
+          </div>
+
+          <MediaPicker name="image" compact />
+
+          <Button type="submit" size="icon" aria-label="Add to inbox" className="rounded-full">
+            <Send className="size-4" />
+          </Button>
+        </div>
+      </form>
+      </OverlaySheet>
     </>
   );
 }

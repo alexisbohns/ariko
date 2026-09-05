@@ -83,7 +83,7 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
   on its way to triage, and the sprout media card downstream carries the full
   picker).
 
-- **The ⌘K command palette is the fourth, and the mildest of the four**
+- **The ⌘K command palette is the fourth, and the mildest of them**
   (`app/admin/_components/command-palette.tsx`, the palette slice). ⌘K (Ctrl+K
   off macOS) anywhere in the admin but the login page opens the seed overlay's
   blurred sheet, one octave up: a bare centred input over a filtered list of
@@ -110,7 +110,48 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
   grouping — lives in `lib/palette-items.ts`. Importing the wrong one from the
   palette component does not merely bloat the bundle; it fails the build.
 
-Those four are the whole list. Every *other* admin metadata form is unchanged
+- **The plant page's header is the fifth**, and the largest single bite so far
+  (`app/admin/_components/plant-hero.tsx`, `plant-inside.tsx`, the
+  plant-page-pure slice). `/admin/plant/[slug]` stopped being five stacked
+  cards: the mark sits centred in a squircle with the name under it, and each
+  editor is now one click behind the thing it edits — the logo behind the logo
+  (a popover), name and description behind the page title (a sheet), the role
+  behind a crown (a popover that summarizes, then a sheet). The sheets are the
+  seed overlay's, extracted to `overlay-sheet.tsx` and now shared by three
+  callers; the shell is all that file carries, never a write path. The pods and
+  beans index left the page for a floating panel on a right-hand rail, the
+  mirror of the chrome's, which slides the page left rather than covering it.
+
+  Script-off, the **three editors are simply not reachable** — no popover, no
+  sheet, no fields. That is a real loss, in the seed overlay's sense rather than
+  the media picker's, and it was taken deliberately: a header whose editors open
+  on the element they edit cannot exist without script, and the alternative was
+  the five cards this slice replaced.
+
+  What was NOT given up is the pair of one-click writes beside them: **status
+  (a zap, green when active) and visibility (globe/lock) are real `<form>`s**
+  posting a named vocabulary member to a one-field server action, so they work
+  with no script at all. So the header's script-off cost is exactly the seed
+  overlay's and the vault filters': the three *triggers* go inert (they open
+  nothing, like the inbox's `+`), while every write that can survive a dead
+  trigger does. `lib/plant-hero-mount.test.ts` pins both halves — the two
+  toggles reach the script-off HTML, none of the three editors' fields do —
+  because each is easy to break in the opposite direction: rewrite a toggle as
+  an onClick "since the header is an island anyway" and it joins the inert
+  triggers; server-render a sheet's fields "so they are there on first paint"
+  and the page grows a metadata form with no way to submit it.
+
+  Two things keep the write paths honest. The forms are **server-rendered by the
+  page and handed down as props** (`metaForm`, `roleForm`, `logoForm`), so the
+  client island never composes a payload and never learns a field name. And each
+  toggle posts **the value it wants**, not "flip it", so the action validates a
+  member of a vocabulary (`lib/plant-status.ts`, `lib/plant-visibility.ts`)
+  rather than trusting the client's arithmetic. The Meta sheet still carries
+  `status` as a hidden input for the same reason in reverse:
+  `buildPlantMetaPatch` reads an absent status as `active`, so dropping the
+  field outright would silently reactivate an inactive plant on every name edit.
+
+Those five are the whole list. Every *other* admin metadata form is unchanged
 and still zero-client-JS. Three neighbours are worth naming so they are not
 mistaken for further exceptions:
 

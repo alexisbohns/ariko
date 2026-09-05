@@ -7,6 +7,7 @@ import {
   type MediaImage,
   type Plant,
   type PlantRole,
+  type PlantStatus,
   type Pod,
   type Sprout,
   type Text,
@@ -256,6 +257,35 @@ export async function updatePlantLogo(slug: string, logo: MediaImage | null): Pr
     .updateOne({ slug }, (logo === null
       ? { $unset: { logo: "" } }
       : { $set: { logo } }) as UpdateFilter<Plant>);
+}
+
+/**
+ * Writes a plant's status — and nothing else.
+ *
+ * A SIBLING again, and a narrower one than updatePlantMeta on purpose: the
+ * plant page's zap toggle is a single click that writes a single field, so it
+ * must not travel through a patch that also carries `name` and `description`.
+ * A toggle that could blank a name is a toggle nobody should press.
+ */
+export async function updatePlantStatus(slug: string, status: PlantStatus): Promise<void> {
+  const db = await getDb();
+  await db.collection<Plant>("plants").updateOne({ slug }, { $set: { status } });
+}
+
+/**
+ * Writes a plant's visibility — and nothing else.
+ *
+ * Deliberately NOT setPublic/setPrivate: those two are the write halves of the
+ * sprout-driven cascades and take three tiers of slugs. This flips one plant
+ * and touches nothing beneath it, which is correct in both directions.
+ * Downward privacy is a READ-time projection (filterPublic drops a private
+ * plant's whole subtree), so going private needs no cascade; and going public
+ * must not silently republish pods and beans that were made private on their
+ * own terms.
+ */
+export async function updatePlantVisibility(slug: string, visibility: Visibility): Promise<void> {
+  const db = await getDb();
+  await db.collection<Plant>("plants").updateOne({ slug }, { $set: { visibility } });
 }
 
 /**
