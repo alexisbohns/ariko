@@ -325,7 +325,7 @@ the point.
 | What | How |
 |---|---|
 | `lib/toc-mount.test.ts` | `renderToStaticMarkup(<TocRail/>) === ""`; no `<a` and no `<nav` in the script-off HTML. |
-| `lib/toc-headings.test.ts` | The pure index→state mapping (passed / active / default) and the fewer-than-two suppression, extracted from the component so it is testable without a DOM. |
+| `lib/toc.test.ts` | The pure index→state mapping (passed / active / default) and the fewer-than-two suppression, living in `lib/toc.ts` so it is testable without a DOM. |
 | Existing suites | `lib/markdown*.test.ts` and `lib/plant-hero-mount.test.ts` must stay green — the `Prose` change touches the first, and nothing in this slice touches the admin hero. |
 
 `npm test` is the gate. No new test runner, no jsdom added.

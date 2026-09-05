@@ -671,7 +671,7 @@ Create `components/toc-rail.tsx`:
 "use client";
 
 import { useEffect, useState } from "react";
-import { shouldRenderToc, tocState, type TocHeading } from "@/lib/toc";
+import { shouldRenderToc, TOC_MIN_HEADINGS, tocState, type TocHeading } from "@/lib/toc";
 
 /**
  * The reading position, as a column of dashes in the left gutter — and the
@@ -719,7 +719,7 @@ function MountedTocRail() {
         level: node.tagName === "H3" ? 3 : 2,
       })),
     );
-    if (nodes.length < 2) return;
+    if (nodes.length < TOC_MIN_HEADINGS) return;
 
     // The last heading above the reading line. Recomputed from rects rather
     // than inferred from which entries are intersecting: that answer is correct
@@ -949,9 +949,7 @@ export function PlantHead({
           {roleLine(plant.role)}
         </span>
         <span
-          className={
-            "flex items-center gap-1.5 " + (status === "active" ? "text-primary" : undefined)
-          }
+          className={"flex items-center gap-1.5 " + (status === "active" ? "text-primary" : "")}
         >
           {status === "active" ? (
             <ZapIcon className="size-3.5" />
