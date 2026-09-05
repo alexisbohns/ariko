@@ -17,10 +17,19 @@ import assert from "node:assert/strict";
  *    of `#fragment` anchors. Server-render them "so the TOC is there on first
  *    paint" and the page grows a fixed-position list over the text that WORKS
  *    but can never be hidden, because hiding it is the hover state that needs
- *    the script. That failure mode is worse than absence, which is why the gate
- *    lives in an OUTER component: no browser-only hook is ever called during a
- *    server render, and moving the gate inward fails here loudly rather than at
- *    request time.
+ *    the script. That failure mode is worse than absence — and it is exactly
+ *    what the two assertions below catch, because either shape puts markup into
+ *    the script-off HTML.
+ *
+ * What this file does NOT pin is the outer/inner split itself. The gate lives
+ * in an OUTER component so no browser-only hook is ever called during a server
+ * render, but what FORCES that split is React's rules of hooks: you cannot
+ * early-return before a hook, so the DOM-scan useEffect cannot sit after
+ * `if (!mounted) return null` in a single component. Merge them anyway and
+ * these tests still pass — useEffect never runs during a server render either
+ * way, so the markup is still "". Lint and the runtime catch that one; what
+ * this file catches is the thing it actually asserts, which is the failure mode
+ * that matters: that no markup at all reaches the script-off HTML.
  *
  * No jsdom, like lib/palette-mount.test.ts: renderToStaticMarkup is exactly the
  * no-DOM path being exercised, and needing a DOM to run it would defeat the

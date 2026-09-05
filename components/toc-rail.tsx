@@ -16,8 +16,10 @@ import { shouldRenderToc, TOC_MIN_HEADINGS, tocState, type TocHeading } from "@/
  * already read. And it never writes: no form, no server action, no submit.
  *
  * The gate lives in this OUTER component so no browser-only hook is ever
- * called during a server render. lib/toc-mount.test.ts fails loudly if it moves
- * inward.
+ * called during a server render; React's rules of hooks are what force the
+ * split, since the inner DOM-scan effect cannot sit after an early return.
+ * lib/toc-mount.test.ts pins the consequence rather than the shape: nothing at
+ * all reaches the script-off HTML.
  */
 export function TocRail() {
   const [mounted, setMounted] = useState(false);
