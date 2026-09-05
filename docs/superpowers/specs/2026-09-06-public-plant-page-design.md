@@ -110,6 +110,32 @@ hiding, and it is the *good* direction of the trade:
 
 The admin keeps the real `Tooltip`. This component is public-zone only.
 
+### No lucide in the public zone — the icons are inline SVG
+
+`components/media.tsx` carries the rule in capitals, and it is not a style note:
+
+> NO LUCIDE ICONS HERE, and not by oversight: lucide-react@1.33 routes every icon through an
+> Icon.mjs carrying "use client", so a single `<ExternalLink />` would push a client boundary into a
+> zone whose whole rule is that it has none. **The same applies to every other public server
+> component.**
+
+This slice wants five glyphs in public server components — `Sprout` and `Waypoints` in the chrome,
+`Crown`, `Zap` and `ZapOff` in the plant head. Importing them from `lucide-react` would put five
+client boundaries into the zone to draw five static shapes, which is the exact trade that comment
+forbids.
+
+So `components/public-icons.tsx` is a **server** module holding those five as plain inline
+`<svg aria-hidden>` components, with lucide's own path data (lucide-react is ISC-licensed; the
+licence and the icon names are recorded in the file's header). The glyphs are therefore *identical*
+to the admin's — the shared vocabulary in §3 and §4 is preserved exactly — while the zone keeps its
+promise.
+
+The one client component in this slice, the TOC rail, needs no icon at all: it draws dashes.
+
+This is the second registry-adjacent deviation in the slice, and it has the same shape as the first
+(§3, the CSS tooltip): the zone's constraint is real, the copied artefact is inert data, and the
+alternative is strictly worse for the visitor.
+
 ## 4. The plant head — `app/(public)/_components/plant-head.tsx`
 
 A **server** component. It mirrors `app/admin/_components/plant-hero.tsx`'s composition and drops
@@ -128,8 +154,10 @@ Centred stack, in order:
    mandatory and not a style choice: the family ships one weight, and `app/globals.css` records that
    every user pairs it with `font-normal` so nothing asks it for a bold it does not have.
 3. **The description** — `text-base text-muted-foreground`, `max-w-prose`.
-4. **The role and status row** — icon + label, both always present (see §4.1). `Crown` + the
-   one-line role from `lib/plant-role.ts`; `Zap` / `ZapOff` + the label from `lib/plant-status.ts`.
+4. **The role and status row** — icon + label, both always present (see §4.1). The inline
+   `Crown` from `components/public-icons.tsx` (never lucide — see §3) + the
+   one-line role from `lib/plant-role.ts`; the inline `Zap` / `ZapOff` + the label from
+   `lib/plant-status.ts`.
    Active carries the admin hero's `text-primary` tint, so "active" is a colour in both zones.
 5. **`role.detail`** — the role's one line of context, muted, when present. Plain text, never
    markdown, exactly as today.
