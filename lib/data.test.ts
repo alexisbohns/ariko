@@ -596,7 +596,7 @@ test("getPlant and getPod look a container up by slug", () => {
 });
 
 test("filterPublic keeps links on a public plant and drops them with a private one", () => {
-  const raw = {
+  const raw: RawGarden = {
     plants: [
       {
         slug: "casa",
