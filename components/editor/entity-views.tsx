@@ -7,7 +7,7 @@ import {
 } from "@tiptap/react";
 import { EntityCard, EntityMention } from "@/lib/entity-markdown";
 import type { EntityOption } from "@/lib/entity-options";
-import { Card, CardContent } from "@/components/ui/card";
+import { EntityCardBody, UnresolvedRef } from "@/components/entity-card";
 
 type Lookup = (ref: string) => EntityOption | null;
 
@@ -16,9 +16,25 @@ function lookupOf(props: NodeViewProps): Lookup {
 }
 
 /**
- * A block card, as seen while writing. Unresolved refs stay VISIBLE here — in
- * the authoring zone a dangling reference is information, not a leak, which is
- * the same rule components/entity.tsx applies with `showUnresolved`.
+ * A block card, as seen while writing.
+ *
+ * The card is `components/entity-card.tsx` — the same one the published page
+ * draws. It used to be a second, slightly different card here, and the drift was
+ * silent: an extra `py-4`, and no cover. What is genuinely the editor's is the
+ * `refText`, which is how an author checks that a card points where they meant.
+ *
+ * Unresolved refs stay VISIBLE here — in the authoring zone a dangling reference
+ * is information, not a leak, which is the same rule components/entity.tsx
+ * applies with `showUnresolved`.
+ *
+ * The cover is absent rather than shared, and that is honest rather than
+ * deliberate: `EntityOption` carries none. A bean's cover is derived from its
+ * newest sprout with an image (`lib/cover.ts`) and `entityOptions()` reads the
+ * raw garden rather than a Dataset, so plumbing it is its own slice. Until then
+ * an editor card is the published card minus a picture, not a different card.
+ *
+ * `interactive` is false: a card in the editor is not a link, so it must not
+ * offer a link's affordance.
  */
 function EntityCardView(props: NodeViewProps): React.ReactElement {
   const ref = String(props.node.attrs.ref ?? "");
@@ -26,19 +42,13 @@ function EntityCardView(props: NodeViewProps): React.ReactElement {
   return (
     <NodeViewWrapper className="not-prose my-4" data-drag-handle>
       {entity ? (
-        <Card>
-          <CardContent className="flex flex-col gap-1 py-4">
-            <span className="text-sm font-medium">{entity.name}</span>
-            {entity.description ? (
-              <span className="text-xs text-muted-foreground">{entity.description}</span>
-            ) : null}
-            <span className="font-heading text-[10px] text-muted-foreground">{entity.ref}</span>
-          </CardContent>
-        </Card>
+        <EntityCardBody
+          name={entity.name}
+          description={entity.description}
+          refText={entity.ref}
+        />
       ) : (
-        <p className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
-          unresolved reference: {ref || "(no ref)"}
-        </p>
+        <UnresolvedRef refValue={ref} />
       )}
     </NodeViewWrapper>
   );

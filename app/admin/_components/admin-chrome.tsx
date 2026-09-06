@@ -3,12 +3,11 @@
 import { usePathname } from "next/navigation";
 import { Archive, ExternalLink, Inbox, LogOut, Sprout, Waypoints } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
-import { NAV_ITEMS, resolveNavItem } from "@/lib/admin-nav";
+import { NAV_ITEMS, resolveColumn, resolveNavItem } from "@/lib/admin-nav";
 import { logoutAction } from "../actions";
 import { CommandPalette } from "./command-palette";
-import { CHROME_PLATE } from "@/components/chrome-plate";
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Chrome, ChromeItem, ChromeLink, chromeItemClass } from "@/components/chrome";
+import { READING_COLUMN, RAIL_CLEARANCE, WIDE_COLUMN } from "@/components/page-column";
 
 /**
  * The admin's chrome, rendered once by the layout rather than by each page —
@@ -19,6 +18,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
  * a real <form> with a real submit button, so the zero-client-JS rule in
  * CLAUDE.md is untouched here. (The seed overlay is where this slice spends
  * its exception.)
+ *
+ * The SHELL is `components/chrome.tsx` now, shared with the public zone — see
+ * that file for why the hover labels stopped being Base UI `Tooltip`s. This
+ * file keeps only what is actually the admin's: which icons, which routes,
+ * which one is current, and the log-out form.
  *
  * The spacing that clears the chrome lives here too, in AdminMain, because the
  * decision is the same decision: a page with no chrome must not be padded as
@@ -47,50 +51,32 @@ export function AdminChrome() {
   const active = resolveNavItem(pathname);
 
   return (
-    <TooltipProvider>
-      <nav
-        aria-label="Admin sections"
-        className={`fixed left-4 top-1/2 z-40 -translate-y-1/2 rounded-2xl p-1.5 ${CHROME_PLATE}`}
-      >
-        <ul className="flex flex-col gap-1">
-          {NAV_ITEMS.map((item) => {
-            const Icon = ICONS[item.href];
-            const isActive = item.href === active;
-            return (
-              <li key={item.href}>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <a
-                        href={item.href}
-                        aria-label={item.label}
-                        aria-current={isActive ? "page" : undefined}
-                        className={
-                          "flex size-9 items-center justify-center rounded-xl transition-colors " +
-                          (isActive
-                            ? "bg-accent text-accent-foreground"
-                            : "text-muted-foreground hover:bg-accent/50 hover:text-foreground")
-                        }
-                      >
-                        <Icon className="size-4" />
-                      </a>
-                    }
-                  />
-                  <TooltipContent side="right">{item.label}</TooltipContent>
-                </Tooltip>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
+    <>
+      <Chrome magnet="left" orientation="vertical" label="Admin sections">
+        {NAV_ITEMS.map((item) => {
+          const Icon = ICONS[item.href];
+          return (
+            <ChromeLink
+              key={item.href}
+              href={item.href}
+              label={item.label}
+              current={item.href === active}
+            >
+              <Icon className="size-4" />
+            </ChromeLink>
+          );
+        })}
+      </Chrome>
 
       {/* The account cluster had no plate at all — three bare icons over
           the page. It wears the same one as the rail now, which is what
           makes the two read as one chrome rather than as a furnished rail
-          and some loose buttons. Ghost at rest, so the cost is nothing. */}
-      <div
-        className={`fixed right-4 top-4 z-40 flex items-center gap-1 rounded-2xl p-1.5 ${CHROME_PLATE}`}
-      >
+          and some loose buttons. Ghost at rest, so the cost is nothing.
+
+          Not a <nav>: it is a log-out form and two actions, so a landmark here
+          would put a second "navigation" in the page that navigates nowhere.
+          `Chrome` expresses that by taking no `label`. */}
+      <Chrome magnet="top-right">
         {/* The palette rides with the chrome rather than the page: rendered
             here, it is behind the same login-page withdrawal above — one route
             constant, now three consumers — and ⌘K works on every admin route
@@ -98,35 +84,19 @@ export function AdminChrome() {
             nothing until it is opened. */}
         <CommandPalette />
 
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <a
-                href="/"
-                aria-label="Public site"
-                className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
-              >
-                <ExternalLink className="size-4" />
-              </a>
-            }
-          />
-          <TooltipContent side="bottom">Public site</TooltipContent>
-        </Tooltip>
+        <ChromeLink href="/" label="Public site">
+          <ExternalLink className="size-4" />
+        </ChromeLink>
 
-        <form action={logoutAction}>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button type="submit" size="icon" variant="ghost" aria-label="Log out">
-                  <LogOut className="size-4" />
-                </Button>
-              }
-            />
-            <TooltipContent side="bottom">Log out</TooltipContent>
-          </Tooltip>
+        <form action={logoutAction} className="flex">
+          <ChromeItem label="Log out">
+            <button type="submit" aria-label="Log out" className={chromeItemClass()}>
+              <LogOut className="size-4" />
+            </button>
+          </ChromeItem>
         </form>
-      </div>
-    </TooltipProvider>
+      </Chrome>
+    </>
   );
 }
 
@@ -136,27 +106,30 @@ export function AdminChrome() {
  * centred inside an off-centre box — padded on both sides for a rail and an
  * account cluster that AdminChrome had already withdrawn.
  *
- * `pr-36` is measured, not chosen. The top-right cluster is THREE `size-8`
- * buttons (palette, public site, log out) at `gap-1`, inside the chrome plate's
- * `p-1.5`, offset by `right-4`:
+ * The measure itself is `components/page-column.tsx`, shared with the public
+ * zone, and the shared-surfaces slice is what put it there. What this page used
+ * to render — `max-w-5xl pl-20 pr-36` — was wider than the public column AND
+ * left of centre, because the clearance was subtracted from INSIDE the
+ * max-width. It is an outer wrapper now, so the box is the public zone's box:
+ * same width, same place, pure WYSIWYG.
  *
- *     3*32 + 2*4 + 2*6 + 16 = 132px
- *
- * `pr-36` (144px) clears that with 12px to spare. Two earlier values did not,
- * and the failure mode is the same each time: the column's right edge slides
- * under a fixed element that wins every hit test, swallowing the tail of the
- * right-aligned link on /admin/beanstalk. `pr-16` (64px) was the first to do
- * it. Its replacement was ALSO short — by 24px once the palette became the
- * cluster's third button, and by 36px once the cluster gained the plate's
- * padding — it simply went unnoticed because the overlap landed on whitespace
- * on most pages.
- *
- * If a fourth button is ever added here, recompute. Do not nudge.
+ * That also retires a hazard the old comment ended on. `pr-36` was measured
+ * against the top-right cluster's WIDTH, so it had to be recomputed every time
+ * the cluster gained a button — and it was silently short twice. Vertical
+ * clearance does not care how many buttons a cluster holds: `pt-24` clears a
+ * cluster's 48px height with 32px to spare, whatever is in it. `RAIL_CLEARANCE`
+ * clears the two vertically centred rails, and those are one icon wide by
+ * construction.
  */
 export function AdminMain({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const bare = pathname === BARE;
+  const column = resolveColumn(pathname);
+  if (column === "bare") {
+    return <main className="mx-auto max-w-5xl px-6 py-8">{children}</main>;
+  }
   return (
-    <main className={"mx-auto max-w-5xl py-8 " + (bare ? "px-6" : "pl-20 pr-36")}>{children}</main>
+    <main className={`${RAIL_CLEARANCE} pb-20 pt-24`}>
+      <div className={column === "wide" ? WIDE_COLUMN : READING_COLUMN}>{children}</div>
+    </main>
   );
 }

@@ -25,7 +25,7 @@ import {
   type PaletteKind,
 } from "@/lib/palette-items";
 import { EntityAvatar } from "@/components/admin/glyphs";
-import { Button } from "@/components/ui/button";
+import { ChromeItem, chromeItemClass } from "@/components/chrome";
 import {
   Dialog,
   DialogOverlay,
@@ -44,7 +44,6 @@ import {
   AutocompleteList,
   AutocompleteStatus,
 } from "@/components/ui/autocomplete";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 /**
  * The ⌘K command palette — the FOURTH deliberate client-JS exception in this
@@ -230,23 +229,22 @@ function Palette() {
 
   return (
     <>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              ref={triggerRef}
-              type="button"
-              size="icon"
-              variant="ghost"
-              aria-label="Search"
-              onClick={() => setOpen(true)}
-            >
-              <Search className="size-4" />
-            </Button>
-          }
-        />
-        <TooltipContent side="bottom">Search (⌘K)</TooltipContent>
-      </Tooltip>
+      {/* The trigger wears the chrome's own ghost box (components/chrome.tsx)
+          rather than a Button — it lives IN the account cluster, and a button
+          that sized itself differently from the two icons beside it was the
+          clearest sign the cluster had three implementations. The label and its
+          side come from the cluster it is dropped into. */}
+      <ChromeItem label="Search (⌘K)">
+        <button
+          ref={triggerRef}
+          type="button"
+          aria-label="Search"
+          onClick={() => setOpen(true)}
+          className={chromeItemClass()}
+        >
+          <Search className="size-4" />
+        </button>
+      </ChromeItem>
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogPortal>

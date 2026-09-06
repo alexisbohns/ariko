@@ -45,7 +45,7 @@ const SECTIONS: ReadonlyArray<readonly [string, string]> = [
  * nothing rather than guessing).
  */
 export function resolveNavItem(pathname: string): string | null {
-  const path = pathname.length > 1 && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+  const path = normalize(pathname);
   if (path === "/admin") return "/admin";
   for (const [prefix, href] of SECTIONS) {
     // The boundary check is what keeps "/admin/vaulted" out of the Vault.
@@ -53,3 +53,31 @@ export function resolveNavItem(pathname: string): string | null {
   }
   return null;
 }
+
+function normalize(pathname: string): string {
+  return pathname.length > 1 && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+}
+
+/** Which measure a route reads in — see `components/page-column.tsx`. */
+export type Column = "bare" | "wide" | "reading";
+
+/**
+ * The admin's column, from its pathname.
+ *
+ * The rule needs no list of its own, which is the point: **a section index is
+ * wide, everything else is a reading column, and the login page is bare.** The
+ * four section indexes are exactly the four NAV_ITEMS hrefs, and they are
+ * exactly the four pages that render a `Table` — so this reads NAV_ITEMS rather
+ * than a parallel array that could drift from it when a fifth section is added.
+ *
+ * An unrecognized route gets the reading column rather than the wide one. Detail
+ * pages outnumber indexes and always will, and a document that renders 80px too
+ * narrow is a smaller wrong than a document that renders 280px too wide.
+ */
+export function resolveColumn(pathname: string): Column {
+  const path = normalize(pathname);
+  if (path === LOGIN_PATH) return "bare";
+  return NAV_ITEMS.some((item) => item.href === path) ? "wide" : "reading";
+}
+
+const LOGIN_PATH = "/admin/login";

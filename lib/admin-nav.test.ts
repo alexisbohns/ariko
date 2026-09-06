@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { NAV_ITEMS, resolveNavItem } from "./admin-nav";
+import { NAV_ITEMS, resolveColumn, resolveNavItem } from "./admin-nav";
 
 test("the four sections are the nav, in order", () => {
   assert.deepEqual(
@@ -44,4 +44,38 @@ test("an unknown admin route highlights nothing", () => {
 test("a prefix must end at a segment boundary", () => {
   // /admin/vaulted is not the vault.
   assert.equal(resolveNavItem("/admin/vaulted"), null);
+});
+
+/**
+ * The column rule (components/page-column.tsx). It reads NAV_ITEMS rather than
+ * carrying a list of its own, and the first test below is what makes that
+ * choice worth anything: add a fifth section and its index page is wide without
+ * anyone remembering to say so.
+ */
+
+test("every section index reads in the wide column", () => {
+  for (const item of NAV_ITEMS) assert.equal(resolveColumn(item.href), "wide", item.href);
+});
+
+test("detail pages read in the same column the public site does", () => {
+  assert.equal(resolveColumn("/admin/plant/ariko"), "reading");
+  assert.equal(resolveColumn("/admin/pod/some-pod"), "reading");
+  assert.equal(resolveColumn("/admin/bean/abc123"), "reading");
+  assert.equal(resolveColumn("/admin/sprout/my-sprout"), "reading");
+  assert.equal(resolveColumn("/admin/triage/abc123"), "reading");
+});
+
+test("login is bare — it has no chrome to clear", () => {
+  assert.equal(resolveColumn("/admin/login"), "bare");
+});
+
+test("an unknown route reads rather than sprawls", () => {
+  // Detail pages outnumber indexes and always will, and 80px too narrow is a
+  // smaller wrong than 280px too wide.
+  assert.equal(resolveColumn("/admin/nowhere"), "reading");
+});
+
+test("the column rule tolerates a trailing slash", () => {
+  assert.equal(resolveColumn("/admin/vault/"), "wide");
+  assert.equal(resolveColumn("/admin/login/"), "bare");
 });

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { cookies } from "next/headers";
 
 import { PublicChrome } from "@/app/(public)/_components/public-chrome";
+import { READING_COLUMN } from "@/components/page-column";
 import { TocRail } from "@/components/toc-rail";
 import { LANG_COOKIE, resolveLang } from "@/lib/locale";
 
@@ -16,6 +17,11 @@ import { LANG_COOKIE, resolveLang } from "@/lib/locale";
  * The home page deliberately sits OUTSIDE this group (`app/(public)/page.tsx`).
  * It is the landing, not a destination reached from a nav, so it wears the mark
  * large and centred and gets no chrome at all.
+ *
+ * The column is `READING_COLUMN` (components/page-column.tsx), which the ADMIN
+ * now renders too. It is the same string in both zones rather than two that
+ * happen to agree, which is what makes the author's editor and the visitor's
+ * page the same box — the shared-surfaces slice.
  *
  * <TocRail /> is the zone's ONE client island, and it is rendered here rather
  * than by each page so plant, pod and bean all get it without opting in. It
@@ -32,7 +38,9 @@ export default async function ChromeLayout({ children }: { children: ReactNode }
     <>
       <PublicChrome lang={lang} />
       <TocRail />
-      <main className="mx-auto max-w-3xl px-6 pb-20 pt-24">{children}</main>
+      <main className="pb-20 pt-24">
+        <div className={READING_COLUMN}>{children}</div>
+      </main>
     </>
   );
 }
