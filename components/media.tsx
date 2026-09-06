@@ -40,6 +40,10 @@ const FRAME_BOX: Record<EmbedFrame["aspect"], string> = {
   video: "aspect-video w-full",
   audio: "h-[166px] w-full",
   "audio-list": "h-[450px] w-full",
+  // Instagram's post card: a 4:5 carousel plus its header and action bar. The
+  // taller end, by the same rule as the audio boxes — clipping loses content,
+  // padding only loses whitespace.
+  social: "h-[720px] w-full",
 };
 
 // Casing is looked up, never derived: "soundcloud" → "SoundCloud" is not a

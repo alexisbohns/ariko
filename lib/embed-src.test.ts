@@ -175,9 +175,7 @@ const PROBE: Record<string, string | null> = {
   deezer: "https://www.deezer.com/en/track/123",
   ausha: null,
   figma: null,
-  // Detected but not framed — a link card by decision, for now. Task 6 gives
-  // it a real probe URL when embedSrc learns to frame it.
-  instagram: null,
+  instagram: "https://www.instagram.com/p/DVAxzXvDNkZ/",
 };
 
 test("every detectable provider has a probe url", () => {
@@ -217,4 +215,42 @@ test("every allowlisted host is actually reachable by some provider", () => {
   for (const host of EMBED_FRAME_HOSTS) {
     assert.ok(emitted.has(host), `${host} is allowlisted but nothing emits it`);
   }
+});
+
+test("an Instagram post frames on instagram.com, and only with a valid id", () => {
+  const frame = embedSrc({
+    kind: "embed",
+    provider: "instagram",
+    url: "https://www.instagram.com/p/DVAxzXvDNkZ/",
+    embedId: "DVAxzXvDNkZ",
+  });
+  assert.deepEqual(frame, {
+    src: "https://www.instagram.com/p/DVAxzXvDNkZ/embed",
+    title: "Instagram post",
+    aspect: "social",
+  });
+
+  // No id, no frame — a profile URL becomes a link card, not a broken iframe.
+  assert.equal(
+    embedSrc({ kind: "embed", provider: "instagram", url: "https://www.instagram.com/casa.lepodcast" }),
+    null,
+  );
+});
+
+test("a forged Instagram embedId cannot leave the allowlisted origin", () => {
+  // encodeURIComponent flattens a traversal into one escaped path segment. The
+  // origin is a literal in every branch, so the worst a forged row produces is
+  // the WRONG post on instagram.com — never an unallowlisted host.
+  const frame = embedSrc({
+    kind: "embed",
+    provider: "instagram",
+    url: "https://www.instagram.com/p/x/",
+    embedId: "../../evil.test/x",
+  });
+  assert.ok(frame);
+  assert.equal(new URL(frame.src).origin, "https://www.instagram.com");
+});
+
+test("EMBED_FRAME_HOSTS carries instagram", () => {
+  assert.ok((EMBED_FRAME_HOSTS as readonly string[]).includes("https://www.instagram.com"));
 });

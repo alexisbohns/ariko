@@ -203,3 +203,12 @@ test("an embed between two runs keeps its own row", () => {
   assert.equal(markup.match(/<li\b/g)?.length, 2);
   assert.equal(attrs(markup, "iframe", "src").length, 1);
 });
+
+test("a forged instagram row renders on instagram.com and nowhere else", () => {
+  const markup = html([
+    { kind: "embed", provider: "instagram", url: "https://evil.test/x", embedId: "DVAxzXvDNkZ" },
+  ]);
+  const srcs = attrs(markup, "iframe", "src");
+  assert.equal(srcs.length, 1);
+  assert.equal(new URL(srcs[0]).origin, "https://www.instagram.com");
+});
