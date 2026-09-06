@@ -2,9 +2,8 @@
 
 import { useState, type ReactNode } from "react";
 import { Boxes } from "lucide-react";
-import { CHROME_PLATE } from "@/components/chrome-plate";
+import { Chrome, ChromeItem, chromeItemClass } from "@/components/chrome";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 /**
  * What is inside the plant — its pods and beans — as a floating panel on a
@@ -57,7 +56,7 @@ export function PlantInside({ items, children }: { items: InsideItem[]; children
   const [open, setOpen] = useState(false);
 
   return (
-    <TooltipProvider>
+    <>
       {/* The page, nudged. `transition-transform` and nothing else: a transform
           does not re-flow the document, so the prose editor keeps its measured
           width and its caret keeps its place while the panel opens. */}
@@ -69,36 +68,21 @@ export function PlantInside({ items, children }: { items: InsideItem[]; children
         {children}
       </div>
 
-      <nav
-        aria-label="Plant panels"
-        className={`fixed right-4 top-1/2 z-40 -translate-y-1/2 rounded-2xl p-1.5 ${CHROME_PLATE} ${PLATE_WHILE_OPEN}`}
-      >
+      {/* The mirror of the admin rail, and now literally the same component:
+          `magnet="right"` is the only thing that differs, and it is what turns
+          the hover labels around to open leftward. That side used to be a
+          hand-written `side="left"` on a Tooltip. */}
+      <Chrome magnet="right" orientation="vertical" label="Plant panels" className={PLATE_WHILE_OPEN}>
         <Popover open={open} onOpenChange={setOpen}>
-          <Tooltip>
-            <TooltipTrigger
+          <ChromeItem label={`Inside${items.length > 0 ? ` (${items.length})` : ""}`}>
+            <PopoverTrigger
               render={
-                <PopoverTrigger
-                  render={
-                    <button
-                      type="button"
-                      aria-label="Inside"
-                      className={
-                        "flex size-9 items-center justify-center rounded-xl transition-colors " +
-                        (open
-                          ? "bg-accent text-accent-foreground"
-                          : "text-muted-foreground hover:bg-accent/50 hover:text-foreground")
-                      }
-                    >
-                      <Boxes className="size-4" />
-                    </button>
-                  }
-                />
+                <button type="button" aria-label="Inside" className={chromeItemClass(open)}>
+                  <Boxes className="size-4" />
+                </button>
               }
             />
-            <TooltipContent side="left">
-              Inside{items.length > 0 ? ` (${items.length})` : ""}
-            </TooltipContent>
-          </Tooltip>
+          </ChromeItem>
 
           {/* `side`/`align` are named rather than left to the primitive's
               default (`bottom`, which would drop the panel off a vertically
@@ -133,7 +117,7 @@ export function PlantInside({ items, children }: { items: InsideItem[]; children
             </ul>
           </PopoverContent>
         </Popover>
-      </nav>
-    </TooltipProvider>
+      </Chrome>
+    </>
   );
 }
