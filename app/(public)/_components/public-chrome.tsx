@@ -50,9 +50,9 @@ export function PublicChrome({ lang }: { lang: Lang }) {
           ChromeLink, and it is the one CONTENT cluster rather than an icon
           cluster. It wears the same plate as the rail: a solid pill beside a
           chrome that had vanished would read as a stray button rather than as
-          the other half of the same furniture. The className is the escape
-          hatch `Chrome` documents — text needs its own radius and padding. */}
-      <Chrome magnet="top-right" className="rounded-xl px-3 py-2">
+          the other half of the same furniture. `content` is what gives text its
+          own radius and padding. */}
+      <Chrome magnet="top-right" content>
         <LangSwitch lang={lang} />
       </Chrome>
     </>

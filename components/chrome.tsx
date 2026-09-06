@@ -61,6 +61,7 @@ export function Chrome({
   magnet,
   orientation = "horizontal",
   label,
+  content,
   className,
   children,
 }: {
@@ -68,12 +69,21 @@ export function Chrome({
   orientation?: "horizontal" | "vertical";
   /** When present, the cluster is a `<nav>` with this accessible name. */
   label?: string;
-  /** For a cluster that is not made of icons — see the language pill. */
+  /**
+   * A cluster of TEXT rather than icons — the language switch is the only one.
+   * Its own radius and padding, as a named variant rather than a `className`
+   * override: `p-1.5` and `px-3 py-2` are not a conflict tailwind-merge can
+   * resolve (a shorthand plus both axes), so an override would leave the
+   * outcome to the order Tailwind happens to emit its utilities in.
+   */
+  content?: boolean;
+  /** Additive classes only — see plant-inside.tsx's PLATE_WHILE_OPEN. */
   className?: string;
   children: ReactNode;
 }) {
   const shared = cn(
-    "group/chrome fixed z-40 flex gap-1 rounded-2xl p-1.5",
+    "group/chrome fixed z-40 flex gap-1",
+    content ? "rounded-xl px-3 py-2" : "rounded-2xl p-1.5",
     orientation === "vertical" ? "flex-col" : "items-center",
     magnetPosition(magnet),
     CHROME_PLATE,
