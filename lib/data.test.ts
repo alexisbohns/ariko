@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import {
   buildDataset,
   composeText,
+  filterPublic,
   getDataset,
   publishCascade,
   textPart,
@@ -592,4 +593,39 @@ test("getPlant and getPod look a container up by slug", () => {
   assert.equal(data.getPod("m")?.slug, "m");
   assert.equal(data.getPlant("ghost"), undefined);
   assert.equal(data.getPod("ghost"), undefined);
+});
+
+test("filterPublic keeps links on a public plant and drops them with a private one", () => {
+  const raw = {
+    plants: [
+      {
+        slug: "casa",
+        name: "CASA Podcast",
+        natures: ["work" as const],
+        role: { kind: "owner" as const },
+        description: "A podcast",
+        links: [{ platform: "spotify", url: "https://open.spotify.com/show/abc" }],
+      },
+      {
+        slug: "hidden",
+        name: "Hidden",
+        natures: ["work" as const],
+        role: { kind: "owner" as const },
+        description: "Nope",
+        visibility: "private" as const,
+        links: [{ platform: "spotify", url: "https://open.spotify.com/show/secret" }],
+      },
+    ],
+  };
+
+  const out = filterPublic(raw);
+
+  assert.equal(out.plants?.length, 1);
+  // PlatformLink carries no entity refs, so there is nothing to scrub — the
+  // array must survive intact rather than be dropped defensively.
+  assert.deepEqual(out.plants?.[0].links, [
+    { platform: "spotify", url: "https://open.spotify.com/show/abc" },
+  ]);
+  // And the private plant takes its links with it.
+  assert.equal(JSON.stringify(out).includes("secret"), false);
 });
