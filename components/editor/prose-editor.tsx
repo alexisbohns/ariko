@@ -128,9 +128,19 @@ export function ProseEditor({
         // and a later prop would not reach it. `bare` never changes over an
         // instance's life (it is a per-page constant), so that is fine here —
         // but it is why this is not a place to put anything stateful.
+        //
+        // The `prose-headings:*` treatment is kept in step with
+        // `components/markdown.tsx` ON PURPOSE, and both branches carry it. This
+        // is a WYSIWYG editor over the same markdown that <Prose> renders, so a
+        // heading typed in the body face and published in mono is the editor
+        // lying about its own output — the same defect markdown.tsx's comment
+        // names about size. Change the treatment in one file, change it in both.
+        //
+        // `prose` vs `prose-sm` is the one difference that stays: a deliberate
+        // density choice between the full-page editor and the inline one.
         class: bare
-          ? "prose max-w-none dark:prose-invert min-h-[60vh] focus:outline-none"
-          : "prose prose-sm max-w-none dark:prose-invert min-h-48 focus:outline-none",
+          ? "prose max-w-none dark:prose-invert prose-headings:font-heading prose-headings:font-medium prose-headings:tracking-tight min-h-[60vh] focus:outline-none"
+          : "prose prose-sm max-w-none dark:prose-invert prose-headings:font-heading prose-headings:font-medium prose-headings:tracking-tight min-h-48 focus:outline-none",
       },
     },
     onCreate: ({ editor }) => {

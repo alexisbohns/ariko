@@ -6,6 +6,7 @@ import type { ComponentType, ReactNode } from "react";
 import { NAV_ITEMS, resolveNavItem } from "@/lib/admin-nav";
 import { logoutAction } from "../actions";
 import { CommandPalette } from "./command-palette";
+import { CHROME_PLATE } from "@/components/chrome-plate";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -49,7 +50,7 @@ export function AdminChrome() {
     <TooltipProvider>
       <nav
         aria-label="Admin sections"
-        className="fixed left-4 top-1/2 z-40 -translate-y-1/2 rounded-2xl border bg-card/80 p-1.5 shadow-lg backdrop-blur"
+        className={`fixed left-4 top-1/2 z-40 -translate-y-1/2 rounded-2xl p-1.5 ${CHROME_PLATE}`}
       >
         <ul className="flex flex-col gap-1">
           {NAV_ITEMS.map((item) => {
@@ -83,7 +84,13 @@ export function AdminChrome() {
         </ul>
       </nav>
 
-      <div className="fixed right-4 top-4 z-40 flex items-center gap-1">
+      {/* The account cluster had no plate at all — three bare icons over
+          the page. It wears the same one as the rail now, which is what
+          makes the two read as one chrome rather than as a furnished rail
+          and some loose buttons. Ghost at rest, so the cost is nothing. */}
+      <div
+        className={`fixed right-4 top-4 z-40 flex items-center gap-1 rounded-2xl p-1.5 ${CHROME_PLATE}`}
+      >
         {/* The palette rides with the chrome rather than the page: rendered
             here, it is behind the same login-page withdrawal above — one route
             constant, now three consumers — and ⌘K works on every admin route
@@ -129,16 +136,27 @@ export function AdminChrome() {
  * centred inside an off-centre box — padded on both sides for a rail and an
  * account cluster that AdminChrome had already withdrawn.
  *
- * `pr-24` rather than `pr-16`: the top-right cluster is two ~32px buttons at
- * `right-4`, so it occupies roughly the last 84px of the viewport. At and below
- * 1024px the column's right edge sits at `vw - 96`, which clears it; `pr-16`
- * put it at `vw - 64`, ~20px underneath a fixed element that wins every hit
- * test — enough to swallow the tail of the right-aligned link on /admin/beanstalk.
+ * `pr-36` is measured, not chosen. The top-right cluster is THREE `size-8`
+ * buttons (palette, public site, log out) at `gap-1`, inside the chrome plate's
+ * `p-1.5`, offset by `right-4`:
+ *
+ *     3*32 + 2*4 + 2*6 + 16 = 132px
+ *
+ * `pr-36` (144px) clears that with 12px to spare. Two earlier values did not,
+ * and the failure mode is the same each time: the column's right edge slides
+ * under a fixed element that wins every hit test, swallowing the tail of the
+ * right-aligned link on /admin/beanstalk. `pr-16` (64px) was the first to do
+ * it. Its replacement was ALSO short — by 24px once the palette became the
+ * cluster's third button, and by 36px once the cluster gained the plate's
+ * padding — it simply went unnoticed because the overlap landed on whitespace
+ * on most pages.
+ *
+ * If a fourth button is ever added here, recompute. Do not nudge.
  */
 export function AdminMain({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const bare = pathname === BARE;
   return (
-    <main className={"mx-auto max-w-5xl py-8 " + (bare ? "px-6" : "pl-20 pr-24")}>{children}</main>
+    <main className={"mx-auto max-w-5xl py-8 " + (bare ? "px-6" : "pl-20 pr-36")}>{children}</main>
   );
 }

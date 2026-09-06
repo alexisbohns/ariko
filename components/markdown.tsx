@@ -69,7 +69,18 @@ export function Prose({
   } as Components;
 
   return (
-    <div className="prose prose-sm max-w-none dark:prose-invert">
+    // `prose`, not `prose-sm`: 16px, the size a portfolio whose whole argument
+    // lives in prose should be set at. Headings take the display-adjacent mono
+    // face at medium and tight, matching every other heading in both zones (the
+    // plant head's h1 is the one exception — it wears Profane).
+    //
+    // One of the surfaces this renders on is in the ADMIN: /admin/sprout/[slug]
+    // renders <Prose> too. That is intended rather than tolerated — the admin's
+    // is a PREVIEW of the public render, and a preview set two points smaller
+    // than the thing it previews is a preview that lies. Which is also why
+    // `components/editor/prose-editor.tsx` carries the same heading treatment:
+    // the author types into the face they will publish in.
+    <div className="prose max-w-none dark:prose-invert prose-headings:font-heading prose-headings:font-medium prose-headings:tracking-tight">
       <Markdown
         remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins}

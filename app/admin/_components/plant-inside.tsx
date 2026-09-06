@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { Boxes } from "lucide-react";
+import { CHROME_PLATE } from "@/components/chrome-plate";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -29,6 +30,22 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
  * here is also reachable from /admin/garden, from ⌘K, and from the prose.
  */
 
+/**
+ * The plate, held open while the panel is.
+ *
+ * `CHROME_PLATE` materializes on `hover` and `focus-within`, and neither stays
+ * true here once the panel opens: the popover is PORTALED, so focus moves to a
+ * node outside this <nav> and the plate would ghost away underneath the very
+ * panel it opened — the trigger reading as though it had vanished.
+ *
+ * `aria-expanded` is the honest hook. The trigger already sets it, so holding
+ * the plate open needs no state and no client code of its own. `md:` only,
+ * matching the ghost itself; below that the plate never left.
+ */
+const PLATE_WHILE_OPEN =
+  "md:has-[[aria-expanded=true]]:border-border md:has-[[aria-expanded=true]]:bg-card/80 " +
+  "md:has-[[aria-expanded=true]]:shadow-lg md:has-[[aria-expanded=true]]:backdrop-blur";
+
 export interface InsideItem {
   href: string;
   name: string;
@@ -54,7 +71,7 @@ export function PlantInside({ items, children }: { items: InsideItem[]; children
 
       <nav
         aria-label="Plant panels"
-        className="fixed right-4 top-1/2 z-40 -translate-y-1/2 rounded-2xl border bg-card/80 p-1.5 shadow-lg backdrop-blur"
+        className={`fixed right-4 top-1/2 z-40 -translate-y-1/2 rounded-2xl p-1.5 ${CHROME_PLATE} ${PLATE_WHILE_OPEN}`}
       >
         <Popover open={open} onOpenChange={setOpen}>
           <Tooltip>

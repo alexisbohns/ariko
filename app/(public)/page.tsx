@@ -7,7 +7,7 @@ import { roleLine } from "@/lib/plant-role";
 import { splitPlantsByStatus } from "@/lib/plant-status";
 import { cloudinaryThumb } from "@/lib/image-url";
 import { ArikoLogo } from "@/components/brand/ariko-logo";
-import { PROFANE_WOFF2_URL } from "@/app/fonts";
+import { ProfanePreload } from "@/components/brand/profane-preload";
 
 export const dynamic = "force-dynamic";
 
@@ -174,18 +174,7 @@ export default async function DirectoryPage() {
 
   return (
     <main className="pb-20">
-      {/* The display face is not bundled (it is served from Cloudinary — see
-          app/fonts.ts), so nothing preloads it for us. React hoists this into
-          <head>; `crossOrigin` is required because a font fetch is always an
-          anonymous CORS request, and without it the browser downloads the file
-          twice. Only this page wears the face, so only this page asks for it. */}
-      <link
-        rel="preload"
-        href={PROFANE_WOFF2_URL}
-        as="font"
-        type="font/woff2"
-        crossOrigin="anonymous"
-      />
+      <ProfanePreload />
       {/* No nav bar here: the landing wears the mark, centred, with room to breathe. */}
       <header className={`${GUTTER} flex justify-center py-20`}>
         <ArikoLogo title="Ariko" className="h-20 w-auto text-foreground sm:h-24" />
