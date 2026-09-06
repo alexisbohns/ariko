@@ -111,6 +111,23 @@ const INSTAGRAM_ID = /^[A-Za-z0-9_-]{5,32}$/;
 // /{keyword}/{shortcode}/ — a profile (/casa.lepodcast) has no keyword and so
 // no id, which is the correct answer: a profile is a destination, not a post,
 // and it degrades to a link card.
+//
+// The keyword anchor carries NO known miss, which is what makes this comment
+// short where vimeoId's is three paragraphs. Vimeo needed the anchor because
+// its collection forms are genuinely ambiguous — a numeric channel slug reads
+// exactly like a video id, so a misread produces a plausible wrong video.
+// Instagram has no such case: `p`, `reel` and `tv` are RESERVED route
+// segments, so no username can equal one, and there is no shape where a
+// non-post URL puts a shortcode-looking string after one of them. The failure
+// this could have had does not exist rather than being tolerated.
+//
+// The keyword is a locator and never part of the answer: all three forms hand
+// their shortcode to the same /p/{code}/embed endpoint downstream
+// (lib/embed-src.ts). That holds because Instagram aliases a reel and a tv
+// post under /p/ as well — but it is UNEXERCISED here, and stated at that
+// width deliberately, the way §5.2 states Figma's contract is unverified: the
+// only Instagram content in the database is a /p/ post. The day a reel is
+// stored, that is the assumption to check first.
 function instagramId(url: string): string | undefined {
   let parts: string[];
   try {
