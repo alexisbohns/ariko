@@ -51,9 +51,17 @@ test("a label overrides the platform name, in the reading language", () => {
 
 test("a non-http url renders as inert text, never as an anchor", () => {
   // lib/url.ts's rule: still visible, still copyable, simply not clickable.
-  const markup = html([{ platform: "link", url: "javascript:alert(1)" }]);
+  //
+  // The URL assertion is the load-bearing one. An earlier version of this test
+  // used platform "link" and asserted the output matched /link/ — which passed
+  // because platformLabel("link") returns the slug "link", NOT because the URL
+  // was rendered. It gave false confidence while the address was being dropped
+  // from the DOM entirely. A platform whose NAME cannot appear in the URL is
+  // what keeps the two claims independent here.
+  const markup = html([{ platform: "spotify", url: "mailto:casapodcast@gmail.com" }]);
   assert.doesNotMatch(markup, /<a\b/);
-  assert.match(text(markup), /link/);
+  assert.match(text(markup), /Spotify/);
+  assert.match(text(markup), /mailto:casapodcast@gmail\.com/);
 });
 
 test("an unknown platform shows its slug rather than a guess", () => {

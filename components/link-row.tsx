@@ -51,11 +51,25 @@ export function LinkRow({
         // reads rather than rendering an empty chip.
         const text = resolveText(link.label, lang).trim() || platformLabel(link.platform);
 
-        // Non-http renders as text: visible, copyable, not clickable.
+        // Non-http renders as text: visible, copyable, not clickable — and the
+        // URL ITSELF is what is rendered beside the name, not just the name.
+        //
+        // That second half is the whole point and was missing at first. A chip
+        // reading only "Spotify", inert, tells the reader nothing: it looks
+        // like a link that happens to be broken. components/media.tsx's
+        // LinkCard keeps the destination visible for the same reason, and a
+        // claim of copyability with nothing to copy is worse than no claim.
+        // break-all because the string is unbounded and must not blow out the
+        // row it sits in.
         if (!isHttpUrl(link.url)) {
           return (
-            <span key={`${i}-${link.url}`} className={`${CHIP} text-muted-foreground`}>
+            <span
+              key={`${i}-${link.url}`}
+              className={`${CHIP} gap-2 text-muted-foreground`}
+              title="Not a link — this address cannot be opened"
+            >
               {text}
+              <span className="min-w-0 break-all normal-case tracking-normal">{link.url}</span>
             </span>
           );
         }
