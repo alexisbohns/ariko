@@ -10,6 +10,7 @@ export const HOST_PROVIDERS: Array<[string, MediaEmbed["provider"]]> = [
   ["youtu.be", "youtube"],
   ["vimeo.com", "vimeo"],
   ["figma.com", "figma"],
+  ["instagram.com", "instagram"],
 ];
 
 /**
@@ -99,6 +100,30 @@ function vimeoId(url: string): string | undefined {
   return segments.find((s) => /^\d+$/.test(s));
 }
 
+// Instagram shortcodes are base64url-ish and about 11 characters; the bound is
+// generous enough to survive a format change while still meaning "a code".
+// Validated HERE rather than escaped at the point of use, exactly as YOUTUBE_ID
+// is: this is what stops a stored path traversal from ever reaching the URL
+// that lib/embed-src.ts builds.
+const INSTAGRAM_ID = /^[A-Za-z0-9_-]{5,32}$/;
+
+// Anchored on the keyword rather than positional. All three post forms are
+// /{keyword}/{shortcode}/ — a profile (/casa.lepodcast) has no keyword and so
+// no id, which is the correct answer: a profile is a destination, not a post,
+// and it degrades to a link card.
+function instagramId(url: string): string | undefined {
+  let parts: string[];
+  try {
+    parts = new URL(url).pathname.split("/").filter(Boolean);
+  } catch {
+    return undefined;
+  }
+  const anchor = parts.findIndex((s) => s === "p" || s === "reel" || s === "tv");
+  if (anchor === -1) return undefined;
+  const candidate = parts[anchor + 1];
+  return candidate && INSTAGRAM_ID.test(candidate) ? candidate : undefined;
+}
+
 // Pure. Never throws. Unknown/unparseable → a generic "link" embed that still
 // preserves the original string (spec §7: seed never fails on a bad URL).
 export function detectEmbed(url: string): MediaEmbed {
@@ -109,6 +134,7 @@ export function detectEmbed(url: string): MediaEmbed {
   let embedId: string | undefined;
   if (provider === "youtube") embedId = youtubeId(url);
   else if (provider === "vimeo") embedId = vimeoId(url);
+  else if (provider === "instagram") embedId = instagramId(url);
 
   return { kind: "embed", provider, url, ...(embedId ? { embedId } : {}) };
 }

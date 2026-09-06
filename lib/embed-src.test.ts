@@ -175,6 +175,9 @@ const PROBE: Record<string, string | null> = {
   deezer: "https://www.deezer.com/en/track/123",
   ausha: null,
   figma: null,
+  // Detected but not framed — a link card by decision, for now. Task 6 gives
+  // it a real probe URL when embedSrc learns to frame it.
+  instagram: null,
 };
 
 test("every detectable provider has a probe url", () => {

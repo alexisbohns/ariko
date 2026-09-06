@@ -130,3 +130,38 @@ test("no configured host suffix-matches a different configured host", () => {
 test("hostMatches rejects an empty base rather than matching everything", () => {
   assert.equal(hostMatches("vimeo.com", ""), false);
 });
+
+test("an Instagram post detects with its shortcode", () => {
+  assert.deepEqual(detectEmbed("https://www.instagram.com/p/DVAxzXvDNkZ/"), {
+    kind: "embed",
+    provider: "instagram",
+    url: "https://www.instagram.com/p/DVAxzXvDNkZ/",
+    embedId: "DVAxzXvDNkZ",
+  });
+});
+
+test("reels and tv posts carry a shortcode too", () => {
+  assert.equal(detectEmbed("https://www.instagram.com/reel/ABC123xyz_/").embedId, "ABC123xyz_");
+  assert.equal(detectEmbed("https://instagram.com/tv/ABC123xyz-/").embedId, "ABC123xyz-");
+});
+
+test("an Instagram URL with no post degrades to a link card", () => {
+  // A profile is a destination, not a post. Provider yes, embedId no — which
+  // is what makes embedSrc return null and the renderer fall back.
+  const profile = detectEmbed("https://www.instagram.com/casa.lepodcast");
+  assert.equal(profile.provider, "instagram");
+  assert.equal(profile.embedId, undefined);
+});
+
+test("a shortcode that is not a shortcode yields no embedId", () => {
+  // Validated HERE rather than escaped at the point of use — the discipline
+  // YOUTUBE_ID records. A bad code degrades to a link card instead of building
+  // a URL on a trusted host out of arbitrary stored text.
+  assert.equal(detectEmbed("https://www.instagram.com/p/../../etc/passwd").embedId, undefined);
+  assert.equal(detectEmbed("https://www.instagram.com/p/ab/").embedId, undefined);
+  assert.equal(detectEmbed(`https://www.instagram.com/p/${"x".repeat(64)}/`).embedId, undefined);
+});
+
+test("an instagram-lookalike host is not Instagram", () => {
+  assert.equal(detectEmbed("https://instagram.com.evil.test/p/DVAxzXvDNkZ/").provider, "link");
+});
