@@ -1,4 +1,5 @@
-import type { Media, MediaEmbed } from "@/lib/data";
+import type { Media, MediaEmbed, MediaImage } from "@/lib/data";
+import { mediaRuns } from "@/lib/media-runs";
 import { embedSrc, type EmbedFrame } from "@/lib/embed-src";
 // Shared, not local: lib/graph.ts needs the same predicate for the cover URL it
 // puts on the wire, and a security check with two copies has two behaviours.
@@ -150,19 +151,65 @@ function MediaItem({ media }: { media: Media }) {
   return <EmbedItem media={media} />;
 }
 
+/**
+ * A run of images, as one horizontally swipeable strip.
+ *
+ * CSS only — `overflow-x-auto` plus scroll snapping. There is no carousel
+ * script here, no dots and no arrows, so there is nothing that stops working
+ * without JavaScript: the strip scrolls with a finger, a trackpad, a scrollbar,
+ * or the arrow keys once it has focus. That is the whole reason this is a strip
+ * rather than a slideshow — a slideshow in the public zone would be its first
+ * client island, bought for an affordance the browser already has.
+ *
+ * `tabIndex={0}` is what makes the keyboard case true. A scroll container is
+ * not focusable by default, so without it the arrow keys reach nothing and the
+ * slides past the first are unreachable to anyone not using a pointer.
+ *
+ * The slides keep their stored width/height through MediaItem, so each box is
+ * reserved before the bytes land and the row does not reflow as images arrive.
+ */
+function Gallery({ images }: { images: MediaImage[] }) {
+  return (
+    <div
+      role="group"
+      tabIndex={0}
+      aria-label={`Gallery, ${images.length} images`}
+      // -mx-1/px-1 so a focus ring on the strip is not clipped by its own
+      // overflow; pb-2 leaves room for the scrollbar rather than over the image.
+      className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-2"
+    >
+      {images.map((image, i) => (
+        <div key={`${i}-${image.url}`} className="w-[min(78vw,22rem)] shrink-0 snap-start">
+          <MediaItem media={image} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function MediaList({ media }: { media?: Media[] }) {
   if (!media || media.length === 0) return null;
+  // Adjacent images collapse into one strip; everything else — including a
+  // lone image — renders exactly as it did before this slice. See
+  // lib/media-runs.ts for why the threshold is two.
+  const runs = mediaRuns(media);
   return (
     <ul className="not-prose flex flex-col gap-3">
-      {media.map((m, i) => (
-        // The index is the only part guaranteeing uniqueness — nothing dedupes
-        // media[], so the same url can legitimately appear twice. Safe here
-        // because the list is server-rendered, stateless and never mutated
-        // client-side.
-        <li key={`${m.kind}-${i}-${m.url}`}>
-          <MediaItem media={m} />
-        </li>
-      ))}
+      {runs.map((run, i) =>
+        run.kind === "gallery" ? (
+          <li key={`gallery-${i}`}>
+            <Gallery images={run.images} />
+          </li>
+        ) : (
+          // The index is the only part guaranteeing uniqueness — nothing dedupes
+          // media[], so the same url can legitimately appear twice. Safe here
+          // because the list is server-rendered, stateless and never mutated
+          // client-side.
+          <li key={`${run.item.kind}-${i}-${run.item.url}`}>
+            <MediaItem media={run.item} />
+          </li>
+        ),
+      )}
     </ul>
   );
 }
