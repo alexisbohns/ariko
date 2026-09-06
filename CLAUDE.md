@@ -11,11 +11,38 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
 
 - Primitives live in `components/ui/`. Add more with
   `npx shadcn@latest add <name>` — never hand-roll one the registry already has.
-- Chrome belongs to the zones, not the root layout: `app/(public)/layout.tsx`
-  (site header) and `app/admin/layout.tsx` + `app/admin/_components/admin-chrome.tsx`
-  (a floating icon rail on the left edge, plus the public-site and log-out icon
+- Chrome belongs to the zones, not the root layout: `app/(public)/(chrome)/layout.tsx`
+  and `app/admin/layout.tsx` + `app/admin/_components/admin-chrome.tsx` (a
+  floating icon rail on the left edge, plus the public-site and log-out icon
   buttons top-right, which withdraws itself on the login page). The root layout
   owns only the document shell and the fonts.
+- **Four things the two zones now DRAW FROM ONE FILE** (the shared-surfaces
+  slice, [`specs/2026-09-06-shared-surfaces-design.md`](docs/superpowers/specs/2026-09-06-shared-surfaces-design.md)).
+  All four are **server-safe** — no `"use client"`, no `lucide-react` — which is
+  the property that lets one file serve `app/(public)` and an admin client island
+  at the same time. Adding either to one of them breaks the public zone silently:
+
+  - `components/chrome-plate.ts` — the plate every floating cluster wears.
+  - `components/chrome.tsx` + `lib/chrome-magnet.ts` — the cluster itself.
+    `Chrome` takes a **magnet** (eight edge positions) and an orientation;
+    `ChromeLink` / `ChromeItem` / `chromeItemClass()` are the ghost icon-buttons.
+    The hover label is CSS, and the side it opens toward is **derived from the
+    magnet** rather than passed. `lib/chrome-source.test.ts` enforces the two
+    rules above, because a violation passes `tsc`, `npm test` *and*
+    `npm run build`.
+  - `components/page-column.tsx` — `READING_COLUMN` is the same string in both
+    zones, which is what makes the author's column the visitor's column.
+    `resolveColumn()` in `lib/admin-nav.ts` picks it: a section index is
+    `WIDE_COLUMN`, everything else reads, login is bare. Chrome clearance goes
+    **outside** the measure, never inside it.
+  - `components/plant-header.tsx` and `components/entity-card.tsx` — the plant
+    head and the entity card. Each takes slots or one extra prop where the admin
+    genuinely shows more (`refText` on a card in the editor), and nothing else.
+
+  The rule these four share: **if the admin and the public site draw the same
+  thing, they draw it from the same file, and what differs is a parameter.**
+  Anything new that floats at an edge, sets a measure, or renders an entity
+  belongs here too — grep for the name rather than copying the classes.
 - **The admin's *metadata* forms stay zero-client-JS**: they post to server
   actions and must work without script. Use the styled *native* controls in
   `components/ui/native-controls.tsx` (`NativeSelect`, `NativeRadio`,
@@ -215,8 +242,9 @@ mistaken for further exceptions:
   `EntityAvatar`**, which is why that island is imported rather than reproduced.
 - The public chrome (`app/(public)/_components/public-chrome.tsx`) and the plant
   head (`app/(public)/_components/plant-head.tsx`). Both are **server**
-  components, and both had to work at it. Two rules keep the public zone's
-  no-script promise while it grows a floating rail and an icon-and-label header:
+  components, both are now thin compositions over the shared files above, and
+  both had to work at it. Two rules keep the public zone's no-script promise
+  while it grows a floating rail and an icon-and-label header:
 
   > **No lucide in a public server component.** `lucide-react` routes every icon
   > through an `Icon.mjs` carrying `"use client"`, so one `<Crown />` is one
@@ -225,15 +253,20 @@ mistaken for further exceptions:
   > carrying lucide's own path data (ISC), so the two zones still draw the same
   > vocabulary.
   >
-  > **No registry Tooltip in the public chrome.** It is `"use client"` too, and
-  > using it would make *navigation* script-dependent to gain a hover label.
-  > `components/icon-link.tsx` does the label in CSS instead, with the
-  > accessible name on the anchor's `aria-label` rather than on the visual span.
+  > **No registry Tooltip in a chrome cluster.** It is `"use client"` too, and
+  > using it in the public chrome would make *navigation* script-dependent to
+  > gain a hover label. `components/chrome.tsx` does the label in CSS instead,
+  > with the accessible name on the control's `aria-label` rather than on the
+  > visual span.
 
   That second one is a deviation from "never hand-roll what the registry has",
-  and it is the good direction of the trade: the hand-rolled version is strictly
-  more capable *in this zone*, because it works with script off. The admin keeps
-  the real `Tooltip`.
+  and it is the good direction of the trade. It now applies to the **admin's**
+  clusters too, which is not a concession: a cluster magnetized to a viewport
+  corner has nothing to collide with, so the positioning engine the registry
+  brings has no work to do there. What it costs is the shared delay group — a
+  pointer crossing a rail flashes each label in turn. Every popover, sheet and
+  the palette keep the real primitives, and so does everything anchored to an
+  in-flow trigger.
 
 Orientation lives in
 [`README.md`](README.md); the sequenced plan lives in
