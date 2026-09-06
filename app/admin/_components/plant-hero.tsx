@@ -3,12 +3,12 @@
 import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Crown, Globe, Lock, Pencil, Zap, ZapOff } from "lucide-react";
 import type { PlantStatus, Visibility } from "@/lib/data";
-import { initialsOf, visibilityLabel } from "@/lib/glyphs";
-import { cloudinaryThumb } from "@/lib/image-url";
+import { visibilityLabel } from "@/lib/glyphs";
 import { PLANT_STATUSES, statusLabel } from "@/lib/plant-status";
 import { PLANT_VISIBILITIES } from "@/lib/plant-visibility";
 import { setPlantStatusAction, setPlantVisibilityAction } from "../actions";
 import { OverlaySheet } from "./overlay-sheet";
+import { PlantHeader, PlantMarkContent, PLANT_MARK } from "@/components/plant-header";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ChoiceLabel, NativeRadio } from "@/components/ui/native-controls";
@@ -40,12 +40,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
  * stored, which is what makes the second click a confirmation rather than a
  * formality.
  */
-
-/** The mark's shape. A superellipse-ish radius as a PERCENTAGE, so the same
- *  class is right at every size this is rendered at — unlike the fixed `min()`
- *  radius `components/admin/glyphs.tsx` uses for its 24px table avatars, which
- *  would read as a barely-rounded square at 112px. */
-const SQUIRCLE = "rounded-[28%]";
 
 export interface PlantHeroProps {
   slug: string;
@@ -141,148 +135,134 @@ export function PlantHero({
 
   return (
     <TooltipProvider>
-      <header className="flex flex-col items-center gap-5 text-center">
-        {/* The mark edits itself, in place: a popover rather than a sheet,
-            because a logo is one field and the author needs to see the mark
-            they are replacing while they replace it. */}
-        <Popover
-          open={open === "logo"}
-          onOpenChange={(next) => setOpen(next ? "logo" : null)}
-        >
-          <PopoverTrigger
-            render={
-              <button
-                type="button"
-                aria-label="Logo"
-                className={`group relative size-28 overflow-hidden bg-muted text-muted-foreground transition-shadow focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring ${SQUIRCLE}`}
-              >
-                {logoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={cloudinaryThumb(logoUrl, { width: 224, height: 224 })}
-                    alt=""
-                    className="size-full object-cover"
-                  />
-                ) : (
-                  <span className="flex size-full items-center justify-center font-heading text-3xl tracking-tight">
-                    {initialsOf(name)}
+      <PlantHeader
+        /* The mark edits itself, in place: a popover rather than a sheet,
+           because a logo is one field and the author needs to see the mark they
+           are replacing while they replace it. The box and its contents are the
+           public page's (components/plant-header.tsx); what the admin adds is
+           that it is a button. */
+        mark={
+          <Popover open={open === "logo"} onOpenChange={(next) => setOpen(next ? "logo" : null)}>
+            <PopoverTrigger
+              render={
+                <button
+                  type="button"
+                  aria-label="Logo"
+                  className={`group relative ${PLANT_MARK} transition-shadow focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring`}
+                >
+                  <PlantMarkContent logoUrl={logoUrl} name={name} />
+                  {/* The affordance, on hover only — a pencil parked on the mark
+                      at rest would be the loudest thing on a page whose whole
+                      point is quiet. */}
+                  <span className="absolute inset-0 flex items-center justify-center bg-background/70 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                    <Pencil className="size-5" />
                   </span>
-                )}
-                {/* The affordance, on hover only — a pencil parked on the mark
-                    at rest would be the loudest thing on a page whose whole
-                    point is quiet. */}
-                <span className="absolute inset-0 flex items-center justify-center bg-background/70 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-                  <Pencil className="size-5" />
-                </span>
-              </button>
-            }
-          />
-          <PopoverContent side="bottom" className="w-80">
-            {logoForm}
-          </PopoverContent>
-        </Popover>
-
-        <div className="flex flex-col items-center gap-1.5">
-          {/* Still an h1: the sheet trigger is inside the heading rather than
-              instead of it, so the page keeps exactly one document title. */}
-          <h1 className="font-heading text-3xl font-medium tracking-tight">
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    ref={titleRef}
-                    type="button"
-                    onClick={() => setOpen("meta")}
-                    className="rounded-lg px-2 py-0.5 transition-colors hover:bg-accent/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                  >
-                    {name}
-                  </button>
-                }
-              />
-              <TooltipContent side="bottom">Edit name and description</TooltipContent>
-            </Tooltip>
-          </h1>
-          {description ? (
-            <p className="max-w-prose text-sm text-muted-foreground">{description}</p>
-          ) : null}
-        </div>
-
-        <div className="flex items-center gap-1">
-          {/* Role. The only one of the three that cannot be a toggle: it is
-              four kinds and two bilingual free-text fields, so the icon opens a
-              summary and the summary opens the sheet. */}
-          <Popover
-            open={open === "rolePopover"}
-            onOpenChange={(next) => setOpen(next ? "rolePopover" : null)}
-          >
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <PopoverTrigger
-                    render={
-                      <Button
-                        ref={crownRef}
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        aria-label={`Role: ${role.label}`}
-                      >
-                        <Crown className="size-4" />
-                      </Button>
-                    }
-                  />
-                }
-              />
-              <TooltipContent side="bottom">{roleLine(role)}</TooltipContent>
-            </Tooltip>
-            <PopoverContent side="bottom" className="w-72 text-left">
-              <div className="flex flex-col gap-1">
-                <p className="font-heading text-sm tracking-tight">{roleLine(role)}</p>
-                {role.detail ? (
-                  <p className="text-xs text-muted-foreground">{role.detail}</p>
-                ) : null}
-                {/* Said on the popover's face, deliberately: there is no
-                    private role. If the plant is public, everything here is
-                    too — detail included. */}
-                <p className="text-xs text-muted-foreground">
-                  Shown publicly, on this plant&rsquo;s page and on the landing gallery.
-                </p>
-              </div>
-              <div className="flex justify-end">
-                <Button type="button" size="sm" variant="outline" onClick={() => setOpen("role")}>
-                  <Pencil /> Edit
-                </Button>
-              </div>
+                </button>
+              }
+            />
+            <PopoverContent side="bottom" className="w-80">
+              {logoForm}
             </PopoverContent>
           </Popover>
+        }
+        /* Inside the h1, never instead of it — PlantHeader renders the heading
+           in both zones, so the page keeps exactly one document title. */
+        title={
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  ref={titleRef}
+                  type="button"
+                  onClick={() => setOpen("meta")}
+                  className="rounded-lg px-2 py-0.5 transition-colors hover:bg-accent/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                >
+                  {name}
+                </button>
+              }
+            />
+            <TooltipContent side="bottom">Edit name and description</TooltipContent>
+          </Tooltip>
+        }
+        description={description}
+        facts={
+          <div className="flex items-center gap-1">
+            {/* Role. The only one of the three that cannot be a toggle: it is
+                four kinds and two bilingual free-text fields, so the icon opens
+                a summary and the summary opens the sheet. */}
+            <Popover
+              open={open === "rolePopover"}
+              onOpenChange={(next) => setOpen(next ? "rolePopover" : null)}
+            >
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <PopoverTrigger
+                      render={
+                        <Button
+                          ref={crownRef}
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          aria-label={`Role: ${role.label}`}
+                        >
+                          <Crown className="size-4" />
+                        </Button>
+                      }
+                    />
+                  }
+                />
+                <TooltipContent side="bottom">{roleLine(role)}</TooltipContent>
+              </Tooltip>
+              <PopoverContent side="bottom" className="w-72 text-left">
+                <div className="flex flex-col gap-1">
+                  <p className="font-heading text-sm tracking-tight">{roleLine(role)}</p>
+                  {role.detail ? (
+                    <p className="text-xs text-muted-foreground">{role.detail}</p>
+                  ) : null}
+                  {/* Said on the popover's face, deliberately: there is no
+                      private role. If the plant is public, everything here is
+                      too — detail included. */}
+                  <p className="text-xs text-muted-foreground">
+                    Shown publicly, on this plant&rsquo;s page and on the landing gallery.
+                  </p>
+                </div>
+                <div className="flex justify-end">
+                  <Button type="button" size="sm" variant="outline" onClick={() => setOpen("role")}>
+                    <Pencil /> Edit
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
 
-          {/* Status and visibility. Each icon opens its own vocabulary rather
-              than flipping the field under the pointer — see the note at the
-              top of this file on why a one-click write was the wrong shape for
-              these two. */}
-          <EnumPopover
-            open={open === "status"}
-            onOpenChange={(next) => setOpen(next ? "status" : null)}
-            action={setPlantStatusAction}
-            slug={slug}
-            field="status"
-            current={status}
-            options={STATUS_OPTIONS}
-            label={`Status: ${statusLabel(status)}`}
-          />
+            {/* Status and visibility. Each icon opens its own vocabulary rather
+                than flipping the field under the pointer — see the note at the
+                top of this file on why a one-click write was the wrong shape for
+                these two. */}
+            <EnumPopover
+              open={open === "status"}
+              onOpenChange={(next) => setOpen(next ? "status" : null)}
+              action={setPlantStatusAction}
+              slug={slug}
+              field="status"
+              current={status}
+              options={STATUS_OPTIONS}
+              label={`Status: ${statusLabel(status)}`}
+            />
 
-          <EnumPopover
-            open={open === "visibility"}
-            onOpenChange={(next) => setOpen(next ? "visibility" : null)}
-            action={setPlantVisibilityAction}
-            slug={slug}
-            field="visibility"
-            current={visibility}
-            options={VISIBILITY_OPTIONS}
-            label={`Visibility: ${visibilityLabel(visibility)}`}
-          />
-        </div>
-      </header>
+            <EnumPopover
+              open={open === "visibility"}
+              onOpenChange={(next) => setOpen(next ? "visibility" : null)}
+              action={setPlantVisibilityAction}
+              slug={slug}
+              field="visibility"
+              current={visibility}
+              options={VISIBILITY_OPTIONS}
+              label={`Visibility: ${visibilityLabel(visibility)}`}
+            />
+          </div>
+        }
+      />
 
       <OverlaySheet
         open={open === "meta"}
