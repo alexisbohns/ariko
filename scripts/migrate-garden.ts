@@ -10,6 +10,7 @@ import yaml from "js-yaml";
 import { getDb } from "../lib/db";
 import type { RawGarden } from "../lib/data";
 import { extractRefs, mergeMirrored } from "../lib/entity-refs";
+import { normalizeLinks } from "../lib/platforms";
 
 async function main() {
   const file = readFileSync(join(process.cwd(), "data", "garden.yml"), "utf8");
@@ -33,12 +34,24 @@ async function main() {
     return relations.length > 0 ? { ...doc, relations } : doc;
   };
 
+  // The yml carries only `url`. `platform` is derived here and a normalized URL
+  // is what gets stored, so the "derived server-side, never declared" rule
+  // holds through the one path that writes links — and a hand-authored entry
+  // cannot get `platform` wrong, because it does not get to say.
+  //
+  // No return type annotation, same as `mirrored` above: the inferred
+  // `T & { links: PlatformLink[] }` spreads into $set without a cast.
+  const linked = <T extends { links?: { url: string }[] }>(doc: T) => {
+    const links = normalizeLinks(doc.links);
+    return links ? { ...doc, links } : doc;
+  };
+
   for (const p of raw.plants ?? []) {
     await db.collection("plants").updateOne(
       { slug: p.slug },
       p.visibility
-        ? { $set: { ...mirrored(p) } }
-        : { $set: { ...mirrored(p) }, $setOnInsert: { visibility: "public" } },
+        ? { $set: { ...mirrored(linked(p)) } }
+        : { $set: { ...mirrored(linked(p)) }, $setOnInsert: { visibility: "public" } },
       { upsert: true },
     );
   }
@@ -64,8 +77,8 @@ async function main() {
     await db.collection("sprouts").updateOne(
       { slug: v.slug },
       v.state
-        ? { $set: { ...mirrored(v) } }
-        : { $set: { ...mirrored(v) }, $setOnInsert: { state: "published" } },
+        ? { $set: { ...mirrored(linked(v)) } }
+        : { $set: { ...mirrored(linked(v)) }, $setOnInsert: { state: "published" } },
       { upsert: true },
     );
   }
