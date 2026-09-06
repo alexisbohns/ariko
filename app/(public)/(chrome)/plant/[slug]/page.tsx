@@ -6,6 +6,7 @@ import { resolveEntity } from "@/lib/entity-resolve";
 import { PlantHead } from "@/app/(public)/_components/plant-head";
 import { ProfanePreload } from "@/components/brand/profane-preload";
 import { Prose } from "@/components/markdown";
+import { LinkRow } from "@/components/link-row";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,12 @@ export default async function PlantPage({ params }: { params: Promise<{ slug: st
         description={resolveText(plant.description ?? "", lang).trim()}
         roleDetail={roleDetail}
       />
+
+      {/* Where the plant can be found off-site. Under the head, above the
+          narrative: it is a fact about the plant, not part of its argument. */}
+      <div className="flex justify-center">
+        <LinkRow links={plant.links} lang={lang} label={`Find ${resolveText(plant.name, lang)} elsewhere`} />
+      </div>
 
       {/* The narrative — where the argument lives. Its entity refs resolve
           against the public dataset, so anything hidden renders as nothing. */}

@@ -9,6 +9,7 @@ import { articleFor } from "@/lib/article";
 import { Prose } from "@/components/markdown";
 import { resolveEntity } from "@/lib/entity-resolve";
 import { MediaList } from "@/components/media";
+import { LinkRow } from "@/components/link-row";
 
 export const dynamic = "force-dynamic";
 
@@ -95,6 +96,11 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <ul className="flex flex-col gap-1 font-heading text-xs">{dumpRows(sprout, lang)}</ul>
+            {/* Destinations before assets: "listen to this" is what a visitor
+                came for, and the gallery is what they stay for. `links[]` needs
+                no exclusion from the dump above — isScalar rejects arrays, so
+                it stays out the same way media[] already does. */}
+            <LinkRow links={sprout.links} lang={lang} label={`Listen to ${resolveText(sprout.name, lang)}`} />
             {/* One location, no duplication, and no layout bet the exhibition
                 slice would overturn: the property dump stays until D1 retires
                 it deliberately (umbrella §4), so media belongs beside it. */}
