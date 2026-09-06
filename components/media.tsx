@@ -40,10 +40,22 @@ const FRAME_BOX: Record<EmbedFrame["aspect"], string> = {
   video: "aspect-video w-full",
   audio: "h-[166px] w-full",
   "audio-list": "h-[450px] w-full",
-  // Instagram's post card: a 4:5 carousel plus its header and action bar. The
-  // taller end, by the same rule as the audio boxes — clipping loses content,
-  // padding only loses whitespace.
-  social: "h-[720px] w-full",
+  // Instagram's post card: a 4:5 carousel plus its header and action bar.
+  //
+  // The WIDTH CAP is what makes the fixed height honest, and removing it
+  // reintroduces the bug it fixes. Instagram renders the media at the iframe's
+  // full width, so height tracks width: uncapped in the ~720px reading column
+  // the card wants ~900px of image plus ~150px of chrome, and a fixed 720px box
+  // would clip a third of it — worse on a desktop than on a phone, which is the
+  // opposite of the intuition. Capped at 400px (Instagram's own embed script
+  // uses a 540px max), the card is ~650px and the box pads rather than clips,
+  // which is the rule the audio boxes above follow.
+  //
+  // A fixed height rather than an aspect ratio because the chrome is a constant
+  // number of pixels, not a proportion — and `min-h` would change nothing: a
+  // cross-origin iframe cannot size itself to its content, so the container has
+  // no content height to grow to.
+  social: "h-[720px] w-full max-w-[400px]",
 };
 
 // Casing is looked up, never derived: "soundcloud" → "SoundCloud" is not a

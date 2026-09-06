@@ -251,6 +251,17 @@ test("a forged Instagram embedId cannot leave the allowlisted origin", () => {
   assert.equal(new URL(frame.src).origin, "https://www.instagram.com");
 });
 
+test("an empty instagram embedId is no id at all", () => {
+  // "" is falsy, so it takes the same branch a missing id does. Asserted
+  // because it is the one shape that could plausibly reach here from a stored
+  // row — lib/embeds.ts returns undefined, but a hand-edited document can hold
+  // an empty string, and `/p//embed` would be a guaranteed 404 in an iframe.
+  assert.equal(
+    embedSrc({ kind: "embed", provider: "instagram", url: "https://www.instagram.com/p/x/", embedId: "" }),
+    null,
+  );
+});
+
 test("EMBED_FRAME_HOSTS carries instagram", () => {
   assert.ok((EMBED_FRAME_HOSTS as readonly string[]).includes("https://www.instagram.com"));
 });
