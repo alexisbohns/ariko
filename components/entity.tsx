@@ -58,7 +58,7 @@ export function EntityCard({
           />
         ) : null}
         {/* py-8: the card sits in 16px prose now and needs the room. */}
-        <CardContent className="flex flex-col gap-1 py-8">
+        <CardContent className="flex flex-col gap-1">
           <span className="text-sm font-medium underline-offset-4 group-hover:underline">
             {entity.name}
           </span>

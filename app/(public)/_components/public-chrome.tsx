@@ -21,12 +21,43 @@ import type { Lang } from "@/lib/locale";
  * plants, waypoints for the beanstalk. Two zones, one vocabulary: a visitor who
  * becomes the author finds the same glyph meaning the same thing.
  */
+
+/**
+ * Ghost on desktop: the icons are the chrome, and the container that holds
+ * them only exists while you are pointing at it.
+ *
+ * Three things about this are deliberate.
+ *
+ * **`border-transparent`, never `border-0`.** The border stays in the box model
+ * and only loses its colour. Removing it would resize the cluster by 1px on
+ * every hover, so the icons would twitch under the pointer that was reaching
+ * for them — the one place a hover effect must not move anything.
+ *
+ * **`focus-within` mirrors every `hover`.** A keyboard user tabbing into the
+ * chrome gets the same panel a pointer does; without it the focus ring would
+ * sit on an invisible cluster floating over the page.
+ *
+ * **`md:` and up only.** Below that the plate stays on permanently, and that is
+ * not a hedge about small screens — it is that touch has no hover at all. A
+ * ghost chrome on a phone is a chrome that can never materialize, and it is
+ * exactly where it needs the plate most: the clusters sit over the reading
+ * column rather than beside it, so bare icons would be laid on top of the text
+ * they overlap.
+ */
+const GHOST =
+  "border bg-card/80 shadow-lg backdrop-blur " +
+  "transition-[background-color,border-color,box-shadow] duration-200 " +
+  "md:border-transparent md:bg-transparent md:shadow-none md:backdrop-blur-none " +
+  "md:hover:border-border md:hover:bg-card/80 md:hover:shadow-lg md:hover:backdrop-blur " +
+  "md:focus-within:border-border md:focus-within:bg-card/80 md:focus-within:shadow-lg " +
+  "md:focus-within:backdrop-blur";
+
 export function PublicChrome({ lang }: { lang: Lang }) {
   return (
     <>
       <nav
         aria-label="Site"
-        className="fixed left-4 top-4 z-40 flex items-center gap-1 rounded-2xl border bg-card/80 p-1.5 shadow-lg backdrop-blur"
+        className={`fixed left-4 top-4 z-40 flex items-center gap-1 rounded-2xl p-1.5 ${GHOST}`}
       >
         <IconLink href="/" label="Ariko">
           <ArikoIcon className="size-5 text-foreground" />
@@ -41,8 +72,10 @@ export function PublicChrome({ lang }: { lang: Lang }) {
 
       {/* The language switch keeps its own anchor and its own aria-label — it
           is a link to `?lang=…`, not an icon, so it does not go through
-          IconLink. */}
-      <div className="fixed right-4 top-4 z-40 rounded-xl border bg-card/80 px-3 py-2 shadow-lg backdrop-blur">
+          IconLink. It wears the same ghost plate as the rail: a solid pill
+          beside a chrome that had vanished would read as a stray button rather
+          than as the other half of the same furniture. */}
+      <div className={`fixed right-4 top-4 z-40 rounded-xl px-3 py-2 ${GHOST}`}>
         <LangSwitch lang={lang} />
       </div>
     </>

@@ -89,6 +89,24 @@ The `<header>` bar is deleted. Three fixed clusters replace it, all server-rende
 - **Top-right**: `LangSwitch`, unchanged and untouched.
 - `<main>` keeps `mx-auto max-w-3xl px-6` and gains top padding to clear the cluster.
 
+### Ghost on desktop
+
+At `md:` and up both clusters are **just their icons**: no border, no plate, no shadow. The container
+materializes on hover or focus and fades back out. The icons never change — what appears is the
+furniture behind them.
+
+Three parts of that are load-bearing:
+
+- **`border-transparent`, never `border-0`.** The border keeps its place in the box model and only
+  loses its colour. Dropping it would resize the cluster by 1px on hover, twitching the icons under
+  the pointer that was reaching for them — the one place a hover effect must not move anything.
+- **`focus-within` mirrors every `hover`.** A keyboard user tabbing in gets the same plate a pointer
+  does. Without it the focus ring would land on an invisible cluster floating over the page.
+- **`md:` and up only, and not as a hedge about small screens.** Touch has no hover, so a ghost
+  chrome on a phone is one that can never materialize — and a phone is where it needs the plate
+  most, because the clusters sit *over* the reading column rather than beside it. Below `md` the
+  plate stays on permanently.
+
 ### Tooltips without script — the registry deviation, stated
 
 `CLAUDE.md` says never hand-roll a primitive the registry already has, and the registry has
