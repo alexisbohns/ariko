@@ -380,29 +380,47 @@ public zone's convention.
 
 An absent or empty `links` renders `null`, the same contract `MediaList` has.
 
-### 6.2 `components/public-icons.tsx` gains five marks
+### 6.2 Text chips, and why there are no brand marks yet
 
-Spotify, Apple Podcasts, Deezer, Ausha and Instagram brand marks, as inline
-`<svg aria-hidden>` (simple-icons path data, CC0), joining the five glyphs
-already there.
+Each chip is the platform's **name as text**, on the existing `Badge` — which is
+exactly the row the approved design previewed: `[Spotify] [Apple] [Deezer]
+[Ausha]`.
 
-Not from lucide, and not from the registry `Tooltip`. Two reasons, both already
-written into the codebase: brand marks are not in lucide at all, and
-`lucide-react` routes every icon through an `Icon.mjs` carrying `"use client"`,
-so one `<Spotify />` would push a client boundary into the zone whose whole rule
-is that it has none.
+Brand marks are deliberately **not** in this slice, and the reason is a rule the
+repo already enforces rather than a shrug. `components/public-icons.tsx` says of
+its own glyphs: *"copy `__iconNode` out of node_modules/lucide-react — do not
+eyeball it"*, and `components/public-icons.test.tsx` renders lucide's component
+beside each copy and compares the geometry, so a drifted path fails a test
+instead of reaching a visitor.
 
-Each chip carries the platform's **name as visible text** beside its mark, so the
-icon is decoration and the row survives an icon failing to load.
+There is no equivalent source in the tree for a Spotify or Instagram mark.
+lucide has no brand icons (its `apple` is the fruit), and `simple-icons` is not
+a dependency. Hand-drawing five brand paths would be precisely the eyeballing
+that file forbids, with no test able to catch a wrong one.
+
+So the marks are a follow-up with a real prerequisite: add `simple-icons` as a
+devDependency, copy its paths into a **new** `components/platform-icons.tsx`,
+and give it the drift test `public-icons.test.tsx` already models. They do not
+belong in `public-icons.tsx` — that file's header and its test both assert
+"every glyph here is lucide's", and a CC0 brand mark would make both false.
 
 ### 6.3 Where the row appears
 
-- The public plant page (`app/(public)/_components/plant-head.tsx`, or beneath
-  it) — `plant.links`.
-- The public sprout page — `sprout.links`, above `MediaList`.
+**There is no public sprout route.** The public zone is `/`, `/beanstalk`,
+`/plant/[slug]`, `/pod/[slug]` and `/bean/[id]` — and a sprout renders as a
+`Card` inside its bean's page, beside the property dump. So:
 
-Both are server components already, and `LinkRow` is server-safe, so neither
-grows a boundary.
+- `app/(public)/(chrome)/plant/[slug]/page.tsx` — `plant.links`, beneath
+  `<PlantHead>`.
+- `app/(public)/(chrome)/bean/[id]/page.tsx` — `sprout.links`, inside each
+  sprout `Card`, immediately above its `<MediaList>`.
+
+Both pages are server components already and `LinkRow` is server-safe, so
+neither grows a boundary.
+
+One thing that needs no work: the bean page's property dump renders a row per
+scalar property, and `isScalar` rejects arrays — so `links[]` stays out of the
+dump the same way `media[]` already does.
 
 ## 7. Tests
 
@@ -414,6 +432,7 @@ grows a boundary.
 | `lib/embed-src.test.ts` | the host table gains exactly one origin; a missing `embedId` returns `null` |
 | `components/media.test.tsx` | a forged instagram row renders an `instagram.com` src and nothing else; a two-image run renders one strip; a one-image run renders today's markup |
 | `components/link-row.test.tsx` | empty → `null`; each chip's href, label and new-tab announcement |
+| `lib/server-safe-source.test.ts` | the four public-zone files carry no `"use client"`, no `lucide-react`, no `node:` |
 | `lib/data.test.ts` | `filterPublic` leaves `links` intact on a public plant and drops the plant entirely when private |
 
 ## 8. Order of work
@@ -432,8 +451,11 @@ Steps 1–5 ship no content and change nothing visible. Steps 6–7 are the cont
 
 - `npm test`, `npx tsc --noEmit`, `npm run build`.
 - `lib/chrome-source.test.ts`'s rule applies to every new public-zone file: no
-  `"use client"`, no `lucide-react`. A violation passes all three commands above,
-  which is why that test exists — extend its file list to cover
+  `"use client"`, no `lucide-react`, no `node:`. A violation passes all three
+  commands above, which is why that test exists — but it currently reads one
+  hard-coded file. Generalize it to a list (`git mv` to
+  `lib/server-safe-source.test.ts`) covering `components/chrome.tsx`,
+  `components/media.tsx`, `components/public-icons.tsx` and
   `components/link-row.tsx`.
 - Load both episode pages with **JavaScript disabled**: the strip must still
   scroll, the chips must still link. Only the two iframes should be missing.
