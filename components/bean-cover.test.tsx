@@ -31,6 +31,11 @@ test("no cover renders nothing at all", () => {
 test("a fill cover is one image at the 448x336 derivative", () => {
   const markup = html({ kind: "fill", image: img("wide") });
   assert.match(markup, /w_448,h_336,c_fill,q_auto,f_auto/);
+  // A class-string assertion, and a deliberate exception to "don't assert
+  // Tailwind class strings": object-cover is what makes this a FILL cover
+  // rather than a letterboxed one — dropping it changes what the visitor
+  // sees, so it is behaviour, not styling. It is not blanket permission to
+  // assert the hover/transition classes alongside it.
   assert.match(markup, /object-cover/);
   assert.equal(text(markup), "");
 });
@@ -41,7 +46,13 @@ test("a phone cover asks for the TALL derivative, not the square one", () => {
   // landscape crop of a portrait screenshot.
   const markup = html({ kind: "phone", image: img("shot", { width: 390, height: 844 }) });
   assert.match(markup, /w_224,h_484,c_fill,q_auto,f_auto/);
-  assert.equal(/w_448/.test(markup), false);
+  assert.doesNotMatch(markup, /w_448/);
+  // Attributes, not class strings, so the "don't assert Tailwind classes"
+  // rule doesn't cover them — and the landing page renders a whole row of
+  // these, so an un-pinned loading/decoding pair is real payload weight, not
+  // styling.
+  assert.match(markup, /loading="lazy"/);
+  assert.match(markup, /decoding="async"/);
 });
 
 test("the keyword is rendered, and hidden from the accessibility tree", () => {
@@ -66,7 +77,7 @@ test("the keyword resolves per language", () => {
 
 test("a wordless phone renders the bezel and no empty word box", () => {
   const markup = html({ kind: "phone", image: img("shot", { width: 390, height: 844 }) });
-  assert.equal(/aria-hidden/.test(markup), false);
+  assert.doesNotMatch(markup, /aria-hidden/);
   assert.match(markup, /w_224,h_484/);
 });
 
@@ -84,7 +95,7 @@ test("a keyword that resolves to whitespace is the WORDLESS phone", () => {
     },
     "en",
   );
-  assert.equal(/aria-hidden/.test(markup), false);
+  assert.doesNotMatch(markup, /aria-hidden/);
   assert.equal(text(markup), "");
   assert.match(markup, /w_224,h_484/);
 });

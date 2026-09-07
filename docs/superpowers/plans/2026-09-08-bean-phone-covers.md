@@ -360,6 +360,11 @@ test("no cover renders nothing at all", () => {
 test("a fill cover is one image at the 448x336 derivative", () => {
   const markup = html({ kind: "fill", image: img("wide") });
   assert.match(markup, /w_448,h_336,c_fill,q_auto,f_auto/);
+  // A class-string assertion, and a deliberate exception to "don't assert
+  // Tailwind class strings": object-cover is what makes this a FILL cover
+  // rather than a letterboxed one — dropping it changes what the visitor
+  // sees, so it is behaviour, not styling. It is not blanket permission to
+  // assert the hover/transition classes alongside it.
   assert.match(markup, /object-cover/);
   assert.equal(text(markup), "");
 });
@@ -370,7 +375,13 @@ test("a phone cover asks for the TALL derivative, not the square one", () => {
   // landscape crop of a portrait screenshot.
   const markup = html({ kind: "phone", image: img("shot", { width: 390, height: 844 }) });
   assert.match(markup, /w_224,h_484,c_fill,q_auto,f_auto/);
-  assert.equal(/w_448/.test(markup), false);
+  assert.doesNotMatch(markup, /w_448/);
+  // Attributes, not class strings, so the "don't assert Tailwind classes"
+  // rule doesn't cover them — and the landing page renders a whole row of
+  // these, so an un-pinned loading/decoding pair is real payload weight, not
+  // styling.
+  assert.match(markup, /loading="lazy"/);
+  assert.match(markup, /decoding="async"/);
 });
 
 test("the keyword is rendered, and hidden from the accessibility tree", () => {
@@ -395,7 +406,7 @@ test("the keyword resolves per language", () => {
 
 test("a wordless phone renders the bezel and no empty word box", () => {
   const markup = html({ kind: "phone", image: img("shot", { width: 390, height: 844 }) });
-  assert.equal(/aria-hidden/.test(markup), false);
+  assert.doesNotMatch(markup, /aria-hidden/);
   assert.match(markup, /w_224,h_484/);
 });
 
@@ -413,7 +424,7 @@ test("a keyword that resolves to whitespace is the WORDLESS phone", () => {
     },
     "en",
   );
-  assert.equal(/aria-hidden/.test(markup), false);
+  assert.doesNotMatch(markup, /aria-hidden/);
   assert.equal(text(markup), "");
   assert.match(markup, /w_224,h_484/);
 });
@@ -441,6 +452,13 @@ import type { Lang } from "@/lib/locale";
 import { resolveText } from "@/lib/data";
 import { cloudinaryThumb } from "@/lib/image-url";
 
+// One movement, two elements: the word leaving and the phone rising are the
+// same gesture, so they share one duration and one curve by construction —
+// tune the curve in one place and both halves of the choreography move
+// together instead of silently drifting apart.
+const GLIDE =
+  "transition-transform duration-[420ms] ease-[cubic-bezier(.2,.7,.2,1)] motion-reduce:transition-none";
+
 /**
  * The inside of a landing-page cover frame.
  *
@@ -450,9 +468,17 @@ import { cloudinaryThumb } from "@/lib/image-url";
  * the anchor the card already wears, so a cover that animates costs the public
  * zone no JavaScript at all.
  *
+ * It is server-ONLY, not merely server-safe: `resolveText` comes from
+ * `@/lib/data`, which opens with `node:fs`. `server-safe-source.test.ts`'s
+ * third assertion (no `node:` import in THIS file's own source) passes
+ * textually, but the module graph behind it is not isomorphic — a future
+ * client island (an admin Cover live-preview, say) that imports this component
+ * would fail at build with a confusing bundler error rather than a clear one.
+ * This is only ever meant to render on the server.
+ *
  * The frame itself stays in app/(public)/page.tsx: `aspect-[4/3] overflow-hidden
- * rounded-lg bg-muted`, plus the `relative` this component's absolute children
- * need. What lives here is only what goes inside it.
+ * rounded-lg bg-muted`, plus `group` and `relative` for this component's hover
+ * and positioning to hook into. What lives here is only what goes inside it.
  *
  * The geometry is tied to the row's `w-56` card (224x168 frame). The phone is
  * half the frame wide — 112px, which for a 390x844 capture is 242px tall, so it
@@ -461,6 +487,15 @@ import { cloudinaryThumb } from "@/lib/image-url";
  * rather than baked into the stored file: baking it would make cloudinaryThumb
  * crop a composite instead of a screen, and turn "re-shoot that screen" into
  * "re-composite that screen".
+ *
+ * Three more numbers worth naming so they don't read as arbitrary: the frame
+ * is 168px tall and the phone should show 110px of screen at rest (the same
+ * 110px the hover-transform comment below reckons its math from), which is
+ * where `top-[58px]` comes from — 168 - 110 = 58. The word above it is a
+ * `pt-[9px]` inset plus `text-[34px]` leading-none text, a ~43px block, so 58
+ * leaves it a clean ~15px of headroom before the phone's bezel starts —
+ * without that gap the word and the rising phone would overlap mid-transition
+ * rather than only trading places at the end of it.
  */
 export function BeanCover({
   cover,
@@ -477,7 +512,8 @@ export function BeanCover({
       <img
         // Cloudinary shrinks it for us — 2x the 224px box, so the cover stays
         // sharp on a retina display without shipping the multi-megabyte
-        // original. Unchanged from what the page rendered inline before.
+        // original. The derivative math is unchanged from what the page
+        // rendered inline before this component existed.
         src={cloudinaryThumb(cover.image.url, { width: 448, height: 336 })}
         alt=""
         loading="lazy"
@@ -490,14 +526,23 @@ export function BeanCover({
   const word = resolveText(cover.keyword, lang).trim();
 
   return (
-    <>
+    // The phone branch's own positioning context. `group` and the frame's
+    // shape stay the caller's — this div owns nothing but `relative`, so the
+    // two absolutely-positioned children below can never end up positioned
+    // against some ancestor further up the tree than intended.
+    <div className="relative h-full w-full">
       {word ? (
         <span
           // aria-hidden: the bean's name sits two lines below this and the word
           // is a compressed restatement of it — the same reasoning that puts
           // alt="" on the image beside it.
+          //
+          // z-10 is load-bearing, not decorative: this span is emitted BEFORE
+          // the phone in DOM order, so without it the rising phone would paint
+          // OVER the departing word for the middle of the hover transition,
+          // rather than the two visibly trading places.
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 z-10 pt-[9px] text-center font-display text-[34px] leading-none tracking-tight text-foreground transition-transform duration-[420ms] ease-[cubic-bezier(.2,.7,.2,1)] group-hover:-translate-y-[110%] motion-reduce:transition-none"
+          className={`absolute inset-x-0 top-0 z-10 pt-[9px] text-center font-display text-[34px] leading-none tracking-tight text-foreground ${GLIDE} group-hover:-translate-y-[110%]`}
         >
           {word}
         </span>
@@ -512,7 +557,13 @@ export function BeanCover({
         //
         // -46px with a 0.80 scale from `origin-top`: 110px of the screen visible
         // at rest becomes ~156px of a smaller phone on hover, 45% to 80%.
-        className="absolute left-1/2 top-[58px] w-1/2 origin-top rounded-2xl bg-neutral-900 p-1 pb-0 shadow-lg [transform:translateX(-50%)] transition-transform duration-[420ms] ease-[cubic-bezier(.2,.7,.2,1)] group-hover:[transform:translateX(-50%)_translateY(-46px)_scale(0.8)] motion-reduce:transition-none"
+        //
+        // bg-neutral-900, not a theme token: this is the one non-token colour
+        // in the file, and it is deliberate rather than an oversight. A phone
+        // is dark in both themes, so `bg-foreground` (near-white in dark mode)
+        // or `bg-card` (vanishes into the page) would both be silently wrong
+        // fixes for something that was never broken.
+        className={`absolute left-1/2 top-[58px] w-1/2 origin-top rounded-2xl bg-neutral-900 p-1 pb-0 shadow-lg [transform:translateX(-50%)] ${GLIDE} group-hover:[transform:translateX(-50%)_translateY(-46px)_scale(0.8)]`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -527,7 +578,7 @@ export function BeanCover({
           className="block w-full rounded-t-xl"
         />
       </span>
-    </>
+    </div>
   );
 }
 ```
