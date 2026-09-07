@@ -469,6 +469,11 @@ sprouts:
       personal stories and advice from the hosts
     parents:
       - bean:casa-dating
+    links:
+      - url: https://open.spotify.com/episode/4PkLhHEbiZTSXYCmJENwqT
+      - url: https://podcasts.apple.com/fr/podcast/dating-jumelles-pizza-et-photos-de-pieds/id1878359919?i=1000750486031
+      - url: https://www.deezer.com/fr/episode/846725011
+      - url: https://podcast.ausha.co/casa-podcast/dating-jumelles-pizza-et-photos-de-pieds
   - slug: casa-tolerance-0
     name: CASA Episode 2
     type: episode
@@ -478,6 +483,11 @@ sprouts:
       relationship, featuring personal stories and advice from the hosts
     parents:
       - bean:casa-tolerance
+    links:
+      - url: https://open.spotify.com/episode/6haxhA84s8YavAPdMyjn3J
+      - url: https://podcasts.apple.com/fr/podcast/couple-accepter-lautre-malgre-la-romantasy-et-les-calamars/id1878359919?i=1000750485891
+      - url: https://www.deezer.com/fr/episode/846724991
+      - url: https://podcast.ausha.co/casa-podcast/couple-accepter-l-autre-malgre-la-romantasy-et-les-calamars-vampiriques
   - slug: celesta-uunngaelig-0
     name: Uunngåelig
     type: song
@@ -800,6 +810,13 @@ plants:
     description: A podcast about life questions and debates with 3 friends
     natures:
       - work
+    links:
+      - url: https://open.spotify.com/show/5NDGxBSeMxeTguOpWl2MDI
+      - url: https://podcasts.apple.com/fr/podcast/casa-podcast/id1878359919
+      - url: https://www.deezer.com/fr/show/1002670521
+      - url: https://podcast.ausha.co/casa-podcast
+      - url: https://www.instagram.com/casa.lepodcast
+      - url: https://linktr.ee/casa.lepodcast
   - slug: pebblestones
     name: Pebblestones
     description: >-

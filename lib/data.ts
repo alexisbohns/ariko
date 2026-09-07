@@ -27,6 +27,30 @@ export interface MediaImage {
 }
 export type Media = MediaEmbed | MediaImage;
 
+/**
+ * Where a thing can be found ELSEWHERE — a destination, not an asset.
+ *
+ * Deliberately not part of `Media`, and `links[]` is deliberately not `media[]`.
+ * `media[]` means assets rendered in the body: an image, or a player framed
+ * inline. A "Listen on Apple Podcasts" URL is neither, and putting it in the
+ * same array would make it indistinguishable from a Spotify episode URL that
+ * genuinely IS meant to become a 152px player — with the only thing separating
+ * them being a rule living in a renderer's control flow.
+ *
+ * They also sit at different levels, which one array cannot express: the show's
+ * platform row belongs to the Plant, each episode's to its Sprout.
+ *
+ * `platform` is DERIVED server-side from the URL host (lib/platforms.ts) and a
+ * caller's declared value is discarded — the rule lib/inbox.ts already applies
+ * to MediaEmbed.provider. It is what indexes PLATFORM_LABEL, so it may only
+ * ever be a member of that vocabulary or the literal "link".
+ */
+export interface PlatformLink {
+  platform: string; // spotify | apple-podcasts | deezer | ausha | instagram | linktree | link
+  url: string;
+  label?: Text; // bilingual override; the platform's own name otherwise
+}
+
 export interface Source {
   kind: string; // manual | github | changelog | arkaik | ...
   url?: string;
@@ -95,6 +119,11 @@ export interface Plant {
   // while admitting a MediaEmbed, a SoundCloud player, into a field that is a
   // square image by definition.
   logo?: MediaImage;
+  // Where the plant can be found off-site. NOT `media` — see PlatformLink.
+  // A plant has `logo` (one image) and no assets array at all, and inventing
+  // one so that six URLs have somewhere to sit would be giving it a body it
+  // does not have.
+  links?: PlatformLink[];
   description: Text;
   content?: Text; // optional narrative — the container's own page (slice 3)
   visibility?: Visibility; // default treated as "public", same rule as pods
@@ -164,6 +193,7 @@ export interface Sprout {
   state?: SproutState; // absent => NOT published (safe default)
   content?: Text; // optional rich markdown, localizable
   media?: Media[];
+  links?: PlatformLink[]; // destinations, never rendered inline — see PlatformLink
   source?: Source;
   tags?: string[];
   [key: string]: unknown; // flexible per-type properties
@@ -454,6 +484,11 @@ export function filterPublic(raw: RawGarden): RawGarden {
           : ref.startsWith(PLANT_PREFIX) && plantKept.has(ref.slice(PLANT_PREFIX.length));
 
   const sprouts = keptSprouts.map((s) => scrubRelations(s, refSurvives));
+  // `links` needs no scrub and gets none. PlatformLink holds a URL, a derived
+  // platform word and an optional label — no entity refs — so there is nothing
+  // in it that could name a private slug. Same property PlantRole has, stated
+  // for the same reason: the ABSENCE of a scrub should read as a conclusion
+  // someone reached, not as a line someone forgot.
   const plants = keptPlants.map((p) => scrubRelations(p, refSurvives));
   // I6: editContainerContentAction writes relations[] onto pod documents the
   // same way it does for plants (buildContentPatch / updatePodContent), but

@@ -63,14 +63,15 @@ export interface EmbedFrame {
    * the providers' own widgets do: Spotify renders a track or episode at 152px
    * and an album, playlist, show or artist at 352px; SoundCloud a single track
    * at 166px and a set at 450px; Deezer a track at ~150px and an album or
-   * playlist at ~350px, where it draws a scrollable tracklist.
+   * playlist at ~350px, where it draws a scrollable tracklist. "social" is
+   * Instagram's post card — a 4:5 carousel plus its header and action bar.
    *
    * Decided HERE because this is the only place the media's type is known — by
    * the time components/media.tsx has a frame, the type is gone. When it cannot
    * be determined, prefer the taller value: clipping loses content, padding
    * only loses whitespace.
    */
-  aspect: "video" | "audio" | "audio-list";
+  aspect: "video" | "audio" | "audio-list" | "social";
 }
 
 export const EMBED_FRAME_HOSTS = [
@@ -79,6 +80,7 @@ export const EMBED_FRAME_HOSTS = [
   "https://w.soundcloud.com",
   "https://open.spotify.com",
   "https://widget.deezer.com",
+  "https://www.instagram.com",
 ] as const;
 
 const SPOTIFY_TYPES = new Set([
@@ -238,6 +240,17 @@ export function embedSrc(media: MediaEmbed): EmbedFrame | null {
           }
         : null;
     }
+
+    case "instagram":
+      // An explicit title rather than the `${provider} player` default: this is
+      // a post, not a player, and the iframe's accessible name should say so.
+      return media.embedId
+        ? {
+            src: `https://www.instagram.com/p/${encodeURIComponent(media.embedId)}/embed`,
+            title: "Instagram post",
+            aspect: "social",
+          }
+        : null;
 
     default:
       // ausha, figma, link — and anything a future provider adds before its

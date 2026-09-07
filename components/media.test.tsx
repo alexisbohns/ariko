@@ -159,3 +159,56 @@ test("an empty or absent list renders nothing at all", () => {
   assert.equal(html([]), "");
   assert.equal(html(undefined), "");
 });
+
+test("two adjacent images render as one snap strip, inside one list item", () => {
+  const markup = html([
+    { kind: "image", storageKey: "a", url: "https://cdn.test/a.jpg", width: 1080, height: 1350 },
+    { kind: "image", storageKey: "b", url: "https://cdn.test/b.jpg", width: 1080, height: 1350 },
+  ]);
+
+  // One <li>, not two — the strip is a single item in the media list.
+  assert.equal(markup.match(/<li\b/g)?.length, 1);
+  // The strip's own affordances: horizontal snap, and reachable by keyboard
+  // without a line of script.
+  assert.match(markup, /snap-x/);
+  assert.match(markup, /snap-mandatory/);
+  assert.match(markup, /overflow-x-auto/);
+  assert.match(markup, /tabindex="0"/i);
+  assert.match(markup, /aria-label="[^"]*2[^"]*"/);
+  // Both images are still there, in order.
+  const srcs = attrs(markup, "img", "src");
+  assert.deepEqual(srcs, ["https://cdn.test/a.jpg", "https://cdn.test/b.jpg"]);
+});
+
+test("a lone image renders exactly the markup it always did", () => {
+  const markup = html([
+    { kind: "image", storageKey: "a", url: "https://cdn.test/a.jpg", width: 1080, height: 1350 },
+  ]);
+
+  assert.equal(markup.match(/<li\b/g)?.length, 1);
+  // No strip: this is the guarantee that nothing already published moves.
+  assert.doesNotMatch(markup, /snap-x/);
+  assert.doesNotMatch(markup, /tabindex/i);
+  assert.match(markup, /src="https:\/\/cdn\.test\/a\.jpg"/);
+});
+
+test("an embed between two runs keeps its own row", () => {
+  const markup = html([
+    { kind: "embed", provider: "spotify", url: "https://open.spotify.com/episode/4PkLhHEbiZTSXYCmJENwqT" },
+    { kind: "image", storageKey: "a", url: "https://cdn.test/a.jpg" },
+    { kind: "image", storageKey: "b", url: "https://cdn.test/b.jpg" },
+  ]);
+
+  // Two rows: the player, then the strip.
+  assert.equal(markup.match(/<li\b/g)?.length, 2);
+  assert.equal(attrs(markup, "iframe", "src").length, 1);
+});
+
+test("a forged instagram row renders on instagram.com and nowhere else", () => {
+  const markup = html([
+    { kind: "embed", provider: "instagram", url: "https://evil.test/x", embedId: "DVAxzXvDNkZ" },
+  ]);
+  const srcs = attrs(markup, "iframe", "src");
+  assert.equal(srcs.length, 1);
+  assert.equal(new URL(srcs[0]).origin, "https://www.instagram.com");
+});

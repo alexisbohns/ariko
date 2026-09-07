@@ -6,6 +6,7 @@ import { resolveEntity } from "@/lib/entity-resolve";
 import { PlantHead } from "@/app/(public)/_components/plant-head";
 import { ProfanePreload } from "@/components/brand/profane-preload";
 import { Prose } from "@/components/markdown";
+import { LinkRow } from "@/components/link-row";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,22 @@ export default async function PlantPage({ params }: { params: Promise<{ slug: st
         description={resolveText(plant.description ?? "", lang).trim()}
         roleDetail={roleDetail}
       />
+
+      {/* Where the plant can be found off-site. Under the head, above the
+          narrative: it is a fact about the plant, not part of its argument.
+
+          GUARDED, like the two blocks below it, and for a reason that is easy
+          to miss: LinkRow returns null for a plant with no links, but a
+          centring wrapper around nothing is still a flex ITEM, and this
+          article's `gap-8` puts 32px on both sides of it. Rendered
+          unconditionally it doubled the space between the head and the prose on
+          every plant but casa — the one page state nobody looks at while
+          building the feature that fills it. */}
+      {plant.links && plant.links.length > 0 ? (
+        <div className="flex justify-center">
+          <LinkRow links={plant.links} lang={lang} label={`Find ${resolveText(plant.name, lang)} elsewhere`} />
+        </div>
+      ) : null}
 
       {/* The narrative — where the argument lives. Its entity refs resolve
           against the public dataset, so anything hidden renders as nothing. */}
