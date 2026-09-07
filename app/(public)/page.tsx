@@ -2,12 +2,13 @@ import { resolveText } from "@/lib/data";
 import type { Bean, Plant, Pod } from "@/lib/data";
 import { currentLang } from "@/lib/locale-server";
 import { getPublicDataset } from "@/lib/store";
-import { coverFor } from "@/lib/cover";
+import { beanCoverFor, podCoverFrom, type BeanCover } from "@/lib/bean-cover";
 import { roleLine } from "@/lib/plant-role";
 import { splitPlantsByStatus } from "@/lib/plant-status";
 import { cloudinaryThumb } from "@/lib/image-url";
 import { ArikoLogo } from "@/components/brand/ariko-logo";
 import { ProfanePreload } from "@/components/brand/profane-preload";
+import { BeanCover as BeanCoverArt } from "@/components/bean-cover";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,9 @@ type Entry = {
   href: string;
   title: string;
   description: string;
-  coverUrl: string | null;
+  // Not a URL any more: what to DRAW there, resolved once in lib/bean-cover.ts.
+  // A pod's is its first bean's, minus the word (podCoverFrom).
+  cover: BeanCover | null;
 };
 
 export default async function DirectoryPage() {
@@ -39,8 +42,8 @@ export default async function DirectoryPage() {
   const standalone = data.standaloneBeans();
 
   // sproutsForBean is newest-first (buildDataset), which is the ordering
-  // coverFor expects.
-  const beanCover = (bean: Bean) => coverFor(data.sproutsForBean(bean.slug))?.url ?? null;
+  // coverFor expects underneath beanCoverFor.
+  const coverOf = (bean: Bean) => beanCoverFor(bean, data.sproutsForBean(bean.slug));
 
   const beanEntry = (bean: Bean): Entry => ({
     key: `bean:${bean.slug}`,
@@ -48,22 +51,19 @@ export default async function DirectoryPage() {
     title: resolveText(bean.name, lang),
     // One muted line, never markdown: descriptions are one-liners, content is not (spec §5).
     description: resolveText(bean.description ?? "", lang),
-    coverUrl: beanCover(bean),
+    cover: coverOf(bean),
   });
 
   // A pod has no cover of its own — it borrows the first one its beans can
-  // offer, the same derivation coverFor makes one level down. A pod whose beans
-  // are all coverless simply shows the empty frame, like any other entry.
-  const podEntry = (pod: Pod): Entry => {
-    const beans = data.beansForPod(pod.slug);
-    return {
-      key: `pod:${pod.slug}`,
-      href: `/pod/${pod.slug}`,
-      title: resolveText(pod.name, lang),
-      description: resolveText(pod.description ?? "", lang),
-      coverUrl: beans.map(beanCover).find(Boolean) ?? null,
-    };
-  };
+  // offer. It borrows the ARTWORK and not the word: the keyword names the bean,
+  // so on a pod card it would name the wrong thing (podCoverFrom).
+  const podEntry = (pod: Pod): Entry => ({
+    key: `pod:${pod.slug}`,
+    href: `/pod/${pod.slug}`,
+    title: resolveText(pod.name, lang),
+    description: resolveText(pod.description ?? "", lang),
+    cover: podCoverFrom(data.beansForPod(pod.slug).map(coverOf)),
+  });
 
   /* Full-bleed scroller. The row must NOT live inside the padded column: a
      clipped `overflow-x-auto` cuts the cards off at the text margin, which
@@ -81,22 +81,17 @@ export default async function DirectoryPage() {
     <div className="no-scrollbar overflow-x-auto overscroll-x-none pb-2">
       <ul className={`flex w-max gap-4 ${GUTTER}`}>
         {entries.map((entry) => (
+          // 224px. components/bean-cover.tsx derives its phone geometry from
+          // this width — widen the card and the numbers in that file need
+          // revisiting.
           <li key={entry.key} className="w-56 shrink-0">
             <a href={entry.href} className="group flex flex-col gap-3">
-              <div className="aspect-[4/3] w-full overflow-hidden rounded-lg bg-muted">
-                {entry.coverUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    // Cloudinary shrinks it for us — 2x the 224px box, so the
-                    // cover stays sharp on a retina display without shipping
-                    // the multi-megabyte original.
-                    src={cloudinaryThumb(entry.coverUrl, { width: 448, height: 336 })}
-                    alt=""
-                    loading="lazy"
-                    decoding="async"
-                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                  />
-                ) : null}
+              {/* `overflow-hidden` is what clips the departing word on its way
+                  out and crops the phone at the bottom; `relative` is
+                  belt-and-braces since the component now establishes its own
+                  positioning context. */}
+              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-muted">
+                <BeanCoverArt cover={entry.cover} lang={lang} />
               </div>
               <div className="flex flex-col gap-1">
                 <span className="font-heading text-sm tracking-tight underline-offset-4 group-hover:underline">
