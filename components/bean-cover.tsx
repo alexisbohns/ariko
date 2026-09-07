@@ -1,0 +1,94 @@
+import type { BeanCover as BeanCoverValue } from "@/lib/bean-cover";
+import type { Lang } from "@/lib/locale";
+import { resolveText } from "@/lib/data";
+import { cloudinaryThumb } from "@/lib/image-url";
+
+/**
+ * The inside of a landing-page cover frame.
+ *
+ * SERVER-SAFE, and pinned as such in lib/server-safe-source.test.ts: no
+ * "use client", no lucide-react. `app/(public)` has exactly one client island
+ * (the TOC rail) and this is not it — every move below is CSS `group-hover` on
+ * the anchor the card already wears, so a cover that animates costs the public
+ * zone no JavaScript at all.
+ *
+ * The frame itself stays in app/(public)/page.tsx: `aspect-[4/3] overflow-hidden
+ * rounded-lg bg-muted`, plus the `relative` this component's absolute children
+ * need. What lives here is only what goes inside it.
+ *
+ * The geometry is tied to the row's `w-56` card (224x168 frame). The phone is
+ * half the frame wide — 112px, which for a 390x844 capture is 242px tall, so it
+ * runs 132px past the bottom edge and the frame reads as a window onto
+ * something taller rather than as a cropped picture. Its bezel is drawn HERE
+ * rather than baked into the stored file: baking it would make cloudinaryThumb
+ * crop a composite instead of a screen, and turn "re-shoot that screen" into
+ * "re-composite that screen".
+ */
+export function BeanCover({
+  cover,
+  lang,
+}: {
+  cover: BeanCoverValue | null;
+  lang: Lang;
+}) {
+  if (!cover) return null;
+
+  if (cover.kind === "fill") {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        // Cloudinary shrinks it for us — 2x the 224px box, so the cover stays
+        // sharp on a retina display without shipping the multi-megabyte
+        // original. Unchanged from what the page rendered inline before.
+        src={cloudinaryThumb(cover.image.url, { width: 448, height: 336 })}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03] motion-reduce:transition-none"
+      />
+    );
+  }
+
+  const word = resolveText(cover.keyword, lang).trim();
+
+  return (
+    <>
+      {word ? (
+        <span
+          // aria-hidden: the bean's name sits two lines below this and the word
+          // is a compressed restatement of it — the same reasoning that puts
+          // alt="" on the image beside it.
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 z-10 pt-[9px] text-center font-display text-[34px] leading-none tracking-tight text-foreground transition-transform duration-[420ms] ease-[cubic-bezier(.2,.7,.2,1)] group-hover:-translate-y-[110%] motion-reduce:transition-none"
+        >
+          {word}
+        </span>
+      ) : null}
+      <span
+        // The transform is written whole rather than composed from Tailwind's
+        // translate-x / translate-y / scale utilities. Those set separate custom
+        // properties that a hover variant then has to re-declare in full anyway,
+        // and getting one of them wrong centres the phone off-axis for the
+        // duration of the transition only — which is exactly the kind of bug
+        // that survives review.
+        //
+        // -46px with a 0.80 scale from `origin-top`: 110px of the screen visible
+        // at rest becomes ~156px of a smaller phone on hover, 45% to 80%.
+        className="absolute left-1/2 top-[58px] w-1/2 origin-top rounded-2xl bg-neutral-900 p-1 pb-0 shadow-lg [transform:translateX(-50%)] transition-transform duration-[420ms] ease-[cubic-bezier(.2,.7,.2,1)] group-hover:[transform:translateX(-50%)_translateY(-46px)_scale(0.8)] motion-reduce:transition-none"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          // The phone's 112x242 box doubled. The FULL height, not the ~110px
+          // visible at rest: hover reveals more of the image, and a derivative
+          // sized to the rest state would blur exactly when the visitor leans
+          // in.
+          src={cloudinaryThumb(cover.image.url, { width: 224, height: 484 })}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="block w-full rounded-t-xl"
+        />
+      </span>
+    </>
+  );
+}
