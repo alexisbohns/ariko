@@ -59,6 +59,27 @@ test("an explicit cover with NO stored dimensions fills", () => {
   assert.deepEqual(cover, { kind: "fill", image: img("pasted") });
 });
 
+test("width alone cannot prove portrait, so it fills", () => {
+  // isPortrait requires BOTH dimensions. A version that falls back to `?? 0`
+  // on the missing one would compare 390 > 0 and draw a phone.
+  const image: MediaImage = { ...img("half-w"), width: 390 };
+  const cover = beanCoverFor(bean({ cover: image, keyword: "Timeline" }), []);
+  assert.deepEqual(cover, { kind: "fill", image });
+});
+
+test("height alone cannot prove portrait, so it fills", () => {
+  // Same defect, the other missing dimension: `?? 0` on width would compare
+  // 844 > 0 and draw a phone around an image with no known width at all.
+  const image: MediaImage = { ...img("half-h"), height: 844 };
+  const cover = beanCoverFor(bean({ cover: image, keyword: "Timeline" }), []);
+  assert.deepEqual(cover, { kind: "fill", image });
+});
+
+test("an explicit cover WINS over an available derivation", () => {
+  const cover = beanCoverFor(bean({ cover: portrait("chosen"), keyword: "Timeline" }), [sprout([landscape("derived")])]);
+  assert.deepEqual(cover, { kind: "phone", image: portrait("chosen"), keyword: "Timeline" });
+});
+
 test("no explicit cover falls back to the derivation, and always fills", () => {
   const cover = beanCoverFor(bean(), [sprout([landscape("derived")])]);
   assert.deepEqual(cover, { kind: "fill", image: landscape("derived") });
@@ -75,6 +96,7 @@ test("a DERIVED portrait image is never a phone", () => {
 test("nothing anywhere is null", () => {
   assert.equal(beanCoverFor(bean(), []), null);
   assert.equal(beanCoverFor(bean(), [sprout()]), null);
+  assert.equal(beanCoverFor(bean({ keyword: "Timeline" }), []), null);
 });
 
 test("a pod borrows the first cover it can find", () => {
