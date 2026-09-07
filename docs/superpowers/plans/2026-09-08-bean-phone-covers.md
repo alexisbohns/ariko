@@ -399,6 +399,25 @@ test("a wordless phone renders the bezel and no empty word box", () => {
   assert.match(markup, /w_224,h_484/);
 });
 
+test("a keyword that resolves to whitespace is the WORDLESS phone", () => {
+  // The resolver is lang-agnostic by design (lib/bean-cover.ts's BeanCover doc
+  // says so): it hands over whatever Text the bean stores, so "has a word" is a
+  // question only this component can answer, and only after resolving. A French
+  // keyword with a blank English half must render the bezel alone rather than
+  // an empty 34px box holding up the top of the frame.
+  const markup = html(
+    {
+      kind: "phone",
+      image: img("shot", { width: 390, height: 844 }),
+      keyword: { en: "   ", fr: "Karma" },
+    },
+    "en",
+  );
+  assert.equal(/aria-hidden/.test(markup), false);
+  assert.equal(text(markup), "");
+  assert.match(markup, /w_224,h_484/);
+});
+
 test("every image is decorative — the bean's name carries the accessible name", () => {
   for (const cover of [
     { kind: "fill", image: img("wide") } as const,
@@ -516,7 +535,7 @@ export function BeanCover({
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `TSX_TSCONFIG_PATH=tsconfig.test.json node --import tsx --test components/bean-cover.test.tsx`
-Expected: PASS, 7 tests.
+Expected: PASS, 8 tests.
 
 - [ ] **Step 5: Add the file to `SERVER_SAFE` and watch that test still pass**
 
