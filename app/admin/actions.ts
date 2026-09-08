@@ -54,9 +54,18 @@ import {
   updatePlantVisibility,
   updateBeanCover,
   updateBeanKeyword,
+  createScreen,
+  getScreen,
+  updateScreenMeta,
+  updateScreenImage,
+  deleteScreen,
 } from "@/lib/botanical";
 import { buildBeanCoverPatch } from "@/lib/bean-cover-edit";
 import { buildBeanKeywordPatch } from "@/lib/bean-keyword";
+import { buildScreenMetaPatch } from "@/lib/screen-edit";
+import { buildScreenImagePatch } from "@/lib/screen-image";
+import { buildNewScreenInput } from "@/lib/screen-create";
+import { screensHref, screensQuery } from "@/lib/screens";
 import { uploadImage } from "@/lib/storage";
 import { checkUploadFile, uploadedFilename } from "@/lib/upload-input";
 import {
@@ -611,6 +620,134 @@ export async function syncNowAction(): Promise<void> {
       ? `/admin/beanstalk?error=${encodeURIComponent(failed.map((f) => `${f.feedId}: ${f.error ?? "unknown"}`).join(" · "))}`
       : "/admin/beanstalk",
   );
+}
+
+/**
+ * The library's write paths.
+ *
+ * All four share one arrangement worth naming once. Each form carries the
+ * index's active filters in three hidden fields and each action redirects back
+ * through them, so a save does not drop the author out of the filtered set they
+ * were working through — they are walking a hundred and seventy screens with
+ * prev/next, and losing the filter on the first save would send them back to
+ * the top of the whole collection.
+ *
+ * Those fields are client-controlled, so they are re-canonicalized by
+ * `screensQuery` rather than concatenated: whatever arrives, only `plant`,
+ * `bean` and `tag` survive, and `screensHref` is the only thing that builds the
+ * URL. A hidden field reaching `redirect()` intact would be an open redirect;
+ * one that can only ever produce three known keys on a known path is not.
+ *
+ * Not exported and not async: only the EXPORTS of a "use server" module have to
+ * be async, and there is nothing to await here.
+ */
+function screenBack(formData: FormData): string {
+  return screensQuery({
+    plant: String(formData.get("q_plant") ?? ""),
+    bean: String(formData.get("q_bean") ?? ""),
+    tag: String(formData.get("q_tag") ?? ""),
+  });
+}
+
+/** `/admin/screens/new` is the one library URL `screensHref` does not build (it
+ *  addresses the index and stored slugs). Same canonical `query`, one place. */
+function newScreenHref(query: string, error: string): string {
+  const params = new URLSearchParams(query);
+  params.set("error", error);
+  return `/admin/screens/new?${params.toString()}`;
+}
+
+export async function createScreenAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const query = screenBack(formData);
+
+  const result = buildNewScreenInput(formData);
+  if (!result.ok) redirect(newScreenHref(query, result.error));
+
+  // Only the write is inside the `try`. redirect() navigates by THROWING, so a
+  // redirect placed in here would be swallowed by the catch below and rethrown
+  // as an unexpected error instead of navigating — the slug-taken redirect
+  // therefore happens after the block, on a flag.
+  let taken = false;
+  try {
+    await createScreen({
+      ...result.input,
+      // Not in the pure builder: it is a clock, and the builder is tested
+      // without one. The list sorts on this, so a new screen lands at the top
+      // of the library rather than at the bottom under an empty date.
+      capturedAt: new Date().toISOString().slice(0, 10),
+    });
+  } catch (err) {
+    if (!(err instanceof SlugExistsError)) throw err;
+    taken = true;
+  }
+  if (taken) redirect(newScreenHref(query, `that slug is taken: ${result.input.slug}`));
+
+  revalidatePath("/admin/screens");
+  redirect(screensHref(result.input.slug, query));
+}
+
+export async function editScreenMetaAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+  const query = screenBack(formData);
+
+  // Existence first, so every redirect below targets a real page and only ever
+  // interpolates a known-good stored slug.
+  const existing = await getScreen(slug);
+  if (!existing) redirect(screensHref(null, query));
+
+  const result = buildScreenMetaPatch(existing, formData);
+  if (!result.ok) redirect(screensHref(slug, query, result.error));
+  if (result.dirty) await updateScreenMeta(slug, result.patch);
+
+  revalidatePath("/admin/screens");
+  redirect(screensHref(slug, query));
+}
+
+/**
+ * The screen's image — the one client-island write in this slice. Its form is
+ * nothing BUT the picker, so the picker renders the submit button and
+ * script-off there is no button at all: inert rather than destructive, which is
+ * the rule CLAUDE.md states. buildScreenImagePatch enforces the same thing
+ * server-side for a POST that never rendered one.
+ */
+export async function editScreenImageAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+  const query = screenBack(formData);
+
+  const existing = await getScreen(slug);
+  if (!existing) redirect(screensHref(null, query));
+
+  const result = buildScreenImagePatch(existing, formData);
+  if (result.dirty) await updateScreenImage(slug, result.image);
+
+  revalidatePath("/admin/screens");
+  redirect(screensHref(slug, query));
+}
+
+/**
+ * Hard delete, behind a confirm checkbox re-checked here — `deleteVersionAction`'s
+ * shape, because the browser's `required` is only UX and this is the one
+ * irreversible act in the library.
+ */
+export async function deleteScreenAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+  const query = screenBack(formData);
+
+  const existing = await getScreen(slug);
+  if (!existing) redirect(screensHref(null, query));
+
+  if (String(formData.get("confirm") ?? "") !== "on") {
+    redirect(screensHref(slug, query, "could not delete: confirm the permanent deletion first"));
+  }
+
+  await deleteScreen(slug);
+
+  revalidatePath("/admin/screens");
+  redirect(screensHref(null, query));
 }
 
 export type UploadResult = { ok: true; media: MediaImage } | { ok: false; error: string };
