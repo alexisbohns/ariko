@@ -11,12 +11,35 @@ import { AdminChrome, AdminMain } from "./_components/admin-chrome";
  * It lives in AdminMain rather than here because it is route-dependent (the
  * login page has no chrome to clear) and a server component cannot read the
  * pathname.
+ *
+ * THE `sheet` SLOT is the screen library's side panel (a parallel route filled
+ * by `@sheet/(.)screens/…`, and `@sheet/default.tsx` — null — everywhere else).
+ * The page slides left when one is open, and the whole of that is the CSS
+ * below: `:has(~ [data-screen-sheet])` asks whether a panel exists beside this
+ * wrapper, which needs no open flag, no client state and no knowledge of the
+ * route. It is the idiom `plant-inside.tsx` already uses to hold its plate open
+ * under a portaled popover.
+ *
+ * `transition-transform` and nothing else, for that file's reason: a transform
+ * does not re-flow the document, so the contact sheet keeps its columns and its
+ * scroll position while the panel arrives. Below `lg` the panel covers instead
+ * — sliding a narrow column that far would only push it under the chrome's own
+ * rail.
  */
-export default function AdminLayout({ children }: { children: ReactNode }) {
+export default function AdminLayout({
+  children,
+  sheet,
+}: {
+  children: ReactNode;
+  sheet: ReactNode;
+}) {
   return (
     <>
       <AdminChrome />
-      <AdminMain>{children}</AdminMain>
+      <div className="transition-transform duration-200 ease-out lg:[&:has(~[data-screen-sheet])]:-translate-x-56">
+        <AdminMain>{children}</AdminMain>
+      </div>
+      {sheet}
     </>
   );
 }
