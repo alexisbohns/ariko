@@ -65,7 +65,13 @@ import { buildBeanKeywordPatch } from "@/lib/bean-keyword";
 import { buildScreenMetaPatch } from "@/lib/screen-edit";
 import { buildScreenImagePatch } from "@/lib/screen-image";
 import { buildNewScreenInput } from "@/lib/screen-create";
-import { screensHref, screensQuery } from "@/lib/screens";
+import {
+  SCREEN_FILTER_KEYS,
+  filterFieldName,
+  newScreenHref,
+  screensHref,
+  screensQuery,
+} from "@/lib/screens";
 import { uploadImage } from "@/lib/storage";
 import { checkUploadFile, uploadedFilename } from "@/lib/upload-input";
 import {
@@ -634,38 +640,26 @@ export async function syncNowAction(): Promise<void> {
  *
  * Those fields are client-controlled, so they are re-canonicalized by
  * `screensQuery` rather than concatenated: whatever arrives, only `plant`,
- * `bean` and `tag` survive, and `screensHref` is the only thing that builds the
- * URL. A hidden field reaching `redirect()` intact would be an open redirect;
- * one that can only ever produce three known keys on a known path is not.
+ * `bean` and `tag` survive, and `lib/screens.ts` is the only thing that builds
+ * the URL — `screensHref` for the index and a screen, `newScreenHref` for the
+ * create page. A hidden field reaching `redirect()` intact would be an open
+ * redirect; one that can only ever produce three known keys on a known path is
+ * not.
+ *
+ * The field names are DERIVED, from `SCREEN_FILTER_KEYS` through
+ * `filterFieldName`, and so are the ones `filter-fields.tsx` renders. Spelled
+ * out on both sides — which they were — a fourth dimension would type-check,
+ * build, and silently drop out of every save's round trip.
  *
  * Not exported and not async: only the EXPORTS of a "use server" module have to
  * be async, and there is nothing to await here.
  */
 function activeFilterQuery(formData: FormData): string {
-  return screensQuery({
-    plant: String(formData.get("q_plant") ?? ""),
-    bean: String(formData.get("q_bean") ?? ""),
-    tag: String(formData.get("q_tag") ?? ""),
-  });
-}
-
-/**
- * `/admin/screens/new` is the one library URL `screensHref` does not build — it
- * addresses the index and stored slugs, and this is neither.
- *
- * So it re-canonicalizes `query` itself rather than trusting it, which is not
- * belt-and-braces: `screensHref`'s docblock puts the guard inside the function
- * "rather than in a rule its callers must remember", and a second URL builder
- * that remembered the rule instead would be the first place that stance is
- * untrue. `error` is set last, and through URLSearchParams, for the same reason
- * it is there — an ampersand in a message cannot smuggle a filter past it.
- */
-function newScreenHref(query: string, error: string): string {
-  const params = new URLSearchParams(
-    screensQuery(Object.fromEntries(new URLSearchParams(query))),
+  return screensQuery(
+    Object.fromEntries(
+      SCREEN_FILTER_KEYS.map((key) => [key, String(formData.get(filterFieldName(key)) ?? "")]),
+    ),
   );
-  params.set("error", error);
-  return `/admin/screens/new?${params.toString()}`;
 }
 
 export async function createScreenAction(formData: FormData): Promise<void> {

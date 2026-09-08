@@ -23,6 +23,26 @@ import { filterQuery, type FilterValues } from "./admin-filters";
  *  `lib/palette.ts` / `lib/palette-items.ts` trap CLAUDE.md documents. */
 export const SCREEN_FILTER_KEYS = ["plant", "bean", "tag"] as const;
 
+/**
+ * The hidden field one dimension round-trips through, on a write.
+ *
+ * Derived rather than spelled, and that is the point: the field names live in
+ * `filter-fields.tsx` (which renders them) and in `actions.ts` (which reads
+ * them back), and until this existed both hard-coded the same three strings
+ * with nothing tying either to `SCREEN_FILTER_KEYS`. A FOURTH dimension would
+ * have type-checked, built, and silently dropped out of every save's round
+ * trip — the author saves once and loses the filter they were walking. Now
+ * both sides map the constant through this, so a dimension added in one place
+ * arrives in all three.
+ *
+ * The `q_` prefix keeps these clear of the form's own fields: a screen's meta
+ * form already posts a `plant`, and a filter named `plant` beside it would be
+ * the same name meaning two things.
+ */
+export function filterFieldName(key: string): string {
+  return `q_${key}`;
+}
+
 export interface ScreenRow {
   slug: string;
   /** Resolved for display — a tile shows words, not a Text. */
@@ -186,11 +206,55 @@ export function screensQuery(active: FilterValues): string {
  * ampersand cannot smuggle a filter past the canonicalization above.
  */
 export function screensHref(slug: string | null, query: string, error?: string): string {
-  const path = slug ? `/admin/screens/${encodeURIComponent(slug)}` : "/admin/screens";
+  return libraryHref(slug ? `/admin/screens/${encodeURIComponent(slug)}` : "/admin/screens", query, error);
+}
+
+/**
+ * `/admin/screens/new` — the create page, with the author's filters carried
+ * onto it and back off it.
+ *
+ * It lives here rather than beside its caller so the docblock above stays true:
+ * "every URL this slice redirects to or links to". `actions.ts` had a private
+ * copy of this, which made it the second place the canonicalization rule was
+ * written down — and a rule written twice is a rule one copy can forget. Same
+ * body as `screensHref`, so the guard is the same guard rather than the same
+ * idea typed again.
+ */
+export function newScreenHref(query: string, error?: string): string {
+  return libraryHref("/admin/screens/new", query, error);
+}
+
+/** The shared body of the two above: re-canonicalize, then set `error` LAST and
+ *  through URLSearchParams. Private, because a caller that could pass its own
+ *  path would be a caller that could pass a path from a form field. */
+function libraryHref(path: string, query: string, error?: string): string {
   const params = new URLSearchParams(
     filterQuery(Object.fromEntries(new URLSearchParams(query)), SCREEN_FILTER_KEYS),
   );
   if (error) params.set("error", error);
   const qs = params.toString();
   return qs ? `${path}?${qs}` : path;
+}
+
+/**
+ * The one CSS rule that rings the open tile — or null for a slug that cannot be
+ * trusted inside a selector.
+ *
+ * `app/admin/@sheet/(.)screens/[slug]/page.tsx` emits this in a `<style>`,
+ * because the index page cannot say which tile is open: interception is
+ * precisely what keeps it from re-rendering while the panel navigates, so it
+ * never learns the slug. One attribute-selector rule against the
+ * `data-screen-tile` every tile carries does the whole job with no client code
+ * and no state to get stale.
+ *
+ * The guard is the slice's ONLY injection guard, which is why it lives here
+ * rather than inline in a page component where no test can reach it. A stored
+ * slug came from a FILENAME — the same threat model `screensHref`'s
+ * `encodeURIComponent` takes seriously — and a quote in one would close the
+ * attribute and let the rest of the name write arbitrary CSS. A slug that fails
+ * simply gets no ring, which costs a visual cue and nothing else.
+ */
+export function activeTileCss(slug: string): string | null {
+  if (!/^[A-Za-z0-9_-]+$/.test(slug)) return null;
+  return `[data-screen-tile="${slug}"] > div:first-child{outline:2px solid var(--color-ring);outline-offset:2px}`;
 }

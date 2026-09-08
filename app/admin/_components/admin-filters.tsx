@@ -104,7 +104,25 @@ function FilterPopover({
   // primitive). The library's defaults are relied on for the rest — a bare
   // single key defaults to ignoreInputs:true, so these never fire from a text
   // field elsewhere on the page.
-  useHotkey(hotkey, () => onOpenChange(true), { enabled: !anyOpen });
+  useHotkey(
+    hotkey,
+    () => {
+      // THE COST OF THE GRID STAYING MOUNTED UNDER THE PANEL. Interception is
+      // exactly what keeps /admin/screens rendered — and these hotkeys bound —
+      // while a screen's side sheet is open, which is the property the whole
+      // design rests on. Without this check, `p`, `b` or `t` pressed with a
+      // screen open pops a filter popover BEHIND the panel; because the
+      // popovers run in `trap-focus`, focus leaves the sheet for an invisible
+      // popup, and the Escape that closes it also fires SheetKeys' close href.
+      //
+      // A press-time DOM read rather than a subscription: nothing here
+      // re-renders when the panel arrives or leaves, and nothing needs to —
+      // the question is only ever asked on a keystroke.
+      if (document.querySelector("[data-screen-sheet]")) return;
+      onOpenChange(true);
+    },
+    { enabled: !anyOpen },
+  );
 
   return (
     <Popover

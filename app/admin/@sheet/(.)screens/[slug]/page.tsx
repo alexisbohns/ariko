@@ -1,5 +1,6 @@
 import ScreenPage from "@/app/admin/screens/[slug]/page";
 import { SideSheet } from "@/app/admin/_components/side-sheet";
+import { activeTileCss } from "@/lib/screens";
 
 export const dynamic = "force-dynamic";
 
@@ -41,18 +42,12 @@ export default async function ScreenSheet(props: {
 /**
  * Which tile is open, said in CSS by the panel.
  *
- * The index page cannot say it: interception is precisely what keeps it from
- * re-rendering while the panel navigates, so it never learns the slug. One
- * attribute-selector rule against the `data-screen-tile` every tile carries
- * does the whole job with no client code and no state to get stale.
- *
- * The slug is guarded rather than trusted even though it comes from a stored
- * document — a stored slug came from a FILENAME, and a quote in one would
- * escape the rule. A slug that fails the guard simply gets no ring.
+ * The rule itself — and the guard on the slug that goes into it — is
+ * `activeTileCss` in lib/screens.ts, which is where the rest of the library's
+ * arithmetic lives and where a test can reach it. This is the render, and
+ * nothing else.
  */
 function ActiveTile({ slug }: { slug: string }) {
-  if (!/^[A-Za-z0-9_-]+$/.test(slug)) return null;
-  return (
-    <style>{`[data-screen-tile="${slug}"] > div:first-child{outline:2px solid var(--color-ring);outline-offset:2px}`}</style>
-  );
+  const css = activeTileCss(slug);
+  return css ? <style>{css}</style> : null;
 }

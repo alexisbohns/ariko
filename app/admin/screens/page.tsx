@@ -9,7 +9,9 @@ import {
   distinctScreenPlants,
   distinctScreenTags,
   filterScreens,
+  newScreenHref,
   screenRows,
+  screensHref,
   screensQuery,
   type ScreenRow,
 } from "@/lib/screens";
@@ -29,7 +31,7 @@ export const dynamic = "force-dynamic";
  * page shows the screens themselves, and the name is the caption.
  *
  * Every tile is a `next/link`, which is the first one in this repo — every
- * other navigation in both zones is a plain <a href>. It renders the same real
+ * other LINK in both zones is a plain <a href>. It renders the same real
  * anchor, so the no-script path is byte-identical; what it adds is the
  * client-side navigation that lets `app/admin/@sheet/(.)screens/[slug]`
  * intercept the click and open the editors in the side sheet WITHOUT
@@ -102,9 +104,12 @@ export default async function ScreensPage({
       <div className="flex items-center gap-2">
         <h1 className="font-heading text-2xl font-medium tracking-tight">Screens</h1>
         {/* A link, not a button that opens something: the create form is a page
-            (`/admin/screens/new`) that the sheet merely presents. */}
+            (`/admin/screens/new`) that the sheet merely presents. Its href comes
+            from `newScreenHref` rather than a template literal, because
+            lib/screens.ts is the one place that builds this slice's URLs and a
+            second copy of the rule is a second place to forget it. */}
         <Link
-          href={query ? `/admin/screens/new?${query}` : "/admin/screens/new"}
+          href={newScreenHref(query)}
           className="rounded-lg px-2 py-0.5 text-xl leading-none text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
         >
           {/* An `aria-hidden` glyph beside an `sr-only` word, the shape
@@ -133,7 +138,7 @@ export default async function ScreensPage({
                   in the title bar is a page that reads as broken. */}
               No screens yet — run <code className="font-heading">npm run import:screens</code>, or{" "}
               <Link
-                href={query ? `/admin/screens/new?${query}` : "/admin/screens/new"}
+                href={newScreenHref(query)}
                 className="underline underline-offset-4 transition-colors hover:text-foreground"
               >
                 add one
@@ -149,7 +154,12 @@ export default async function ScreensPage({
           {rows.map((row) => (
             <li key={row.slug}>
               <Link
-                href={query ? `/admin/screens/${row.slug}?${query}` : `/admin/screens/${row.slug}`}
+                /* `screensHref`, not a template literal. A stored slug came
+                   from a FILENAME, and the builder is the thing that
+                   percent-encodes it — hand-building the href here made the
+                   tile the one place in the slice that trusted a slug, while
+                   the panel's `activeTileCss` refuses to. */
+                href={screensHref(row.slug, query)}
                 /* The hook the open panel marks itself with — see
                    app/admin/@sheet/(.)screens/[slug]/page.tsx. This page is
                    never re-rendered while the panel navigates (that is what
