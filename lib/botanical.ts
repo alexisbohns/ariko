@@ -9,6 +9,8 @@ import {
   type PlantRole,
   type PlantStatus,
   type Pod,
+  type Relation,
+  type Screen,
   type Sprout,
   type Text,
   type Visibility,
@@ -43,6 +45,11 @@ export async function ensureBotanicalIndexes(): Promise<void> {
   await db.collection("sprouts").createIndex({ slug: 1 }, { unique: true });
   await db.collection("plants").createIndex({ slug: 1 }, { unique: true });
   await db.collection("bees").createIndex({ slug: 1 }, { unique: true });
+  // The screen store's index is not decoration: it is the whole of
+  // createScreen's collision behaviour. Without it a duplicate slug inserts a
+  // second document instead of raising SlugExistsError, and the import script
+  // that leans on "skip what is already there" would quietly grow doubles.
+  await db.collection("screens").createIndex({ slug: 1 }, { unique: true });
 }
 
 export async function listPlants(): Promise<Plant[]> {
@@ -109,6 +116,67 @@ export async function createBean(input: NewBean): Promise<Bean> {
     await db.collection<Bean>("beans").insertOne({ ...doc });
   } catch (err) {
     if (isDuplicateKey(err)) throw new SlugExistsError("bean", input.slug);
+    throw err;
+  }
+  return doc;
+}
+
+export interface NewScreen {
+  slug: string;
+  name: Text;
+  image: MediaImage;
+  // The plant the screen belongs to, as a bare slug. createBean's shape, and
+  // for its reason: the WRITER owns the prefixed-ref grammar, so no caller ever
+  // hand-builds a "plant:" string and no caller can put a "bean:" one in a
+  // field that means containment.
+  plantSlug: string | null;
+  legend?: Text;
+  relations?: Relation[];
+  tags?: string[];
+  capturedAt?: string;
+}
+
+/**
+ * Inserts a screen — createBean one species over, deliberately, down to the
+ * two behaviours worth copying.
+ *
+ * The first is the slug collision: a duplicate raises SlugExistsError rather
+ * than a 500, so a caller can say so in words. That path exists only because
+ * ensureBotanicalIndexes gives `screens` a unique slug index.
+ *
+ * The second is the omission discipline. An optional field left blank is
+ * ABSENT, never a stored "" or a materialized empty array — the invariant
+ * updateBeanCover's test spells out at length: nothing MISDRAWS when it is
+ * broken, but `Screen.legend` is declared optional rather than nullable, and
+ * the reader who pays is the next one written to that declaration (a presence
+ * check, an `Object.keys`, a "has a caption" filter on the gallery).
+ *
+ * Private at birth, exactly as createPod and createBean are. `Screen.visibility`
+ * says "default treated as public", which is how an ABSENT field READS on the
+ * way out — not what a writer stores on the way in; `Bean.visibility` carries
+ * the same comment and createBean above stores "private" too. Storing a
+ * hundred and seventy screens is not publishing them, and the flip is the
+ * author's to make.
+ */
+export async function createScreen(input: NewScreen): Promise<Screen> {
+  const db = await getDb();
+  const doc: Screen = {
+    slug: input.slug,
+    name: input.name,
+    image: input.image,
+    parents: input.plantSlug ? [`plant:${input.plantSlug}`] : [],
+    // resolveText rather than a truthiness check: a `{ en: "", fr: "" }` from a
+    // paired form is a truthy OBJECT carrying no words at all.
+    ...(input.legend && resolveText(input.legend).trim() ? { legend: input.legend } : {}),
+    ...(input.relations?.length ? { relations: input.relations } : {}),
+    ...(input.tags?.length ? { tags: input.tags } : {}),
+    ...(input.capturedAt ? { capturedAt: input.capturedAt } : {}),
+    visibility: "private",
+  };
+  try {
+    await db.collection<Screen>("screens").insertOne({ ...doc });
+  } catch (err) {
+    if (isDuplicateKey(err)) throw new SlugExistsError("screen", input.slug);
     throw err;
   }
   return doc;

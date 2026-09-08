@@ -4,6 +4,7 @@ import {
   ensureBotanicalIndexes,
   createPod,
   createBean,
+  createScreen,
   createSprout,
   deleteVersion,
   setPublic,
@@ -23,6 +24,7 @@ async function cleanup() {
   await db.collection("pods").deleteMany({ slug: /^__test__/ });
   await db.collection("beans").deleteMany({ slug: /^__test__/ });
   await db.collection("sprouts").deleteMany({ slug: /^__test__/ });
+  await db.collection("screens").deleteMany({ slug: /^__test__/ });
 }
 
 test("createPod/createBean insert private-by-default", { skip: !hasDb }, async (t) => {
@@ -171,6 +173,74 @@ test("updateBeanKeyword clears to an ABSENT key, not a stored null", { skip: !ha
   // guards mean nothing visibly breaks today, which is exactly why the
   // invariant is worth pinning at the write end rather than trusted downstream.
   assert.equal("keyword" in (cleared ?? {}), false);
+});
+
+test("createScreen round-trips a screen, private and omitting what was blank", { skip: !hasDb }, async (t) => {
+  // The unique slug index is what turns the duplicate below into a
+  // SlugExistsError rather than a second document.
+  await ensureBotanicalIndexes();
+  t.after(cleanup);
+
+  const s = await createScreen({
+    slug: "__test__screen",
+    name: "Home upcoming mock",
+    image: {
+      kind: "image",
+      storageKey: "__test__key",
+      url: "https://example.com/home-upcoming-mock.png",
+      width: 1179,
+      height: 2556,
+    },
+    plantSlug: "__test__plant",
+    relations: [{ kind: "cover", ref: "bean:__test__a" }],
+    capturedAt: "2026-09-08",
+  });
+  assert.equal(s.visibility, "private");
+  // The writer owns the ref grammar — the caller handed it a bare slug.
+  assert.deepEqual(s.parents, ["plant:__test__plant"]);
+
+  const db = await getDb();
+  const stored = await db.collection("screens").findOne({ slug: "__test__screen" });
+  assert.equal(stored?.name, "Home upcoming mock");
+  // The dimensions are the reason `image` is a MediaImage and not a URL: they
+  // are what lib/bean-cover.ts reads to decide a phone treatment, so a
+  // round-trip that lost them would lose the point of the field.
+  assert.equal(stored?.image?.width, 1179);
+  assert.equal(stored?.image?.height, 2556);
+  assert.deepEqual(stored?.relations, [{ kind: "cover", ref: "bean:__test__a" }]);
+  assert.equal(stored?.capturedAt, "2026-09-08");
+  // Omission discipline: an optional field left blank is an ABSENT key, never a
+  // stored "" or a materialized [] — the invariant updateBeanCover pins above.
+  assert.equal("legend" in (stored ?? {}), false);
+  assert.equal("tags" in (stored ?? {}), false);
+
+  await assert.rejects(
+    () =>
+      createScreen({
+        slug: "__test__screen",
+        name: "Same slug",
+        image: { kind: "image", storageKey: "__test__key2", url: "https://example.com/x.png" },
+        plantSlug: "__test__plant",
+      }),
+    (err) => err instanceof SlugExistsError && err.slug === "__test__screen",
+  );
+});
+
+test("createScreen omits a legend that carries no words in either language", { skip: !hasDb }, async (t) => {
+  t.after(cleanup);
+  await createScreen({
+    slug: "__test__screen-blank",
+    name: "Blank",
+    image: { kind: "image", storageKey: "__test__k3", url: "https://example.com/y.png" },
+    plantSlug: null,
+    // A truthy OBJECT holding two empty strings — what a paired bilingual form
+    // posts when the author fills neither box.
+    legend: { en: "", fr: "" },
+  });
+  const db = await getDb();
+  const stored = await db.collection("screens").findOne({ slug: "__test__screen-blank" });
+  assert.equal("legend" in (stored ?? {}), false);
+  assert.deepEqual(stored?.parents, []);
 });
 
 test.after(async () => {
