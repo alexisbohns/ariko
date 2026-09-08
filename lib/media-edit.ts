@@ -50,6 +50,11 @@ function same(a: Media[], b: Media[]): boolean {
  *
  * Dirty-gated for the same reason buildContentPatch is: opening a sprout and
  * saving it untouched must write nothing at all.
+ *
+ * siblings: lib/plant-logo.ts (buildPlantLogoPatch), lib/bean-cover-edit.ts
+ * (buildBeanCoverPatch) — same three guards over a single-image field instead
+ * of an ordered list. Fix the `__ready` guard or the failed-save discriminator
+ * here and check whether it applies there too.
  */
 export function buildMediaPatch(current: MediaOwner, form: FormData): MediaPatchResult {
   const raw = form.getAll("media").map((v) => String(v));

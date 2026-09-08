@@ -29,6 +29,11 @@ function canonical(logo: MediaImage | null): string {
  *
  * Dirty-gated: opening the plant page and saving the card untouched must write
  * nothing at all.
+ *
+ * siblings: lib/media-edit.ts (buildMediaPatch), lib/bean-cover-edit.ts
+ * (buildBeanCoverPatch) — the same three guards over a different field. Fix
+ * the `__ready` guard or the failed-save discriminator here and check whether
+ * it applies there too.
  */
 export function buildPlantLogoPatch(current: LogoOwner, form: FormData): LogoPatchResult {
   const raw = form.getAll("logo").map((v) => String(v));

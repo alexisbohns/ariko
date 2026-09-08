@@ -39,6 +39,11 @@ function canonical(cover: MediaImage | null): string {
  *
  * Dirty-gated: opening the bean page and saving the card untouched must write
  * nothing at all.
+ *
+ * siblings: lib/media-edit.ts (buildMediaPatch), lib/plant-logo.ts
+ * (buildPlantLogoPatch) — the same three guards over an ordered list and a
+ * single image, respectively. Fix the `__ready` guard or the failed-save
+ * discriminator here and check whether it applies there too.
  */
 export function buildBeanCoverPatch(current: CoverOwner, form: FormData): CoverPatchResult {
   const raw = form.getAll("cover").map((v) => String(v));
@@ -64,6 +69,10 @@ export function buildBeanCoverPatch(current: CoverOwner, form: FormData): CoverP
   // embed-only save submits N — the two shapes are distinguishable without
   // guessing. Writing nothing is the safe failure: the stored cover survives.
   if (raw.length > 0 && next === null && stored !== null) {
+    // The one diagnostic in this otherwise pure module. Without it, a client
+    // bug that trips this guard is indistinguishable from an ordinary no-op
+    // save: no exception, no log, the redirect proceeds — the author just sees
+    // "my edit didn't take" with no trail.
     console.warn(
       `[media] buildBeanCoverPatch: ${raw.length} submitted field(s) yielded no image — write skipped, stored cover unchanged`,
     );

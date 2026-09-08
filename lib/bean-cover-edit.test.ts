@@ -90,3 +90,53 @@ test("the stored dimensions survive the round trip", () => {
   assert.equal(result.dirty && result.cover?.width, 390);
   assert.equal(result.dirty && result.cover?.height, 844);
 });
+
+test("an alt-only edit is a real edit — the Cover card's picker exposes alt", () => {
+  // Unlike the plant logo's picker, this one runs in full (non-compact) mode
+  // and renders the alt-text field, so an alt-only save is reachable through
+  // the UI, not merely a fixture.
+  const stored = img("shot");
+  const next = { ...stored, alt: "A phone showing the plant profile" };
+  assert.deepEqual(buildBeanCoverPatch({ cover: stored }, form([next])), {
+    dirty: true,
+    cover: next,
+  });
+});
+
+test("two images submitted — the first wins", () => {
+  // The picker caps a cover at one row, so this is the UI saying so — but the
+  // BUILDER's contract is what actually decides which entry survives a
+  // malformed or hand-crafted payload with more than one.
+  const first = img("first");
+  const second = img("second");
+  assert.deepEqual(buildBeanCoverPatch({}, form([first, second])), {
+    dirty: true,
+    cover: first,
+  });
+});
+
+test("a naive `|`-join would let alt collide with a shifted url — JSON keeps them apart", () => {
+  // Both tuples below join to the identical string
+  // "shot|https://res.cloudinary.com/x/shot.png|a|b||" under a delimiter-joined
+  // canonical form: the "|" that `alt` carries and the "|" appended to `url`
+  // land in the same position once concatenated. JSON.stringify keeps each
+  // field quoted, so the two encode differently and this must read as a real
+  // edit — the failure mode a join-based canonical form cannot see is a save
+  // silently reporting itself as a no-op.
+  const stored: MediaImage = {
+    kind: "image",
+    storageKey: "shot",
+    url: "https://res.cloudinary.com/x/shot.png|a",
+    alt: "b",
+  };
+  const submitted: MediaImage = {
+    kind: "image",
+    storageKey: "shot",
+    url: "https://res.cloudinary.com/x/shot.png",
+    alt: "a|b",
+  };
+  assert.deepEqual(buildBeanCoverPatch({ cover: stored }, form([submitted])), {
+    dirty: true,
+    cover: submitted,
+  });
+});
