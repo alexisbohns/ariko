@@ -144,10 +144,17 @@ aborts the run.
 
 ## 5. Tests
 
-- `lib/data.test.ts` — `filterPublic` drops a private screen, drops a screen
-  whose only plant parent is private, keeps one whose plant is public, keeps a
-  standalone screen with a dangling parent, and scrubs a relation pointing at a
-  filtered bean.
+- `lib/visibility.test.ts` — `filterPublic` drops a private screen, drops a
+  screen whose only plant parent is private, keeps one whose plant is public,
+  keeps a standalone screen with a dangling parent, and scrubs a relation
+  pointing at a filtered bean.
+
+  This spec first said `lib/data.test.ts` and was wrong. `visibility.test.ts` is
+  where the ~25 sibling `filterPublic` cascade and scrub tests already live;
+  `data.test.ts` holds `buildDataset` and the publish/un-publish cascades. The
+  argument that settled it: the next person auditing screen privacy will open
+  the file the other cascades are in, and finding nothing there is the failure
+  mode worth avoiding.
 - `lib/botanical.test.ts` — `createScreen` round-trips under the existing
   `{ skip: !hasDb }` gate and the `__test__` slug convention.
 - The name derivation is pure and gets a table test: it is the only logic in the

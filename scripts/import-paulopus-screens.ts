@@ -35,6 +35,31 @@
  * Uploads go through lib/storage.ts, server-side. Nothing here talks to
  * Cloudinary from a browser, and nothing here mints a public_id.
  *
+ * WHAT HAPPENS IF YOU DELETE THE SKIP — read before you do
+ *
+ * No test will stop you. `npm test` globs lib/, components/ and
+ * scripts/lab-note/, so nothing under scripts/ is exercised at all; removing the
+ * `existing.has(slug)` pre-check below leaves `tsc` clean and the suite green.
+ * That was verified deliberately rather than assumed, and a test was NOT added,
+ * because covering it means widening the glob for one I/O-bound path that talks
+ * to both Mongo and Cloudinary.
+ *
+ * What survives the deletion is the RECORD. `createScreen` inserts against a
+ * unique slug index (lib/botanical.ts's ensureBotanicalIndexes), so a second
+ * document cannot appear: the insert raises SlugExistsError, the catch below
+ * counts it as skipped, and the collection is exactly as correct as before. The
+ * record is defended twice.
+ *
+ * What does NOT survive is the ASSET. The upload happens one line BEFORE the
+ * insert, so every already-imported screen is re-uploaded and then discarded —
+ * a hundred and seventy pointless uploads and a hundred and seventy orphaned
+ * Cloudinary assets on every rerun, silent, and each one a manual delete in a
+ * console. The asset is defended once, and the pre-check is that defence.
+ *
+ * So the blast radius of losing it is waste rather than corruption, which is
+ * precisely why it is easy to remove and hard to notice. If you need to replace
+ * a screen's image, do it through the admin.
+ *
  *   npm run import:screens [source-directory]
  */
 import { readdirSync, readFileSync } from "node:fs";
@@ -142,6 +167,9 @@ async function main() {
     const beanSlug = COVER_OF[slug];
     if (beanSlug) covered.add(slug);
 
+    // The skip. No test guards this line — see the header for what it protects
+    // (the Cloudinary asset) and what protects the record without it (the
+    // unique slug index, one line down in the catch).
     if (existing.has(slug)) {
       skipped++;
       continue;

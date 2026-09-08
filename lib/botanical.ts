@@ -157,6 +157,12 @@ export interface NewScreen {
  * the same comment and createBean above stores "private" too. Storing a
  * hundred and seventy screens is not publishing them, and the flip is the
  * author's to make.
+ *
+ * So the import's hundred and seventy land PRIVATE BY DESIGN, and the gallery
+ * slice should read that as a decision rather than as an accident to fix: the
+ * flip it performs is a deliberate act on the screens it chooses to exhibit,
+ * which is the cost of being fail-closed at birth and is the cheaper of the two
+ * mistakes available here.
  */
 export async function createScreen(input: NewScreen): Promise<Screen> {
   const db = await getDb();
