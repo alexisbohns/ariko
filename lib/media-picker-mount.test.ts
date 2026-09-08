@@ -77,3 +77,32 @@ test("the capture bar keeps its own submit button without script", async () => {
   assert.equal(html.includes("Add to inbox"), true, "a script-off capture must still be submittable");
   assert.equal(html.includes("image__ready"), false, "an unmounted picker emits no marker on any surface");
 });
+
+test("the bean cover form server-renders no way to submit it", async () => {
+  const React = await import("react");
+  const { MediaPicker } = await import("@/components/admin/media-picker");
+
+  // The real shape from app/admin/_components/bean-cover-form.tsx: a hidden
+  // slug, and the picker carrying the form's only submit button. Capped at one
+  // — a bean has one cover.
+  const html = await renderScriptOff(
+    React.createElement(
+      "form",
+      { action: "/noop" },
+      React.createElement("input", { type: "hidden", name: "slug", value: "b" }),
+      React.createElement(MediaPicker, {
+        name: "cover",
+        initial: [],
+        max: 1,
+        submitLabel: "Save cover",
+      }),
+    ),
+  );
+
+  assert.equal(/<button/i.test(html), false, "a script-off browser must see no submit button");
+  assert.equal(html.includes("Save cover"), false, "the submit label belongs to the island, not the form");
+  // Inert rather than merely button-less: no field survives that could carry an
+  // implicit submission. This is WHY the keyword lives in its own form — put a
+  // text input in here and Enter posts a payload with no cover__ready marker.
+  assert.equal(html, '<form action="/noop"><input type="hidden" name="slug" value="b"/></form>');
+});
