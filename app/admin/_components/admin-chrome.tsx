@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Archive, ExternalLink, Inbox, LogOut, Sprout, Waypoints } from "lucide-react";
+import { Archive, ExternalLink, Images, Inbox, LogOut, Sprout, Waypoints } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
 import { NAV_ITEMS, resolveColumn, resolveNavItem } from "@/lib/admin-nav";
 import { logoutAction } from "../actions";
@@ -38,6 +38,7 @@ const ICONS: Record<string, ComponentType<{ className?: string }>> = {
   "/admin/vault": Archive,
   "/admin/garden": Sprout,
   "/admin/beanstalk": Waypoints,
+  "/admin/screens": Images,
 };
 
 export function AdminChrome() {

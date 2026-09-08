@@ -24,6 +24,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/admin/vault", label: "Vault" },
   { href: "/admin/garden", label: "Garden" },
   { href: "/admin/beanstalk", label: "Beanstalk" },
+  { href: "/admin/screens", label: "Screens" },
 ];
 
 // [route prefix, the nav href it lights]. Order is irrelevant — no prefix here
@@ -37,6 +38,13 @@ const SECTIONS: ReadonlyArray<readonly [string, string]> = [
   ["/admin/pod", "/admin/garden"],
   ["/admin/beanstalk", "/admin/beanstalk"],
   ["/admin/triage", "/admin"],
+  // One entry covers the index and both children (/[slug] and /new) — the
+  // boundary check below is what makes that safe, and it is also what would
+  // keep a future singular "/admin/screen" out of this section despite being a
+  // string prefix of it. The comment above ("no prefix here is a prefix of
+  // another") is now one route away from being false; this is the line that
+  // does not care.
+  ["/admin/screens", "/admin/screens"],
 ];
 
 /**
@@ -66,9 +74,10 @@ export type Column = "bare" | "wide" | "reading";
  *
  * The rule needs no list of its own, which is the point: **a section index is
  * wide, everything else is a reading column, and the login page is bare.** The
- * four section indexes are exactly the four NAV_ITEMS hrefs, and they are
- * exactly the four pages that render a `Table` — so this reads NAV_ITEMS rather
- * than a parallel array that could drift from it when a fifth section is added.
+ * section indexes are exactly the NAV_ITEMS hrefs, and they are exactly the
+ * pages that spread — the four tables, and now the library's contact sheet — so
+ * this reads NAV_ITEMS rather than a parallel array that could drift from it.
+ * Screens was the fifth section that would have made such an array drift.
  *
  * An unrecognized route gets the reading column rather than the wide one. Detail
  * pages outnumber indexes and always will, and a document that renders 80px too
