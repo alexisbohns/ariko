@@ -260,6 +260,36 @@ export async function updatePlantLogo(slug: string, logo: MediaImage | null): Pr
 }
 
 /**
+ * Writes a bean's cover — and nothing else. `null` clears it.
+ *
+ * The first bean writer in this file. Narrow rather than an `updateBeanMeta`
+ * that could take several fields, for the reason updatePlantStatus gives: a
+ * writer that can touch a field it was not asked about is a writer that
+ * eventually does.
+ *
+ * Clearing is an `$unset` rather than a stored null, so an absent cover has ONE
+ * representation and lib/bean-cover.ts only has to handle `cover === undefined`.
+ */
+export async function updateBeanCover(slug: string, cover: MediaImage | null): Promise<void> {
+  const db = await getDb();
+  await db
+    .collection<Bean>("beans")
+    .updateOne({ slug }, (cover === null
+      ? { $unset: { cover: "" } }
+      : { $set: { cover } }) as UpdateFilter<Bean>);
+}
+
+/** Writes a bean's keyword — and nothing else. `null` clears it, as above. */
+export async function updateBeanKeyword(slug: string, keyword: Text | null): Promise<void> {
+  const db = await getDb();
+  await db
+    .collection<Bean>("beans")
+    .updateOne({ slug }, (keyword === null
+      ? { $unset: { keyword: "" } }
+      : { $set: { keyword } }) as UpdateFilter<Bean>);
+}
+
+/**
  * Writes a plant's status — and nothing else.
  *
  * A SIBLING again, and a narrower one than updatePlantMeta on purpose: the
