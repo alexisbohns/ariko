@@ -20,11 +20,17 @@ export type FilterValues = Record<string, string | undefined>;
 
 /** Canonical `k=v&k=v` for the named keys, in the order given. Blank,
  *  whitespace-only and "all" values are dropped — "all" is how both pages
- *  spell "no filter". Returns "" when nothing is active. */
+ *  spell "no filter". Returns "" when nothing is active.
+ *
+ *  `String(...)` rather than a plain read because a REPEATED query key
+ *  (`?plant=a&plant=b`) reaches a Next page as a `string[]`, which the type
+ *  here does not admit but a URL can always produce. Coercing degrades that to
+ *  a value that matches nothing; reading `.trim()` off the array would throw
+ *  and 500 the page around the filter bar. */
 export function filterQuery(active: FilterValues, keys: readonly string[]): string {
   const params = new URLSearchParams();
   for (const key of keys) {
-    const value = (active[key] ?? "").trim();
+    const value = String(active[key] ?? "").trim();
     if (value && value !== "all") params.set(key, value);
   }
   return params.toString();

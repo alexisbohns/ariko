@@ -40,6 +40,10 @@ test("rows resolve the name and lift the plant out of parents[]", () => {
   assert.equal(karma?.name, "Karma top");
   assert.equal(karma?.plant, "paulopus");
   assert.equal(rows.find((r) => r.slug === "orphan")?.plant, null);
+  // The asset comes through verbatim, and a missing alt is "" rather than
+  // undefined — the tile renders `alt=` unconditionally.
+  assert.equal(karma?.url, "https://res.cloudinary.com/x/image/upload/v1/karma-top.png");
+  assert.equal(karma?.alt, "");
 });
 
 test("the related bean comes from a shows relation", () => {
@@ -90,9 +94,18 @@ test("filters by plant, bean and tag; blanks are ignored", () => {
   assert.equal(filterScreens(rows, { plant: "  " }).length, 4);
 });
 
+test("a non-blank unknown value matches nothing", () => {
+  const rows = screenRows(SCREENS);
+  assert.deepEqual(filterScreens(rows, { plant: "ghost" }), []);
+  assert.deepEqual(filterScreens(rows, { bean: "ghost" }), []);
+  assert.deepEqual(filterScreens(rows, { tag: "ghost" }), []);
+});
+
 test("filters intersect", () => {
   const rows = screenRows(SCREENS);
-  assert.equal(filterScreens(rows, { plant: "paulopus", tag: "hero" }).length, 1);
+  assert.deepEqual(filterScreens(rows, { plant: "paulopus", tag: "hero" }).map((r) => r.slug), [
+    "karma-top",
+  ]);
 });
 
 test("distincts are sorted and de-duplicated", () => {
@@ -123,6 +136,10 @@ test("screensQuery keeps the three dimensions and drops everything else", () => 
   assert.equal(screensQuery({}), "");
 });
 
+test("screensQuery emits the keys in SCREEN_FILTER_KEYS order, not the caller's", () => {
+  assert.equal(screensQuery({ tag: "hero", bean: "b", plant: "p" }), "plant=p&bean=b&tag=hero");
+});
+
 test("screensHref builds the library, a screen, and an error redirect", () => {
   assert.equal(screensHref(null, ""), "/admin/screens");
   assert.equal(screensHref(null, "plant=paulopus"), "/admin/screens?plant=paulopus");
@@ -132,6 +149,16 @@ test("screensHref builds the library, a screen, and an error redirect", () => {
     screensHref("karma-top", "plant=paulopus", "no image"),
     "/admin/screens/karma-top?plant=paulopus&error=no+image",
   );
+});
+
+test("screensHref re-canonicalizes the query it is handed", () => {
+  // The write forms round-trip the active filters through a hidden field, so
+  // `query` can carry anything. Only the three known keys survive, in order.
+  assert.equal(
+    screensHref("karma-top", "error=xss&tag=hero&rogue=x&plant=paulopus"),
+    "/admin/screens/karma-top?plant=paulopus&tag=hero",
+  );
+  assert.equal(screensHref(null, "rogue=x"), "/admin/screens");
 });
 
 test("screensHref encodes a slug", () => {

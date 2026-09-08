@@ -12,8 +12,15 @@ import { filterQuery, type FilterValues } from "./admin-filters";
  * path that can see them at all.
  */
 
-/** The three dimensions the library filters on. Named once, here, because both
- *  the filter bar and the hidden field the write forms round-trip read it. */
+/** The three dimensions the library filters on, in the order they reach a URL.
+ *
+ *  Both readers are SERVER side, which is why the constant can live in this
+ *  file at all: this module imports `lib/data.ts`, which opens with `node:fs`.
+ *  The page builds the filter hrefs and hands the popovers finished strings,
+ *  and the page renders the hidden field the write forms round-trip — neither
+ *  the `"use client"` filter bar nor any other island imports this. Doing so
+ *  would not merely bloat the bundle, it would fail the build, which is the
+ *  `lib/palette.ts` / `lib/palette-items.ts` trap CLAUDE.md documents. */
 export const SCREEN_FILTER_KEYS = ["plant", "bean", "tag"] as const;
 
 export interface ScreenRow {
@@ -26,8 +33,9 @@ export interface ScreenRow {
   plant: string | null;
   /** The related bean's slug, from relations[]. Null when there is none. */
   bean: string | null;
-  /** Carries a `{ kind: "cover" }` relation — the image is in service on the
-   *  landing row, which is worth saying on the tile and in the delete card. */
+  /** Carries a `{ kind: "cover" }` relation TO A BEAN — the image is in service
+   *  on the landing row, which is worth saying on the tile and in the delete
+   *  card. */
   isCover: boolean;
   tags: string[];
   capturedAt: string;
@@ -59,12 +67,19 @@ export function screenRows(screens: Screen[]): ScreenRow[] {
     return {
       slug: screen.slug,
       name: resolveText(screen.name),
+      // The one field read without a fallback, and deliberately: `image` is
+      // required on `Screen` and `createScreen` never writes one without a
+      // url, so a guard here would be dead code pretending the tile can render
+      // without an asset. The optional fields around it all get one.
       url: screen.image.url,
       alt: screen.image.alt ?? "",
       plant: parentsWithPrefix(screen.parents, PLANT_PREFIX)[0] ?? null,
       bean: beanRef("shows") ?? cover,
       isCover: cover !== null,
-      tags: screen.tags ?? [],
+      // Copied, not handed out: a row is a view of a loaded garden document,
+      // and a caller that sorts or pushes onto `tags` would edit the document
+      // underneath every other reader of it.
+      tags: [...(screen.tags ?? [])],
       capturedAt: screen.capturedAt ?? "",
     };
   });
@@ -74,9 +89,18 @@ export function screenRows(screens: Screen[]): ScreenRow[] {
   // shuffle under the author between visits. An undated screen sorts LAST
   // (its "" compares below every real date), which is right: dated screens came
   // from a run somebody remembers.
+  //
+  // Plain `<` rather than `localeCompare`, matching `byDateDesc` in lib/data.ts
+  // and the `.sort()` in the distincts below: slugs are ASCII kebab-case, and
+  // one collation across the file is what makes the contact sheet's order and
+  // the filter dropdowns' order the same rule.
   return rows.sort((a, b) =>
     a.capturedAt === b.capturedAt
-      ? a.slug.localeCompare(b.slug)
+      ? a.slug < b.slug
+        ? -1
+        : a.slug > b.slug
+          ? 1
+          : 0
       : a.capturedAt < b.capturedAt
         ? 1
         : -1,
@@ -87,7 +111,12 @@ export function screenRows(screens: Screen[]): ScreenRow[] {
  *  non-blank unknown one matches nothing — `filterVaultEntries`' stance, and
  *  for its reason: there is no enum here to validate against. */
 export function filterScreens(rows: ScreenRow[], filters: ScreenFilters): ScreenRow[] {
-  const value = (raw?: string) => (raw && raw.trim() ? raw.trim() : undefined);
+  // `String(...)` for `filterQuery`'s reason: a repeated query key arrives as a
+  // `string[]`, and reading `.trim()` off one would 500 the page.
+  const value = (raw?: string) => {
+    const trimmed = String(raw ?? "").trim();
+    return trimmed ? trimmed : undefined;
+  };
   const plant = value(filters.plant);
   const bean = value(filters.bean);
   const tag = value(filters.tag);
@@ -134,9 +163,9 @@ export function neighbours(rows: ScreenRow[], slug: string): { prev: string | nu
   };
 }
 
-/** The library's canonical query string. The one place that knows which keys
- *  the library filters on reach a URL — which is what makes the hidden field
- *  the write forms round-trip harmless. */
+/** The library's canonical query string — the one place that decides which
+ *  keys the library filters on reach a URL. Callers hand it whatever arrived;
+ *  only the three dimensions survive. */
 export function screensQuery(active: FilterValues): string {
   return filterQuery(active, SCREEN_FILTER_KEYS);
 }
@@ -144,14 +173,23 @@ export function screensQuery(active: FilterValues): string {
 /**
  * Every URL this slice redirects to or links to.
  *
- * `error` is appended LAST and by URLSearchParams, so a message containing an
- * ampersand cannot smuggle a filter, and `query` has already been through
- * `screensQuery` — so the only thing that ever reaches a `redirect()` is a
- * known path with known keys.
+ * The `query` it is handed is RE-CANONICALIZED here rather than trusted, and
+ * that is the whole guarantee: `query` is a bare `string`, so a caller passing
+ * a client-controlled hidden field straight in type-checks perfectly, and the
+ * write forms round-trip exactly such a field. Parsing it and running it back
+ * through `filterQuery` means whatever arrives, only the three known keys reach
+ * a `redirect()` — the guard is in this function rather than in a rule its
+ * callers must remember. `screensQuery` upstream is then defence in depth, the
+ * stance `buildScreenImagePatch`'s `__ready` check takes.
+ *
+ * `error` is set LAST and through URLSearchParams, so a message containing an
+ * ampersand cannot smuggle a filter past the canonicalization above.
  */
 export function screensHref(slug: string | null, query: string, error?: string): string {
   const path = slug ? `/admin/screens/${encodeURIComponent(slug)}` : "/admin/screens";
-  const params = new URLSearchParams(query);
+  const params = new URLSearchParams(
+    filterQuery(Object.fromEntries(new URLSearchParams(query)), SCREEN_FILTER_KEYS),
+  );
   if (error) params.set("error", error);
   const qs = params.toString();
   return qs ? `${path}?${qs}` : path;
