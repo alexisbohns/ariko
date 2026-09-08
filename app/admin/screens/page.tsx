@@ -105,10 +105,16 @@ export default async function ScreensPage({
             (`/admin/screens/new`) that the sheet merely presents. */}
         <Link
           href={query ? `/admin/screens/new?${query}` : "/admin/screens/new"}
-          aria-label="New screen"
           className="rounded-lg px-2 py-0.5 text-xl leading-none text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
         >
-          +
+          {/* An `aria-hidden` glyph beside an `sr-only` word, the shape
+              components/admin/glyphs.tsx uses for every icon in the admin
+              tables — the name is real text in the document rather than an
+              attribute on it, which is what keeps a glyph from being the only
+              carrier of a value. An `aria-label` over a bare "+" reads the
+              same to a screen reader and to nothing else. */}
+          <span aria-hidden>+</span>
+          <span className="sr-only">New screen</span>
         </Link>
       </div>
 
@@ -120,9 +126,23 @@ export default async function ScreensPage({
 
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          {all.length === 0
-            ? "No screens yet — run npm run import:screens, or add one."
-            : "No screens match these filters."}
+          {all.length === 0 ? (
+            <>
+              {/* The empty state NAMES the import and LINKS the other way in
+                  (spec §3). A first-run page whose only route onward is the "+"
+                  in the title bar is a page that reads as broken. */}
+              No screens yet — run <code className="font-heading">npm run import:screens</code>, or{" "}
+              <Link
+                href={query ? `/admin/screens/new?${query}` : "/admin/screens/new"}
+                className="underline underline-offset-4 transition-colors hover:text-foreground"
+              >
+                add one
+              </Link>
+              .
+            </>
+          ) : (
+            "No screens match these filters."
+          )}
         </p>
       ) : (
         <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">

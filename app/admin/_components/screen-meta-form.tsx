@@ -1,9 +1,17 @@
-import { resolveText, textPart, type Plant, type Bean, type Screen } from "@/lib/data";
+import {
+  BEAN_PREFIX,
+  PLANT_PREFIX,
+  parentsWithPrefix,
+  textPart,
+  type Plant,
+  type Bean,
+  type Screen,
+} from "@/lib/data";
 import { editScreenMetaAction } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { NativeSelect } from "@/components/ui/native-controls";
+import { EntitySelect } from "./entity-select";
 import { FilterFields } from "./filter-fields";
 
 /**
@@ -25,6 +33,11 @@ import { FilterFields } from "./filter-fields";
  * copy the fr half into the en box and save it back as en, which is the trap
  * `plant-meta-form.tsx` documents. No `required` on the en inputs — an fr-only
  * name is valid, and the pair is validated as a whole server-side.
+ *
+ * Both selects are `EntitySelect` rather than a `NativeSelect` and a `.map`,
+ * and that is not a factoring: a stored slug missing from its list would
+ * otherwise fall back to `— none —` and be cleared by the next Save. That file
+ * carries the reasoning.
  */
 export function ScreenMetaForm({
   screen,
@@ -37,10 +50,14 @@ export function ScreenMetaForm({
   beans: Bean[];
   query: string;
 }) {
-  const plant = (screen.parents ?? []).find((p) => p.startsWith("plant:"))?.slice("plant:".length) ?? "";
+  // Read with the SAME spelling `lib/screen-edit.ts` writes with — the reader
+  // and the writer of one field share `parentsWithPrefix` and the two prefix
+  // constants, so a change to either can only ever be made in one place.
+  const plant = parentsWithPrefix(screen.parents, PLANT_PREFIX)[0] ?? "";
   const bean =
-    (screen.relations ?? []).find((r) => r.kind === "shows" && r.ref.startsWith("bean:"))?.ref.slice("bean:".length) ??
-    "";
+    (screen.relations ?? [])
+      .find((r) => r.kind === "shows" && r.ref.startsWith(BEAN_PREFIX))
+      ?.ref.slice(BEAN_PREFIX.length) ?? "";
 
   return (
     <form action={editScreenMetaAction} className="flex flex-col gap-5">
@@ -89,14 +106,7 @@ export function ScreenMetaForm({
               so a mis-parented screen had no way back — which is why this
               select exists even though the issue's field list did not name it. */}
           <Label htmlFor="plant">Plant</Label>
-          <NativeSelect id="plant" name="plant" defaultValue={plant}>
-            <option value="">— none —</option>
-            {plants.map((p) => (
-              <option key={p.slug} value={p.slug}>
-                {resolveText(p.name)}
-              </option>
-            ))}
-          </NativeSelect>
+          <EntitySelect id="plant" name="plant" current={plant} entities={plants} />
         </div>
         <div className="flex flex-col gap-2">
           {/* Writes at most ONE `shows` relation. Every other kind the screen
@@ -105,14 +115,7 @@ export function ScreenMetaForm({
               screens the landing row uses, which is the mapping the
               covers-become-refs slice depends on. */}
           <Label htmlFor="bean">Shows</Label>
-          <NativeSelect id="bean" name="bean" defaultValue={bean}>
-            <option value="">— none —</option>
-            {beans.map((b) => (
-              <option key={b.slug} value={b.slug}>
-                {resolveText(b.name)}
-              </option>
-            ))}
-          </NativeSelect>
+          <EntitySelect id="bean" name="bean" current={bean} entities={beans} />
         </div>
       </div>
 

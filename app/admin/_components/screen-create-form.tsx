@@ -1,9 +1,9 @@
-import { resolveText, type Plant } from "@/lib/data";
+import type { Plant } from "@/lib/data";
 import { createScreenAction } from "../actions";
 import { MediaPicker } from "@/components/admin/media-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { NativeSelect } from "@/components/ui/native-controls";
+import { EntitySelect } from "./entity-select";
 import { FilterFields } from "./filter-fields";
 
 /**
@@ -49,14 +49,10 @@ export function ScreenCreateForm({ plants, query }: { plants: Plant[]; query: st
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="plant">Plant</Label>
-        <NativeSelect id="plant" name="plant" defaultValue="">
-          <option value="">— none —</option>
-          {plants.map((p) => (
-            <option key={p.slug} value={p.slug}>
-              {resolveText(p.name)}
-            </option>
-          ))}
-        </NativeSelect>
+        {/* The Meta form's select, so a plant is named and ordered identically
+            on both sides of a screen's life. `current=""` — nothing is stored
+            yet, so its orphan branch simply never fires here. */}
+        <EntitySelect id="plant" name="plant" current="" entities={plants} />
       </div>
 
       <MediaPicker name="image" max={1} submitLabel="Create screen" />

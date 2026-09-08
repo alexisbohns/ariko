@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { loadRawGarden } from "@/lib/store";
-import { resolveText } from "@/lib/data";
+import { resolveText, type RawGarden } from "@/lib/data";
 import { cloudinaryFit } from "@/lib/image-url";
 import { filterScreens, neighbours, screenRows, screensQuery } from "@/lib/screens";
 import { ScreenNav } from "@/app/admin/_components/screen-nav";
@@ -35,7 +35,25 @@ export default async function ScreenPage({
   const { slug } = await params;
   const active = await searchParams;
 
-  const raw = await loadRawGarden();
+  // The index's stance on a database that will not answer, and the same one
+  // here: an Alert rather than a 500, so the panel the author is looking at
+  // says what happened instead of blanking. `notFound()` stays OUT of the try —
+  // it throws to control flow, exactly as `redirect()` does in actions.ts, and
+  // a catch around it would turn a missing screen into "couldn't load".
+  let raw: RawGarden | null = null;
+  try {
+    raw = await loadRawGarden();
+  } catch {
+    raw = null;
+  }
+  if (raw === null) {
+    return (
+      <Alert variant="destructive" role="alert">
+        <AlertDescription>Couldn&apos;t load this screen.</AlertDescription>
+      </Alert>
+    );
+  }
+
   const screen = (raw.screens ?? []).find((s) => s.slug === slug);
   if (!screen) notFound();
 
@@ -70,28 +88,43 @@ export default async function ScreenPage({
         />
       </div>
 
-      <Card>
-        <CardContent>
-          <ScreenMetaForm
-            screen={screen}
-            plants={raw.plants ?? []}
-            beans={raw.beans ?? []}
-            query={query}
-          />
-        </CardContent>
-      </Card>
+      {/* Each card is named, in the bean page's shape (`<h2>` above the card),
+          because three unlabelled cards leave this body with no heading outline
+          under its h1 — and the Delete card in particular would be identified
+          only by the text of its own checkbox. It matters more here than on an
+          ordinary page: the same markup is the side sheet's contents, where a
+          reader arrives without the page around it. */}
+      <section className="flex flex-col gap-2">
+        <h2 className="font-heading text-lg tracking-tight">Details</h2>
+        <Card>
+          <CardContent>
+            <ScreenMetaForm
+              screen={screen}
+              plants={raw.plants ?? []}
+              beans={raw.beans ?? []}
+              query={query}
+            />
+          </CardContent>
+        </Card>
+      </section>
 
-      <Card>
-        <CardContent>
-          <ScreenImageForm screen={screen} query={query} />
-        </CardContent>
-      </Card>
+      <section className="flex flex-col gap-2">
+        <h2 className="font-heading text-lg tracking-tight">Image</h2>
+        <Card>
+          <CardContent>
+            <ScreenImageForm screen={screen} query={query} />
+          </CardContent>
+        </Card>
+      </section>
 
-      <Card>
-        <CardContent>
-          <ScreenDeleteForm screen={screen} isCover={isCover} query={query} />
-        </CardContent>
-      </Card>
+      <section className="flex flex-col gap-2">
+        <h2 className="font-heading text-lg tracking-tight text-destructive">Danger zone</h2>
+        <Card className="ring-destructive/30">
+          <CardContent>
+            <ScreenDeleteForm screen={screen} isCover={isCover} query={query} />
+          </CardContent>
+        </Card>
+      </section>
     </div>
   );
 }

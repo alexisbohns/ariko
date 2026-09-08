@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { loadRawGarden } from "@/lib/store";
+import type { Plant } from "@/lib/data";
 import { screensHref, screensQuery } from "@/lib/screens";
 import { ScreenCreateForm } from "@/app/admin/_components/screen-create-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -20,7 +21,17 @@ export default async function NewScreenPage({
 }) {
   const active = await searchParams;
   const query = screensQuery(active);
-  const raw = await loadRawGarden();
+
+  // The index's stance on a database that will not answer — an Alert rather
+  // than a 500. The plant list is the only thing loaded here, so the form could
+  // in principle be offered without it; it is not, because a create form whose
+  // Plant select is silently empty writes screens with no parent.
+  let plants: Plant[] | null = null;
+  try {
+    plants = (await loadRawGarden()).plants ?? [];
+  } catch {
+    plants = null;
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -40,11 +51,17 @@ export default async function NewScreenPage({
         </Alert>
       ) : null}
 
-      <Card>
-        <CardContent>
-          <ScreenCreateForm plants={raw.plants ?? []} query={query} />
-        </CardContent>
-      </Card>
+      {plants === null ? (
+        <Alert variant="destructive" role="alert">
+          <AlertDescription>Couldn&apos;t load the garden.</AlertDescription>
+        </Alert>
+      ) : (
+        <Card>
+          <CardContent>
+            <ScreenCreateForm plants={plants} query={query} />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
