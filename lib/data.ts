@@ -202,6 +202,51 @@ export interface Bean {
   projected?: { source: string; feedId: string; firstPollenId: string };
 }
 
+/**
+ * One captured view of an app, held as a THING rather than as an asset hanging
+ * off something else.
+ *
+ * The species exists because neither place an image can already live is a
+ * library: `media[]` on a sprout holds assets rendered in that sprout's body,
+ * and `Bean.cover` holds one image for one bean. A plant still grows no
+ * `images[]` — containment points UPWARD from the screen, exactly as a bean's
+ * does, and the comment on `Plant.links` above ("a plant has `logo` and no
+ * assets array at all") is not overturned by this type but relied on by it.
+ *
+ * Every field but `image` and `capturedAt` is borrowed from `Bean` rather than
+ * invented, and that is the point: `parents[]` is containment ONLY and
+ * `relations[]` is everything else, the same split the rest of the model uses,
+ * which is what lets the cascade in filterPublic be the BEAN's cascade rather
+ * than a second one nobody would think to audit.
+ *
+ * Deliberately ABSENT: `exhibited` and `order`. Those belong to the gallery,
+ * they are optional, and Mongo adds an optional field with no migration — so
+ * declaring them here would put two fields in the type that nothing reads and
+ * nothing writes, which is the speculative generality this file argues against
+ * everywhere else. The gallery slice adds them when it has a use for them.
+ */
+export interface Screen {
+  slug: string; // stable id — the capture's filename stem, already kebab-case
+  name: Text; // bilingual like every other name; the import writes plain strings
+  // The caption. Blank on import, written later per screen: a hundred and
+  // seventy captions nobody asked for would be worse than none.
+  legend?: Text;
+  /**
+   * The asset — a MediaImage rather than a bare URL, and the difference is
+   * load-bearing rather than tidy. lib/bean-cover.ts decides the PHONE
+   * treatment from `height > width`, so an image that cannot state its own
+   * shape is silently drawn as something else (see that file's `isPortrait`:
+   * an image that cannot prove it is portrait is not portrait). Cloudinary
+   * returns both dimensions on upload and lib/storage.ts carries them through.
+   */
+  image: MediaImage;
+  parents: string[]; // containment ONLY: ["plant:paulopus"]
+  relations?: Relation[]; // non-containment edges; scrubbed by filterPublic
+  visibility?: Visibility; // default treated as "public", the pod/bean rule
+  tags?: string[];
+  capturedAt?: string; // ISO date of the capture run
+}
+
 export interface Sprout {
   slug: string;
   name: Text; // bilingual since B1; plain strings remain valid (no migration)
@@ -225,6 +270,7 @@ export interface RawGarden {
   beans?: Bean[];
   sprouts?: Sprout[];
   bees?: Bee[];
+  screens?: Screen[];
 }
 
 export type SeedStatus = "inbox" | "promoted" | "discarded";
@@ -454,6 +500,9 @@ export function composeText(en: string, fr: string): Text {
 //  - Bees are default-PRIVATE and cascade-exempt: only an explicit
 //    visibility === "public" survives, and each survivor's serves[] is
 //    scrubbed to kept plants.
+//  - Screens take the BEAN's rule with only the plant tier above them: dropped
+//    when explicitly private, dropped when every EXISTING plant parent was
+//    filtered out, and their relations[] scrubbed like everyone else's.
 // Pure: input objects are never mutated; scrubbing yields a fresh object.
 export function filterPublic(raw: RawGarden): RawGarden {
   const rawPlants = raw.plants ?? [];
@@ -461,6 +510,7 @@ export function filterPublic(raw: RawGarden): RawGarden {
   const rawBeans = raw.beans ?? [];
   const rawSprouts = raw.sprouts ?? [];
   const rawBees = raw.bees ?? [];
+  const rawScreens = raw.screens ?? [];
 
   const keptPlants = rawPlants.filter((p) => p.visibility !== "private");
   const plantExists = new Set(rawPlants.map((p) => p.slug));
@@ -484,6 +534,21 @@ export function filterPublic(raw: RawGarden): RawGarden {
   );
   const beanExists = new Set(rawBeans.map((b) => b.slug));
   const beanKept = new Set(beans.map((b) => b.slug));
+
+  // Screens sit BESIDE beans rather than under them: the plant is the only tier
+  // above a screen, so this is the bean's rule with one entry in the tier list
+  // instead of two. Dangling plant refs are ignored here as everywhere, so a
+  // screen naming a plant that does not exist survives as standalone.
+  //
+  // Nothing public reads screens in this slice, and the cascade is written
+  // anyway. That is not premature: filterPublic is the security boundary, and a
+  // species that enters the read model without passing through it is the exact
+  // shape of omission that ships a leak the day someone adds a reader.
+  const keptScreens = rawScreens.filter(
+    (s) =>
+      s.visibility !== "private" &&
+      !allExistingParentsFiltered(s.parents, [[PLANT_PREFIX, plantExists, plantKept]]),
+  );
 
   const keptSprouts = rawSprouts.filter(
     (s) =>
@@ -517,6 +582,17 @@ export function filterPublic(raw: RawGarden): RawGarden {
   // pod relations (that's a separate feature/decision); this scrub exists so
   // the data is already safe by construction whenever that decision is made.
   const pods = keptPods.map((p) => scrubRelations(p, refSurvives));
+  // A screen's relations point at beans (the `{ kind: "cover" }` link the
+  // import writes) and will point at sprouts, so this scrub belongs BELOW the
+  // kept-sprout set for the reason stated above it, not merely beside the
+  // others.
+  //
+  // Nothing points AT a screen yet, so refSurvives grows no `screen:` branch: a
+  // relation naming one drops as an unknown prefix, which is the fail-closed
+  // direction. Stated so the absence reads as a conclusion rather than an
+  // oversight — the property PlantRole's and PlatformLink's comments claim for
+  // the same reason.
+  const screens = keptScreens.map((s) => scrubRelations(s, refSurvives));
 
   // Bees are default-PRIVATE (the opposite of every content tier) and sit
   // outside the cascades: only an explicit "public" survives, and each
@@ -534,7 +610,7 @@ export function filterPublic(raw: RawGarden): RawGarden {
       return Array.isArray(b.serves) && serves.length === b.serves.length ? b : { ...b, serves };
     });
 
-  return { plants, pods, beans, sprouts, bees };
+  return { plants, pods, beans, sprouts, bees, screens };
 }
 
 // True when the item has parent refs that EXIST in the dataset (across every
