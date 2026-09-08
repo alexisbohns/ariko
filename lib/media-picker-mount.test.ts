@@ -78,31 +78,70 @@ test("the capture bar keeps its own submit button without script", async () => {
   assert.equal(html.includes("image__ready"), false, "an unmounted picker emits no marker on any surface");
 });
 
-test("the bean cover form server-renders no way to submit it", async () => {
+// These two import the REAL components rather than reconstructing their shape
+// with React.createElement, unlike the two tests above (which pin MediaPicker
+// itself, not a caller). Importing the real thing is what makes a wiring
+// mutation in bean-cover-form.tsx or bean-keyword-form.tsx — a renamed `name`,
+// a dropped `max`, a dropped `submitLabel`, `textPart` swapped for
+// `resolveText`, `keywordFr` typo'd — visible here, rather than only in
+// something these tests happen to agree with.
+//
+// bean-cover-form.tsx renders `<form action={editBeanCoverAction}>`. Outside
+// Next's runtime, a server action passed as a form `action` does not render as
+// a URL string — React emits `action="javascript:throw new Error(...)"` plus a
+// hidden replay `<script>` carrying the action reference, neither of which is
+// stable text to assert against. So these tests assert presence/absence of
+// specific fields and markup shapes, not an exact whole-string match.
+test("the bean cover form server-renders no submit button and no other field, empty cover", async () => {
   const React = await import("react");
-  const { MediaPicker } = await import("@/components/admin/media-picker");
+  const { BeanCoverForm } = await import("@/app/admin/_components/bean-cover-form");
+  const bean = { slug: "b", name: "Bean" } as import("@/lib/data").Bean;
 
-  // The real shape from app/admin/_components/bean-cover-form.tsx: a hidden
-  // slug, and the picker carrying the form's only submit button. Capped at one
-  // — a bean has one cover.
-  const html = await renderScriptOff(
-    React.createElement(
-      "form",
-      { action: "/noop" },
-      React.createElement("input", { type: "hidden", name: "slug", value: "b" }),
-      React.createElement(MediaPicker, {
-        name: "cover",
-        initial: [],
-        max: 1,
-        submitLabel: "Save cover",
-      }),
-    ),
-  );
+  const html = await renderScriptOff(React.createElement(BeanCoverForm, { bean }));
 
   assert.equal(/<button/i.test(html), false, "a script-off browser must see no submit button");
   assert.equal(html.includes("Save cover"), false, "the submit label belongs to the island, not the form");
-  // Inert rather than merely button-less: no field survives that could carry an
-  // implicit submission. This is WHY the keyword lives in its own form — put a
-  // text input in here and Enter posts a payload with no cover__ready marker.
-  assert.equal(html, '<form action="/noop"><input type="hidden" name="slug" value="b"/></form>');
+  assert.equal(html.includes('name="slug"'), true, "the hidden slug must still be there");
+  // No non-hidden input survives — nothing left to carry an implicit Enter
+  // submission, and nothing left for a mutated `name` to silently rename.
+  assert.equal(/<input(?![^>]*type="hidden")/i.test(html), false, "no non-hidden field must render");
+});
+
+test("the bean cover form re-seeds the picker for a POPULATED cover (the reason the key prop exists)", async () => {
+  const React = await import("react");
+  const { BeanCoverForm } = await import("@/app/admin/_components/bean-cover-form");
+  const cover: import("@/lib/data").MediaImage = {
+    kind: "image",
+    storageKey: "k1",
+    url: "https://example.com/k1.jpg",
+    width: 400,
+    height: 900,
+  };
+  const bean = { slug: "b", name: "Bean", cover } as import("@/lib/data").Bean;
+
+  const html = await renderScriptOff(React.createElement(BeanCoverForm, { bean }));
+
+  // The island still renders nothing until it mounts, even fed a populated
+  // `initial` — this is the check the checked-in test (initial: []) could
+  // never make, and it is exactly the case the `key` prop exists to reseed.
+  assert.equal(/<button/i.test(html), false, "a script-off browser must see no submit button");
+  assert.equal(/<input(?![^>]*type="hidden")/i.test(html), false, "no non-hidden field must render");
+});
+
+test("the bean keyword form emits both language fields, unconditionally", async () => {
+  const React = await import("react");
+  const { BeanKeywordForm } = await import("@/app/admin/_components/bean-keyword-form");
+  const bean = { slug: "b", name: "Bean", keyword: { fr: "Karma" } } as import("@/lib/data").Bean;
+
+  const html = await renderScriptOff(React.createElement(BeanKeywordForm, { bean }));
+
+  assert.equal(html.includes('name="keyword"'), true, "the en keyword field must be present");
+  assert.equal(html.includes('name="keywordFr"'), true, "the fr keyword field must be present");
+  // An fr-only bean must leave the EN box empty — resolveText's fallback would
+  // copy "Karma" into it and save it back as the en value, the exact
+  // corruption plant-meta-form.tsx warns against and textPart avoids. Attributes
+  // land adjacent (`name="…" value="…"`) in the rendered markup, so this checks
+  // each field's OWN value rather than "value=... appears somewhere".
+  assert.equal(html.includes('name="keyword" value=""'), true, "the en box must be blank, not fr's value");
+  assert.equal(html.includes('name="keywordFr" value="Karma"'), true, "the fr box must still carry the fr value");
 });

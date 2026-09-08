@@ -17,9 +17,12 @@ import { MediaPicker } from "@/components/admin/media-picker";
  * payload carries no cover__ready marker, so the cover survives but the keyword
  * vanishes with nothing on screen to say so.
  *
- * A cover is cropped to a phone's proportions (lib/bean-cover.ts): upload a
- * roughly 9:19.5 capture, not a wider portrait screenshot, or Cloudinary's
- * hard crop will take more than intended.
+ * A cover is cropped to a phone's proportions (`cloudinaryThumb(..., { width:
+ * 224, height: 484 })` in components/bean-cover.tsx, resolving through
+ * `c_fill` in lib/image-url.ts — lib/bean-cover.ts only picks the phone
+ * branch via `isPortrait`, it does no cropping itself): upload a roughly
+ * 9:19.5 capture, not a wider portrait screenshot, or Cloudinary's hard crop
+ * will take more than intended.
  */
 export function BeanCoverForm({ bean }: { bean: Bean }) {
   return (

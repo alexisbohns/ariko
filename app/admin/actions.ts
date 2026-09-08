@@ -508,6 +508,24 @@ async function flipPlantField(
   redirect(back);
 }
 
+export async function setPlantStatusAction(formData: FormData): Promise<void> {
+  return flipPlantField(
+    formData,
+    "status",
+    (slug, value) => updatePlantStatus(slug, value as PlantStatus),
+    isPlantStatus,
+  );
+}
+
+export async function setPlantVisibilityAction(formData: FormData): Promise<void> {
+  return flipPlantField(
+    formData,
+    "visibility",
+    (slug, value) => updatePlantVisibility(slug, value as Visibility),
+    isVisibility,
+  );
+}
+
 /**
  * The bean's cover — and nothing else.
  *
@@ -560,24 +578,6 @@ export async function editBeanKeywordAction(formData: FormData): Promise<void> {
   revalidatePath("/admin");
   revalidatePath("/admin/vault");
   redirect(`/admin/bean/${encodeURIComponent(slug)}`);
-}
-
-export async function setPlantStatusAction(formData: FormData): Promise<void> {
-  return flipPlantField(
-    formData,
-    "status",
-    (slug, value) => updatePlantStatus(slug, value as PlantStatus),
-    isPlantStatus,
-  );
-}
-
-export async function setPlantVisibilityAction(formData: FormData): Promise<void> {
-  return flipPlantField(
-    formData,
-    "visibility",
-    (slug, value) => updatePlantVisibility(slug, value as Visibility),
-    isVisibility,
-  );
 }
 
 // Manual pull of every configured feed — same core the cron Action calls.

@@ -1440,6 +1440,53 @@ Two forms and not one: a picker plus a lone text input is a form that
 submits on Enter with no ready marker and eats the keyword."
 ```
 
+- [x] **Post-review update (code review, on top of `320e1fc`):** the checked-in
+  mount test above reconstructed the form's shape with `React.createElement`
+  rather than importing the real components, so a wiring mutation in either
+  form — a renamed `name`, a dropped `max` or `submitLabel`, `textPart` swapped
+  for `resolveText`, `keywordFr` typo'd — passed `tsc` and the full suite
+  untouched. Replaced it with four tests in `lib/media-picker-mount.test.ts`
+  that import `BeanCoverForm` and `BeanKeywordForm` directly:
+
+  - empty-cover script-off render: no submit button, no non-hidden input, the
+    hidden `slug` still present.
+  - **populated**-cover script-off render (the checked-in test only ever used
+    `initial: []`, so the case the `key` prop exists for — reseeding the
+    island after a save — was never exercised).
+  - keyword form: both `name="keyword"` and `name="keywordFr"` present, and an
+    `{ fr: "…" }`-only bean leaves the **en** box `value=""` rather than
+    copying the fr value in (the `resolveText` mutation).
+
+  A caveat the review verified: outside Next's runtime, `<form
+  action={serverAction}>` does not render as a URL string — React emits
+  `action="javascript:throw new Error(...)"` plus a replay `<script>` — so
+  these assert presence/absence of specific fields rather than an exact
+  whole-string match, unlike the two MediaPicker-only tests above them.
+
+  Re-running the five review-found mutations against the new tests:
+
+  | mutation | caught? |
+  |---|---|
+  | `name="cover"` → `"coverX"` | **not caught** |
+  | drop `max={1}` | **not caught** |
+  | drop `submitLabel` | **not caught** |
+  | `textPart` → `resolveText` | caught (en box mutation test) |
+  | `keywordFr` → `keywordFR` | caught (keyword-field-presence test) |
+
+  The three MediaPicker-prop mutations are structurally uncatchable by a
+  script-off render test of the *caller*: `MediaPicker` renders `null` before
+  it mounts regardless of `name`, `max` or `submitLabel` — see
+  `components/admin/media-picker.tsx`'s `mounted` gate — so the parent's
+  script-off HTML is identical either way. Catching them needs either a
+  mounted render (jsdom, `useEffect` actually running) or a prop-spy that
+  intercepts what `BeanCoverForm` passes to `MediaPicker` — the latter working
+  in this harness only behind Node's experimental
+  `--experimental-test-module-mocks` flag on `mock.module()`, which would mean
+  adding that flag to `package.json`'s `test` script project-wide. Left
+  undone, the same call the review made for `max={1}` alone ("the builder
+  already takes the first image, so it is UI-only") — extended here to all
+  three, since they're the same class of gap and the fix is the same size.
+
 ---
 
 ## Task 9: Put both forms on the bean page
@@ -1495,6 +1542,39 @@ Expected: build succeeds.
 git add "app/admin/bean/[id]/page.tsx"
 git commit -m "feat: the bean admin page can edit its cover and keyword"
 ```
+
+- [x] **Post-review update (code review, on top of `320e1fc`):** the Cover
+  section rendered unconditionally, right below the page's own "Projected
+  from {source} (feed {feedId}) — read-only, rebuilt from the feed" banner —
+  contradicting it. `lib/data.ts`'s own declaration of `Bean.projected` already
+  says the field is "read-only in the admin, source-owned, rebuildable", so
+  this predates the slice rather than being a judgment call. It is not only
+  cosmetic either: `lib/pollen-store.ts`'s `deleteFeedData` does
+  `deleteMany({ "projected.feedId": feedId })` on a full feed rebuild, which
+  deletes the bean document — and any authored cover or keyword with it. (The
+  ordinary sync path is safe: the bean upsert uses `$setOnInsert`, so an
+  authored-or-prior bean always wins over the feed — the loss is only on a
+  deliberate full rebuild, exactly what the banner warns about.)
+
+  Fixed by gating the whole Cover section on `!bean.projected`:
+
+  ```tsx
+  {!bean.projected ? (
+    <section className="flex flex-col gap-4">
+      <h2 className="font-heading text-lg tracking-tight">Cover</h2>
+      <Card>
+        <CardContent>
+          <BeanCoverForm bean={bean} />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent>
+          <BeanKeywordForm bean={bean} />
+        </CardContent>
+      </Card>
+    </section>
+  ) : null}
+  ```
 
 ---
 

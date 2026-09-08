@@ -86,20 +86,35 @@ export default async function AdminBeanPage({ params }: { params: Promise<{ id: 
 
         {/* The page's first write surface — it was a read-only property dump
             until this slice. Two cards, because they are two forms: see
-            bean-cover-form.tsx for why they cannot be one. */}
-        <section className="flex flex-col gap-4">
-          <h2 className="font-heading text-lg tracking-tight">Cover</h2>
-          <Card>
-            <CardContent>
-              <BeanCoverForm bean={bean} />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent>
-              <BeanKeywordForm bean={bean} />
-            </CardContent>
-          </Card>
-        </section>
+            bean-cover-form.tsx for why they cannot be one.
+
+            Gated on !bean.projected. lib/data.ts's own declaration of the
+            field already says a projected bean is "read-only in the admin,
+            source-owned, rebuildable" — the Alert above states exactly that —
+            so rendering live write forms under it would contradict the page's
+            own banner. It is not only cosmetic: lib/pollen-store.ts's
+            deleteFeedData does `deleteMany({ "projected.feedId": feedId })`
+            on a full rebuild, which deletes the bean document — and any
+            authored cover or keyword with it. The ordinary sync path is
+            safe (upsert uses `$setOnInsert`, so an authored or
+            previously-synced bean always wins over the feed); the loss is
+            only on a deliberate full rebuild, which is exactly what the
+            banner above warns about. */}
+        {!bean.projected ? (
+          <section className="flex flex-col gap-4">
+            <h2 className="font-heading text-lg tracking-tight">Cover</h2>
+            <Card>
+              <CardContent>
+                <BeanCoverForm bean={bean} />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent>
+                <BeanKeywordForm bean={bean} />
+              </CardContent>
+            </Card>
+          </section>
+        ) : null}
 
         <section className="flex flex-col gap-4">
           <h2 className="font-heading text-lg tracking-tight">
