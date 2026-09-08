@@ -1103,7 +1103,12 @@ git commit -m "feat: buildBeanKeywordPatch — blank means clear, not absent"
 **Files:**
 - Modify: `lib/botanical.ts` (after `updatePlantLogo`, ~line 260)
 
-No unit test: these touch Mongo, and every writer in this file is verified the same way — by `tsc`, and by the hands-on pass in Task 10.
+This file is not untested at the DB layer — `lib/botanical.test.ts` carries a
+run of `{ skip: !hasDb }` tests against a real Mongo, using the `slug:
+/^__test__/` cleanup convention. What is true is narrower: no writer added
+since the plant-page slices has one, so this task adds the one that matters —
+a clear on each new field asserted as an ABSENT key, not a stored `null` —
+alongside the usual `tsc` check and the hands-on pass in Task 10.
 
 - [ ] **Step 1: Add both writers**
 
@@ -1112,9 +1117,20 @@ No unit test: these touch Mongo, and every writer in this file is verified the s
  * Writes a bean's cover — and nothing else. `null` clears it.
  *
  * The first bean writer in this file. Narrow rather than an `updateBeanMeta`
- * that could take several fields, for the reason updatePlantStatus gives: a
- * writer that can touch a field it was not asked about is a writer that
- * eventually does.
+ * that could take several fields: `updateBeanCover` and `updateBeanKeyword`
+ * duplicate the same five-line `$set`/`$unset` shape rather than sharing a
+ * helper, because a helper generic over both document type and field key would
+ * land back at a cast to escape it — and each copy naming its one field
+ * literally is what makes a typo visible on sight. If a FOURTH copy of this
+ * shape appears, the move is `lib/plant-meta.ts`'s: extract a pure, tested
+ * update-doc builder, which is what that file did after a duplicate-`$set` bug
+ * shipped silently (see `plantMetaUpdate`'s comment).
+ *
+ * No `as UpdateFilter<Bean>` cast here, unlike `updatePlantLogo` above:
+ * `plantMetaUpdate`'s cast earns its keep because that function returns
+ * `Record<string, unknown>`, but on a literal `$set`/`$unset` object the same
+ * cast silences `$set`'s value-type checking for no reason — `{ $set: { cover:
+ * "oops" } }` compiles clean with the cast and fails `tsc` without it.
  *
  * Clearing is an `$unset` rather than a stored null, so an absent cover has ONE
  * representation and lib/bean-cover.ts only has to handle `cover === undefined`.
@@ -1123,19 +1139,22 @@ export async function updateBeanCover(slug: string, cover: MediaImage | null): P
   const db = await getDb();
   await db
     .collection<Bean>("beans")
-    .updateOne({ slug }, (cover === null
+    .updateOne({ slug }, cover === null
       ? { $unset: { cover: "" } }
-      : { $set: { cover } }) as UpdateFilter<Bean>);
+      : { $set: { cover } });
 }
 
-/** Writes a bean's keyword — and nothing else. `null` clears it, as above. */
+/**
+ * Writes a bean's keyword — and nothing else. `null` clears it, as above. No
+ * cast, for the same reason `updateBeanCover` gives.
+ */
 export async function updateBeanKeyword(slug: string, keyword: Text | null): Promise<void> {
   const db = await getDb();
   await db
     .collection<Bean>("beans")
-    .updateOne({ slug }, (keyword === null
+    .updateOne({ slug }, keyword === null
       ? { $unset: { keyword: "" } }
-      : { $set: { keyword } }) as UpdateFilter<Bean>);
+      : { $set: { keyword } });
 }
 ```
 
@@ -1143,15 +1162,29 @@ export async function updateBeanKeyword(slug: string, keyword: Text | null): Pro
 
 Ensure `Bean`, `MediaImage` and `Text` are all in the type import from `./data`. Read the existing import line and add whichever are missing — `Bean` is already there (`listBeans` uses it), `MediaImage` is already there (`updatePlantLogo` uses it); `Text` is the likely addition.
 
-- [ ] **Step 3: Typecheck**
+- [ ] **Step 3: Add the DB test**
+
+In `lib/botanical.test.ts`, following its `{ skip: !hasDb }` / `__test__` slug
+idiom exactly, add a test per writer that writes the field, then clears it, and
+asserts the key is **absent** (`"cover" in doc === false`) rather than present
+with a stored `null`. That is the invariant that is silent when wrong:
+`lib/bean-cover.ts` checks `bean.cover === undefined` by strict identity, and a
+stored `null` would slip past it into a field the type declares optional, not
+nullable. The test must skip cleanly with no database, not fail.
+
+- [ ] **Step 4: Typecheck and test**
 
 Run: `npx tsc --noEmit`
 Expected: no output.
 
-- [ ] **Step 4: Commit**
+Run: `npm test`
+Expected: no regressions; the new test(s) run if `MONGODB_URI` is set, skip
+otherwise.
+
+- [ ] **Step 5: Commit**
 
 ```bash
-git add lib/botanical.ts
+git add lib/botanical.ts lib/botanical.test.ts
 git commit -m "feat: updateBeanCover and updateBeanKeyword — one field each"
 ```
 

@@ -8,7 +8,7 @@ import { composeText, type Text } from "./data";
  * that already exists, so a blank has to cross the wire as an INSTRUCTION
  * rather than as an absence: omitting the key would silently leave the old
  * keyword in place and the author would see their deletion ignored. It is the
- * stance PlantMetaPatch.description takes, one field over.
+ * stance `lib/plant-meta.ts`'s `PlantMetaPatch.description` takes.
  *
  * Nothing here throws. A blank name is a public claim the site would render
  * wrongly, which is why buildPlantMetaPatch throws on one — a blank keyword is

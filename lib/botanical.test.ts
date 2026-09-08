@@ -10,6 +10,8 @@ import {
   setPrivate,
   listPods,
   listBeans,
+  updateBeanCover,
+  updateBeanKeyword,
   SlugExistsError,
 } from "./botanical";
 import { getDb, closeDb } from "./db";
@@ -125,6 +127,39 @@ test("a duplicate slug throws SlugExistsError", { skip: !hasDb }, async (t) => {
     () => createPod({ slug: "__test__dup", name: "M2", plantSlug: null, description: "" }),
     (err) => err instanceof SlugExistsError && err.slug === "__test__dup",
   );
+});
+
+test("updateBeanCover clears to an ABSENT key, not a stored null", { skip: !hasDb }, async (t) => {
+  t.after(cleanup);
+  await createBean({ slug: "__test__cover", name: "Cover", description: "", podSlug: null, plantSlug: null });
+  await updateBeanCover("__test__cover", {
+    kind: "image",
+    storageKey: "__test__key",
+    url: "https://example.com/x.png",
+  });
+  const db = await getDb();
+  const withCover = await db.collection("beans").findOne({ slug: "__test__cover" });
+  assert.ok(withCover?.cover);
+
+  await updateBeanCover("__test__cover", null);
+  const cleared = await db.collection("beans").findOne({ slug: "__test__cover" });
+  // The key must be MISSING, not present-with-null: lib/bean-cover.ts checks
+  // `bean.cover === undefined` by strict identity, and a stored null would slip
+  // past that check into a field the type declares optional, not nullable.
+  assert.equal("cover" in (cleared ?? {}), false);
+});
+
+test("updateBeanKeyword clears to an ABSENT key, not a stored null", { skip: !hasDb }, async (t) => {
+  t.after(cleanup);
+  await createBean({ slug: "__test__keyword", name: "Keyword", description: "", podSlug: null, plantSlug: null });
+  await updateBeanKeyword("__test__keyword", "Timeline");
+  const db = await getDb();
+  const withKeyword = await db.collection("beans").findOne({ slug: "__test__keyword" });
+  assert.equal(withKeyword?.keyword, "Timeline");
+
+  await updateBeanKeyword("__test__keyword", null);
+  const cleared = await db.collection("beans").findOne({ slug: "__test__keyword" });
+  assert.equal("keyword" in (cleared ?? {}), false);
 });
 
 test.after(async () => {
