@@ -82,6 +82,26 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
   one with the picker's `max` prop — a plant has one mark. The Meta card beside
   it stays zero-client-JS, which is *why* the logo needs a card of its own.
 
+  The bean **Cover card** (`app/admin/_components/bean-cover-form.tsx`, the
+  phone-covers slice) is the third of these and still not a new case: nothing
+  but the picker, `submitLabel` on the picker, `buildBeanCoverPatch` enforcing
+  the same `__ready` rule, `max={1}` because a bean has one cover. What it adds
+  to the pattern is the **Keyword form beside it** — an ordinary zero-client-JS
+  metadata form, and separate from the Cover card for a reason worth stating
+  once. Put the keyword's text input *inside* the picker's form and script-off
+  that form renders no button (the button is inside the island) but **does**
+  render the input — and a lone text input in a button-less form submits on
+  Enter. The author types a word, presses Return, and posts a payload carrying
+  no `cover__ready`: `buildBeanCoverPatch` refuses to write, so the cover
+  survives, and the keyword is silently lost with nothing on the page to say
+  so. Two forms make that impossible rather than survivable, which is the
+  plant's Meta-beside-Logo arrangement again.
+
+  That slice added **no seventh exception**: the cover itself
+  (`components/bean-cover.tsx`) is a server component pinned in
+  `lib/server-safe-source.test.ts`, its motion is CSS `group-hover`, and
+  `app/(public)` still has exactly one island.
+
   Images upload through `uploadImageAction`, never from the browser to a third
   party, and a pasted link's `provider` is always derived server-side.
 

@@ -1,8 +1,8 @@
 import {
   BEAN_PREFIX, BEE_PREFIX, PLANT_PREFIX, POD_PREFIX, SPROUT_PREFIX,
-  byDateDesc, parentsWithPrefix, resolveText, type PlantNature, type RawGarden, type Sprout, type Text,
+  byDateDesc, parentsWithPrefix, resolveText, type Bean, type PlantNature, type RawGarden, type Sprout, type Text,
 } from "./data";
-import { coverFor } from "./cover";
+import { fillCoverFor } from "./bean-cover";
 import { isHttpUrl } from "./url";
 
 // Graph projection of a RawGarden (roadmap G1) — the graph playground's data
@@ -17,7 +17,11 @@ export interface GraphNode {
   kind: "plant" | "pod" | "bean" | "sprout" | "bee";
   name: string; // resolved at serialization time (B1)
   description?: string; // resolved (B1); emitted only when non-blank (slice 2)
-  // Beans only, derived (lib/cover.ts) — G1's withheld-media note pointed here.
+  // Beans only: the bean's explicit `cover` when the author set one, otherwise
+  // the derivation (fillCoverFor, lib/bean-cover.ts) — G1's withheld-media note
+  // pointed here. The IMAGE only, never the phone treatment: a JSON node has no
+  // frame to sit a phone in, and spec §8 leaves that decision to whatever
+  // renders the payload.
   // A NARROWED view of the MediaImage: storageKey is a Cloudinary-internal id
   // with no meaning to a consumer, so it stays out of the public payload.
   // `url` is scheme-vetted (see beanCover); the rest is passed through.
@@ -72,7 +76,8 @@ export function toGraph(raw: RawGarden): Graph {
 
   // Sprouts per bean, newest-first — the same ordering buildDataset guarantees
   // (byDateDesc, exported from lib/data.ts for exactly this), because that is
-  // the ordering coverFor documents that it expects. toGraph serializes a
+  // the ordering coverFor documents that it expects (and which fillCoverFor
+  // passes straight through when it falls back to it). toGraph serializes a
   // RawGarden and has no Dataset to borrow it from.
   const sproutsByBean = new Map<string, Sprout[]>();
   for (const sprout of sprouts) {
@@ -84,8 +89,8 @@ export function toGraph(raw: RawGarden): Graph {
   }
   for (const list of sproutsByBean.values()) list.sort(byDateDesc);
 
-  const beanCover = (slug: string): Pick<GraphNode, "cover"> => {
-    const cover = coverFor(sproutsByBean.get(slug) ?? []);
+  const beanCover = (bean: Bean): Pick<GraphNode, "cover"> => {
+    const cover = fillCoverFor(bean, sproutsByBean.get(bean.slug) ?? []);
     // Scheme-vetted HERE, unlike the two HTML consumers of the same cover.
     // They render an <img src>, which is a fetch sink where a hostile scheme
     // can only fail to paint. This payload leaves for an unknown client
@@ -113,7 +118,7 @@ export function toGraph(raw: RawGarden): Graph {
     ...pods.map((m) => decorate({ id: POD_PREFIX + m.slug, kind: "pod" as const, name: resolveText(m.name) }, m)),
     ...beans.map((a) =>
       decorate(
-        { id: BEAN_PREFIX + a.slug, kind: "bean" as const, name: resolveText(a.name), ...beanCover(a.slug) },
+        { id: BEAN_PREFIX + a.slug, kind: "bean" as const, name: resolveText(a.name), ...beanCover(a) },
         a,
       ),
     ),

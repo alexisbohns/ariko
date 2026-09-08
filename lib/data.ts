@@ -177,6 +177,26 @@ export interface Bean {
   description?: Text; // optional — every existing bean predates it (slice 2); Pod/Plant require theirs
   visibility?: Visibility; // default treated as "public"
   tags?: string[];
+  /**
+   * Explicit cover art, OVERRIDING the derivation in lib/cover.ts. Absent on
+   * every bean that predates the phone-covers slice, and absent is the normal
+   * case: a bean with no `cover` still shows the first image in its newest
+   * sprout carrying one.
+   *
+   * What the field buys is the two things the derivation cannot: cover art that
+   * does not drift the day a newer sprout ships an image, and cover art that
+   * does not have to live inside a sprout's body to exist.
+   */
+  cover?: MediaImage;
+  /**
+   * The one word the cover wears — "Timeline", "Karma". Bilingual, because the
+   * words are not language-neutral (Accuracy is Justesse), and because every
+   * other thing a bean can say already is.
+   *
+   * Drawn ONLY on the phone treatment (lib/bean-cover.ts). A word floating over
+   * a photograph is a different design.
+   */
+  keyword?: Text;
   // Machine-created from a pollen feed (slice 4): read-only in the admin,
   // source-owned, rebuildable. Absent on every authored bean.
   projected?: { source: string; feedId: string; firstPollenId: string };

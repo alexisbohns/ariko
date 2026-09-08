@@ -10,6 +10,8 @@ import {
   setPrivate,
   listPods,
   listBeans,
+  updateBeanCover,
+  updateBeanKeyword,
   SlugExistsError,
 } from "./botanical";
 import { getDb, closeDb } from "./db";
@@ -125,6 +127,50 @@ test("a duplicate slug throws SlugExistsError", { skip: !hasDb }, async (t) => {
     () => createPod({ slug: "__test__dup", name: "M2", plantSlug: null, description: "" }),
     (err) => err instanceof SlugExistsError && err.slug === "__test__dup",
   );
+});
+
+test("updateBeanCover clears to an ABSENT key, not a stored null", { skip: !hasDb }, async (t) => {
+  t.after(cleanup);
+  await createBean({ slug: "__test__cover", name: "Cover", description: "", podSlug: null, plantSlug: null });
+  await updateBeanCover("__test__cover", {
+    kind: "image",
+    storageKey: "__test__key",
+    url: "https://example.com/x.png",
+  });
+  const db = await getDb();
+  const withCover = await db.collection("beans").findOne({ slug: "__test__cover" });
+  assert.ok(withCover?.cover);
+
+  await updateBeanCover("__test__cover", null);
+  const cleared = await db.collection("beans").findOne({ slug: "__test__cover" });
+  // The key must be MISSING, not present-with-null. Nothing MISDRAWS if it is
+  // not: lib/bean-cover.ts tests `bean.cover` for truthiness and `fillCoverFor`
+  // uses `??`, so a stored null falls through to the derived cover, which is
+  // what a cleared override should do. What a stored null breaks is the TYPE —
+  // `Bean.cover` is declared optional, not nullable — and the reader that pays
+  // for it is the next one written to that declaration: a presence check, a
+  // `!== undefined` guard, an `Object.keys`. One representation of "absent" is
+  // the thing being asserted here, not one behaviour.
+  assert.equal("cover" in (cleared ?? {}), false);
+});
+
+test("updateBeanKeyword clears to an ABSENT key, not a stored null", { skip: !hasDb }, async (t) => {
+  t.after(cleanup);
+  await createBean({ slug: "__test__keyword", name: "Keyword", description: "", podSlug: null, plantSlug: null });
+  await updateBeanKeyword("__test__keyword", "Timeline");
+  const db = await getDb();
+  const withKeyword = await db.collection("beans").findOne({ slug: "__test__keyword" });
+  assert.equal(withKeyword?.keyword, "Timeline");
+
+  await updateBeanKeyword("__test__keyword", null);
+  const cleared = await db.collection("beans").findOne({ slug: "__test__keyword" });
+  // Same invariant as the cover above, but here it has teeth: lib/bean-cover.ts
+  // branches on `bean.keyword === undefined` by strict identity, so a stored
+  // null slips past and is carried into the BeanCover as `keyword: null` — a
+  // union member whose present key promises a `Text`. The consumers' own null
+  // guards mean nothing visibly breaks today, which is exactly why the
+  // invariant is worth pinning at the write end rather than trusted downstream.
+  assert.equal("keyword" in (cleared ?? {}), false);
 });
 
 test.after(async () => {

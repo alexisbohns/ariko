@@ -2,9 +2,12 @@ import { notFound } from "next/navigation";
 import { resolveText } from "@/lib/data";
 import { getFullDataset } from "@/lib/store";
 import { beanDetail, type BeanDetailView } from "@/lib/bean-detail";
+import { beanCoverFor } from "@/lib/bean-cover";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { BeanCoverForm } from "@/app/admin/_components/bean-cover-form";
+import { BeanKeywordForm } from "@/app/admin/_components/bean-keyword-form";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +51,20 @@ export default async function AdminBeanPage({ params }: { params: Promise<{ id: 
 
   const { bean, plant, podParents, sprouts } = view;
 
+  /* The keyword is drawn ONLY on the phone treatment, and only an explicit
+     PORTRAIT cover reaches it. A landscape screenshot with a keyword typed
+     under it is a silent no-op, so the Keyword card says so rather than
+     letting the author guess.
+
+     Asked of beanCoverFor rather than re-derived here — portrait-ness is
+     lib/bean-cover.ts's rule and stays there. The empty sprouts array is safe
+     because an explicit cover short-circuits the derivation, and the
+     Boolean(bean.cover) guard is what makes that true: with no explicit cover
+     there is nothing to warn about and no hint. Not validation — a keyword on
+     a wordless cover still saves (lib/bean-keyword.ts throws nothing), and an
+     author may well set the word before the screenshot. */
+  const coverIsWordless = Boolean(bean.cover) && beanCoverFor(bean, [])?.kind !== "phone";
+
   return (
     <article>
 
@@ -81,6 +98,44 @@ export default async function AdminBeanPage({ params }: { params: Promise<{ id: 
             <DumpRow label="tags">{(bean.tags ?? []).join(", ") || "—"}</DumpRow>
           </ul>
         </div>
+
+        {/* The page's first write surface — it was a read-only property dump
+            until this slice. Two cards, because they are two forms: see
+            bean-cover-form.tsx for why they cannot be one.
+
+            Gated on !bean.projected. lib/data.ts's own declaration of the
+            field already says a projected bean is "read-only in the admin,
+            source-owned, rebuildable" — the Alert above states exactly that —
+            so rendering live write forms under it would contradict the page's
+            own banner. It is not only cosmetic: lib/pollen-store.ts's
+            deleteFeedData does `deleteMany({ "projected.feedId": feedId })`
+            on a full rebuild, which deletes the bean document — and any
+            authored cover or keyword with it. The ordinary sync path is
+            safe (upsert uses `$setOnInsert`, so an authored or
+            previously-synced bean always wins over the feed); the loss is
+            only on a deliberate full rebuild, which is exactly what the
+            banner above warns about. */}
+        {!bean.projected ? (
+          <section className="flex flex-col gap-4">
+            <h2 className="font-heading text-lg tracking-tight">Cover</h2>
+            <Card>
+              <CardContent>
+                <BeanCoverForm bean={bean} />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="flex flex-col gap-3">
+                <BeanKeywordForm bean={bean} />
+                {coverIsWordless ? (
+                  <p className="text-sm text-muted-foreground">
+                    This cover isn&apos;t phone-shaped, so the word won&apos;t be drawn — it
+                    shows only on a portrait cover. Saved either way.
+                  </p>
+                ) : null}
+              </CardContent>
+            </Card>
+          </section>
+        ) : null}
 
         <section className="flex flex-col gap-4">
           <h2 className="font-heading text-lg tracking-tight">

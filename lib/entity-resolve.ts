@@ -1,6 +1,6 @@
 import { BEAN_PREFIX, PLANT_PREFIX, POD_PREFIX, resolveText, type Dataset, type MediaImage } from "./data";
 import { DEFAULT_LANG, type Lang } from "./locale";
-import { coverFor } from "./cover";
+import { fillCoverFor } from "./bean-cover";
 
 export interface ResolvedEntity {
   ref: string;
@@ -9,9 +9,15 @@ export interface ResolvedEntity {
   name: string;
   description?: string;
   /**
-   * Beans only, and derived — the first image of the newest sprout that has
-   * one (lib/cover.ts). Plants and pods have no media field at all
-   * (lib/data.ts), so this is structurally absent for them, not merely unset.
+   * Beans only: the bean's explicit `cover` when the author set one, otherwise
+   * the derivation — the first image of the newest sprout that has one
+   * (fillCoverFor, lib/bean-cover.ts). Plants and pods have no media field at
+   * all (lib/data.ts), so this is structurally absent for them, not merely
+   * unset.
+   *
+   * The IMAGE only, never the phone treatment: spec §8 keeps the card's
+   * 720×128 letterbox, and a phone cannot sit in that shape. Same image as the
+   * landing page draws, in this card's own frame.
    */
   cover?: MediaImage;
 }
@@ -42,8 +48,12 @@ export function resolveEntity(
 
   const description = resolveText(found.doc.description ?? "", lang).trim();
   // sproutsForBean is already newest-first (buildDataset sorts with byDateDesc),
-  // which is the ordering coverFor documents that it expects.
-  const cover = found.kind === "bean" ? coverFor(dataset.sproutsForBean(found.doc.slug)) : null;
+  // which is the ordering coverFor documents that it expects, and which
+  // fillCoverFor passes straight through when it falls back to it.
+  const cover =
+    found.kind === "bean"
+      ? fillCoverFor(found.doc, dataset.sproutsForBean(found.doc.slug))
+      : null;
   return {
     ref,
     kind: found.kind,

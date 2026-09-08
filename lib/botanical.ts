@@ -260,6 +260,51 @@ export async function updatePlantLogo(slug: string, logo: MediaImage | null): Pr
 }
 
 /**
+ * Writes a bean's cover — and nothing else. `null` clears it.
+ *
+ * The first bean FIELD writer in this file — `createBean` above already writes
+ * beans, but whole ones. Narrow rather than an `updateBeanMeta` that could
+ * take several fields: `updateBeanCover` and `updateBeanKeyword` duplicate the
+ * same five-line `$set`/`$unset` shape rather than sharing a helper, because a
+ * helper generic over both document type and field key would land back at a
+ * cast to escape it — and each copy naming its one field
+ * literally is what makes a typo visible on sight. If a FOURTH copy of this
+ * shape appears, the move is `lib/plant-meta.ts`'s: extract a pure, tested
+ * update-doc builder, which is what that file did after a duplicate-`$set` bug
+ * shipped silently (see `plantMetaUpdate`'s comment).
+ *
+ * No `as UpdateFilter<Bean>` cast here, unlike `updatePlantLogo` above:
+ * `plantMetaUpdate`'s cast earns its keep because that function returns
+ * `Record<string, unknown>`, but on a literal `$set`/`$unset` object the same
+ * cast silences `$set`'s value-type checking for no reason — `{ $set: { cover:
+ * "oops" } }` compiles clean with the cast and fails `tsc` without it.
+ *
+ * Clearing is an `$unset` rather than a stored null, so an absent cover has ONE
+ * representation and lib/bean-cover.ts only has to handle `cover === undefined`.
+ */
+export async function updateBeanCover(slug: string, cover: MediaImage | null): Promise<void> {
+  const db = await getDb();
+  await db
+    .collection<Bean>("beans")
+    .updateOne({ slug }, cover === null
+      ? { $unset: { cover: "" } }
+      : { $set: { cover } });
+}
+
+/**
+ * Writes a bean's keyword — and nothing else. `null` clears it, as above. No
+ * cast, for the same reason `updateBeanCover` gives.
+ */
+export async function updateBeanKeyword(slug: string, keyword: Text | null): Promise<void> {
+  const db = await getDb();
+  await db
+    .collection<Bean>("beans")
+    .updateOne({ slug }, keyword === null
+      ? { $unset: { keyword: "" } }
+      : { $set: { keyword } });
+}
+
+/**
  * Writes a plant's status — and nothing else.
  *
  * A SIBLING again, and a narrower one than updatePlantMeta on purpose: the
