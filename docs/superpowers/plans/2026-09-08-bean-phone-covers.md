@@ -810,6 +810,25 @@ test("entries submitted but none of them an image is a FAILED SAVE, not a clear"
   });
 });
 
+test("the same image re-submitted WITH dimensions is a real edit", () => {
+  // A cover stored without width/height renders as a plain fill —
+  // lib/bean-cover.ts cannot prove it is portrait. The SAME asset resubmitted
+  // carrying its dimensions is exactly the edit that turns the card into a
+  // phone, so the dirty gate has to see it even though storageKey, url and alt
+  // are all unchanged. Cloudinary mints a fresh public_id per upload, so this
+  // is the one route by which dimensions change without the key changing.
+  const stored: MediaImage = {
+    kind: "image",
+    storageKey: "shot",
+    url: "https://res.cloudinary.com/x/shot.png",
+  };
+  const withDims = img("shot"); // same key and url, now carrying 390x844
+  assert.deepEqual(buildBeanCoverPatch({ cover: stored }, form([withDims])), {
+    dirty: true,
+    cover: withDims,
+  });
+});
+
 test("the stored dimensions survive the round trip", () => {
   // Load-bearing: lib/bean-cover.ts reads height > width to decide the phone
   // treatment, so a builder that dropped width/height would store a cover that
@@ -908,7 +927,7 @@ export function buildBeanCoverPatch(current: CoverOwner, form: FormData): CoverP
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `TSX_TSCONFIG_PATH=tsconfig.test.json node --import tsx --test lib/bean-cover-edit.test.ts`
-Expected: PASS, 7 tests.
+Expected: PASS, 8 tests.
 
 - [ ] **Step 5: Commit**
 
