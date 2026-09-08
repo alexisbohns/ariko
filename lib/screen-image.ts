@@ -34,7 +34,13 @@ export function readImageField(form: FormData): {
 // differs and JSON.stringify of the object itself would call an untouched image
 // dirty. width/height are IN the tuple and that is load-bearing rather than
 // complete: lib/bean-cover.ts decides the phone treatment from `height > width`,
-// so a re-upload that changed only the dimensions is a real edit.
+// so a re-upload that changed only the dimensions is a real edit. It will read
+// THIS image once covers become refs (#73) — today it reads `Bean.cover` — which
+// is why the dimensions are pinned before there is a reader for them.
+//
+// `alt` is in the tuple for the reason the three siblings pin it: this form runs
+// the picker in full mode, so it renders the alt-text field and an alt-only save
+// is reachable through the UI.
 function canonical(image: MediaImage | null): string {
   return image === null
     ? "null"
@@ -52,7 +58,8 @@ function canonical(image: MediaImage | null): string {
  * lib/media-edit.ts (buildMediaPatch), lib/plant-logo.ts (buildPlantLogoPatch)
  * and lib/bean-cover-edit.ts (buildBeanCoverPatch) — the same `__ready` guard,
  * the same dirty gate, the same failed-save discriminator over a different
- * field. Fix one of those three here and check whether it applies there too.
+ * field. Fix the `__ready` guard, the dirty gate or the failed-save
+ * discriminator here and check whether it applies there too.
  *
  * It adds one rule none of them has, and the difference is in the TYPE rather
  * than in taste:
@@ -65,6 +72,13 @@ function canonical(image: MediaImage | null): string {
  * That collapses two of the sibling's branches into one: whether the payload
  * was emptied on purpose or mangled on the way, the answer here is the same and
  * the stored image survives.
+ *
+ * It also drops the siblings' `stored !== null` arm, and that is a deletion
+ * rather than an omission: they need it because a submitted-but-unparseable
+ * payload over an ALREADY EMPTY field is a no-op worth staying quiet about,
+ * while a stored screen always HAS an image (`Screen.image` is required), so
+ * the arm can never be false for any record this form edits. Only the warning's
+ * condition survives it — `submitted > 0`.
  */
 export function buildScreenImagePatch(current: ImageOwner, form: FormData): ScreenImagePatchResult {
   const { ready, submitted, image } = readImageField(form);

@@ -59,6 +59,55 @@ test("an fr-only name is valid", () => {
   assert.deepEqual(result.ok && result.dirty && result.patch.name, { fr: "Karma haut" });
 });
 
+test("an edit to the fr half alone is dirty", () => {
+  const result = buildScreenMetaPatch(SCREEN, unchanged({ nameFr: "Karma sommet" }));
+  assert.deepEqual(result.ok && result.dirty && result.patch.name, {
+    en: "Karma top",
+    fr: "Karma sommet",
+  });
+});
+
+test("an edit to the legend's fr half alone is dirty", () => {
+  const result = buildScreenMetaPatch(SCREEN, unchanged({ legendFr: "Le classement" }));
+  assert.deepEqual(result.ok && result.dirty && result.patch.legend, {
+    en: "The leaderboard",
+    fr: "Le classement",
+  });
+});
+
+// The two tests below pin the STRICT textPart in canonical() against the one
+// mutant that reaches it: swapping in resolveText.
+//
+// The swap is invisible while BOTH halves are present — resolveText only falls
+// back when the half it is asked for is blank, so { en, fr } reads identically
+// through either function, and the two tests above stay green under the mutant.
+// It bites exactly where a half is MISSING, which is the state all hundred and
+// seventy imported screens are in: the import writes a plain string, textPart
+// reads that as en-only, and resolveText reads it as BOTH halves.
+//
+// So the author opens an imported screen, types the French — which for a
+// product word like "Karma top" is often the same word — and saves. Under
+// resolveText the stored "Karma top" and the submitted { en, fr } canonicalize
+// alike, the save reads as clean and writes nothing. The fr box is prefilled
+// with textPart, so it comes back empty on reload and the author retypes it
+// forever.
+test("giving an imported en-only name an identical fr half is still an edit", () => {
+  const imported: Screen = { ...SCREEN, name: "Karma top" };
+  const result = buildScreenMetaPatch(imported, unchanged({ nameFr: "Karma top" }));
+  assert.deepEqual(result.ok && result.dirty && result.patch.name, {
+    en: "Karma top",
+    fr: "Karma top",
+  });
+});
+
+test("the same is true of the legend — the twin line in canonical()", () => {
+  const result = buildScreenMetaPatch(SCREEN, unchanged({ legendFr: "The leaderboard" }));
+  assert.deepEqual(result.ok && result.dirty && result.patch.legend, {
+    en: "The leaderboard",
+    fr: "The leaderboard",
+  });
+});
+
 test("a blank legend MEANS clear", () => {
   const result = buildScreenMetaPatch(SCREEN, unchanged({ legend: "" }));
   assert.equal(result.ok && result.dirty && result.patch.legend, null);
@@ -99,6 +148,27 @@ test("a shows relation is REPLACED in place, not appended twice", () => {
   assert.deepEqual(result.ok && result.dirty && result.patch.relations, [
     { kind: "shows", ref: "bean:two" },
     { kind: "cover", ref: "bean:karma-accountability" },
+  ]);
+});
+
+test("the pick replaces `shows` WHERE IT STOOD, not at the head or the tail", () => {
+  // The two tests above both keep `shows` at index 0, where "replaced in place"
+  // and "prepended" are the same array — so neither pins the splice index
+  // against the mistake it is written to avoid: taking the index from the
+  // FILTERED array rather than from the stored one.
+  const sandwiched: Screen = {
+    ...SCREEN,
+    relations: [
+      { kind: "cover", ref: "bean:karma-accountability" },
+      { kind: "shows", ref: "bean:one" },
+      { kind: "appears-in", ref: "pod:case-studies" },
+    ],
+  };
+  const result = buildScreenMetaPatch(sandwiched, unchanged({ bean: "two" }));
+  assert.deepEqual(result.ok && result.dirty && result.patch.relations, [
+    { kind: "cover", ref: "bean:karma-accountability" },
+    { kind: "shows", ref: "bean:two" },
+    { kind: "appears-in", ref: "pod:case-studies" },
   ]);
 });
 

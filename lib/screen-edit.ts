@@ -51,8 +51,17 @@ export function parseTags(raw: string): string[] {
 }
 
 // Field-order-insensitive comparison of everything this form can write. Text
-// halves are read with the STRICT textPart on BOTH sides — resolveText's
-// fallback would make an fr-only edit look unchanged.
+// halves are read with the STRICT textPart on BOTH sides, and the precision
+// matters: resolveText falls back across languages, so a value carrying ONE
+// half reads as though it carried two identical ones. Every imported screen is
+// in exactly that state — the import writes a plain string — so the author
+// filling in a French name that matches the English word would canonicalize
+// equal to the stored en-only string, read as clean, and write nothing at all.
+// The fr box is prefilled with textPart, so it would come back empty and the
+// author would retype it forever. lib/screen-edit.test.ts pins both halves of
+// that, and the pin is not the obvious one: an edit to `fr` with `en` present
+// on BOTH sides survives the swap, because resolveText only falls back when the
+// half it is asked for is blank.
 function canonical(patch: ScreenMetaPatch): string {
   return JSON.stringify([
     textPart(patch.name, "en"),
@@ -103,6 +112,20 @@ export function buildScreenMetaPatch(current: Screen, form: FormData): ScreenMet
   if (name === "") return { ok: false, error: "a screen needs a name in at least one language" };
 
   const legend = composeText(get("legend"), get("legendFr"));
+
+  // Both cross the wire as free strings and NEITHER is checked against the
+  // garden, so a crafted POST can write `plant:anything` or point `shows` at a
+  // bean that does not exist. That is tolerated rather than overlooked: a
+  // dangling ref is a shape this model handles everywhere — buildDataset ignores
+  // one, filterPublic scrubs one — so the worst outcome is a screen that lists
+  // no parent, which is already a legal screen. The surface is
+  // admin-authenticated, which is the same stance lib/media-input.ts records for
+  // not host-checking a stored URL.
+  //
+  // The contrast is the plant header's two enum fields, which DO re-validate
+  // against their vocabulary (lib/plant-status.ts, lib/plant-visibility.ts):
+  // those are public claims the site renders as though authored, and there is no
+  // read path that quietly absorbs a wrong one.
   const plant = get("plant");
   const bean = get("bean");
 

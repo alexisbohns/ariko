@@ -36,6 +36,15 @@ test("a picker that never mounted writes nothing", () => {
   assert.deepEqual(buildScreenImagePatch({ image: STORED }, form([])), { dirty: false });
 });
 
+test("a POST that carries an image but no marker writes nothing — the replayed-POST case", () => {
+  // The only shape the __ready guard actually catches: the card's submit button
+  // lives inside the island, so a browser can never produce this. A replay can.
+  // The test above coincides with the guard rather than discriminating it — an
+  // empty FormData is already refused by the no-clear rule, one branch down.
+  const fd = form([["image", JSON.stringify(NEXT)]]);
+  assert.deepEqual(buildScreenImagePatch({ image: STORED }, fd), { dirty: false });
+});
+
 test("an unchanged save writes nothing", () => {
   assert.deepEqual(buildScreenImagePatch({ image: STORED }, ready([STORED])), { dirty: false });
 });
@@ -55,11 +64,21 @@ test("a changed dimension alone is dirty — bean-cover.ts reads them", () => {
   });
 });
 
+test("an alt-only edit is a real edit — the picker renders the alt field", () => {
+  // The same picker the bean Cover card runs, in full (non-compact) mode, so an
+  // alt-only save is reachable through the UI rather than a fixture-only shape.
+  const described = { ...STORED, alt: "The leaderboard, top three" };
+  assert.deepEqual(buildScreenImagePatch({ image: STORED }, ready([described])), {
+    dirty: true,
+    image: described,
+  });
+});
+
 test("an emptied list is NOT a clear — a screen with no image is not a screen", () => {
   assert.deepEqual(buildScreenImagePatch({ image: STORED }, ready([])), { dirty: false });
 });
 
-test("entries that yield no image are a failed save, not a clear", () => {
+test("entries that yield no image leave the stored image alone", () => {
   const fd = form([
     ["image__ready", "1"],
     ["image", "{not json"],

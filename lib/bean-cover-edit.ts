@@ -42,9 +42,9 @@ function canonical(cover: MediaImage | null): string {
  *
  * siblings: lib/media-edit.ts (buildMediaPatch), lib/plant-logo.ts
  * (buildPlantLogoPatch), lib/screen-image.ts (buildScreenImagePatch) — the same
- * three guards over an ordered list and a single image, respectively. Fix the
- * `__ready` guard or the failed-save discriminator here and check whether it
- * applies there too.
+ * three guards over an ordered list (`buildMediaPatch`) and a single image (the
+ * other two). Fix the `__ready` guard or the failed-save discriminator here and
+ * check whether it applies there too.
  */
 export function buildBeanCoverPatch(current: CoverOwner, form: FormData): CoverPatchResult {
   const raw = form.getAll("cover").map((v) => String(v));
