@@ -460,22 +460,25 @@ export async function editPlantLogoAction(formData: FormData): Promise<void> {
 }
 
 /**
- * The plant page's two one-click flips: the zap (status) and the globe/lock
+ * The plant page's two enum writes: the zap (status) and the globe/lock
  * (visibility).
  *
  * One helper, two exports. Both are the same shape and the shape is the point:
  * the form posts the value it WANTS rather than "flip it", so a page rendered
  * before somebody else changed the field cannot flip it into a third state, and
  * the action validates a named member of a vocabulary instead of trusting the
- * client's arithmetic.
+ * client's arithmetic. An unrecognized value redirects with an error rather
+ * than defaulting, the stance editPlantRoleAction takes: both fields are public
+ * claims (one shows on the landing gallery, the other decides whether the plant
+ * is on it at all).
  *
- * Real <form>s posting to real server actions, so these two survive without
- * script even though the header around them does not — the buttons are the
- * whole form, and there is nothing else in the payload for a stray POST to
- * damage. An unrecognized value redirects with an error rather than
- * defaulting, the stance editPlantRoleAction takes: both fields are public
- * claims (one shows on the landing gallery, the other decides whether the
- * plant is on it at all).
+ * NEITHER SURVIVES WITHOUT SCRIPT, and neither is one click. `EnumForm` in
+ * app/admin/_components/plant-hero.tsx renders the vocabulary as native radios
+ * plus a Save button disabled until the pick differs from what is stored, and
+ * it lives inside a client-only popover — script-off there is no form here at
+ * all, which is what lib/plant-hero-mount.test.ts pins. That is deliberate:
+ * a one-click flip means a stray click on the globe unpublishes a project and
+ * the undo is another stray click on the same pixel.
  */
 async function flipPlantField(
   formData: FormData,

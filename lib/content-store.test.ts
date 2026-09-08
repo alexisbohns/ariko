@@ -5,7 +5,7 @@ import {
   updatePlantContent,
   updatePodContent,
 } from "./botanical";
-import { getDb } from "./db";
+import { closeDb, getDb } from "./db";
 
 const hasDb = Boolean(process.env.MONGODB_URI);
 
@@ -69,4 +69,10 @@ test("the container writers reach plants and pods, leaving visibility alone", { 
   assert.equal(plant?.description, "d");
   assert.equal(pod?.content, "pod prose");
   assert.equal(pod?.visibility, "private");
+});
+
+// Release the cached Mongo connection so the runner exits instead of hanging
+// on an open socket for ten minutes (issue #75).
+test.after(async () => {
+  if (hasDb) await closeDb();
 });
