@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { filterQuery, filterHref } from "./admin-filters";
+import { filterQuery, filterHref, type FilterValues } from "./admin-filters";
 
 const KEYS = ["state", "plant", "tag"] as const;
 
@@ -18,6 +18,16 @@ test("filterQuery encodes values", () => {
 
 test("filterQuery ignores a key that is not in the list", () => {
   assert.equal(filterQuery({ error: "boom" }, KEYS), "");
+});
+
+test("filterQuery degrades a repeated key rather than throwing", () => {
+  // `?plant=a&plant=b` reaches a Next page as a string[], which FilterValues
+  // does not admit but a URL can always produce. The `String(...)` coercion is
+  // what makes that a value matching nothing instead of a 500 — reading
+  // .trim() off an array throws, and it would throw around the filter bar on
+  // every page that has one.
+  const repeated = { plant: ["a", "b"] } as unknown as FilterValues;
+  assert.equal(filterQuery(repeated, KEYS), "plant=a%2Cb");
 });
 
 test("filterHref sets one dimension and preserves the others", () => {

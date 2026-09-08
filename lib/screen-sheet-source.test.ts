@@ -76,8 +76,34 @@ test("no slot file rebuilds a form of its own", () => {
   // hold the rule for free; a form appearing in either would be the same drift
   // as a form appearing in a page slot.
   for (const path of files) {
-    assert.equal(source(path).includes("<form"), false, `${path} renders its own form`);
-    assert.equal(source(path).includes("Action"), false, `${path} reaches a server action`);
+    const text = source(path);
+    assert.equal(text.includes("<form"), false, `${path} renders its own form`);
+    assert.equal(text.includes("Action"), false, `${path} reaches a server action`);
+
+    // The two above catch a HAND-WRITTEN form in the slot. They do not catch
+    // the likelier drift by a distance: composing the editors the page already
+    // has — `import { ScreenMetaForm } from "../../../_components/screen-meta-form"`
+    // and render it — which is the path of least resistance and which contains
+    // neither `<form` nor `Action`. A slot built that way looks right, renders
+    // right, and is a second implementation of the panel's body that the
+    // standalone page's changes will not reach.
+    assert.equal(
+      /_components\/screen-\w+-form/.test(text),
+      false,
+      `${path} composes the editors instead of importing the page`,
+    );
+
+    // And the positive half: a page in the slot must RENDER A PAGE. Without
+    // this, a slot file that imports nothing at all — an empty shell, a
+    // "temporary" placeholder — passes every negative check above while the
+    // panel shows nothing the route would have shown.
+    if (path.endsWith("/page.tsx")) {
+      assert.match(
+        text,
+        /from "@\/app\/admin\/screens\//,
+        `${path} does not render a page's own module`,
+      );
+    }
   }
 });
 

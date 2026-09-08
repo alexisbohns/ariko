@@ -10,6 +10,11 @@ import {
   neighbours,
   screensQuery,
   screensHref,
+  newScreenHref,
+  activeTileCss,
+  filterFieldName,
+  SCREEN_FILTER_KEYS,
+  type ScreenFilters,
 } from "./screens";
 
 function screen(slug: string, over: Partial<Screen> = {}): Screen {
@@ -163,4 +168,57 @@ test("screensHref re-canonicalizes the query it is handed", () => {
 
 test("screensHref encodes a slug", () => {
   assert.equal(screensHref("a b", ""), "/admin/screens/a%20b");
+});
+
+test("newScreenHref carries the filters onto the create page, and re-canonicalizes them", () => {
+  assert.equal(newScreenHref(""), "/admin/screens/new");
+  assert.equal(newScreenHref("plant=paulopus"), "/admin/screens/new?plant=paulopus");
+  // Same guard as screensHref, because it is the same body: a hidden field can
+  // carry anything, and only the three known keys reach the URL.
+  assert.equal(
+    newScreenHref("error=xss&rogue=x&tag=hero"),
+    "/admin/screens/new?tag=hero",
+  );
+  assert.equal(
+    newScreenHref("plant=paulopus", "that slug is taken: karma-top"),
+    "/admin/screens/new?plant=paulopus&error=that+slug+is+taken%3A+karma-top",
+  );
+});
+
+test("filterFieldName is what both sides of a round trip spell", () => {
+  // The point of the function is that filter-fields.tsx and actions.ts map the
+  // SAME constant through it. This pins the wire names so a rename is a
+  // deliberate act rather than a silent one.
+  assert.deepEqual(
+    SCREEN_FILTER_KEYS.map(filterFieldName),
+    ["q_plant", "q_bean", "q_tag"],
+  );
+});
+
+test("activeTileCss refuses a slug that cannot be trusted in a selector", () => {
+  // A stored slug came from a FILENAME. A quote closes the attribute and the
+  // rest of the name writes arbitrary CSS; a space or a dot make the selector
+  // mean something other than one tile. All of them lose the ring and nothing
+  // else.
+  for (const slug of ['a"b', "a b", "a.b", ""]) {
+    assert.equal(activeTileCss(slug), null, `${JSON.stringify(slug)} was let through`);
+  }
+});
+
+test("activeTileCss rings the open tile for a valid slug", () => {
+  const css = activeTileCss("match-hero_m104");
+  assert.equal(
+    css,
+    '[data-screen-tile="match-hero_m104"] > div:first-child{outline:2px solid var(--color-ring);outline-offset:2px}',
+  );
+});
+
+test("filterScreens degrades a repeated query key rather than throwing", () => {
+  // `?plant=a&plant=b` reaches a Next page as a string[], which ScreenFilters
+  // does not admit but a URL can always produce. The `String(...)` coercion in
+  // filterScreens turns it into "a,b" — a value no row can match — rather than
+  // reading .trim() off an array and 500ing the page.
+  const rows = screenRows(SCREENS);
+  const repeated = { plant: ["paulopus", "melogram"] } as unknown as ScreenFilters;
+  assert.deepEqual(filterScreens(rows, repeated), []);
 });
