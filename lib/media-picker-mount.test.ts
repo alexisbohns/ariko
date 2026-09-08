@@ -78,7 +78,7 @@ test("the capture bar keeps its own submit button without script", async () => {
   assert.equal(html.includes("image__ready"), false, "an unmounted picker emits no marker on any surface");
 });
 
-// These two import the REAL components rather than reconstructing their shape
+// These import the REAL components rather than reconstructing their shape
 // with React.createElement, unlike the two tests above (which pin MediaPicker
 // itself, not a caller). Importing the real thing is what makes a wiring
 // mutation in bean-cover-form.tsx or bean-keyword-form.tsx — a renamed `name`,
@@ -90,8 +90,18 @@ test("the capture bar keeps its own submit button without script", async () => {
 // Next's runtime, a server action passed as a form `action` does not render as
 // a URL string — React emits `action="javascript:throw new Error(...)"` plus a
 // hidden replay `<script>` carrying the action reference, neither of which is
-// stable text to assert against. So these tests assert presence/absence of
-// specific fields and markup shapes, not an exact whole-string match.
+// stable text to assert against. So the RENDER-based tests below assert
+// presence/absence of specific fields and markup shapes, not an exact
+// whole-string match.
+//
+// The render-based tests below cannot see MediaPicker's own props at all: once
+// rendered, its `mounted` gate returns the same `null` regardless of what was
+// passed in, so a renamed `name`, a dropped `max`, or a dropped `submitLabel`
+// render IDENTICALLY (nothing) whether right or wrong. The
+// "hands the picker the exact contract" test further below closes that gap
+// without rendering, mocking, or a DOM: it calls BeanCoverForm as a plain
+// function and inspects the React ELEMENT TREE the call returns — the props
+// are sitting right there, unrendered and unerased.
 test("the bean cover form server-renders no submit button and no other field, empty cover", async () => {
   const React = await import("react");
   const { BeanCoverForm } = await import("@/app/admin/_components/bean-cover-form");
@@ -126,6 +136,59 @@ test("the bean cover form re-seeds the picker for a POPULATED cover (the reason 
   // never make, and it is exactly the case the `key` prop exists to reseed.
   assert.equal(/<button/i.test(html), false, "a script-off browser must see no submit button");
   assert.equal(/<input(?![^>]*type="hidden")/i.test(html), false, "no non-hidden field must render");
+});
+
+/**
+ * Depth-first search for the element whose type IS `MediaPicker` (identity,
+ * not name or duck-typing — the whole point is that it survives a rename of
+ * the component and can't be fooled by a lookalike). `children` is an array
+ * here because the hidden slug input and the picker are JSX siblings under
+ * one `<form>`.
+ */
+function findPicker(
+  node: unknown,
+  target: unknown,
+): { props: Record<string, unknown> } | null {
+  if (!node || typeof node !== "object") return null;
+  const el = node as { type?: unknown; props?: { children?: unknown } };
+  if (el.type === target) return el as { props: Record<string, unknown> };
+  const kids = el.props?.children;
+  for (const child of Array.isArray(kids) ? kids : [kids]) {
+    const found = findPicker(child, target);
+    if (found) return found;
+  }
+  return null;
+}
+
+// This one does NOT render at all — it calls BeanCoverForm as a plain
+// function (verified directly callable: it is a synchronous server
+// component, no hooks, no await) and inspects the React ELEMENT TREE the
+// call returns, before anything renders. That is what lets it see the props
+// `MediaPicker` receives, which the two script-off tests above cannot: once
+// rendered, MediaPicker's own `mounted` gate erases every prop into the same
+// `null` output regardless of what was passed in — a renamed `name`, a
+// dropped `max`, a dropped `submitLabel` all render identically (nothing).
+// Calling the component directly reads the props before that erasure.
+test("the Cover card hands the picker the exact contract the builder reads", async () => {
+  const { BeanCoverForm } = await import("@/app/admin/_components/bean-cover-form");
+  const { MediaPicker } = await import("@/components/admin/media-picker");
+  const bean = { slug: "b", name: "Bean" } as import("@/lib/data").Bean;
+
+  const element = BeanCoverForm({ bean }) as unknown;
+  const picker = findPicker(element, MediaPicker);
+
+  assert.ok(picker, "the cover form must render a MediaPicker");
+  // lib/bean-cover-edit.ts reads `cover` and `cover__ready`. A rename here is
+  // silent at runtime: the picker would emit `coverX__ready`, the builder
+  // would find no `cover__ready` marker, and every save would be a no-op
+  // that looks like a success (redirect happens, nothing changed).
+  assert.equal(picker!.props.name, "cover");
+  // A bean has ONE cover.
+  assert.equal(picker!.props.max, 1);
+  // The form's only submit button lives inside the island (CLAUDE.md's rule).
+  // Drop this and the card is unsavable even WITH script — every OTHER
+  // picker button on the page is `type="button"`, so nothing else submits it.
+  assert.equal(picker!.props.submitLabel, "Save cover");
 });
 
 test("the bean keyword form emits both language fields, unconditionally", async () => {

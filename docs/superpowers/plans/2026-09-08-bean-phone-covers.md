@@ -1463,29 +1463,31 @@ submits on Enter with no ready marker and eats the keyword."
   these assert presence/absence of specific fields rather than an exact
   whole-string match, unlike the two MediaPicker-only tests above them.
 
-  Re-running the five review-found mutations against the new tests:
+  **A fifth test closes the remaining gap without mocking, a flag, or a DOM.**
+  The four tests above render, and `MediaPicker` erases its own props into the
+  same `null` output before it mounts regardless of what it was passed — so a
+  renamed `name`, a dropped `max` or a dropped `submitLabel` were invisible to
+  any render-based test. `BeanCoverForm` is a plain synchronous function
+  component (no hooks, no `await` — confirmed directly callable), so calling
+  it as `BeanCoverForm({ bean })` returns a React ELEMENT TREE before anything
+  renders, and the picker's props are sitting right there, unerased. A
+  depth-first `findPicker` walks that tree by identity (`el.type ===
+  MediaPicker`, not name or duck-typing, so it survives a rename of the
+  component and can't be fooled by a lookalike) and asserts on
+  `picker.props.name`, `.max`, `.submitLabel` directly.
 
-  | mutation | caught? |
+  Re-running all five review-found mutations against the six tests now in the
+  file:
+
+  | mutation | caught by |
   |---|---|
-  | `name="cover"` → `"coverX"` | **not caught** |
-  | drop `max={1}` | **not caught** |
-  | drop `submitLabel` | **not caught** |
-  | `textPart` → `resolveText` | caught (en box mutation test) |
-  | `keywordFr` → `keywordFR` | caught (keyword-field-presence test) |
+  | `name="cover"` → `"coverX"` | element-tree test: `picker.props.name` |
+  | drop `max={1}` | element-tree test: `picker.props.max` |
+  | drop `submitLabel` | element-tree test: `picker.props.submitLabel` |
+  | `textPart` → `resolveText` | keyword-form test: en box `value=""` |
+  | `keywordFr` → `keywordFR` | keyword-form test: field presence |
 
-  The three MediaPicker-prop mutations are structurally uncatchable by a
-  script-off render test of the *caller*: `MediaPicker` renders `null` before
-  it mounts regardless of `name`, `max` or `submitLabel` — see
-  `components/admin/media-picker.tsx`'s `mounted` gate — so the parent's
-  script-off HTML is identical either way. Catching them needs either a
-  mounted render (jsdom, `useEffect` actually running) or a prop-spy that
-  intercepts what `BeanCoverForm` passes to `MediaPicker` — the latter working
-  in this harness only behind Node's experimental
-  `--experimental-test-module-mocks` flag on `mock.module()`, which would mean
-  adding that flag to `package.json`'s `test` script project-wide. Left
-  undone, the same call the review made for `max={1}` alone ("the builder
-  already takes the first image, so it is UI-only") — extended here to all
-  three, since they're the same class of gap and the fix is the same size.
+  All five now caught. No remaining gap to carve out.
 
 ---
 
