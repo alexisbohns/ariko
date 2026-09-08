@@ -19,6 +19,13 @@ import type { ReactNode } from "react";
  * beside me", and the answer has to be an element that exists only when there
  * is one — which is exactly what a parallel route's `default.tsx` returning null
  * gives.
+ *
+ * UNVERIFIED IN A BROWSER, and worth a reader's eye before it is trusted: this
+ * panel and `admin-chrome.tsx`'s top-right cluster both sit at `z-40`, so a
+ * full-height panel on the right MAY cover the public-site and log-out buttons.
+ * Equal z-index means the later element in the document wins, and the sheet
+ * slot renders after the chrome. If it does cover them, the fix is the panel's
+ * z-index or the cluster's, not a new stacking context here.
  */
 export function SideSheet({ children }: { children: ReactNode }) {
   return (

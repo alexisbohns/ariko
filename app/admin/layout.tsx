@@ -25,6 +25,13 @@ import { AdminChrome, AdminMain } from "./_components/admin-chrome";
  * scroll position while the panel arrives. Below `lg` the panel covers instead
  * — sliding a narrow column that far would only push it under the chrome's own
  * rail.
+ *
+ * UNVERIFIED IN A BROWSER: the push is `-translate-x-56` (14rem) against a
+ * panel that is `lg:w-[28rem]`, so the two do not cancel and the grid's LAST
+ * COLUMN may still sit under the panel at some widths. The numbers are a
+ * deliberate half-measure — a full 28rem push would strand the centred column
+ * far to the left on a wide screen — but which of the two is wrong is a
+ * question for a real viewport, not for a diff.
  */
 export default function AdminLayout({
   children,

@@ -189,8 +189,15 @@ export async function createScreen(input: NewScreen): Promise<Screen> {
   return doc;
 }
 
-/** Every screen, slug-ordered. The admin's list read — `/admin/screens` is the
- *  only surface that sees them, since every screen is private at birth. */
+/** Every screen, slug-ordered.
+ *
+ *  NO CALLER BUT ITS TEST, deliberately: `/admin/screens` reads
+ *  `loadRawGarden()` instead, because the contact sheet needs the plants too
+ *  (each tile draws its plant's mark) and one read is better than two. This is
+ *  kept for the GALLERY slice, which will want screens and nothing else —
+ *  every screen is private at birth, so the admin is still the only surface
+ *  that sees them until then. Delete it if that slice lands on a different
+ *  read. */
 export async function listScreens(): Promise<Screen[]> {
   const db = await getDb();
   return db.collection<Screen>("screens").find({}, { projection: { _id: 0 } }).sort({ slug: 1 }).toArray();

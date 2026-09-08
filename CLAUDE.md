@@ -60,10 +60,13 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
 
   > The picker renders **nothing until it mounts**. Without script, the form
   > around it is byte-for-byte what it was, and **its absence never costs
-  > anything** — a form it merely adds to still submits, and a form that is
-  > *only* the picker goes inert rather than destructive.
+  > anything** — a form it merely adds to still submits; a form that is *only*
+  > the picker goes inert rather than destructive; and a form of its own fields
+  > *plus* the picker, which script-off cannot be submitted at all, is
+  > admissible only where it **creates** — a record that never came into
+  > existence loses nothing and mis-saves nothing.
 
-  Both halves are load-bearing. The capture bar still submits without script,
+  All three halves are load-bearing. The capture bar still submits without script,
   minus the images — and a submit is never blocked by an upload either: an
   in-flight or failed image simply is not in the payload. The sprout media card
   is the other case: it is nothing *but* the picker, so the picker renders its
@@ -96,6 +99,22 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
   survives, and the keyword is silently lost with nothing on the page to say
   so. Two forms make that impossible rather than survivable, which is the
   plant's Meta-beside-Logo arrangement again.
+
+  The screen **Create form** (`app/admin/_components/screen-create-form.tsx`,
+  the screen-library slice) is the **third case** the rule above names, and the
+  only one in the admin: three fields of its own — `slug`, `name`, `plant` —
+  *and* the picker owning the submit button. Script-off it renders those three
+  fields, renders no button, and cannot be submitted at all, so the first half
+  of the rule ("a form it merely adds to still submits") is simply untrue of
+  it. It is admissible anyway because it **creates**: there is no record yet, so
+  nothing is lost and nothing is silently mis-saved — the author is told
+  nothing, and nothing happens, which is the honest end of an inert form.
+  `lib/screen-create.ts`'s docblock argues the same thing at the write path.
+  Two of its details are load-bearing: TWO text inputs rather than one, because
+  a lone text input in a button-less form submits on Enter (the bean Keyword
+  trap), and `buildNewScreenInput` refusing a payload with no `image__ready`
+  regardless. Widening this shape to a form that EDITS would be a different
+  decision, and a worse one.
 
   That slice added **no seventh exception**: the cover itself
   (`components/bean-cover.tsx`) is a server component pinned in
@@ -140,7 +159,7 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
 
   What makes it mild is that **its absence costs nothing**, in the strong sense
   the media picker's rule uses: the palette adds no destination of its own. Every
-  row is a faster route to a page that still has its slow route — the four
+  row is a faster route to a page that still has its slow route — the
   sections from the rail, everything else from the list page that already links
   to it. And it **never writes**: no form, no server action, no submit. It is a
   navigator, not a command runner, which is what keeps it small enough to trust.
@@ -153,7 +172,7 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
 
   One split is load-bearing and easy to undo by accident: `lib/palette.ts`
   imports `lib/data.ts`, which opens with `node:fs`, so it is **server-only**.
-  The client half — the row type, the group order, the four sections, the
+  The client half — the row type, the group order, the sections, the
   grouping — lives in `lib/palette-items.ts`. Importing the wrong one from the
   palette component does not merely bloat the bundle; it fails the build.
 
@@ -258,13 +277,16 @@ mistaken for further exceptions:
   that is not already a page**: it is a Next parallel + intercepting route
   (`app/admin/@sheet/(.)screens/[slug]`) that imports and wraps
   `app/admin/screens/[slug]/page.tsx` itself. Script-off, the same tile click is
-  an ordinary navigation to that page, where every form still works — prev, next
-  and close included, since all three are real `<a href>` (`screen-nav.tsx`),
-  never `router.back()`. `sheet-keys.tsx` binds Escape and the arrows over those
-  same hrefs and renders nothing, which is the filter popovers' category of
-  affordance rather than a destination of its own. The library is also this
-  repo's first use of `next/link` — every other navigation in both zones is a
-  plain `<a href>` — and it is still confined to this slice's four files:
+  an ordinary navigation to that page, where the metadata and delete forms
+  still work — prev, next and close included, since all three are real
+  `<a href>` (`screen-nav.tsx`), never `router.back()`. (The image card and the
+  create form are the picker's exception, below.) `sheet-keys.tsx` binds Escape
+  and the arrows over those same hrefs and renders nothing, which is the filter
+  popovers' category of affordance rather than a destination of its own. The
+  library is also this repo's first use of `next/link` — every other LINK in
+  both zones is a plain `<a href>`, the palette and `sheet-keys.tsx` being the
+  two places that navigate by `router.push` instead — and it is still confined
+  to this slice's four files:
   interception needs a client-side navigation, and `Link` renders the same
   anchor a plain `<a>` would. `lib/screen-sheet-source.test.ts` pins both halves
   — the slot importing the page's own module, and the tiles navigating by `href`
@@ -275,11 +297,17 @@ mistaken for further exceptions:
   The push itself is CSS, not state: the layout asks
   `:has(~ [data-screen-sheet])`, which is `plant-inside.tsx`'s idiom, and
   `@sheet/default.tsx` returning null is what makes the question honest —
-  everywhere but a screen there is no element beside the page to match. The one
-  place the panel does render something the standalone route does not is
-  `@sheet/(.)screens/[slug]/not-found.tsx`, and it is a boundary, not a form: a
-  stale tile would otherwise replace the whole page, grid included, to say a
-  screen is gone. The one thing the library genuinely spends is the picker
+  everywhere but a screen there is no element beside the page to match. The two
+  places the panel does render something the standalone route does not are
+  `@sheet/(.)screens/[slug]/not-found.tsx` — a boundary, not a form: a stale
+  tile would otherwise replace the whole page, grid included, to say a screen is
+  gone — and the one `<style>` rule that rings the open tile (`activeTileCss` in
+  `lib/screens.ts`, called by the slot). Interception is exactly what keeps the
+  index from re-rendering while the panel navigates, so the grid cannot know
+  which tile is open and the panel says so in CSS; the slug is guarded rather
+  than trusted there, because a stored slug came from a filename and a quote in
+  one would escape the selector. Neither is a form, neither writes, and both
+  vanish with the panel. The one thing the library genuinely spends is the picker
   exception it already had — the image card and the create form are the picker,
   so neither works without script, and `buildScreenImagePatch` enforces the
   `__ready` marker. It adds one rule its three siblings lack: **a screen's image
@@ -297,7 +325,9 @@ mistaken for further exceptions:
   (from `lib/glyphs.ts`, the one place a display form is decided, exactly as
   `lib/plant-status.ts` is for its enum), so no value is icon-only in the
   accessibility tree. **The palette draws plant rows with the same
-  `EntityAvatar`**, which is why that island is imported rather than reproduced.
+  `EntityAvatar`, and the screen library's contact sheet draws each tile's plant
+  mark with the same `EntityAvatarGlyph`** — four consumers of one island, which
+  is why it is imported rather than reproduced.
 - The public chrome (`app/(public)/_components/public-chrome.tsx`) and the plant
   head (`app/(public)/_components/plant-head.tsx`). Both are **server**
   components, both are now thin compositions over the shared files above, and

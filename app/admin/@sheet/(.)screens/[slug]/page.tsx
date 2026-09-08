@@ -13,6 +13,16 @@ export const dynamic = "force-dynamic";
  * pins the import, because reimplementing the body here would pass `tsc`,
  * `npm test` and `npm run build` while quietly making the library
  * script-dependent.
+ *
+ * ONE SUSPECTED CASE, UNVERIFIED IN A BROWSER and left for a real viewport:
+ * reload the admin with the panel already open (a hard navigation, so the slot
+ * and the page are rendered for the SAME slug), then press `→`. The `children`
+ * underneath may not re-render with the panel, in which case the page beneath
+ * still shows the previous screen and TWO `SheetKeys` are mounted at once —
+ * one from the panel and one from the page under it — so a single arrow press
+ * would fire two `router.push` calls. If that reproduces, the fix is that the
+ * standalone page should not render its keys while a panel exists, not a
+ * second binding here.
  */
 export default async function ScreenSheet(props: {
   params: Promise<{ slug: string }>;
