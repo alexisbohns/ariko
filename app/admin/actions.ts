@@ -52,7 +52,11 @@ import {
   updatePlantLogo,
   updatePlantStatus,
   updatePlantVisibility,
+  updateBeanCover,
+  updateBeanKeyword,
 } from "@/lib/botanical";
+import { buildBeanCoverPatch } from "@/lib/bean-cover-edit";
+import { buildBeanKeywordPatch } from "@/lib/bean-keyword";
 import { uploadImage } from "@/lib/storage";
 import { checkUploadFile, uploadedFilename } from "@/lib/upload-input";
 import {
@@ -502,6 +506,60 @@ async function flipPlantField(
   // plant pages are force-dynamic too — they re-read on the next request.
   revalidatePath("/admin/garden");
   redirect(back);
+}
+
+/**
+ * The bean's cover — and nothing else.
+ *
+ * `/admin/bean/[id]` was read-only until this slice, so this is the first bean
+ * write in the admin. It is editPlantLogoAction's shape exactly: the form is
+ * nothing BUT the picker, so the picker renders the submit button
+ * (`submitLabel`) and script-off there is no button at all — the card is inert
+ * rather than destructive. buildBeanCoverPatch enforces the same thing
+ * server-side for a POST that never rendered one.
+ */
+export async function editBeanCoverAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+
+  const raw = await loadRawGarden();
+  const existing = raw.beans?.find((b) => b.slug === slug);
+  if (!existing) redirect("/admin/vault");
+
+  const result = buildBeanCoverPatch(existing, formData);
+  if (result.dirty) await updateBeanCover(slug, result.cover);
+
+  // The landing page is force-dynamic, so it re-reads on the next request; the
+  // admin surfaces that list beans are the ones that need telling.
+  revalidatePath("/admin");
+  revalidatePath("/admin/vault");
+  redirect(`/admin/bean/${encodeURIComponent(slug)}`);
+}
+
+/**
+ * The bean's keyword — and nothing else.
+ *
+ * A separate form from the Cover card above, and separate on purpose. One form
+ * holding the picker AND a text input renders no button script-off (the button
+ * is inside the island) but DOES render the input — and a form with one text
+ * input and no button permits implicit submission on Enter. The author would
+ * type a keyword, press Return, and post a payload carrying no `cover__ready`
+ * and no media: nothing destroyed, but the keyword silently lost, with no sign
+ * on the page. Two forms make that impossible instead of survivable.
+ */
+export async function editBeanKeywordAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+
+  const raw = await loadRawGarden();
+  const existing = raw.beans?.find((b) => b.slug === slug);
+  if (!existing) redirect("/admin/vault");
+
+  await updateBeanKeyword(slug, buildBeanKeywordPatch(formData));
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/vault");
+  redirect(`/admin/bean/${encodeURIComponent(slug)}`);
 }
 
 export async function setPlantStatusAction(formData: FormData): Promise<void> {
