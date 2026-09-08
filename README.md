@@ -71,7 +71,8 @@ As of the Vault Spine slice, content lives in **MongoDB** (not the static seed).
 * `npm run migrate` — one-time import of `data/garden.yml` into Mongo (idempotent).
 * `npm run migrate:pbbls-legacy` — one-shot (#54), idempotent and safe to re-run: retired the four seeded `pbbls-*` beans (backed up to `data/retired/`), refiled their twelve changelog sprouts as milestones, and seeded the case study's bean tier private. **Dry by default** — it writes nothing to Mongo unless you pass `-- --apply`, and refuses any argument it does not recognise. Deliberately does **not** rewrite `data/garden.yml` — `yaml.dump` would erase the file's comments, so that half is a hand edit held in place by `lib/pbbls-legacy.test.ts`.
 * `npm run dev` — needs `MONGODB_URI` set and the cluster reachable (pages query Mongo at request time). The public pages (`/`, `/beanstalk`, `/bean/[id]`) are `force-dynamic`, so they read published-only from Mongo on every request and reflect a publish immediately — and `npm run build` no longer needs DB reachability to prerender them.
-* `npm test` — pure unit tests; DB-backed integration tests auto-skip unless `MONGODB_URI` is set (run them with `node --env-file=.env.local --import tsx --test "lib/**/*.test.ts"`).
+* `npm test` — pure unit tests; the DB-backed integration tests auto-skip unless `MONGODB_URI` is set, so a plain run is green without a cluster.
+* `npm run test:db` — the eight DB-backed files, run **serially** against a **scratch database**. Both halves are load-bearing (#75): they share one database and delete each other's `__test__` fixtures under parallel execution, and `MONGODB_DB` is forced to `beanstalk_scratch` from the shell (which wins over `.env.local`) so a `cleanup()` can never reach the real garden. Override with `MONGODB_DB=… npm run test:db` if you mean to.
 
 ## Ingestion spine
 
@@ -84,6 +85,7 @@ As of the Ingestion Spine slice, content can be captured into Mongo via API inst
 * `npm run backfill:plant-roles` — one-shot, idempotent: gives every pre-`role` plant `{ kind: "owner" }`.
   Run it **before** `npm run validators` (which tightens `role` to required), then correct the
   non-owner plants by hand in `/admin/plant/[slug]`.
+* `npm run check:orphans` — lists Cloudinary assets under the upload folder that no `screens.image`, `beans.cover`, `plants.logo` or `sprouts.media[]` still points at. `lib/storage.ts` refuses to derive a `public_id` from a filename (deriving one once overwrote an asset a published sprout pointed at), so replacing an image always leaves the previous one behind — orphans are the standing cost of that trade. **Reports only**; pass `-- --delete` to remove, `-- --folder <prefix>` to sweep elsewhere. Exit `1` means orphans were found and left in place.
 
 ### `POST /api/inbox`
 
