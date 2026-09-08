@@ -27,7 +27,7 @@ export async function GET(): Promise<Response> {
       { headers: { "cache-control": "no-store" } },
     );
   } catch {
-    // The client falls back to the four sections it builds itself — the
+    // The client falls back to the sections it builds itself — the
     // palette is never a dead box. Nothing here is worth leaking a stack for.
     return Response.json(
       { error: "index unavailable" },

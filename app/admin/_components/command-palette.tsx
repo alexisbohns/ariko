@@ -3,17 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useHotkey } from "@tanstack/react-hotkeys";
-import {
-  Archive,
-  Bean,
-  Flower2,
-  Inbox,
-  Leaf,
-  Package,
-  Search,
-  Sprout,
-  Waypoints,
-} from "lucide-react";
+import { Bean, Flower2, Leaf, Package, Search, Sprout, Waypoints } from "lucide-react";
 import type { ComponentType } from "react";
 // lib/palette-items.ts, never lib/palette.ts: the latter imports lib/data.ts,
 // which opens with `node:fs`. Reaching for it from here does not merely bloat
@@ -24,6 +14,9 @@ import {
   type PaletteItem,
   type PaletteKind,
 } from "@/lib/palette-items";
+// The rail's own map, imported rather than repeated — see section-icons.ts for
+// what the second copy cost.
+import { SECTION_ICONS } from "./section-icons";
 import { EntityAvatar } from "@/components/admin/glyphs";
 import { ChromeItem, chromeItemClass } from "@/components/chrome";
 import {
@@ -52,7 +45,7 @@ import {
  * Without script it renders nothing, ⌘K does nothing, and the search button is
  * not there — and its absence costs nothing, because it adds no destination of
  * its own. Every row is a faster route to a page that still has its slow route:
- * the four sections from the rail, and every plant, pod, bean, sprout and seed
+ * the sections from the rail, and every plant, pod, bean, sprout and seed
  * from the list page that already links to it. It also never writes: no form,
  * no server action, no submit. That is what makes this a contained loss like
  * the media picker's rather than a real one like seed capture's.
@@ -70,15 +63,6 @@ const ICONS: Record<PaletteKind, ComponentType<{ className?: string }>> = {
   bean: Bean,
   sprout: Sprout,
   seed: Leaf,
-};
-
-// The four sections carry the rail's own icons, so the same destination looks
-// the same in both places.
-const SECTION_ICONS: Record<string, ComponentType<{ className?: string }>> = {
-  "/admin": Inbox,
-  "/admin/vault": Archive,
-  "/admin/garden": Sprout,
-  "/admin/beanstalk": Waypoints,
 };
 
 function iconFor(item: PaletteItem): ComponentType<{ className?: string }> {
@@ -146,7 +130,7 @@ function Palette() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  // The four sections are the starting index, built locally from NAV_ITEMS —
+  // The sections are the starting index, built locally from NAV_ITEMS —
   // never fetched. That one line is what makes the palette impossible to open
   // onto nothing, whatever the network does.
   const [items, setItems] = useState<PaletteItem[]>(() => sectionItems());
@@ -215,7 +199,7 @@ function Palette() {
   const handleOpenChange = (next: boolean): void => {
     setOpen(next);
     // The query is this component's own state and the popup unmounting does not
-    // clear it. Reset on close so the next ⌘K opens on the four sections rather
+    // clear it. Reset on close so the next ⌘K opens on the sections rather
     // than on whatever was last searched for.
     if (!next) setQuery("");
   };

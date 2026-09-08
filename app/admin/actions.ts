@@ -641,7 +641,7 @@ export async function syncNowAction(): Promise<void> {
  * Not exported and not async: only the EXPORTS of a "use server" module have to
  * be async, and there is nothing to await here.
  */
-function screenBack(formData: FormData): string {
+function activeFilterQuery(formData: FormData): string {
   return screensQuery({
     plant: String(formData.get("q_plant") ?? ""),
     bean: String(formData.get("q_bean") ?? ""),
@@ -649,32 +649,45 @@ function screenBack(formData: FormData): string {
   });
 }
 
-/** `/admin/screens/new` is the one library URL `screensHref` does not build (it
- *  addresses the index and stored slugs). Same canonical `query`, one place. */
+/**
+ * `/admin/screens/new` is the one library URL `screensHref` does not build — it
+ * addresses the index and stored slugs, and this is neither.
+ *
+ * So it re-canonicalizes `query` itself rather than trusting it, which is not
+ * belt-and-braces: `screensHref`'s docblock puts the guard inside the function
+ * "rather than in a rule its callers must remember", and a second URL builder
+ * that remembered the rule instead would be the first place that stance is
+ * untrue. `error` is set last, and through URLSearchParams, for the same reason
+ * it is there — an ampersand in a message cannot smuggle a filter past it.
+ */
 function newScreenHref(query: string, error: string): string {
-  const params = new URLSearchParams(query);
+  const params = new URLSearchParams(
+    screensQuery(Object.fromEntries(new URLSearchParams(query))),
+  );
   params.set("error", error);
   return `/admin/screens/new?${params.toString()}`;
 }
 
 export async function createScreenAction(formData: FormData): Promise<void> {
   await requireSession();
-  const query = screenBack(formData);
+  const query = activeFilterQuery(formData);
 
   const result = buildNewScreenInput(formData);
   if (!result.ok) redirect(newScreenHref(query, result.error));
 
-  // Only the write is inside the `try`. redirect() navigates by THROWING, so a
-  // redirect placed in here would be swallowed by the catch below and rethrown
-  // as an unexpected error instead of navigating — the slug-taken redirect
-  // therefore happens after the block, on a flag.
+  // Only slug collisions are recoverable; anything else propagates. redirect()
+  // stays OUT of the try (it throws to control flow), so the taken slug leaves
+  // on a flag — promoteSeedAction's arrangement.
   let taken = false;
   try {
     await createScreen({
       ...result.input,
       // Not in the pure builder: it is a clock, and the builder is tested
       // without one. The list sorts on this, so a new screen lands at the top
-      // of the library rather than at the bottom under an empty date.
+      // of the library rather than at the bottom under an empty date — from the
+      // day after an import, at least: scripts/import-paulopus-screens.ts stamps its
+      // whole run with the same date, so a screen added by hand on an import
+      // day ties with the batch and falls through to the slug tie-break.
       capturedAt: new Date().toISOString().slice(0, 10),
     });
   } catch (err) {
@@ -690,7 +703,7 @@ export async function createScreenAction(formData: FormData): Promise<void> {
 export async function editScreenMetaAction(formData: FormData): Promise<void> {
   await requireSession();
   const slug = String(formData.get("slug") ?? "");
-  const query = screenBack(formData);
+  const query = activeFilterQuery(formData);
 
   // Existence first, so every redirect below targets a real page and only ever
   // interpolates a known-good stored slug.
@@ -715,7 +728,7 @@ export async function editScreenMetaAction(formData: FormData): Promise<void> {
 export async function editScreenImageAction(formData: FormData): Promise<void> {
   await requireSession();
   const slug = String(formData.get("slug") ?? "");
-  const query = screenBack(formData);
+  const query = activeFilterQuery(formData);
 
   const existing = await getScreen(slug);
   if (!existing) redirect(screensHref(null, query));
@@ -735,7 +748,7 @@ export async function editScreenImageAction(formData: FormData): Promise<void> {
 export async function deleteScreenAction(formData: FormData): Promise<void> {
   await requireSession();
   const slug = String(formData.get("slug") ?? "");
-  const query = screenBack(formData);
+  const query = activeFilterQuery(formData);
 
   const existing = await getScreen(slug);
   if (!existing) redirect(screensHref(null, query));

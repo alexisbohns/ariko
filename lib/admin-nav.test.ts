@@ -95,7 +95,10 @@ test("the library is a wide column and a screen is a reading one", () => {
 // The SECTIONS comment says no prefix is a prefix of another, and a singular
 // /admin/screen route — the shape every other species uses — would make that
 // false. The boundary check is what actually protects it, so pin the behaviour
-// rather than the comment.
+// rather than the comment. Both directions: /admin/screen* is an extension of
+// the prefix, /admin/screen/… is a route the prefix is an extension OF, and it
+// is the second one the comment is actually about.
 test("a would-be /admin/screen route does not light Screens", () => {
   assert.equal(resolveNavItem("/admin/screenshots"), null);
+  assert.equal(resolveNavItem("/admin/screen/karma-top"), null);
 });

@@ -351,7 +351,7 @@ test("reopening refetches, and a fresh open starts on an empty query", async () 
   assert.equal(labels().length, INDEX.length, "reopened onto a filtered list");
 });
 
-test("a failed load leaves the four sections and says so — never an empty box", async () => {
+test("a failed load leaves the sections and says so — never an empty box", async () => {
   // Close, break the network, reopen. The cache from the successful loads above
   // is deliberately NOT cleared: this is the refresh-failure path, which must
   // keep what it had rather than empty itself.
