@@ -5,6 +5,8 @@ import { beanDetail, type BeanDetailView } from "@/lib/bean-detail";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { BeanCoverForm } from "@/app/admin/_components/bean-cover-form";
+import { BeanKeywordForm } from "@/app/admin/_components/bean-keyword-form";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +83,23 @@ export default async function AdminBeanPage({ params }: { params: Promise<{ id: 
             <DumpRow label="tags">{(bean.tags ?? []).join(", ") || "—"}</DumpRow>
           </ul>
         </div>
+
+        {/* The page's first write surface — it was a read-only property dump
+            until this slice. Two cards, because they are two forms: see
+            bean-cover-form.tsx for why they cannot be one. */}
+        <section className="flex flex-col gap-4">
+          <h2 className="font-heading text-lg tracking-tight">Cover</h2>
+          <Card>
+            <CardContent>
+              <BeanCoverForm bean={bean} />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent>
+              <BeanKeywordForm bean={bean} />
+            </CardContent>
+          </Card>
+        </section>
 
         <section className="flex flex-col gap-4">
           <h2 className="font-heading text-lg tracking-tight">
