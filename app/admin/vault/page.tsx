@@ -1,6 +1,7 @@
 import { getFullDataset } from "@/lib/store";
 import { resolveText, type TimelineEntry } from "@/lib/data";
 import { filterVaultEntries, distinctPlants, distinctTags } from "@/lib/vault";
+import { filterHref } from "@/lib/admin-filters";
 import { EntityAvatarGlyph } from "@/components/admin/glyphs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -12,26 +13,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { VaultFilters, type FilterGroup } from "../_components/vault-filters";
+import { AdminFilters, type FilterGroup } from "../_components/admin-filters";
 
 export const dynamic = "force-dynamic";
 
 const STATE_OPTIONS = ["all", "draft", "private", "published"];
 
-type Active = { state?: string; plant?: string; tag?: string };
-
-// Build a filter link that sets one dimension to `value` (or clears it when "all")
-// while preserving the other active filters. Zero-JS — plain hrefs.
-function vaultHref(active: Active, key: keyof Active, value: string): string {
-  const merged: Active = { ...active, [key]: value };
-  const params = new URLSearchParams();
-  for (const k of ["state", "plant", "tag"] as const) {
-    const v = merged[k];
-    if (v && v !== "all") params.set(k, v);
-  }
-  const qs = params.toString();
-  return qs ? `/admin/vault?${qs}` : "/admin/vault";
-}
+/** The vault's dimensions, named for `filterHref` — the list that decides which
+ *  keys a filter URL may carry. */
+const VAULT_KEYS = ["state", "plant", "tag"] as const;
 
 export default async function VaultPage({
   searchParams,
@@ -62,8 +52,9 @@ export default async function VaultPage({
   const plantOptions = ["all", ...distinctPlants(all)];
   const tagOptions = ["all", ...distinctTags(all)];
 
-  // The hrefs are still built here, by vaultHref, so the popovers stay a
-  // presentation of links this page already knew how to make.
+  // The hrefs are still built here, now by the shared filterHref, so the
+  // popovers stay a presentation of links this page already knew how to make —
+  // and stay server-side, which is what keeps `lib/vault.ts` out of the island.
   const groups: FilterGroup[] = (
     [
       ["state", STATE_OPTIONS],
@@ -74,7 +65,7 @@ export default async function VaultPage({
     key,
     options,
     current: active[key] ?? "all",
-    hrefs: options.map((opt) => vaultHref(active, key, opt)),
+    hrefs: options.map((opt) => filterHref("/admin/vault", active, VAULT_KEYS, key, opt)),
   }));
 
   return (
@@ -83,7 +74,7 @@ export default async function VaultPage({
       <div className="flex flex-col gap-6">
         <h1 className="font-heading text-2xl font-medium tracking-tight">Vault</h1>
 
-        <VaultFilters groups={groups} />
+        <AdminFilters groups={groups} />
 
         <p className="text-sm text-muted-foreground">
           showing {entries.length} of {all.length}
