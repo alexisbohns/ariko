@@ -28,8 +28,10 @@ const GLIDE =
  * This is only ever meant to render on the server.
  *
  * The frame itself stays in app/(public)/page.tsx: `aspect-[4/3] overflow-hidden
- * rounded-lg bg-muted`, plus `group` and `relative` for this component's hover
- * and positioning to hook into. What lives here is only what goes inside it.
+ * rounded-lg bg-muted`, plus `group` for this component's hover to hook into.
+ * It also carries `relative`, but only as belt-and-braces — the phone branch
+ * below establishes its own positioning context, so the frame's copy is never
+ * actually needed. What lives here is only what goes inside it.
  *
  * The geometry is tied to the row's `w-56` card (224x168 frame). The phone is
  * half the frame wide — 112px, which for a 390x844 capture is 242px tall, so it

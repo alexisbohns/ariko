@@ -477,8 +477,10 @@ const GLIDE =
  * This is only ever meant to render on the server.
  *
  * The frame itself stays in app/(public)/page.tsx: `aspect-[4/3] overflow-hidden
- * rounded-lg bg-muted`, plus `group` and `relative` for this component's hover
- * and positioning to hook into. What lives here is only what goes inside it.
+ * rounded-lg bg-muted`, plus `group` for this component's hover to hook into.
+ * It also carries `relative`, but only as belt-and-braces — the phone branch
+ * below establishes its own positioning context, so the frame's copy is never
+ * actually needed. What lives here is only what goes inside it.
  *
  * The geometry is tied to the row's `w-56` card (224x168 frame). The phone is
  * half the frame wide — 112px, which for a 390x844 capture is 242px tall, so it
@@ -643,7 +645,7 @@ type Entry = {
   href: string;
   title: string;
   description: string;
-  // Not a URL any more: what to DRAW there, resolved once in lib/bean-cover.ts.
+  // Not a URL: what to DRAW there. The rule lives in one place, lib/bean-cover.ts.
   // A pod's is its first bean's, minus the word (podCoverFrom).
   cover: BeanCover | null;
 };
@@ -655,7 +657,8 @@ Replace the `beanCover` helper and both builders with:
 
 ```ts
   // sproutsForBean is newest-first (buildDataset), which is the ordering
-  // coverFor expects underneath beanCoverFor.
+  // coverFor documents that it expects, and which beanCoverFor passes
+  // straight through.
   const coverOf = (bean: Bean) => beanCoverFor(bean, data.sproutsForBean(bean.slug));
 
   const beanEntry = (bean: Bean): Entry => ({
@@ -684,14 +687,26 @@ Replace the `beanCover` helper and both builders with:
 Replace the whole `<div className="aspect-[4/3] …">…</div>` block with:
 
 ```tsx
-              {/* `relative` is new and load-bearing: the phone treatment's word
-                  and bezel are absolutely positioned inside this frame, and
-                  `overflow-hidden` is what clips the word on its way out and
-                  crops the phone at the bottom. */}
+          // w-56 is 224px, and components/bean-cover.tsx derives its phone
+          // geometry from that number — widen the card and the numbers in
+          // that file need revisiting.
+          <li key={entry.key} className="w-56 shrink-0">
+            <a href={entry.href} className="group flex flex-col gap-3">
+              {/* `overflow-hidden` is what clips the departing word on its way
+                  out and crops the phone at the bottom; `relative` is
+                  belt-and-braces since the phone branch establishes its own
+                  positioning context. A null cover renders nothing here, so a
+                  bean or pod with no cover simply shows this bare `bg-muted`
+                  frame, like any other entry. */}
               <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-muted">
                 <BeanCoverArt cover={entry.cover} lang={lang} />
               </div>
 ```
+
+(`relative` here is belt-and-braces, not load-bearing: `components/bean-cover.tsx`'s
+phone branch establishes its own positioning context, so this frame's copy is
+never actually needed. An earlier draft of this step called it "new and
+load-bearing" — that was wrong and is corrected here so the two files agree.)
 
 - [ ] **Step 5: Typecheck and build**
 

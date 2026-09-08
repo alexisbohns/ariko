@@ -29,7 +29,7 @@ type Entry = {
   href: string;
   title: string;
   description: string;
-  // Not a URL any more: what to DRAW there, resolved once in lib/bean-cover.ts.
+  // Not a URL: what to DRAW there. The rule lives in one place, lib/bean-cover.ts.
   // A pod's is its first bean's, minus the word (podCoverFrom).
   cover: BeanCover | null;
 };
@@ -42,7 +42,8 @@ export default async function DirectoryPage() {
   const standalone = data.standaloneBeans();
 
   // sproutsForBean is newest-first (buildDataset), which is the ordering
-  // coverFor expects underneath beanCoverFor.
+  // coverFor documents that it expects, and which beanCoverFor passes
+  // straight through.
   const coverOf = (bean: Bean) => beanCoverFor(bean, data.sproutsForBean(bean.slug));
 
   const beanEntry = (bean: Bean): Entry => ({
@@ -81,15 +82,17 @@ export default async function DirectoryPage() {
     <div className="no-scrollbar overflow-x-auto overscroll-x-none pb-2">
       <ul className={`flex w-max gap-4 ${GUTTER}`}>
         {entries.map((entry) => (
-          // 224px. components/bean-cover.tsx derives its phone geometry from
-          // this width — widen the card and the numbers in that file need
-          // revisiting.
+          // w-56 is 224px, and components/bean-cover.tsx derives its phone
+          // geometry from that number — widen the card and the numbers in
+          // that file need revisiting.
           <li key={entry.key} className="w-56 shrink-0">
             <a href={entry.href} className="group flex flex-col gap-3">
               {/* `overflow-hidden` is what clips the departing word on its way
                   out and crops the phone at the bottom; `relative` is
-                  belt-and-braces since the component now establishes its own
-                  positioning context. */}
+                  belt-and-braces since the phone branch establishes its own
+                  positioning context. A null cover renders nothing here, so a
+                  bean or pod with no cover simply shows this bare `bg-muted`
+                  frame, like any other entry. */}
               <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-muted">
                 <BeanCoverArt cover={entry.cover} lang={lang} />
               </div>
