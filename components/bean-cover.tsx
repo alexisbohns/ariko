@@ -27,28 +27,35 @@ const GLIDE =
  * would fail at build with a confusing bundler error rather than a clear one.
  * This is only ever meant to render on the server.
  *
- * The frame itself stays in app/(public)/page.tsx: `aspect-[4/3] overflow-hidden
- * rounded-lg bg-muted`, plus `group` for this component's hover to hook into.
- * It also carries `relative`, but only as belt-and-braces — the phone branch
- * below establishes its own positioning context, so the frame's copy is never
- * actually needed. What lives here is only what goes inside it.
+ * The frame itself stays in app/(public)/page.tsx: `relative aspect-[4/3]
+ * w-full overflow-hidden rounded-lg bg-muted`. Its `relative` is only
+ * belt-and-braces — the phone branch below establishes its own positioning
+ * context, so the frame's copy is never actually needed. What lives here is
+ * only what goes inside it. The `group` this component's hover hooks into is
+ * NOT on that frame: it sits one level further out, on the anchor wrapping the
+ * whole card, which is why the word can travel out of the frame and still be
+ * driven by the same hover.
  *
- * The geometry is tied to the row's `w-56` card (224x168 frame). The phone is
- * half the frame wide — 112px, which for a 390x844 capture is 242px tall, so it
- * runs 132px past the bottom edge and the frame reads as a window onto
- * something taller rather than as a cropped picture. Its bezel is drawn HERE
- * rather than baked into the stored file: baking it would make cloudinaryThumb
- * crop a composite instead of a screen, and turn "re-shoot that screen" into
+ * The geometry is tied to the row's `w-56` card (224x168 frame). The phone
+ * SPAN is half the frame wide — 112px — but `p-1` is inside that under
+ * border-box, so the screenshot itself paints 104px, and at the 224x484
+ * derivative's ratio that is 104 x 484/224 ~= 225px tall. Add the 4px of bezel
+ * above it and the span is ~229px, which from `top-[58px]` runs ~119px past
+ * the frame's bottom edge — so the frame reads as a window onto something
+ * taller rather than as a cropped picture. Its bezel is drawn HERE rather than
+ * baked into the stored file: baking it would make cloudinaryThumb crop a
+ * composite instead of a screen, and turn "re-shoot that screen" into
  * "re-composite that screen".
  *
  * Three more numbers worth naming so they don't read as arbitrary: the frame
- * is 168px tall and the phone should show 110px of screen at rest (the same
- * 110px the hover-transform comment below reckons its math from), which is
- * where `top-[58px]` comes from — 168 - 110 = 58. The word above it is a
- * `pt-[9px]` inset plus `text-[34px]` leading-none text, a ~43px block, so 58
- * leaves it a clean ~15px of headroom before the phone's bezel starts —
- * without that gap the word and the rising phone would overlap mid-transition
- * rather than only trading places at the end of it.
+ * is 168px tall and the phone should show 110px of ITSELF at rest — the same
+ * 110px the hover-transform comment below reckons its math from, of which the
+ * top 4px is bezel, so 106px of screen — which is where `top-[58px]` comes
+ * from: 168 - 110 = 58. The word above it is a `pt-[9px]` inset plus
+ * `text-[34px]` leading-none text, a ~43px block, so 58 leaves it a clean
+ * ~15px of headroom before the phone's bezel starts — without that gap the
+ * word and the rising phone would overlap mid-transition rather than only
+ * trading places at the end of it.
  */
 export function BeanCover({
   cover,
@@ -108,8 +115,9 @@ export function BeanCover({
         // duration of the transition only — which is exactly the kind of bug
         // that survives review.
         //
-        // -46px with a 0.80 scale from `origin-top`: 110px of the screen visible
-        // at rest becomes ~156px of a smaller phone on hover, 45% to 80%.
+        // -46px with a 0.80 scale from `origin-top`: 110px of the phone
+        // visible at rest becomes ~156px of a smaller phone on hover. Against
+        // the span's real ~229px that is 48% of it showing, becoming 85%.
         //
         // bg-neutral-900, not a theme token: this is the one non-token colour
         // in the file, and it is deliberate rather than an oversight. A phone
@@ -120,10 +128,15 @@ export function BeanCover({
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          // The phone's 112x242 box doubled. The FULL height, not the ~110px
-          // visible at rest: hover reveals more of the image, and a derivative
-          // sized to the rest state would blur exactly when the visitor leans
-          // in.
+          // ~2.15x the box the screenshot actually paints — 104 x 225, once
+          // `p-1` is taken out of the 112px span — rather than the flat 2x
+          // lib/image-url.ts states every caller asks for. This is the one
+          // caller that departs from that rule, and the departure is in the
+          // safe direction: a little sharper than needed, never softer.
+          //
+          // The FULL height, not the ~110px visible at rest: hover reveals
+          // more of the image, and a derivative sized to the rest state would
+          // blur exactly when the visitor leans in.
           src={cloudinaryThumb(cover.image.url, { width: 224, height: 484 })}
           alt=""
           loading="lazy"

@@ -530,10 +530,11 @@ export async function setPlantVisibilityAction(formData: FormData): Promise<void
  * The bean's cover — and nothing else.
  *
  * `/admin/bean/[id]` was read-only until this slice, so this is the first bean
- * write in the admin. It is editPlantLogoAction's shape exactly: the form is
- * nothing BUT the picker, so the picker renders the submit button
- * (`submitLabel`) and script-off there is no button at all — the card is inert
- * rather than destructive. buildBeanCoverPatch enforces the same thing
+ * EDIT in the admin — beans were already CREATED here, by the triage promotion
+ * path above, but never changed afterwards. It is editPlantLogoAction's shape
+ * exactly: the form is nothing BUT the picker, so the picker renders the submit
+ * button (`submitLabel`) and script-off there is no button at all — the card is
+ * inert rather than destructive. buildBeanCoverPatch enforces the same thing
  * server-side for a POST that never rendered one.
  */
 export async function editBeanCoverAction(formData: FormData): Promise<void> {

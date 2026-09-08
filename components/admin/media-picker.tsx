@@ -58,13 +58,15 @@ type MediaPickerProps = {
   initial?: Media[];
   /**
    * Cap on how many entries the list may hold. Unset means no cap, which is
-   * every surface but the plant Logo card — a plant has ONE mark.
+   * every surface but the two single-image cards — the plant Logo card and the
+   * bean Cover card, both of which pass 1: a plant has ONE mark and a bean has
+   * ONE cover.
    *
    * It withdraws the ADD controls when the list is full, never the editing
    * ones: a capped row stays removable, or a logo could never be changed once
-   * set. Advisory, the way checkUploadFile is: buildPlantLogoPatch takes the
-   * first image whatever arrives, so a crafted POST cannot use this to store
-   * more than one.
+   * set. Advisory, the way checkUploadFile is: buildPlantLogoPatch and
+   * buildBeanCoverPatch each take the first image whatever arrives, so a
+   * crafted POST cannot use this to store more than one.
    */
   max?: number;
 } & (

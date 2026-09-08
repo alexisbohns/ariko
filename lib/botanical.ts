@@ -262,11 +262,12 @@ export async function updatePlantLogo(slug: string, logo: MediaImage | null): Pr
 /**
  * Writes a bean's cover — and nothing else. `null` clears it.
  *
- * The first bean writer in this file. Narrow rather than an `updateBeanMeta`
- * that could take several fields: `updateBeanCover` and `updateBeanKeyword`
- * duplicate the same five-line `$set`/`$unset` shape rather than sharing a
- * helper, because a helper generic over both document type and field key
- * would land back at a cast to escape it — and each copy naming its one field
+ * The first bean FIELD writer in this file — `createBean` above already writes
+ * beans, but whole ones. Narrow rather than an `updateBeanMeta` that could
+ * take several fields: `updateBeanCover` and `updateBeanKeyword` duplicate the
+ * same five-line `$set`/`$unset` shape rather than sharing a helper, because a
+ * helper generic over both document type and field key would land back at a
+ * cast to escape it — and each copy naming its one field
  * literally is what makes a typo visible on sight. If a FOURTH copy of this
  * shape appears, the move is `lib/plant-meta.ts`'s: extract a pure, tested
  * update-doc builder, which is what that file did after a duplicate-`$set` bug

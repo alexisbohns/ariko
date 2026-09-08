@@ -150,8 +150,10 @@ things:
 
 - **`null`** → nothing. The empty muted frame, unchanged.
 - **`fill`** → today's `<img>` with `cloudinaryThumb(url, {width: 448, height:
-  336})`, `object-cover`, `group-hover:scale-[1.03]`. Byte-for-byte what the
-  page renders now.
+  336})`, `object-cover`, `group-hover:scale-[1.03]`. The derivative math is
+  unchanged from what the page renders inline now; the class list picks up
+  `motion-reduce:transition-none`, which the inline `<img>` never had, so the
+  fill cover stops travelling under the same setting the phone respects.
 - **`phone`** → the word and the bezel, below.
 
 ### 3.1 Geometry
@@ -162,8 +164,8 @@ that card's, and they move together if it ever changes.
 | | |
 |---|---|
 | frame | 224 × 168 (`aspect-[4/3]`) |
-| phone width | 112 (half the frame) |
-| phone height | 242, for a 390×844 capture — it runs 132px past the frame's bottom |
+| phone span width | 112 (half the frame); `p-1` is inside it, so the screenshot paints 104 |
+| phone span height | ~229 — 104 × 484/224 of screenshot, plus 4 of bezel above it. From `top-[58px]` it runs ~119px past the frame's bottom |
 | phone top, at rest | 58 — clear of the word, per layout B |
 | word | absolute, `inset-x-0 top-0`, centred, `pt-[9px]`, `text-[34px]` |
 
@@ -182,10 +184,11 @@ is a compressed restatement of it — the same reasoning that already puts
 
 ### 3.2 The derivative
 
-`cloudinaryThumb(url, { width: 224, height: 484 })` — the phone's 112×242 box
-doubled for a retina display. The ratio is 0.4628 against a 390×844 capture's
-0.4621, so `c_fill` crops under a tenth of a percent and the arithmetic holds
-without touching `lib/image-url.ts`.
+`cloudinaryThumb(url, { width: 224, height: 484 })` — about 2.15× the box the
+screenshot actually paints, for a retina display. The ratio is 224/484 =
+0.46281 against a 390×844 capture's 0.46209, so `c_fill` trims 1 − 0.46209 /
+0.46281 ≈ **0.16%** off the height — a hair over a tenth of a percent, invisible
+in practice, and the arithmetic holds without touching `lib/image-url.ts`.
 
 Requesting the **full** phone height, not the ~110px visible at rest, is
 deliberate: hover reveals more of the image, and a derivative sized to the rest
@@ -212,11 +215,18 @@ TOC rail), and nothing here joins CLAUDE.md's exception list.
 | word | `translate-y-0` | `-translate-y-[110%]`, clipped by the frame's `overflow-hidden` |
 | phone | `translate-y-0 scale-100`, `origin-top` | `-translate-y-[46px] scale-[0.80]` |
 
-Which shows 110px of the phone at rest and ~156px of a shrunk one on hover —
-45% of the screen becoming 80%.
+Which shows 110px of the phone at rest — 4px of bezel over 106px of screen —
+and ~156px of a shrunk one on hover: 48% of the span showing, becoming 85%.
 
-Duration ~420ms, `cubic-bezier(.2,.7,.2,1)`, the word leading the phone by a
-beat so it has cleared the top before the phone arrives under it.
+Duration ~420ms, `cubic-bezier(.2,.7,.2,1)`, **shared** — one constant, one
+curve, no `transition-delay` on either half. Staggering the word ahead of the
+phone was the first idea and the wrong one: two elements that read as a single
+gesture drift apart the moment somebody tunes one duration and forgets the
+other, and the collision the delay was meant to avoid is already prevented by
+geometry. The phone starts 58px down, ~15px clear of the word's ~43px block, so
+the word is travelling out of the frame from the same instant the phone starts
+rising and the two never occupy the same pixels — they visibly trade places
+instead.
 
 `motion-reduce:transition-none` on both. The states still swap — the hover is
 information, not decoration — they simply stop travelling.
@@ -228,9 +238,10 @@ whole card is one link either way.
 ## 5. The admin
 
 `/admin/bean/[id]` is a read-only property dump today. Beans are created by
-promotion or through the article door, and `lib/botanical.ts` has no bean writer
-at all. Both fields need somewhere to be authored, so the page gains two forms —
-and **two, not one**, for a reason the plant page already demonstrates.
+promotion or through the article door — `lib/botanical.ts`'s `createBean` — but
+nothing anywhere EDITS a bean once it exists. Both fields need somewhere to be
+authored, so the page gains two forms — and **two, not one**, for a reason the
+plant page already demonstrates.
 
 ### 5.1 The Cover card — picker only
 

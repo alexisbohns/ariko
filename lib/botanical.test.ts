@@ -143,9 +143,14 @@ test("updateBeanCover clears to an ABSENT key, not a stored null", { skip: !hasD
 
   await updateBeanCover("__test__cover", null);
   const cleared = await db.collection("beans").findOne({ slug: "__test__cover" });
-  // The key must be MISSING, not present-with-null: lib/bean-cover.ts checks
-  // `bean.cover === undefined` by strict identity, and a stored null would slip
-  // past that check into a field the type declares optional, not nullable.
+  // The key must be MISSING, not present-with-null. Nothing MISDRAWS if it is
+  // not: lib/bean-cover.ts tests `bean.cover` for truthiness and `fillCoverFor`
+  // uses `??`, so a stored null falls through to the derived cover, which is
+  // what a cleared override should do. What a stored null breaks is the TYPE —
+  // `Bean.cover` is declared optional, not nullable — and the reader that pays
+  // for it is the next one written to that declaration: a presence check, a
+  // `!== undefined` guard, an `Object.keys`. One representation of "absent" is
+  // the thing being asserted here, not one behaviour.
   assert.equal("cover" in (cleared ?? {}), false);
 });
 
@@ -159,6 +164,12 @@ test("updateBeanKeyword clears to an ABSENT key, not a stored null", { skip: !ha
 
   await updateBeanKeyword("__test__keyword", null);
   const cleared = await db.collection("beans").findOne({ slug: "__test__keyword" });
+  // Same invariant as the cover above, but here it has teeth: lib/bean-cover.ts
+  // branches on `bean.keyword === undefined` by strict identity, so a stored
+  // null slips past and is carried into the BeanCover as `keyword: null` — a
+  // union member whose present key promises a `Text`. The consumers' own null
+  // guards mean nothing visibly breaks today, which is exactly why the
+  // invariant is worth pinning at the write end rather than trusted downstream.
   assert.equal("keyword" in (cleared ?? {}), false);
 });
 
