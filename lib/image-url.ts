@@ -1,31 +1,13 @@
 /**
- * Cloudinary delivers a resized derivative from a URL segment, so a thumbnail
- * needs no optimizer, no next/image, and no images.remotePatterns — just string
- * manipulation on a URL Cloudinary already serves.
+ * Insert a transformation segment into a Cloudinary delivery URL, or return the
+ * URL untouched.
  *
- * Why it matters here: a MediaImage's stored `url` is Cloudinary's secure_url,
- * the untouched original. The Directory paints it at 40px, an entity card at
- * 128px tall, and the admin's media picker at 80px square, so without this a
- * page of covers downloads several megabytes to fill a few thousand pixels —
- * the ratio components/media.tsx accepted for a full-size image on a bean page
- * does not survive being reused for a list of squares. Every caller asks for 2x
- * the box it paints into, so the derivative stays sharp on a retina display.
- *
- * components/media.tsx is deliberately NOT a consumer: it renders a sprout's
- * media at full size on the bean page, where the original is exactly what
- * should be delivered. This function exists for the three places that shrink an
- * image into a fixed box, not for the one place that shows the image itself.
- *
- * Anything that is not a Cloudinary delivery URL is returned UNCHANGED, byte
- * for byte. `lib/inbox.ts` deliberately does not host-check a stored media URL
- * (spec §3), so a hotlinked image from anywhere is a legitimate stored value,
- * and rewriting one blindly would produce a broken link rather than a smaller
- * image — the safe failure mode here is "no optimization", never "no image".
- *
- * Zero imports: `URL` is a Web/Node global, not a dependency, and nothing else
- * in this file reaches into the rest of the repo — string in, string out.
+ * Extracted when a second caller needed the same four guards with a different
+ * transform. The guards are the whole of the risk here — host, delivery marker,
+ * version segment, idempotency — so they are written once and both public
+ * functions below are one string each.
  */
-export function cloudinaryThumb(url: string, opts: { width: number; height: number }): string {
+function withTransform(url: string, transform: string): string {
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -72,10 +54,55 @@ export function cloudinaryThumb(url: string, opts: { width: number; height: numb
     return url;
   }
 
-  const { width, height } = opts;
-  const transform = `w_${width},h_${height},c_fill,q_auto,f_auto`;
   parsed.pathname = `${head}${transform}/${tail}`;
   return parsed.toString();
+}
+
+/**
+ * Cloudinary delivers a resized derivative from a URL segment, so a thumbnail
+ * needs no optimizer, no next/image, and no images.remotePatterns — just string
+ * manipulation on a URL Cloudinary already serves.
+ *
+ * Why it matters here: a MediaImage's stored `url` is Cloudinary's secure_url,
+ * the untouched original. The Directory paints it at 40px, an entity card at
+ * 128px tall, and the admin's media picker at 80px square, so without this a
+ * page of covers downloads several megabytes to fill a few thousand pixels —
+ * the ratio components/media.tsx accepted for a full-size image on a bean page
+ * does not survive being reused for a list of squares. Every caller asks for 2x
+ * the box it paints into, so the derivative stays sharp on a retina display.
+ *
+ * components/media.tsx is deliberately NOT a consumer: it renders a sprout's
+ * media at full size on the bean page, where the original is exactly what
+ * should be delivered. This function exists for the three places that shrink an
+ * image into a fixed box, not for the one place that shows the image itself.
+ *
+ * Anything that is not a Cloudinary delivery URL is returned UNCHANGED, byte
+ * for byte. `lib/inbox.ts` deliberately does not host-check a stored media URL
+ * (spec §3), so a hotlinked image from anywhere is a legitimate stored value,
+ * and rewriting one blindly would produce a broken link rather than a smaller
+ * image — the safe failure mode here is "no optimization", never "no image".
+ *
+ * Zero imports: `URL` is a Web/Node global, not a dependency, and nothing else
+ * in this file reaches into the rest of the repo — string in, string out.
+ */
+export function cloudinaryThumb(url: string, opts: { width: number; height: number }): string {
+  return withTransform(url, `w_${opts.width},h_${opts.height},c_fill,q_auto,f_auto`);
+}
+
+/**
+ * Shrink to a WIDTH, preserving the aspect ratio — `c_limit`, which also never
+ * enlarges an image that is already smaller.
+ *
+ * A separate export rather than an options union on `cloudinaryThumb`, because
+ * the two intents genuinely differ: that one crops an image INTO a box (a
+ * square avatar, a phone-shaped cover), and a caller who wants a box wants the
+ * crop. This one is for the screen library's contact sheet, where cropping is
+ * the one thing that must not happen — a 9:19.5 phone capture squeezed into a
+ * square by `c_fill` is a picture of somebody's middle third, and the entire
+ * point of a contact sheet is finding a screen by looking at it.
+ */
+export function cloudinaryFit(url: string, opts: { width: number }): string {
+  return withTransform(url, `w_${opts.width},c_limit,q_auto,f_auto`);
 }
 
 function isVersionSegment(segment: string): boolean {
