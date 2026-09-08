@@ -186,8 +186,8 @@ export function filterHref(
 
 - [ ] **Step 4: Run the tests**
 
-Run: `npm test 2>&1 | grep -E "admin-filters|^# (pass|fail)"`
-Expected: the seven tests pass; `# fail 0`.
+Run: `npm test 2>&1 | tail -8`
+Expected: the seven tests pass; `ℹ fail 0`.
 
 - [ ] **Step 5: Commit**
 
@@ -520,8 +520,8 @@ export function screensHref(slug: string | null, query: string, error?: string):
 
 - [ ] **Step 4: Run the tests**
 
-Run: `npm test 2>&1 | grep -E "screens|^# (pass|fail)"`
-Expected: every `screens.test.ts` test passes; `# fail 0`.
+Run: `npm test 2>&1 | tail -8`
+Expected: every `screens.test.ts` test passes; `ℹ fail 0`.
 
 - [ ] **Step 5: Commit**
 
@@ -730,8 +730,8 @@ export function buildScreenImagePatch(current: ImageOwner, form: FormData): Scre
 
 - [ ] **Step 4: Run the tests**
 
-Run: `npm test 2>&1 | grep -E "screen-image|^# (pass|fail)"`
-Expected: eight passes, `# fail 0`. (The "failed save" test prints one `[media]` warning — that is the diagnostic working.)
+Run: `npm test 2>&1 | tail -8`
+Expected: eight passes, `ℹ fail 0`. (The "failed save" test prints one `[media]` warning — that is the diagnostic working.)
 
 - [ ] **Step 5: Cross-reference the three siblings**
 
@@ -740,7 +740,7 @@ Add `lib/screen-image.ts (buildScreenImagePatch)` to the `siblings:` line in the
 - [ ] **Step 6: Run the full suite and commit**
 
 Run: `npm test 2>&1 | tail -5`
-Expected: `# fail 0`.
+Expected: `ℹ fail 0`.
 
 ```bash
 git add lib/screen-image.ts lib/screen-image.test.ts lib/media-edit.ts lib/plant-logo.ts lib/bean-cover-edit.ts
@@ -1073,8 +1073,8 @@ export function screenMetaUpdate(patch: ScreenMetaPatch): ScreenMetaUpdate {
 
 - [ ] **Step 4: Run the tests**
 
-Run: `npm test 2>&1 | grep -E "screen-edit|^# (pass|fail)"`
-Expected: all fifteen pass; `# fail 0`.
+Run: `npm test 2>&1 | tail -8`
+Expected: all fifteen pass; `ℹ fail 0`.
 
 - [ ] **Step 5: Commit**
 
@@ -1238,8 +1238,8 @@ export function buildNewScreenInput(form: FormData): NewScreenResult {
 
 - [ ] **Step 4: Run the tests**
 
-Run: `npm test 2>&1 | grep -E "screen-create|^# (pass|fail)"`
-Expected: six passes, `# fail 0`.
+Run: `npm test 2>&1 | tail -8`
+Expected: six passes, `ℹ fail 0`.
 
 - [ ] **Step 5: Commit**
 
@@ -1353,8 +1353,8 @@ export function cloudinaryFit(url: string, opts: { width: number }): string {
 
 - [ ] **Step 4: Run the tests**
 
-Run: `npm test 2>&1 | grep -E "cloudinary|^# (pass|fail)"`
-Expected: the new four pass and every existing `cloudinaryThumb` test still passes; `# fail 0`.
+Run: `npm test 2>&1 | tail -8`
+Expected: the new four pass and every existing `cloudinaryThumb` test still passes; `ℹ fail 0`.
 
 - [ ] **Step 5: Commit**
 
@@ -1482,7 +1482,7 @@ async function cleanupScreen(slug: string): Promise<void> {
 
 - [ ] **Step 2: Run it and watch it fail**
 
-Run: `npm run test:db 2>&1 | grep -E "screen|^# (pass|fail)"`
+Run: `npm run test:db 2>&1 | tail -8`
 Expected: FAIL — `updateScreenMeta is not exported`. (If `hasDb` is false the
 tests skip; ask the user for `.env.local` before continuing, since this task
 cannot be verified without it.)
@@ -1560,12 +1560,12 @@ export async function deleteScreen(slug: string): Promise<void> {
 - [ ] **Step 4: Run the DB tests**
 
 Run: `npm run test:db 2>&1 | tail -8`
-Expected: `# fail 0`, with the four new screen tests passing.
+Expected: `ℹ fail 0`, with the four new screen tests passing.
 
 - [ ] **Step 5: Run the unit suite and typecheck**
 
 Run: `npm test 2>&1 | tail -3 && npx tsc --noEmit`
-Expected: `# fail 0`, and no type errors.
+Expected: `ℹ fail 0`, and no type errors.
 
 - [ ] **Step 6: Commit**
 
@@ -1798,7 +1798,7 @@ import and add to `ICONS`:
 - [ ] **Step 5: Run the tests and typecheck**
 
 Run: `npm test 2>&1 | tail -3 && npx tsc --noEmit`
-Expected: `# fail 0`, no type errors. If any existing test asserts
+Expected: `ℹ fail 0`, no type errors. If any existing test asserts
 `NAV_ITEMS.length === 4` or counts palette sections, update it to 5 — the fifth
 section is the change, and a count assertion is what should notice it.
 
@@ -1892,7 +1892,7 @@ const groups: FilterGroup[] = (
 - [ ] **Step 4: Verify the vault still filters**
 
 Run: `npx tsc --noEmit && npm test 2>&1 | tail -3`
-Expected: no type errors, `# fail 0`.
+Expected: no type errors, `ℹ fail 0`.
 
 Run: `npm run dev` and open `http://localhost:3333/admin/vault`. Check that the
 three filter buttons open, that choosing a plant narrows the table, that the URL
@@ -2165,15 +2165,13 @@ export function ScreenNav({
         </Arrow>
       </div>
 
-      <Button
-        render={
-          <Link href={closeHref} aria-label="Close">
-            <X className="size-4" />
-          </Link>
-        }
-        size="icon"
-        variant="ghost"
-      />
+      {/* The house idiom for a button that is really a link: the CHILDREN stay
+          on the outer component and the `render` element is empty — see
+          components/ui/dialog.tsx's DialogPrimitive.Close. `Button` is Base
+          UI's, so `render` is the primitive's own prop. */}
+      <Button render={<Link href={closeHref} aria-label="Close" />} size="icon" variant="ghost">
+        <X className="size-4" />
+      </Button>
 
       <SheetKeys prev={prevHref} next={nextHref} close={closeHref} />
     </div>
@@ -2197,7 +2195,9 @@ function Arrow({
     );
   }
   return (
-    <Button render={<Link href={href} aria-label={label}>{children}</Link>} size="icon" variant="ghost" />
+    <Button render={<Link href={href} aria-label={label} />} size="icon" variant="ghost">
+      {children}
+    </Button>
   );
 }
 ```
@@ -3094,8 +3094,8 @@ test("the tiles are links, and the page is not a client component", () => {
 
 - [ ] **Step 2: Run it**
 
-Run: `npm test 2>&1 | grep -E "screen-sheet|^# (pass|fail)"`
-Expected: five passes, `# fail 0`.
+Run: `npm test 2>&1 | tail -8`
+Expected: five passes, `ℹ fail 0`.
 
 - [ ] **Step 3: Prove the test bites**
 
@@ -3162,7 +3162,7 @@ npm run build 2>&1 | tail -20
 npx eslint . 2>&1 | tail -20
 ```
 
-Expected: no type errors, `# fail 0` from both suites, a successful build with
+Expected: no type errors, `ℹ fail 0` from both suites, a successful build with
 `/admin/screens`, `/admin/screens/[slug]` and `/admin/screens/new` in the route
 list, and no new lint errors.
 
@@ -3219,5 +3219,18 @@ nothing to build, by definition.
    client-side modal.
 2. **The `:has(~…)` push** (Task 14, Step 3). Degrades to "the panel floats over
    the right of the grid". Not a blocker.
-3. **`Bean` may not exist in this `lucide-react`** (Task 10). If the import
-   fails, use `Bean` → `CircleDashed` and say so in the commit.
+3. ~~**`Bean` may not exist in this `lucide-react`**~~ — checked before
+   execution: `Images`, `Bean`, `ChevronLeft`, `ChevronRight` and `X` are all
+   exported by the installed `lucide-react`. Closed.
+
+**Corrections applied during execution:**
+
+- `npm test` prints `ℹ pass N` / `ℹ fail N`, not `# pass` / `# fail`. Every
+  verification step now says `| tail -8`; the original `grep` would have matched
+  nothing and read as a silent pass.
+- `Button` is Base UI's, so a link-shaped button puts its children on the
+  `Button` and leaves the `render` element empty (`components/ui/dialog.tsx`'s
+  `DialogPrimitive.Close` is the house example). Task 12's `ScreenNav` is
+  corrected.
+- `filterQuery` drops the literal value `"all"`, so no plant, bean or tag whose
+  slug is `all` can ever be filtered for. Not reachable today; worth knowing.
