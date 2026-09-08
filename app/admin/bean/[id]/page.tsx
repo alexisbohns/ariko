@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { resolveText } from "@/lib/data";
 import { getFullDataset } from "@/lib/store";
 import { beanDetail, type BeanDetailView } from "@/lib/bean-detail";
+import { beanCoverFor } from "@/lib/bean-cover";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,6 +50,20 @@ export default async function AdminBeanPage({ params }: { params: Promise<{ id: 
   if (!view) notFound();
 
   const { bean, plant, podParents, sprouts } = view;
+
+  /* The keyword is drawn ONLY on the phone treatment, and only an explicit
+     PORTRAIT cover reaches it. A landscape screenshot with a keyword typed
+     under it is a silent no-op, so the Keyword card says so rather than
+     letting the author guess.
+
+     Asked of beanCoverFor rather than re-derived here — portrait-ness is
+     lib/bean-cover.ts's rule and stays there. The empty sprouts array is safe
+     because an explicit cover short-circuits the derivation, and the
+     Boolean(bean.cover) guard is what makes that true: with no explicit cover
+     there is nothing to warn about and no hint. Not validation — a keyword on
+     a wordless cover still saves (lib/bean-keyword.ts throws nothing), and an
+     author may well set the word before the screenshot. */
+  const coverIsWordless = Boolean(bean.cover) && beanCoverFor(bean, [])?.kind !== "phone";
 
   return (
     <article>
@@ -109,8 +124,14 @@ export default async function AdminBeanPage({ params }: { params: Promise<{ id: 
               </CardContent>
             </Card>
             <Card>
-              <CardContent>
+              <CardContent className="flex flex-col gap-3">
                 <BeanKeywordForm bean={bean} />
+                {coverIsWordless ? (
+                  <p className="text-sm text-muted-foreground">
+                    This cover isn&apos;t phone-shaped, so the word won&apos;t be drawn — it
+                    shows only on a portrait cover. Saved either way.
+                  </p>
+                ) : null}
               </CardContent>
             </Card>
           </section>

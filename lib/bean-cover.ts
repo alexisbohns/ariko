@@ -21,6 +21,10 @@ import { coverFor } from "./cover";
  * carrying real text for the other's. This resolver is lang-agnostic by
  * design and cannot decide that — "wordless" is a state the consumer
  * completes after resolving the `Text`, not one this union guarantees.
+ *
+ * `beanCoverFor` below answers "what treatment". A surface that only wants to
+ * know WHICH IMAGE — no phone branch, a fixed frame — calls `fillCoverFor`
+ * instead, which honours the same `bean.cover` override and stops there.
  */
 export type BeanCover =
   | { kind: "phone"; image: MediaImage; keyword?: Text }
@@ -51,6 +55,35 @@ export function beanCoverFor(bean: Bean, sprouts: Sprout[]): BeanCover | null {
 
   const derived = coverFor(sprouts);
   return derived ? { kind: "fill", image: derived } : null;
+}
+
+/**
+ * Pure. WHICH IMAGE a bean's cover is — `bean.cover` when the author set one,
+ * `coverFor`'s derivation otherwise, and null when there is neither.
+ *
+ * The sibling of `beanCoverFor`, and the split between them is the whole point
+ * of having two: `beanCoverFor` answers "what TREATMENT", `fillCoverFor`
+ * answers "which IMAGE". Surfaces that draw a cover in a fixed frame and have
+ * no phone branch want only the second — the prose entity card
+ * (`components/entity-card.tsx`, via lib/entity-resolve.ts) and the public
+ * graph payload (lib/graph.ts).
+ *
+ * They have no use for the first because spec §8 already excused them from the
+ * phone: a phone cannot sit in the card's 720×128 letterbox, and a JSON node
+ * has no frame at all. But §8 excused them from the TREATMENT, never from the
+ * OVERRIDE. Calling `coverFor` directly there — which both did until this was
+ * written — makes `lib/data.ts`'s "explicit cover art, OVERRIDING the
+ * derivation" true on the landing page and false everywhere else: an authored
+ * bean shows its phone on the landing page while its card shows a different
+ * image, or, in the field's own motivating case (cover art that does not live
+ * inside a sprout's body), shows NOTHING.
+ *
+ * So this function must never grow a treatment. It returns a plain MediaImage
+ * even for a portrait cover — the shape of the image is `beanCoverFor`'s
+ * business, and a caller that wants to know is calling the wrong sibling.
+ */
+export function fillCoverFor(bean: Bean, sprouts: Sprout[]): MediaImage | null {
+  return bean.cover ?? coverFor(sprouts);
 }
 
 /**

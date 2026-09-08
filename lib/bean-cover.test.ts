@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Bean, MediaImage, Sprout } from "./data";
-import { beanCoverFor, podCoverFrom } from "./bean-cover";
+import { beanCoverFor, fillCoverFor, podCoverFrom } from "./bean-cover";
 
 const img = (key: string, size?: { width: number; height: number }): MediaImage => ({
   kind: "image",
@@ -97,6 +97,41 @@ test("nothing anywhere is null", () => {
   assert.equal(beanCoverFor(bean(), []), null);
   assert.equal(beanCoverFor(bean(), [sprout()]), null);
   assert.equal(beanCoverFor(bean({ keyword: "Timeline" }), []), null);
+});
+
+test("fillCoverFor: an explicit cover WINS over an available derivation", () => {
+  // The whole reason this export exists. The entity card and the graph called
+  // coverFor directly and never saw the field, so an authored bean drew one
+  // image on the landing page and a different one on its card.
+  const image = fillCoverFor(bean({ cover: landscape("chosen") }), [sprout([landscape("derived")])]);
+  assert.deepEqual(image, landscape("chosen"));
+});
+
+test("fillCoverFor: no explicit cover falls back to the derivation", () => {
+  const image = fillCoverFor(bean(), [sprout([landscape("derived")])]);
+  assert.deepEqual(image, landscape("derived"));
+});
+
+test("fillCoverFor: neither is null", () => {
+  assert.equal(fillCoverFor(bean(), []), null);
+  assert.equal(fillCoverFor(bean(), [sprout()]), null);
+});
+
+test("fillCoverFor: an explicit PORTRAIT cover comes back as a plain image", () => {
+  // The case that matters most. This is the sibling that must NOT grow a
+  // treatment: it answers "which image", never "what shape". A version that
+  // reached for beanCoverFor and unwrapped it would put the phone's decision
+  // where the callers have no frame to draw it in — the card's 720×128
+  // letterbox (spec §8) and a JSON node.
+  const image = fillCoverFor(bean({ cover: portrait("shot"), keyword: "Timeline" }), []);
+  assert.deepEqual(image, portrait("shot"));
+});
+
+test("fillCoverFor: an explicit cover with NO derivation available still shows", () => {
+  // The field's own motivating case: cover art that does not live inside a
+  // sprout's body. coverFor returns null here, so a reader that called it
+  // directly drew NOTHING while the landing page drew a phone.
+  assert.deepEqual(fillCoverFor(bean({ cover: portrait("shot") }), []), portrait("shot"));
 });
 
 test("a pod borrows the first cover it can find", () => {

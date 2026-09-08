@@ -543,6 +543,13 @@ export async function editBeanCoverAction(formData: FormData): Promise<void> {
   const raw = await loadRawGarden();
   const existing = raw.beans?.find((b) => b.slug === slug);
   if (!existing) redirect("/admin/vault");
+  // Projected beans are source-owned and read-only: the page hides both cards
+  // under the same condition, and lib/pollen-store.ts's deleteFeedData
+  // ($deleteMany on projected.feedId) would take an authored cover or keyword
+  // with the document on a full rebuild. The rendered gate is not a
+  // server-side guarantee — the same reason buildBeanCoverPatch checks
+  // `cover__ready` — so it is re-checked here.
+  if (existing.projected) redirect(`/admin/bean/${encodeURIComponent(slug)}`);
 
   const result = buildBeanCoverPatch(existing, formData);
   if (result.dirty) await updateBeanCover(slug, result.cover);
@@ -572,6 +579,13 @@ export async function editBeanKeywordAction(formData: FormData): Promise<void> {
   const raw = await loadRawGarden();
   const existing = raw.beans?.find((b) => b.slug === slug);
   if (!existing) redirect("/admin/vault");
+  // Projected beans are source-owned and read-only: the page hides both cards
+  // under the same condition, and lib/pollen-store.ts's deleteFeedData
+  // ($deleteMany on projected.feedId) would take an authored cover or keyword
+  // with the document on a full rebuild. The rendered gate is not a
+  // server-side guarantee — the same reason buildBeanCoverPatch checks
+  // `cover__ready` — so it is re-checked here.
+  if (existing.projected) redirect(`/admin/bean/${encodeURIComponent(slug)}`);
 
   await updateBeanKeyword(slug, buildBeanKeywordPatch(formData));
 

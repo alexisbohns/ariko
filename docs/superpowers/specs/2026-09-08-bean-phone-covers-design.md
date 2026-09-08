@@ -106,6 +106,36 @@ A pod showing a phone is right — it is the same artwork, and the pod really do
 contain that app. A pod wearing one of its beans' words is not: the word names
 the bean, and on a pod card it would name the wrong thing.
 
+### 2.2 The image alone — `fillCoverFor`
+
+A second, smaller export in the same file, for the surfaces that draw a cover in
+a fixed frame and have no phone branch:
+
+```ts
+export function fillCoverFor(bean: Bean, sprouts: Sprout[]): MediaImage | null;
+```
+
+`bean.cover ?? coverFor(sprouts)`, and nothing else. `beanCoverFor` answers
+"what TREATMENT"; `fillCoverFor` answers "which IMAGE". Two callers want only
+the second — the prose entity card (via `lib/entity-resolve.ts`) and the public
+graph payload (`lib/graph.ts`) — and §8 says why they have no use for the first.
+
+It must never grow a branch on the image's shape. A caller that wants to know
+whether the cover is a phone is calling the wrong sibling, and a test pins that
+a portrait cover comes back here as a plain `MediaImage`.
+
+Without it, `lib/data.ts`'s "explicit cover art, OVERRIDING the derivation" is a
+claim honoured by ONE reader out of three: an authored bean shows its phone on
+the landing page while its entity card shows a different image, or — in the
+field's own motivating case, cover art that does not live inside a sprout's
+body — shows nothing at all.
+
+`lib/cover.ts` is still the derivation and its behaviour is unchanged. What
+changes there is its doc header, which opened "a bean's cover is DERIVED — no
+field, no authoring step, no migration". True when it was written; false the
+moment `bean.cover` existed, and read by both of the surfaces that were getting
+it wrong.
+
 ## 3. The cover, drawn — `components/bean-cover.tsx`
 
 A server component. No `"use client"`, no `lucide-react`, and **added to
@@ -340,7 +370,11 @@ One cover is not worth an excavation.
 
 ## 7. Tests
 
-- **`lib/bean-cover.test.ts`** — the resolver, exhaustively: explicit portrait
+- **`lib/bean-cover.test.ts`** — `fillCoverFor` (§2.2): the explicit cover wins
+  over an available derivation, falls back to it when absent, is null when
+  there is neither, and — the case that keeps the split honest — an explicit
+  PORTRAIT cover comes back as a plain `MediaImage` rather than anything
+  phone-shaped. Plus the resolver, exhaustively: explicit portrait
   cover → `phone` with the keyword; explicit landscape and square → `fill`;
   explicit cover with **no stored dimensions** → `fill`; no explicit cover →
   `coverFor`'s answer as `fill`, *even when that image is portrait*; nothing →
@@ -363,9 +397,18 @@ test.
 
 ## 8. Out of scope
 
-- **The prose entity card** (`components/entity-card.tsx`) keeps its 720×128
-  letterbox and its plain cover. A phone cannot sit in that shape, and
-  redesigning it is a different slice with a different argument.
+- **The phone treatment on the prose entity card**
+  (`components/entity-card.tsx`), which keeps its 720×128 letterbox. A phone
+  cannot sit in that shape, and redesigning it is a different slice with a
+  different argument. The public graph payload (`lib/graph.ts`) is the same
+  case for the same reason: no frame, so no treatment.
+
+  What both are excused from is the TREATMENT, never the OVERRIDE — a
+  distinction the first cut of this line blurred by saying the card keeps "its
+  plain cover". More precisely: the card keeps **the same image the landing
+  page draws, in its existing letterbox**. Both resolve through `fillCoverFor`
+  (§2.2), so an authored `cover` wins there exactly as it does on the landing
+  page, minus the bezel and the word.
 - **A composed cover preview in the admin.** The Cover card shows the media
   picker's own thumbnail. Drawing the real cover there would mean the admin and
   the public site drawing the same thing — which CLAUDE.md would then require

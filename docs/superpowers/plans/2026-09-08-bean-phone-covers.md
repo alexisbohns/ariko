@@ -1679,6 +1679,90 @@ Nothing to commit — this task writes to the database and to Cloudinary, not to
 
 ---
 
+## Post-review: the five findings
+
+A whole-branch review after Task 11 found the branch coherent and ready, with
+five items. All five were implemented; nothing was disputed.
+
+- [x] **Finding 1 — the override was honoured by one reader out of three.**
+  `lib/data.ts` declares `cover` as an override "OVERRIDING the derivation in
+  lib/cover.ts", but only `app/(public)/page.tsx` went through
+  `beanCoverFor`. `lib/entity-resolve.ts` (feeding `components/entity-card.tsx`
+  on public plant/pod/bean pages *and* in the admin sprout editor) and
+  `lib/graph.ts` (feeding `/api/graph`) still called `coverFor` directly, so an
+  authored bean drew a phone on the landing page and a different image — or, when
+  the cover art lived nowhere inside a sprout, **nothing** — on its own card.
+  Live, since the eight Paulopus beans are authored.
+
+  Fixed with a sibling export in `lib/bean-cover.ts`:
+
+  ```ts
+  export function fillCoverFor(bean: Bean, sprouts: Sprout[]): MediaImage | null {
+    return bean.cover ?? coverFor(sprouts);
+  }
+  ```
+
+  The image only, no treatment. `beanCoverFor` answers "what treatment",
+  `fillCoverFor` answers "which image"; the card and the graph want only the
+  second, and §8's letterbox is why they have no use for the first. Each
+  docblock cross-references the other. Both call sites now point at it —
+  `graph.ts`'s `beanCover` helper takes a `Bean` instead of a slug so it has
+  the field to read.
+
+  Spec §2.2 is new and documents it; §8's first bullet was rewritten, because
+  "the card keeps its plain cover" is now more precisely "the same image, in
+  its existing letterbox".
+
+  Four tests in `lib/bean-cover.test.ts`, the last of them the one that matters:
+  an explicit **portrait** cover comes back as a plain `MediaImage`, since this
+  is the function that must NOT grow a treatment.
+
+- [x] **Finding 2 — three doc comments the branch falsified.** `lib/cover.ts`'s
+  header still opened "A bean's cover is DERIVED — no field, no authoring step,
+  no migration", which is the file both stale readers imported. Rewritten to
+  describe what it still does (the derivation, behaviour unchanged) while saying
+  plainly that an explicit `bean.cover` takes precedence and that
+  `lib/bean-cover.ts` is where that precedence is applied. Same correction to
+  `ResolvedEntity.cover` ("Beans only, and derived") and `GraphNode.cover`
+  ("Beans only, derived (lib/cover.ts)").
+
+- [x] **Finding 3 — CLAUDE.md's picker-only forms are enumerated by name.** The
+  media-picker paragraph named two (the sprout media card, the plant Logo card);
+  this branch adds a third. Added the bean Cover card with `buildBeanCoverPatch`
+  and `max={1}`, plus the non-obvious half — **why the keyword needed its own
+  form**: one form holding the picker and a text input renders no button
+  script-off but does render the input, and a lone text input in a button-less
+  form submits on Enter, posting a payload with no `cover__ready` and silently
+  losing the keyword. No seventh client-JS exception was added, and the
+  paragraph now says so: `components/bean-cover.tsx` is server-safe and pinned,
+  the motion is CSS, and `app/(public)` still has exactly one island.
+
+- [x] **Finding 4 — the projected gate was page-only.** `app/admin/bean/[id]`
+  hides both cards on a projected bean, but neither `editBeanCoverAction` nor
+  `editBeanKeywordAction` re-checked `existing.projected` though both already
+  load the document. One line each, redirecting back to the bean, with a comment
+  pointing at the page-level gate and `deleteFeedData`'s `deleteMany`. This repo
+  practises defence in depth exactly here — the `__ready` guard exists because
+  "the button isn't rendered" is not a server-side guarantee.
+
+- [x] **Finding 5 — a keyword on a non-phone cover was stored and never drawn.**
+  The Keyword form renders unconditionally, but the word only appears on the
+  portrait branch, so an author uploading a landscape screenshot and typing
+  "Timeline" got a silent no-op. The page has `bean.cover` in hand: one muted
+  line under the Keyword form, shown only when a cover exists and is not
+  portrait. Asked of `beanCoverFor(bean, [])` rather than re-deriving
+  portrait-ness — that rule stays in `lib/bean-cover.ts`. **No validation and no
+  block on the save**: `lib/bean-keyword.ts`'s "nothing here throws" stance is
+  deliberate, and an author may well set the word before the screenshot.
+
+**Verification.** `npx tsc --noEmit` clean; `npm test` 969 tests, 0 failures
+(the five findings added five, and no existing test changed); `npm run build`
+succeeds. The `fillCoverFor` mutation — dropping `bean.cover ??` — fails three
+of the four new tests, including *"fillCoverFor: an explicit cover WINS over an
+available derivation"*.
+
+---
+
 ## The PR
 
 A visitor-facing change, so the PR body **MUST** carry a Lab Note (CLAUDE.md, *Lab Note requirement*). This repo's pod slug is `ariko`.
