@@ -30,6 +30,8 @@ function source(path: string): string {
 const SHEET_SLOT_DIR = "app/admin/@sheet";
 const SLOT = "app/admin/@sheet/(.)screens/[slug]/page.tsx";
 const NEW_SLOT = "app/admin/@sheet/(.)screens/new/page.tsx";
+/** The slot's route AT the library — what closes the panel. See its own test. */
+const CLEAR_SLOT = "app/admin/@sheet/screens/page.tsx";
 const INDEX = "app/admin/screens/page.tsx";
 
 /**
@@ -93,18 +95,45 @@ test("no slot file rebuilds a form of its own", () => {
       `${path} composes the editors instead of importing the page`,
     );
 
-    // And the positive half: a page in the slot must RENDER A PAGE. Without
-    // this, a slot file that imports nothing at all — an empty shell, a
-    // "temporary" placeholder — passes every negative check above while the
-    // panel shows nothing the route would have shown.
+    // And the positive half. A page in the slot is one of exactly TWO things,
+    // and the test has to admit both or it forbids the file that makes the
+    // panel close: a WRAPPER around a page's own module, or a deliberate
+    // NOTHING (`@sheet/screens/page.tsx`, which is what the router renders at
+    // the library instead of retaining the open panel).
+    //
+    // What neither of those is, and what this still catches, is the shape in
+    // between: a slot page that imports no page module and yet renders a panel
+    // — an empty shell or a "temporary" placeholder, which passes every
+    // negative check above while showing nothing the route would have shown.
     if (path.endsWith("/page.tsx")) {
-      assert.match(
-        text,
-        /from "@\/app\/admin\/screens\//,
-        `${path} does not render a page's own module`,
+      const wrapsAPage = /from "@\/app\/admin\/screens\//.test(text);
+      const rendersNothing = /return null;/.test(text) && !text.includes("<SideSheet");
+      assert.ok(
+        wrapsAPage || rendersNothing,
+        `${path} neither renders a page's own module nor deliberately renders nothing`,
       );
     }
   }
+});
+
+/**
+ * The file that makes the panel close, pinned because nothing about it looks
+ * load-bearing.
+ *
+ * A page component returning `null` reads as dead code, and the obvious tidy —
+ * "`default.tsx` already returns null, this is redundant" — silently restores
+ * the bug: on a SOFT navigation Next keeps a slot's previously active state and
+ * only falls back to `default.tsx` when it cannot resolve the slot at all. With
+ * no route matching `/admin/screens` in this slot, pressing Close changed the
+ * URL and left the sheet sitting open over the grid.
+ *
+ * There is no unit test that can catch that — it is router behaviour in a
+ * browser — so the existence of the file is the thing to hold.
+ */
+test("the slot has a route at the library itself, or the panel never closes", () => {
+  const text = source(CLEAR_SLOT);
+  assert.match(text, /return null;/, `${CLEAR_SLOT} must render nothing`);
+  assert.equal(text.includes("<SideSheet"), false, `${CLEAR_SLOT} must not render a panel`);
 });
 
 test("the library's tiles navigate by href, not by a click handler", () => {

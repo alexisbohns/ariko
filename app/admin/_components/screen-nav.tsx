@@ -45,8 +45,21 @@ export function ScreenNav({
       {/* The house idiom for a button that is really a link: the CHILDREN stay
           on the outer component and the `render` element is empty — see
           components/ui/dialog.tsx's DialogPrimitive.Close. `Button` is Base
-          UI's, so `render` is the primitive's own prop. */}
-      <Button render={<Link href={closeHref} aria-label="Close" />} size="icon" variant="ghost">
+          UI's, so `render` is the primitive's own prop.
+
+          `nativeButton={false}` is REQUIRED, not decoration. Base UI's Button
+          defaults it to true and asserts at runtime that the rendered element
+          really is a <button>; handed an <a> it logs "a component that acts as
+          a button expected a native <button>" on every render. The prop is how
+          you say "this one is a link", and it is what stops the primitive
+          applying button-only semantics an anchor must not carry. Every
+          `render={<Link/>}` in this file needs it. */}
+      <Button
+        render={<Link href={closeHref} aria-label="Close" />}
+        nativeButton={false}
+        size="icon"
+        variant="ghost"
+      >
         <X className="size-4" />
       </Button>
 
@@ -71,8 +84,15 @@ function Arrow({
       </span>
     );
   }
+  // nativeButton={false} for the reason the close button above records: this
+  // renders an <a>, and Base UI asserts otherwise by default.
   return (
-    <Button render={<Link href={href} aria-label={label} />} size="icon" variant="ghost">
+    <Button
+      render={<Link href={href} aria-label={label} />}
+      nativeButton={false}
+      size="icon"
+      variant="ghost"
+    >
       {children}
     </Button>
   );
