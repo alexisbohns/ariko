@@ -192,12 +192,14 @@ export async function createScreen(input: NewScreen): Promise<Screen> {
 }
 
 /**
- * One plant's screens — the read both admin exhibition surfaces work from.
+ * One plant's screens — the read the exhibition actions work from.
  *
- * A real query on `parents` rather than `loadRawGarden()`, because the two
- * callers want screens and nothing else: the plant page already has the garden
- * it needs, and the library's actions would otherwise load five collections to
- * reorder one strip.
+ * A real query on `parents` rather than `loadRawGarden()`, because the actions
+ * want screens and nothing else and would otherwise load five collections to
+ * reorder one strip. The plant PAGE does not call this: it already has the
+ * garden loaded and reads the same narrowing off `buildDataset`'s
+ * `exhibitionForPlant` instead, so this function has exactly one caller now —
+ * `applyExhibition` in `app/admin/actions.ts`.
  *
  * It replaces `listScreens`, whose docblock said to delete it if the gallery
  * slice landed on a different read. It did.

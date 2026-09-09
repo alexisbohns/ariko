@@ -34,9 +34,15 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
  *
  * What that costs without script is ORDERING, and only ordering: membership
  * lives on the screen's own page in the library (screen-exhibit-form.tsx), so
- * adding and withdrawing both survive, and a strip whose sequence was never set
- * still renders in exhibitionOrder's fallback. That split is the whole reason
- * this is an amendment to a neighbour rather than a seventh exception.
+ * adding and withdrawing both survive script-off, and every survivor renders —
+ * in the order the author added it. `exhibitionWrites` maps a newly-added slug
+ * to `undefined`, which never equals a stored index, so `add` is always
+ * promoted with a concrete `order` (the append position): `exhibitionOrder`'s
+ * missing-key fallback is not a state a script-off strip ever actually
+ * reaches, so the strip is never merely tolerable, it is correctly ordered by
+ * construction. Only RE-SEQUENCING — moving a screen once more than one is
+ * exhibited — needs this panel. That split is the whole reason this is an
+ * amendment to a neighbour rather than a seventh exception.
  */
 
 /**
@@ -65,14 +71,14 @@ export interface InsideItem {
 export function PlantInside({
   items,
   exhibition,
-  exhibitionCount,
   children,
 }: {
   items: InsideItem[];
-  /** The Exhibition panel's contents, server-rendered by the page. Absent for
-   *  a plant with no screens at all — the rail then shows one icon, not two. */
-  exhibition?: ReactNode;
-  exhibitionCount: number;
+  /** The Exhibition panel — its count for the trigger's label and its
+   *  server-rendered contents for the popover, ONE prop rather than two so a
+   *  count and a panel that disagree is unrepresentable. Absent for a plant
+   *  with no screens at all — the rail then shows one icon, not two. */
+  exhibition?: { count: number; panel: ReactNode };
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -145,7 +151,7 @@ export function PlantInside({
         {exhibition ? (
           <Popover open={showing} onOpenChange={setShowing}>
             <ChromeItem
-              label={`Exhibition${exhibitionCount > 0 ? ` (${exhibitionCount})` : ""}`}
+              label={`Exhibition${exhibition.count > 0 ? ` (${exhibition.count})` : ""}`}
             >
               <PopoverTrigger
                 render={
@@ -172,7 +178,7 @@ export function PlantInside({
               <p className="mb-2 font-heading text-xs uppercase tracking-[0.15em] text-muted-foreground">
                 Exhibition
               </p>
-              {exhibition}
+              {exhibition.panel}
             </PopoverContent>
           </Popover>
         ) : null}

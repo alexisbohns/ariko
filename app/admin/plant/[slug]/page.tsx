@@ -6,7 +6,6 @@ import { editContainerContentAction } from "../../actions";
 import { PlantHero } from "../../_components/plant-hero";
 import { PlantInside, type InsideItem } from "../../_components/plant-inside";
 import { ExhibitionPanel, type ExhibitionPanelRow } from "../../_components/exhibition-panel";
-import { exhibitionOf } from "@/lib/exhibition";
 import { PlantMetaForm } from "../../_components/plant-meta-form";
 import { PlantRoleForm } from "../../_components/plant-role-form";
 import { PlantLogoForm } from "../../_components/plant-logo-form";
@@ -60,11 +59,15 @@ export default async function AdminPlantPage({
 
   // The plant's screens, from the garden already loaded. Every screen it has —
   // the panel needs the count to decide whether the rail shows a second icon at
-  // all, and the exhibited ones to list.
+  // all — and the exhibited ones, in strip order, from `dataset` rather than a
+  // second `exhibitionOf` narrowing: `buildDataset` already builds this exact
+  // index (`exhibitionForPlant`), filtered by `exhibited === true` and sorted
+  // by `exhibitionOrder`, and its one extra guard — the plant must resolve —
+  // is already true here, since `notFound()` above already required it.
   const plantScreens = (raw.screens ?? []).filter((s) =>
     parentsWithPrefix(s.parents, PLANT_PREFIX).includes(slug),
   );
-  const exhibitionRows: ExhibitionPanelRow[] = exhibitionOf(plantScreens).map((s) => ({
+  const exhibitionRows: ExhibitionPanelRow[] = dataset.exhibitionForPlant(slug).map((s) => ({
     slug: s.slug,
     name: resolveText(s.name),
     url: s.image.url,
@@ -84,14 +87,17 @@ export default async function AdminPlantPage({
     // read as a glitch rather than as a nudge.
     <PlantInside
       items={inside}
-      exhibitionCount={exhibitionRows.length}
-      // Handed down server-rendered, so the island never composes a payload.
-      // Absent when the plant has no screens at all: a rail icon opening onto
-      // "nothing to see" is a control that only ever says no.
+      // One prop carrying both the trigger's count and the popover's
+      // server-rendered contents, so the two cannot disagree. Absent when the
+      // plant has no screens at all: a rail icon opening onto "nothing to
+      // see" is a control that only ever says no.
       exhibition={
-        plantScreens.length > 0 ? (
-          <ExhibitionPanel plantSlug={slug} rows={exhibitionRows} />
-        ) : undefined
+        plantScreens.length > 0
+          ? {
+              count: exhibitionRows.length,
+              panel: <ExhibitionPanel plantSlug={slug} rows={exhibitionRows} />,
+            }
+          : undefined
       }
     >
       <article className="flex flex-col gap-10">
