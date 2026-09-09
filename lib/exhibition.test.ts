@@ -138,21 +138,24 @@ test("applyExhibitionOp never mutates the list it was given", () => {
 test("a swap promotes exactly the two screens that moved", () => {
   const before = [{ slug: "a", order: 0 }, { slug: "b", order: 1 }, { slug: "c", order: 2 }];
   const writes = exhibitionWrites(before, ["b", "a", "c"]);
-  assert.deepEqual(writes.promote, [{ slug: "b", order: 0 }, { slug: "a", order: 1 }]);
+  assert.deepEqual(writes.promote, [
+    { slug: "b", order: 0, joining: false },
+    { slug: "a", order: 1, joining: false },
+  ]);
   assert.deepEqual(writes.withdraw, []);
 });
 
 test("an added screen is promoted and nothing else is", () => {
   const before = [{ slug: "a", order: 0 }];
   const writes = exhibitionWrites(before, ["a", "b"]);
-  assert.deepEqual(writes.promote, [{ slug: "b", order: 1 }]);
+  assert.deepEqual(writes.promote, [{ slug: "b", order: 1, joining: true }]);
   assert.deepEqual(writes.withdraw, []);
 });
 
 test("a removed screen is withdrawn and everything after it renumbers", () => {
   const before = [{ slug: "a", order: 0 }, { slug: "b", order: 1 }, { slug: "c", order: 2 }];
   const writes = exhibitionWrites(before, ["a", "c"]);
-  assert.deepEqual(writes.promote, [{ slug: "c", order: 1 }]);
+  assert.deepEqual(writes.promote, [{ slug: "c", order: 1, joining: false }]);
   assert.deepEqual(writes.withdraw, ["b"]);
 });
 
@@ -162,7 +165,23 @@ test("an exhibited screen with NO stored order is promoted even where it sits", 
   // often the author moves it.
   const before = [{ slug: "a", order: 0 }, { slug: "b" }];
   const writes = exhibitionWrites(before, ["a", "b"]);
-  assert.deepEqual(writes.promote, [{ slug: "b", order: 1 }]);
+  // `b` was already present in `before` (its order was merely `undefined`), so
+  // this is a renumber, not a join.
+  assert.deepEqual(writes.promote, [{ slug: "b", order: 1, joining: false }]);
+});
+
+test("promote's `joining` flag tells apart a screen entering the strip from one only moving within it", () => {
+  // The race writeExhibition's caller closes with this flag: a joining row has
+  // no exhibited state yet, so it is safe to write unconditionally; a
+  // renumbering row does, and must only be written where that state still
+  // holds, or a stale read could resurrect a screen withdrawn elsewhere.
+  const before = [{ slug: "a", order: 0 }, { slug: "b", order: 1 }];
+  const writes = exhibitionWrites(before, ["b", "a", "c"]);
+  assert.deepEqual(writes.promote, [
+    { slug: "b", order: 0, joining: false },
+    { slug: "a", order: 1, joining: false },
+    { slug: "c", order: 2, joining: true },
+  ]);
 });
 
 test("an unchanged strip writes nothing at all", () => {

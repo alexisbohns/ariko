@@ -262,6 +262,22 @@ export async function listScreensForPlant(plantSlug: string): Promise<Screen[]> 
  * a conclusion rather than an oversight, which is the stance
  * buildScreenMetaPatch takes about unvalidated refs.
  *
+ * A JOINING row's filter is bare `{ slug }`, but a RENUMBERING row's filter is
+ * `{ slug, exhibited: true }`, and that qualifier closes a real race rather
+ * than decorating one. `after` in `exhibitionWrites` is computed from whatever
+ * strip its caller last read, and two admin tabs open on the same plant can
+ * have read two different strips: withdraw a screen in tab B, then press ↑ on
+ * its neighbour in tab A — tab A's stale list still contains the withdrawn
+ * slug, so `exhibitionWrites` reports it as a renumbering row (`joining:
+ * false`) at its new index. A bare `{ slug }` filter would match that document
+ * regardless of tab B's write and set `exhibited: true, visibility: "public"`
+ * right back over it, silently resurrecting a screen the author deliberately
+ * took down. The `exhibited: true` qualifier makes that update match nothing
+ * once tab B's withdrawal has landed, so the stale renumber is a no-op on that
+ * row instead of an undo of someone else's decision. A joining row carries no
+ * such risk — it is not yet exhibited, so there is no state for a stale read
+ * to have gotten wrong — and needs no filter beyond identity.
+ *
  * Empty lists write nothing, which is what makes lib/exhibition.ts's `null`
  * no-op cheap all the way down.
  */
@@ -269,8 +285,11 @@ export async function writeExhibition(writes: ExhibitionWrites): Promise<void> {
   const db = await getDb();
   const screens = db.collection<Screen>("screens");
 
-  for (const { slug, order } of writes.promote) {
-    await screens.updateOne({ slug }, { $set: { exhibited: true, visibility: "public", order } });
+  for (const { slug, order, joining } of writes.promote) {
+    await screens.updateOne(
+      joining ? { slug } : { slug, exhibited: true },
+      { $set: { exhibited: true, visibility: "public", order } },
+    );
   }
 
   if (writes.withdraw.length > 0) {

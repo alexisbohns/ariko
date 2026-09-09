@@ -115,8 +115,9 @@ export function applyExhibitionOp(
 
 export interface ExhibitionWrites {
   /** Screens to exhibit at a position — see lib/botanical.ts for the lockstep
-   *  this half performs on `visibility`. */
-  promote: { slug: string; order: number }[];
+   *  this half performs on `visibility`, and for what `joining` tells that
+   *  lockstep to do differently for a joining row versus a renumbering one. */
+  promote: { slug: string; order: number; joining: boolean }[];
   /** Screens leaving the strip — and leaving costs `visibility` too, not just
    *  the two gallery fields. See `writeExhibition`. */
   withdraw: string[];
@@ -144,6 +145,19 @@ export interface ExhibitionWrites {
  * It is also what makes `promote` the carrier of `exhibited: true` rather than
  * of `order` alone: a screen absent from this list maps to `undefined`, which
  * differs from every index, so an addition is always written.
+ *
+ * Each surviving promote row also carries `joining`: true when the slug was
+ * ABSENT from `exhibited` (`stored.has(slug)` is false — the row is not yet on
+ * the strip), false when it was already there and only its position moved.
+ * That flag is not decoration: two admin tabs open on the same plant can
+ * disagree about which screens are currently exhibited, and `after` here was
+ * computed from whichever one is stale. A pure renumber must not be able to
+ * resurrect a screen the OTHER tab withdrew in the meantime — so
+ * `writeExhibition` in lib/botanical.ts uses `joining` to write a joining row
+ * unconditionally (it has no exhibited state to protect) and a renumbering
+ * row only where the document is STILL exhibited, so a stale swap that only
+ * meant to move a neighbour cannot republish a screen someone else just took
+ * down.
  */
 export function exhibitionWrites(
   exhibited: ExhibitionEntry[],
@@ -154,7 +168,7 @@ export function exhibitionWrites(
 
   return {
     promote: after
-      .map((slug, order) => ({ slug, order }))
+      .map((slug, order) => ({ slug, order, joining: !stored.has(slug) }))
       .filter(({ slug, order }) => stored.get(slug) !== order),
     withdraw: exhibited.map((entry) => entry.slug).filter((slug) => !kept.has(slug)),
   };
