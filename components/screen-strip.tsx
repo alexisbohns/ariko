@@ -24,19 +24,23 @@ import { PhoneFrame } from "@/components/phone-frame";
  * one that supplies the only route to the image is a seventh exception of a
  * much more expensive kind.
  *
- * The window is `aspect-[3/4]` with `overflow-hidden` and the phone is pinned
- * to its top, so the phone runs off the bottom edge — the landing row's
- * treatment, and what makes the strip read as a rank of phones rather than a
- * row of cropped pictures.
+ * NOTHING IS CROPPED. Every phone shows the shot as it was taken, at its own
+ * ratio — `PhoneFrame` without a `height`, which asks Cloudinary for `c_limit`
+ * and closes the bezel on all four sides. The 3:4 window this strip used to
+ * pin its phones into was one ratio imposed on captures from several devices,
+ * so a taller screen lost its bottom third permanently; a rank of whole phones
+ * of differing heights is the honest picture of an exhibition whose screens
+ * differ. The anchor to the full image stays, for the reason above.
  *
- * At a 208px row (`min(52vw,13rem)` maxed out) that window shows about 63% of
- * the phone, so roughly 37% of every screen is permanently hidden at rest —
- * and unlike the landing cover, nothing here has a hover state that reveals
- * more. That is the intended treatment, not an oversight, because the anchor
- * around each phone goes to the FULL image: the hidden part is one click
- * away with no script at all, which is the same fact that makes a future
- * lightbox an enhancement to that route rather than the only way to see the
- * rest of the screen.
+ * FULL-BLEED, the landing row's rule (app/(public)/page.tsx): a horizontal
+ * scroller must not be clipped at the text margin, which reads as a broken
+ * layout rather than as a gallery. The plant page renders inside
+ * READING_COLUMN, so the track breaks OUT of it — `w-screen` at
+ * `left-1/2 -translate-x-1/2` — and the column's own 24px gutter is re-applied
+ * as padding on the track's content, keeping the first phone flush with the
+ * prose above it while the rest of the row runs to the edge and past it.
+ * `overscroll-x-none` keeps a flick at the end of the row from reaching the
+ * document (and the browser's back gesture).
  */
 export function ScreenStrip({
   rows,
@@ -58,21 +62,23 @@ export function ScreenStrip({
       role="group"
       tabIndex={0}
       aria-label={`Screens from ${plantName}, ${rows.length}`}
-      // -mx-1/px-1 so a focus ring on the strip is not clipped by its own
-      // overflow; pb-2 leaves room for the scrollbar rather than over the
-      // legends. Gallery's arrangement, for Gallery's reasons.
-      className="not-prose -mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-2"
+      // pb-2 leaves room for the scrollbar rather than over the legends. The
+      // focus ring rides on the track itself (which is not clipped by anything)
+      // rather than on its content, so the -mx-1/px-1 Gallery needs is not
+      // needed here.
+      className="no-scrollbar not-prose relative left-1/2 w-screen -translate-x-1/2 overflow-x-auto overscroll-x-none pb-2 outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
     >
-      {rows.map((row) => (
-        <figure key={row.slug} className="flex w-[min(52vw,13rem)] shrink-0 snap-start flex-col gap-3">
-          <a
-            // The FULL image, not a derivative. See the docblock.
-            href={row.image.url}
-            className="block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      <div className="flex w-max snap-x snap-mandatory items-start gap-4 px-6">
+        {rows.map((row) => (
+          <figure
+            key={row.slug}
+            className="flex w-[min(52vw,13rem)] shrink-0 snap-start flex-col gap-3"
           >
-            {/* The window. `relative` establishes the positioning context the
-                phone is pinned into, and `overflow-hidden` is what crops it. */}
-            <div className="relative aspect-[3/4] overflow-hidden rounded-xl">
+            <a
+              // The FULL image, not a derivative. See the docblock.
+              href={row.image.url}
+              className="block rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
               <PhoneFrame
                 image={row.image}
                 // The image's own stored alt text, not "" — here the screen
@@ -81,27 +87,24 @@ export function ScreenStrip({
                 // a description (and most screens don't even have one — see
                 // below), so it never makes this alt text redundant.
                 alt={row.image.alt ?? ""}
-                // 2x the ~200px of screen this paints, at a 9:19.5 phone's
-                // ratio, and the FULL height rather than the ~75% the window
-                // shows: the strip is one place a visitor may zoom, and a
-                // derivative sized to the visible part would blur there.
+                // 2x the ~200px of screen this paints. NO height: the shot
+                // keeps its own ratio (see the docblock), and `c_limit` never
+                // enlarges a capture narrower than this.
                 width={400}
-                height={868}
-                className="absolute inset-x-0 top-0"
               />
-            </div>
-          </a>
+            </a>
 
-          {/* ALWAYS VISIBLE, never a hover state: a caption the visitor has to
+            {/* ALWAYS VISIBLE, never a hover state: a caption the visitor has to
               discover is a caption most visitors never read. The name is the
               fallback, because every screen has one and a legend is optional
               (lib/data.ts: "a hundred and seventy captions nobody asked for
               would be worse than none"). */}
-          <figcaption className="text-xs leading-relaxed text-muted-foreground">
-            {row.legend || row.name}
-          </figcaption>
-        </figure>
-      ))}
+            <figcaption className="font-heading text-xs leading-relaxed text-muted-foreground">
+              {row.legend || row.name}
+            </figcaption>
+          </figure>
+        ))}
+      </div>
     </div>
   );
 }

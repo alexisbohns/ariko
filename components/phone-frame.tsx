@@ -1,5 +1,5 @@
 import type { MediaImage } from "@/lib/data";
-import { cloudinaryThumb } from "@/lib/image-url";
+import { cloudinaryFit, cloudinaryThumb } from "@/lib/image-url";
 
 /**
  * A phone, drawn around a portrait screenshot.
@@ -41,14 +41,31 @@ import { cloudinaryThumb } from "@/lib/image-url";
  *    is what makes the next caller state its own answer instead of inheriting
  *    one that only happened to be right for the first.
  *
- * `pb-0` is what makes the phone bottomless: it has a bezel on three sides and
- * runs off the bottom of whatever frames it, which is what lets both callers
- * read as a window onto something taller rather than as a cropped picture.
+ * `height` IS THE SWITCH between the phone's two shapes, and the two halves of
+ * it always travel together:
  *
- * `width`/`height` are the DERIVATIVE's, not the box's — every caller asks
- * Cloudinary for roughly twice the pixels it paints, so the screen stays sharp
- * on a retina display, and asks for the FULL height rather than the visible
- * part, because both callers reveal more of the image than they show at rest.
+ *  - **Given** — the caller frames the phone in a box of its own and wants it
+ *    cropped INTO that box (`c_fill`). The phone is then BOTTOMLESS: `pb-0`
+ *    gives it a bezel on three sides so it runs off the bottom of whatever
+ *    frames it, reading as a window onto something taller rather than as a
+ *    cropped picture. `bean-cover.tsx`'s case.
+ *  - **Omitted** — the caller wants the SCREEN AS SHOT, whatever its ratio
+ *    (`c_limit`, which also never enlarges). Cropping is then the one thing
+ *    that must not happen, so there is no box to run off: the bezel closes on
+ *    all four sides and the phone is as tall as the image is. `screen-strip.tsx`'s
+ *    case — a rank of phones whose screens are different devices' captures, and
+ *    a shared 3:4 window turned each of them into somebody's middle third.
+ *
+ * `block` on the wrapper is load-bearing, not tidiness: it is a `<span>` (so it
+ * can sit inside an anchor's phrasing content), and an INLINE box shrink-wraps
+ * to the line rather than to the image it padded — the bezel collapses to a
+ * dark tick beside the screen. It was invisible while every caller pinned the
+ * phone with `absolute`, which blockifies it; the first caller that stopped
+ * (the strip, once it kept the shot's own ratio) lost the bezel entirely.
+ *
+ * `width` (and `height` when it is given) are the DERIVATIVE's, not the box's —
+ * every caller asks Cloudinary for roughly twice the pixels it paints, so the
+ * screen stays sharp on a retina display.
  */
 export function PhoneFrame({
   image,
@@ -62,19 +79,30 @@ export function PhoneFrame({
    *  docblock. */
   alt: string;
   width: number;
-  height: number;
+  /** Omit to keep the shot's own ratio, uncropped and bezelled all round. See
+   *  the docblock: this prop is the switch between the phone's two shapes. */
+  height?: number;
   /** Where the phone sits and how it moves — the caller's business entirely. */
   className?: string;
 }) {
+  const bottomless = height !== undefined;
   return (
-    <span className={`rounded-2xl bg-neutral-900 p-1 pb-0 shadow-lg ${className ?? ""}`}>
+    <span
+      className={`block rounded-2xl bg-neutral-900 shadow-lg ${
+        bottomless ? "p-1 pb-0" : "p-1"
+      } ${className ?? ""}`}
+    >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={cloudinaryThumb(image.url, { width, height })}
+        src={
+          height === undefined
+            ? cloudinaryFit(image.url, { width })
+            : cloudinaryThumb(image.url, { width, height })
+        }
         alt={alt}
         loading="lazy"
         decoding="async"
-        className="block w-full rounded-t-xl"
+        className={`block w-full ${bottomless ? "rounded-t-xl" : "rounded-xl"}`}
       />
     </span>
   );

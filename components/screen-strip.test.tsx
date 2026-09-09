@@ -71,9 +71,33 @@ test("the strip is keyboard-reachable and names itself", () => {
   assert.match(markup, /aria-label="[^"]*Paulopus[^"]*"/);
 });
 
-test("the phones ask Cloudinary for a tall derivative", () => {
+test("the phones ask Cloudinary for a derivative that is NOT cropped", () => {
+  // `c_limit` and no `h_`: the shot keeps its own ratio. A `c_fill` here —
+  // which is what this strip did while its phones sat in a 3:4 window — imposes
+  // one device's proportions on every capture in the exhibition, and the part
+  // it cuts is gone from the page rather than merely hidden.
   const markup = html([row("one")]);
-  assert.match(markup, /w_400,h_868,c_fill,q_auto,f_auto/);
+  assert.match(markup, /w_400,c_limit,q_auto,f_auto/);
+  assert.doesNotMatch(markup, /c_fill/);
+});
+
+test("the bezel is a BLOCK — an inline one collapses to a tick", () => {
+  // PhoneFrame's wrapper is a <span> so it can live inside an anchor. Inline,
+  // it shrink-wraps to the line rather than to the image it pads, and the phone
+  // loses its bezel entirely — which is exactly what happened the moment this
+  // strip stopped pinning the phone with `absolute`.
+  const markup = html([row("one")]);
+  assert.match(markup, /class="block rounded-2xl bg-neutral-900/);
+});
+
+test("the track breaks out of the reading column, gutter re-applied inside", () => {
+  // The landing row's rule: a scroller clipped at the text margin reads as a
+  // broken layout. The plant page renders inside READING_COLUMN, so the track
+  // spans the viewport and puts the column's own gutter back on its content.
+  const markup = html([row("one"), row("two")]);
+  assert.match(markup, /w-screen/);
+  assert.match(markup, /-translate-x-1\/2/);
+  assert.match(markup, /px-6/);
 });
 
 test("a screen's stored alt text is rendered — the strip's opposite answer to the cover's", () => {

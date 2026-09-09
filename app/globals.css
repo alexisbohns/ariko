@@ -182,6 +182,18 @@ body {
 }
 
 /**
+ * A full-bleed track inside a reading column is `w-screen` at `left-1/2`
+ * (components/screen-strip.tsx), and 100vw INCLUDES the vertical scrollbar —
+ * so on a scrollbar-reserving engine the page would gain a few pixels of
+ * horizontal scroll of its own. `clip` rather than `hidden` because `hidden`
+ * makes the body a scroll container and quietly breaks `position: sticky`
+ * inside it.
+ */
+body {
+  overflow-x: clip;
+}
+
+/**
  * A scroll container that scrolls without advertising it. The gallery tracks
  * show their overflow through the cards running off the edge, so a scrollbar
  * appearing mid-swipe is noise, not affordance.
