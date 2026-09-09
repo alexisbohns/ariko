@@ -16,7 +16,7 @@ import { cloudinaryThumb } from "@/lib/image-url";
  * hover choreography, `screen-strip.tsx` keeps its window, and neither has to
  * know the other exists.
  *
- * Two details are load-bearing rather than styling:
+ * Three details are load-bearing rather than styling:
  *
  *  - **`bg-neutral-900`, not a theme token.** A phone is dark in both themes,
  *    so `bg-foreground` (near-white in dark mode) or `bg-card` (vanishes into
@@ -25,6 +25,21 @@ import { cloudinaryThumb } from "@/lib/image-url";
  *  - **The bezel is drawn HERE, never baked into the stored file.** Baking it
  *    would make cloudinaryThumb crop a composite instead of a screen, and turn
  *    "re-shoot that screen" into "re-composite that screen".
+ *  - **`alt` is REQUIRED, and it is the CALLER's answer, never this file's.**
+ *    "Is this image decorative?" is a question about the context a phone
+ *    appears in, not about the phone itself, and the two callers answer it
+ *    oppositely: `bean-cover.tsx` passes `alt=""` because the bean's name
+ *    sits two lines below the card and the keyword above is a compressed
+ *    restatement of it, so its phone is decorative; `screen-strip.tsx` passes
+ *    the image's own stored alt text, because there the screen IS the content
+ *    and the legend beside it is a caption, not a description, so it does not
+ *    make the image redundant. A shared default — `image.alt ?? ""`, which is
+ *    what this file briefly did — would have picked the strip's answer for
+ *    both callers, silently: it changed the cover's accessible name for any
+ *    bean whose cover happened to carry stored alt text, and no test caught
+ *    it, because the cover's own fixture never set `alt`. Requiring the prop
+ *    is what makes the next caller state its own answer instead of inheriting
+ *    one that only happened to be right for the first.
  *
  * `pb-0` is what makes the phone bottomless: it has a bezel on three sides and
  * runs off the bottom of whatever frames it, which is what lets both callers
@@ -37,11 +52,15 @@ import { cloudinaryThumb } from "@/lib/image-url";
  */
 export function PhoneFrame({
   image,
+  alt,
   width,
   height,
   className,
 }: {
   image: MediaImage;
+  /** Decorative or content — the caller's call, never this file's. See the
+   *  docblock. */
+  alt: string;
   width: number;
   height: number;
   /** Where the phone sits and how it moves — the caller's business entirely. */
@@ -52,7 +71,7 @@ export function PhoneFrame({
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={cloudinaryThumb(image.url, { width, height })}
-        alt={image.alt ?? ""}
+        alt={alt}
         loading="lazy"
         decoding="async"
         className="block w-full rounded-t-xl"

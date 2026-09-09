@@ -28,6 +28,15 @@ import { PhoneFrame } from "@/components/phone-frame";
  * to its top, so the phone runs off the bottom edge — the landing row's
  * treatment, and what makes the strip read as a rank of phones rather than a
  * row of cropped pictures.
+ *
+ * At a 208px row (`min(52vw,13rem)` maxed out) that window shows about 63% of
+ * the phone, so roughly 37% of every screen is permanently hidden at rest —
+ * and unlike the landing cover, nothing here has a hover state that reveals
+ * more. That is the intended treatment, not an oversight, because the anchor
+ * around each phone goes to the FULL image: the hidden part is one click
+ * away with no script at all, which is the same fact that makes a future
+ * lightbox an enhancement to that route rather than the only way to see the
+ * rest of the screen.
  */
 export function ScreenStrip({
   rows,
@@ -66,6 +75,12 @@ export function ScreenStrip({
             <div className="relative aspect-[3/4] overflow-hidden rounded-xl">
               <PhoneFrame
                 image={row.image}
+                // The image's own stored alt text, not "" — here the screen
+                // IS the content rather than decoration, so a description is
+                // worth announcing. The figcaption beside it is a legend, not
+                // a description (and most screens don't even have one — see
+                // below), so it never makes this alt text redundant.
+                alt={row.image.alt ?? ""}
                 // 2x the ~200px of screen this paints, at a 9:19.5 phone's
                 // ratio, and the FULL height rather than the ~75% the window
                 // shows: the strip is one place a visitor may zoom, and a

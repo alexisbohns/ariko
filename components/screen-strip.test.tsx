@@ -75,3 +75,16 @@ test("the phones ask Cloudinary for a tall derivative", () => {
   const markup = html([row("one")]);
   assert.match(markup, /w_400,h_868,c_fill,q_auto,f_auto/);
 });
+
+test("a screen's stored alt text is rendered — the strip's opposite answer to the cover's", () => {
+  // components/bean-cover.tsx passes alt="" because its phone is decorative;
+  // here the screen IS the content, so PhoneFrame's `alt` prop carries the
+  // image's own stored description instead. Pinned in both files so the two
+  // opposite answers can't silently collapse to one again.
+  const withAlt: ExhibitionRow = {
+    ...row("one"),
+    image: { ...row("one").image, alt: "A dashboard showing quarterly revenue" },
+  };
+  const markup = html([withAlt]);
+  assert.match(markup, /alt="A dashboard showing quarterly revenue"/);
+});

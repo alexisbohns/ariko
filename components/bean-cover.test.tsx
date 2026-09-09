@@ -100,6 +100,21 @@ test("a keyword that resolves to whitespace is the WORDLESS phone", () => {
   assert.match(markup, /w_224,h_484/);
 });
 
+test("a phone cover's image is decorative even when the stored image carries alt text", () => {
+  // The extraction of PhoneFrame briefly rendered `alt={image.alt ?? ""}`
+  // instead of a hard-coded "" — a caller-agnostic default that silently
+  // changed the cover's accessible name for any bean whose cover carries
+  // stored alt text. This fixture's `img()` helper never set `alt` before,
+  // so nothing in this file caught it. It does here.
+  const withAlt: MediaImage = {
+    ...img("shot", { width: 390, height: 844 }),
+    alt: "A dashboard showing quarterly revenue",
+  };
+  const markup = html({ kind: "phone", image: withAlt });
+  assert.match(markup, /alt=""/);
+  assert.doesNotMatch(markup, /A dashboard showing quarterly revenue/);
+});
+
 test("every image is decorative — the bean's name carries the accessible name", () => {
   for (const cover of [
     { kind: "fill", image: img("wide") } as const,

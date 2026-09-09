@@ -114,6 +114,13 @@ export function BeanCover({
       ) : null}
       <PhoneFrame
         image={cover.image}
+        // Decorative, always — never the image's own stored alt text. The
+        // bean's name sits two lines below this card and the keyword above
+        // is a compressed restatement of it, so the phone adds nothing an
+        // assistive visitor doesn't already have, and alt="" is the correct
+        // markup for that rather than a missing description. The same
+        // reasoning is what puts aria-hidden on the keyword span above.
+        alt=""
         // ~2.15x the box the screenshot actually paints — 104 x 225, once
         // `p-1` is taken out of the 112px span — rather than the flat 2x
         // lib/image-url.ts states every caller asks for. This is the one
