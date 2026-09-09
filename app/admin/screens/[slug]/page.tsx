@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
 import { loadRawGarden } from "@/lib/store";
-import { resolveText, type RawGarden } from "@/lib/data";
+import { PLANT_PREFIX, parentsWithPrefix, resolveText, type RawGarden } from "@/lib/data";
 import { cloudinaryFit } from "@/lib/image-url";
 import { filterScreens, neighbours, screenRows, screensQuery } from "@/lib/screens";
 import { ScreenNav } from "@/app/admin/_components/screen-nav";
 import { ScreenMetaForm } from "@/app/admin/_components/screen-meta-form";
+import { ScreenExhibitForm } from "@/app/admin/_components/screen-exhibit-form";
 import { ScreenImageForm } from "@/app/admin/_components/screen-image-form";
 import { ScreenDeleteForm } from "@/app/admin/_components/screen-delete-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -61,6 +62,10 @@ export default async function ScreenPage({
   const rows = filterScreens(screenRows(raw.screens ?? []), active);
   const { prev, next } = neighbours(rows, slug);
   const isCover = (screen.relations ?? []).some((r) => r.kind === "cover");
+  const plantSlug = parentsWithPrefix(screen.parents, PLANT_PREFIX)[0] ?? null;
+  const plantName = plantSlug
+    ? (resolveText((raw.plants ?? []).find((p) => p.slug === plantSlug)?.name) || plantSlug)
+    : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -104,6 +109,15 @@ export default async function ScreenPage({
               beans={raw.beans ?? []}
               query={query}
             />
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <h2 className="font-heading text-lg tracking-tight">Exhibition</h2>
+        <Card>
+          <CardContent>
+            <ScreenExhibitForm screen={screen} plantName={plantName} query={query} />
           </CardContent>
         </Card>
       </section>
