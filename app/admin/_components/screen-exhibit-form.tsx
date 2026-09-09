@@ -46,9 +46,13 @@ export type ScreenPlantRef =
  * no exhibition for it to join, and a button that could only fail is worse
  * than none — `applyExhibition` refuses the same case server-side, which is
  * the defence-in-depth stance `buildScreenImagePatch`'s `__ready` check takes.
- * A screen whose plant parent is DANGLING gets the same treatment, for the
- * reason `ScreenPlantRef`'s docblock gives: the fix there is Details, not this
- * card, so this card offers no button either.
+ * A screen whose plant parent is DANGLING gets no ADD, for the reason
+ * `ScreenPlantRef`'s docblock gives — but it keeps its REMOVE when it is
+ * already exhibited. A plant deleted out from under an exhibited screen
+ * otherwise leaves that screen public, on no page, with the withdrawal
+ * reachable from nowhere: not from this card, and not from the plant's
+ * Exhibition panel either, since that panel lives on a page that no longer
+ * exists. A one-way door out of a state you can arrive in is worth one branch.
  */
 export function ScreenExhibitForm({
   screen,
@@ -72,11 +76,44 @@ export function ScreenExhibitForm({
 
   if (plant.kind === "dangling") {
     return (
-      <p className="text-sm text-muted-foreground">
-        This screen names <span className="font-heading">{plant.slug}</span>, which is not a plant
-        in the garden — so there is no page for it to appear on, exhibited or not. Repoint it in
-        Details above.
-      </p>
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-muted-foreground">
+          This screen names <span className="font-heading">{plant.slug}</span>, which is not a plant
+          in the garden — so there is no page for it to appear on, exhibited or not. Repoint it in
+          Details above.
+        </p>
+
+        {/* One button, and only in one direction. A dangling ref gets no ADD —
+            that would publish a screen onto a page that does not exist, which
+            is the whole reason this branch is separate from `found`. But a
+            screen that is ALREADY exhibited when its plant is deleted is left
+            public, on no page, and with the sentence above as its only remedy:
+            repoint it, then withdraw it, in two steps through a different card.
+            That is a state with no way out of the card that made it, so the
+            withdrawal stays reachable here.
+
+            It genuinely works: `applyExhibition` derives the plant from the
+            screen's own parents and a dangling slug is still a slug, so
+            `listScreensForPlant` finds this screen under it and `remove` writes
+            exactly as it would for a real plant. The ordering panel is NOT an
+            alternative route — it lives on a plant page that, by definition,
+            is not there. */}
+        {exhibited ? (
+          <form action={toggleScreenExhibitAction} className="flex flex-col gap-3">
+            <input type="hidden" name="slug" value={screen.slug} />
+            <FilterFields query={query} />
+            <p className="text-sm text-muted-foreground">
+              It is marked exhibited and public all the same. Withdrawing it makes it private
+              again.
+            </p>
+            <div>
+              <Button type="submit" name="op" value="remove" variant="outline">
+                Remove from the exhibition
+              </Button>
+            </div>
+          </form>
+        ) : null}
+      </div>
     );
   }
 
