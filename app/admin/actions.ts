@@ -13,6 +13,7 @@ import {
   unpublishCascadeForBeans,
   PLANT_PREFIX,
   POD_PREFIX,
+  parentsWithPrefix,
   type MediaImage,
   type PlantRole,
   type PlantStatus,
@@ -59,12 +60,20 @@ import {
   updateScreenMeta,
   updateScreenImage,
   deleteScreen,
+  listScreensForPlant,
+  writeExhibition,
 } from "@/lib/botanical";
 import { buildBeanCoverPatch } from "@/lib/bean-cover-edit";
 import { buildBeanKeywordPatch } from "@/lib/bean-keyword";
 import { buildScreenMetaPatch } from "@/lib/screen-edit";
 import { buildScreenImagePatch } from "@/lib/screen-image";
 import { buildNewScreenInput } from "@/lib/screen-create";
+import {
+  applyExhibitionOp,
+  exhibitionOf,
+  exhibitionOpOf,
+  exhibitionWrites,
+} from "@/lib/exhibition";
 import {
   SCREEN_FILTER_KEYS,
   filterFieldName,
@@ -793,4 +802,86 @@ export async function uploadImageAction(formData: FormData): Promise<UploadResul
     console.error("[upload] uploadImageAction failed", err);
     return { ok: false, error: err instanceof Error ? err.message : "upload failed" };
   }
+}
+
+/**
+ * The exhibition's one write, behind two doors.
+ *
+ * The PLANT IS DERIVED from the screen's own `parents[]` rather than taken from
+ * a form field, and that is a guard rather than a tidiness: the ordering panel
+ * redirects to `/admin/plant/<slug>`, and a plant slug that arrived in a hidden
+ * input and reached `redirect()` would be an open redirect. Derived, it can
+ * only ever be a value already in the database — the stance `screensHref` takes
+ * for the library's filters.
+ *
+ * `op` is re-validated against the vocabulary rather than trusted, so a stale
+ * page can only name one of the four. A no-op — `up` at the head, `add` for a
+ * screen already exhibited — comes back from `applyExhibitionOp` as null and
+ * writes nothing at all.
+ *
+ * Returns the plant slug so each caller can redirect where it belongs; null
+ * when there was nothing to do, which includes a screen with no plant parent:
+ * there is no exhibition for it to join.
+ *
+ * Not exported and not async-for-nothing: only the EXPORTS of a "use server"
+ * module must be async, and this one genuinely awaits.
+ */
+async function applyExhibition(slug: string, rawOp: string): Promise<string | null> {
+  const op = exhibitionOpOf(rawOp);
+  if (!op) return null;
+
+  const screen = await getScreen(slug);
+  if (!screen) return null;
+
+  const plantSlug = parentsWithPrefix(screen.parents, PLANT_PREFIX)[0];
+  if (!plantSlug) return null;
+
+  // `exhibitionOf`, never a hand-rolled filter-and-sort. It is the one place
+  // that narrows a plant's screens to the strip, and the narrowing is not
+  // optional: `exhibitionWrites`' withdraw half re-privatizes, so handing it
+  // this plant's WHOLE screen list would make every unexhibited screen private
+  // on one press of an arrow.
+  const current = exhibitionOf(await listScreensForPlant(plantSlug));
+
+  const after = applyExhibitionOp(
+    current.map((s) => s.slug),
+    slug,
+    op,
+  );
+  if (!after) return plantSlug;
+
+  await writeExhibition(exhibitionWrites(current, after));
+  return plantSlug;
+}
+
+/** Membership, from the screen's own page in the library — the half that works
+ *  without script. Redirects back through the author's filters, exactly as the
+ *  library's four other write paths do. */
+export async function toggleScreenExhibitAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+  const query = activeFilterQuery(formData);
+
+  const plantSlug = await applyExhibition(slug, String(formData.get("op") ?? ""));
+
+  revalidatePath("/admin/screens");
+  if (plantSlug) revalidatePath(`/admin/plant/${plantSlug}`);
+  redirect(screensHref(slug, query));
+}
+
+/** Ordering, from the plant's rail panel. Same core; the only difference is
+ *  where it comes back to. `encodeURIComponent` on a slug that came from the
+ *  DATABASE for `screensHref`'s reason — a screen's slug came from a filename,
+ *  and a plant's is hand-authored, but neither is a reason to be the one place
+ *  in the slice that trusts one. */
+export async function reorderExhibitionAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+
+  const plantSlug = await applyExhibition(slug, String(formData.get("op") ?? ""));
+
+  revalidatePath("/admin/screens");
+  if (!plantSlug) redirect("/admin/screens");
+  revalidatePath(`/admin/plant/${plantSlug}`);
+  redirect(`/admin/plant/${encodeURIComponent(plantSlug)}`);
 }
