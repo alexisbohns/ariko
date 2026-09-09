@@ -629,3 +629,63 @@ test("filterPublic keeps links on a public plant and drops them with a private o
   // And the private plant takes its links with it.
   assert.equal(JSON.stringify(out).includes("secret"), false);
 });
+
+// --- The exhibition (the gallery slice): buildDataset's one screen accessor.
+
+const EXHIBIT_IMAGE = {
+  kind: "image" as const,
+  storageKey: "beanstalk/x",
+  url: "https://res.cloudinary.com/x/x.png",
+  width: 1179,
+  height: 2556,
+};
+
+const EXHIBITED: RawGarden = {
+  plants: [
+    { slug: "pl", name: "Plant", natures: ["work"], role: { kind: "owner" }, description: "" },
+    { slug: "pl-other", name: "Other", natures: ["work"], role: { kind: "owner" }, description: "" },
+  ],
+  screens: [
+    { slug: "s-second", name: "Second", image: EXHIBIT_IMAGE, parents: ["plant:pl"], exhibited: true, order: 1 },
+    { slug: "s-first", name: "First", image: EXHIBIT_IMAGE, parents: ["plant:pl"], exhibited: true, order: 0 },
+    { slug: "s-unordered", name: "Unordered", image: EXHIBIT_IMAGE, parents: ["plant:pl"], exhibited: true },
+    { slug: "s-stored", name: "Stored", image: EXHIBIT_IMAGE, parents: ["plant:pl"] },
+    { slug: "s-elsewhere", name: "Elsewhere", image: EXHIBIT_IMAGE, parents: ["plant:pl-other"], exhibited: true, order: 0 },
+    { slug: "s-dangling", name: "Dangling", image: EXHIBIT_IMAGE, parents: ["plant:ghost"], exhibited: true, order: 0 },
+  ],
+};
+
+test("exhibitionForPlant returns the plant's exhibited screens, in order", () => {
+  const d = buildDataset(EXHIBITED);
+  assert.deepEqual(d.exhibitionForPlant("pl").map((s) => s.slug), [
+    "s-first",
+    "s-second",
+    "s-unordered",
+  ]);
+});
+
+test("exhibitionForPlant omits a stored screen that was never exhibited", () => {
+  // Storing a screen is not publishing it: the store holds a hundred and
+  // seventy and the strip shows the handful marked for it.
+  const d = buildDataset(EXHIBITED);
+  assert.equal(d.exhibitionForPlant("pl").some((s) => s.slug === "s-stored"), false);
+});
+
+test("exhibitionForPlant does not borrow another plant's screens", () => {
+  const d = buildDataset(EXHIBITED);
+  assert.equal(d.exhibitionForPlant("pl").some((s) => s.slug === "s-elsewhere"), false);
+  assert.deepEqual(d.exhibitionForPlant("pl-other").map((s) => s.slug), ["s-elsewhere"]);
+});
+
+test("exhibitionForPlant ignores a screen whose plant parent does not resolve", () => {
+  // Same rule podsByPlant/beansByPlant already follow: only resolvable refs
+  // index. A dangling screen survives filterPublic as standalone and simply
+  // has no page to appear on.
+  const d = buildDataset(EXHIBITED);
+  assert.deepEqual(d.exhibitionForPlant("ghost"), []);
+});
+
+test("exhibitionForPlant is empty for a plant with no screens at all", () => {
+  const d = buildDataset(EXHIBITED);
+  assert.deepEqual(d.exhibitionForPlant("nobody"), []);
+});

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { filterPublic, resolveText, type RawGarden } from "./data";
+import { buildDataset, filterPublic, resolveText, type RawGarden } from "./data";
 
 test("resolveText returns plain strings unchanged", () => {
   assert.equal(resolveText("hello"), "hello");
@@ -426,4 +426,15 @@ test("filterPublic never mutates the input when scrubbing plant relations or bee
   const snapshot = structuredClone(seed);
   filterPublic(seed);
   assert.deepEqual(seed, snapshot);
+});
+
+test("a private screen never reaches the exhibition, however it is marked", () => {
+  // The two halves of the rule are enforced in two places and this is the
+  // seam between them: filterPublic is the security boundary and drops the
+  // screen, so exhibitionForPlant never has to re-check visibility — and a
+  // second copy of a security check would be a second behaviour.
+  const seed = screenSeed();
+  seed.screens![0] = { ...seed.screens![0], exhibited: true, order: 0 }; // sc-private
+  const d = buildDataset(filterPublic(seed));
+  assert.deepEqual(d.exhibitionForPlant("pl-pub"), []);
 });
