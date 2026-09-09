@@ -2,6 +2,7 @@ import type { UpdateFilter } from "mongodb";
 import { getDb } from "./db";
 import {
   resolveText,
+  PLANT_PREFIX,
   type Bean,
   type Media,
   type MediaImage,
@@ -20,6 +21,7 @@ import type { SproutPatch } from "./sprout-edit";
 import type { ContentPatch } from "./content-edit";
 import { plantMetaUpdate, type PlantMetaPatch } from "./plant-meta";
 import { screenMetaUpdate, type ScreenMetaPatch } from "./screen-edit";
+import type { ExhibitionWrites } from "./exhibition";
 
 // Thrown when a create hits the unique slug index. Lets the server action turn a
 // collision into a friendly message instead of a 500.
@@ -189,18 +191,115 @@ export async function createScreen(input: NewScreen): Promise<Screen> {
   return doc;
 }
 
-/** Every screen, slug-ordered.
+/**
+ * One plant's screens — the read the exhibition actions work from.
  *
- *  NO CALLER BUT ITS TEST, deliberately: `/admin/screens` reads
- *  `loadRawGarden()` instead, because the contact sheet needs the plants too
- *  (each tile draws its plant's mark) and one read is better than two. This is
- *  kept for the GALLERY slice, which will want screens and nothing else —
- *  every screen is private at birth, so the admin is still the only surface
- *  that sees them until then. Delete it if that slice lands on a different
- *  read. */
-export async function listScreens(): Promise<Screen[]> {
+ * A real query on `parents` rather than `loadRawGarden()`, because the actions
+ * want screens and nothing else and would otherwise load five collections to
+ * reorder one strip. The plant PAGE does not call this: it already has the
+ * garden loaded and reads the same narrowing off `buildDataset`'s
+ * `exhibitionForPlant` instead, so this function has exactly one caller now —
+ * `applyExhibition` in `app/admin/actions.ts`.
+ *
+ * It replaces `listScreens`, whose docblock said to delete it if the gallery
+ * slice landed on a different read. It did.
+ *
+ * Slug-ordered, and that is not the strip's order: this is a stable READ, and
+ * `exhibitionOrder` is what puts it in sequence at the point of use, from the
+ * `order` field this returns.
+ */
+export async function listScreensForPlant(plantSlug: string): Promise<Screen[]> {
   const db = await getDb();
-  return db.collection<Screen>("screens").find({}, { projection: { _id: 0 } }).sort({ slug: 1 }).toArray();
+  return db
+    .collection<Screen>("screens")
+    .find({ parents: `${PLANT_PREFIX}${plantSlug}` }, { projection: { _id: 0 } })
+    .sort({ slug: 1 })
+    .toArray();
+}
+
+/**
+ * The exhibition, written.
+ *
+ * EXHIBITING AND PUBLISHING ARE ONE ACT, and this function is where that is
+ * true. Every screen is private at birth (createScreen, above), and
+ * filterPublic drops a private screen — so `exhibited: true` on its own would
+ * render nothing at all, and an author who had to flip visibility separately
+ * would produce, as the commonest mistake, a screen marked for the strip and
+ * stored private, showing nothing with nothing on any page to say why. This
+ * function OWNS `visibility` on a screen for that reason: `screen-edit.ts`
+ * keeps it out of the metadata form so there is exactly one writer of the
+ * field, and this is it.
+ *
+ * Withdrawing is the exact mirror, down to the `$unset`: an absent optional
+ * field has ONE representation in this database — `createScreen`'s omission
+ * discipline — so a withdrawn screen carries no `exhibited: false` and no
+ * stale `order` for the next reader to interpret.
+ *
+ * A loop of updateOne for the promote half rather than a bulkWrite, and NOT
+ * because the rows differ: bulkWrite carries a separate update document per
+ * operation, so differing `order` values are the ordinary case for it rather
+ * than an obstacle. The honest trade is that this costs N + 1 round trips
+ * where a single ordered bulkWrite would cost one, and it widens the window in
+ * which a dying process leaves the two halves half-applied. It is taken
+ * anyway, because a strip is a handful of screens rather than a hundred and
+ * seventy, and a loop of updateOne is the plainest thing in this file to read.
+ * If a strip ever grows to a size where N round trips are a cost, this is the
+ * function to change and the reason to change it. The withdraw half is
+ * uniform across every row, which is what lets it be a single updateMany —
+ * setVisibility's shape, above.
+ *
+ * The two halves are NOT atomic with respect to each other, and what saves that
+ * is that nothing strands. Each DOCUMENT is atomic — a screen is never
+ * exhibited-and-private or public-and-unexhibited, because both facts are
+ * written by one update — so a crash mid-loop leaves a strip that is merely
+ * OVER-inclusive, possibly with two screens sharing an `order`. exhibitionOrder
+ * tie-breaks a collision by slug deterministically, the next read shows the
+ * author the state that actually exists, and the next press renormalizes the
+ * whole strip to 0..n-1.
+ *
+ * Promote runs before withdraw, so a slug in both lists would end private —
+ * the safe direction. `exhibitionWrites` produces disjoint lists by
+ * construction, so that ordering is defence rather than a live requirement, and
+ * this function does not re-check it: stated so the absence of a guard reads as
+ * a conclusion rather than an oversight, which is the stance
+ * buildScreenMetaPatch takes about unvalidated refs.
+ *
+ * A JOINING row's filter is bare `{ slug }`, but a RENUMBERING row's filter is
+ * `{ slug, exhibited: true }`, and that qualifier closes a real race rather
+ * than decorating one. `after` in `exhibitionWrites` is computed from whatever
+ * strip its caller last read, and two admin tabs open on the same plant can
+ * have read two different strips: withdraw a screen in tab B, then press ↑ on
+ * its neighbour in tab A — tab A's stale list still contains the withdrawn
+ * slug, so `exhibitionWrites` reports it as a renumbering row (`joining:
+ * false`) at its new index. A bare `{ slug }` filter would match that document
+ * regardless of tab B's write and set `exhibited: true, visibility: "public"`
+ * right back over it, silently resurrecting a screen the author deliberately
+ * took down. The `exhibited: true` qualifier makes that update match nothing
+ * once tab B's withdrawal has landed, so the stale renumber is a no-op on that
+ * row instead of an undo of someone else's decision. A joining row carries no
+ * such risk — it is not yet exhibited, so there is no state for a stale read
+ * to have gotten wrong — and needs no filter beyond identity.
+ *
+ * Empty lists write nothing, which is what makes lib/exhibition.ts's `null`
+ * no-op cheap all the way down.
+ */
+export async function writeExhibition(writes: ExhibitionWrites): Promise<void> {
+  const db = await getDb();
+  const screens = db.collection<Screen>("screens");
+
+  for (const { slug, order, joining } of writes.promote) {
+    await screens.updateOne(
+      joining ? { slug } : { slug, exhibited: true },
+      { $set: { exhibited: true, visibility: "public", order } },
+    );
+  }
+
+  if (writes.withdraw.length > 0) {
+    await screens.updateMany(
+      { slug: { $in: writes.withdraw } },
+      { $set: { visibility: "private" }, $unset: { exhibited: "", order: "" } },
+    );
+  }
 }
 
 /** Single read for the edit page's prefill (projection drops _id) —

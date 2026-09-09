@@ -42,6 +42,8 @@ const SERVER_SAFE = [
   "components/public-icons.tsx",
   "components/link-row.tsx",
   "components/bean-cover.tsx",
+  "components/phone-frame.tsx",
+  "components/screen-strip.tsx",
 ];
 
 for (const path of SERVER_SAFE) {

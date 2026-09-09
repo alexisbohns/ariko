@@ -13,6 +13,7 @@ import {
   unpublishCascadeForBeans,
   PLANT_PREFIX,
   POD_PREFIX,
+  parentsWithPrefix,
   type MediaImage,
   type PlantRole,
   type PlantStatus,
@@ -59,12 +60,20 @@ import {
   updateScreenMeta,
   updateScreenImage,
   deleteScreen,
+  listScreensForPlant,
+  writeExhibition,
 } from "@/lib/botanical";
 import { buildBeanCoverPatch } from "@/lib/bean-cover-edit";
 import { buildBeanKeywordPatch } from "@/lib/bean-keyword";
 import { buildScreenMetaPatch } from "@/lib/screen-edit";
 import { buildScreenImagePatch } from "@/lib/screen-image";
 import { buildNewScreenInput } from "@/lib/screen-create";
+import {
+  applyExhibitionOp,
+  exhibitionOf,
+  exhibitionOpOf,
+  exhibitionWrites,
+} from "@/lib/exhibition";
 import {
   SCREEN_FILTER_KEYS,
   filterFieldName,
@@ -793,4 +802,163 @@ export async function uploadImageAction(formData: FormData): Promise<UploadResul
     console.error("[upload] uploadImageAction failed", err);
     return { ok: false, error: err instanceof Error ? err.message : "upload failed" };
   }
+}
+
+/**
+ * What a press against the exhibition resolves to, once `applyExhibition` has
+ * tried it. Three cases rather than the `string | null` this replaces,
+ * because the two callers below redirect differently depending on which one
+ * they got, and collapsing them made one caller redirect a deleted screen
+ * back to its own now-dead page (see `toggleScreenExhibitAction`'s history):
+ *
+ * - `gone`: the screen no longer exists — deleted, in another tab or another
+ *   request, between the page rendering and this press. There is no screen
+ *   page left to land on.
+ * - `refused`: the screen is real, but the op was not a member of the
+ *   vocabulary, or the screen has no plant parent to join an exhibition on.
+ *   The screen's own page can say why nothing happened.
+ * - `settled`: the write ran, or was correctly a no-op (`up` at the head,
+ *   `add` on a screen already exhibited — `applyExhibitionOp`'s null already
+ *   makes those free), against a real plant. Both read identically from here:
+ *   whatever the strip's state is now is what the plant page should show.
+ */
+type ExhibitionOutcome =
+  | { kind: "gone" }
+  | { kind: "refused" }
+  | { kind: "settled"; plantSlug: string };
+
+/**
+ * The exhibition's one write, behind two doors.
+ *
+ * The PLANT IS DERIVED from the screen's own `parents[]` rather than taken from
+ * a form field, and that is a guard rather than a tidiness: the ordering panel
+ * redirects to `/admin/plant/<slug>`, and a plant slug that arrived in a hidden
+ * input and reached `redirect()` would be an open redirect. Derived, it can
+ * only ever be a value already in the database — the stance `screensHref` takes
+ * for the library's filters.
+ *
+ * `op` is re-validated against the vocabulary rather than trusted, so a stale
+ * page can only name one of the four.
+ *
+ * Not exported and not async-for-nothing: only the EXPORTS of a "use server"
+ * module must be async, and this one genuinely awaits.
+ */
+async function applyExhibition(slug: string, rawOp: string): Promise<ExhibitionOutcome> {
+  const op = exhibitionOpOf(rawOp);
+  if (!op) return { kind: "refused" };
+
+  const screen = await getScreen(slug);
+  if (!screen) return { kind: "gone" };
+
+  const plantSlug = parentsWithPrefix(screen.parents, PLANT_PREFIX)[0];
+  if (!plantSlug) return { kind: "refused" };
+
+  // `exhibitionOf`, never a hand-rolled filter-and-sort. It is the one place
+  // that narrows a plant's screens to the strip, and the narrowing is not
+  // optional: `exhibitionWrites`' withdraw half re-privatizes, so handing it
+  // this plant's WHOLE screen list would make every unexhibited screen private
+  // on one press of an arrow.
+  const current = exhibitionOf(await listScreensForPlant(plantSlug));
+
+  const after = applyExhibitionOp(
+    current.map((s) => s.slug),
+    slug,
+    op,
+  );
+  if (!after) return { kind: "settled", plantSlug };
+
+  await writeExhibition(exhibitionWrites(current, after));
+  return { kind: "settled", plantSlug };
+}
+
+/**
+ * Membership, from the screen's own page in the library — the half that works
+ * without script. `gone` redirects to the INDEX, `screensHref(null, query)` —
+ * `editScreenMetaAction`'s, `editScreenImageAction`'s and `deleteScreenAction`'s
+ * shape, all three of which redirect there rather than to the screen's own
+ * page when `getScreen` comes back empty, precisely so a redirect never
+ * targets a page that is no longer there. Everything else lands back on the
+ * screen's own page, through the author's filters, exactly as those three do.
+ *
+ * NEITHER exhibition action carries an `error` message, and the four write
+ * paths above them all do. That asymmetry is a decision rather than an
+ * omission, and it turns on WHOSE mistake each refusal is. `createScreenAction`
+ * refuses a taken slug, `editScreenMetaAction` a nameless screen,
+ * `deleteScreenAction` an unticked confirm — every one of those is something
+ * the author did, on a page that is telling the truth, and that they can fix by
+ * doing it differently. There is a message because there is a correction.
+ *
+ * An exhibition op has no such case. `refused` covers an unknown op or a
+ * screen with no plant — and `applyExhibitionOp` returns null for `up` at the
+ * head or `add` for something already exhibited, which `settled` treats as
+ * ordinary success. The refusals are a crafted POST or a page whose world
+ * changed underneath it; the two no-ops are a button the panel renders
+ * `disabled`. In none of them did the author get anything wrong, and in none
+ * of them is there anything to do differently. "Could not move it up" on a
+ * screen that is already first is noise dressed as an error.
+ *
+ * What the author gets instead is the page, re-rendered from the database.
+ * `gone` sends them to the index rather than a 404; one that lost its plant
+ * shows the card's no-plant sentence; a strip that did not move shows the
+ * order it actually has. The state is the message.
+ *
+ * One outcome this does not enumerate on purpose: the screen's plant parent
+ * can itself change between the page rendering and the form submitting —
+ * edited in Details, in another tab, in the seconds between. No hidden
+ * `plant` field checks that against what the page showed; `slug` is the only
+ * identity carried across the submit, and `applyExhibition` re-reads the
+ * screen fresh and derives `plantSlug` from whatever parent it has NOW. That
+ * is not a bug to close: the write lands on the screen the author meant (the
+ * slug is unambiguous) and joins whichever strip that screen currently
+ * belongs to, which may not be the one the stale page displayed — a rare race
+ * whose outcome is a successful write in a different strip than expected, not
+ * a wrong or silent one. And it stays honest afterward: the redirect goes to
+ * the plant the write actually touched, never the one the page happened to
+ * render, so the page the author lands on tells the truth about where the
+ * screen went even when it is not the page they expected.
+ */
+export async function toggleScreenExhibitAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+  const query = activeFilterQuery(formData);
+
+  const outcome = await applyExhibition(slug, String(formData.get("op") ?? ""));
+
+  revalidatePath("/admin/screens");
+  if (outcome.kind === "settled") revalidatePath(`/admin/plant/${encodeURIComponent(outcome.plantSlug)}`);
+  redirect(outcome.kind === "gone" ? screensHref(null, query) : screensHref(slug, query));
+}
+
+/**
+ * Ordering, from the plant's rail panel. Same core; the only difference is
+ * where each outcome comes back to — and unlike `toggleScreenExhibitAction`,
+ * that is three destinations, not two, because there is no filter query here
+ * to fall back into.
+ *
+ * `gone`: the screen itself no longer exists, so its own page is a 404 and the
+ * index is the only destination left that is honestly there —
+ * `screensHref(null, "")`.
+ *
+ * `refused`: the screen is real, but the op was never valid or it has no
+ * plant to join. There is no plant page to land on, so the screen's own page
+ * is the next most honest destination: it is the row the author pressed, and
+ * its Exhibition card says why (the no-plant sentence, or simply an unmoved
+ * strip for a stale op) — `screensHref(slug, "")`.
+ *
+ * `settled`: the plant page, as before. `encodeURIComponent` on both the
+ * revalidated path and the redirect — a screen's slug came from a filename
+ * and a plant's is hand-authored, but neither is a reason to be the one place
+ * in the slice that trusts one.
+ */
+export async function reorderExhibitionAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+
+  const outcome = await applyExhibition(slug, String(formData.get("op") ?? ""));
+
+  revalidatePath("/admin/screens");
+  if (outcome.kind === "gone") redirect(screensHref(null, ""));
+  if (outcome.kind === "refused") redirect(screensHref(slug, ""));
+  revalidatePath(`/admin/plant/${encodeURIComponent(outcome.plantSlug)}`);
+  redirect(`/admin/plant/${encodeURIComponent(outcome.plantSlug)}`);
 }

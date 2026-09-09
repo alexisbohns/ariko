@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Boxes } from "lucide-react";
+import { Boxes, GalleryHorizontal } from "lucide-react";
 import { Chrome, ChromeItem, chromeItemClass } from "@/components/chrome";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
@@ -22,11 +22,27 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
  * below `lg`, where moving the column that far would only push it under the
  * chrome's own rail.
  *
- * Client only for the open state. Nothing here writes and nothing here is a
- * form — every row is the same <a href> the page rendered before, and
- * script-off the panel simply never opens. That costs discovery and never a
- * destination, exactly as the vault's filter popovers do: every page listed
- * here is also reachable from /admin/garden, from ⌘K, and from the prose.
+ * Client only for the open state. The Inside panel writes nothing — every row
+ * is the same <a href> the page rendered before — and script-off it simply
+ * never opens, which costs discovery and never a destination.
+ *
+ * The Exhibition panel DOES carry forms, and this file still composes none of
+ * them: its contents are server-rendered by app/admin/plant/[slug]/page.tsx and
+ * arrive as a prop, exactly as plant-hero.tsx takes metaForm, roleForm and
+ * logoForm. This island owns the open state and nothing else — it learns no
+ * field name and builds no payload.
+ *
+ * What that costs without script is ORDERING, and only ordering: membership
+ * lives on the screen's own page in the library (screen-exhibit-form.tsx), so
+ * adding and withdrawing both survive script-off, and every survivor renders —
+ * in the order the author added it. `exhibitionWrites` maps a newly-added slug
+ * to `undefined`, which never equals a stored index, so `add` is always
+ * promoted with a concrete `order` (the append position): `exhibitionOrder`'s
+ * missing-key fallback is not a state a script-off strip ever actually
+ * reaches, so the strip is never merely tolerable, it is correctly ordered by
+ * construction. Only RE-SEQUENCING — moving a screen once more than one is
+ * exhibited — needs this panel. That split is the whole reason this is an
+ * amendment to a neighbour rather than a seventh exception.
  */
 
 /**
@@ -52,8 +68,21 @@ export interface InsideItem {
   ref: string;
 }
 
-export function PlantInside({ items, children }: { items: InsideItem[]; children: ReactNode }) {
+export function PlantInside({
+  items,
+  exhibition,
+  children,
+}: {
+  items: InsideItem[];
+  /** The Exhibition panel — its count for the trigger's label and its
+   *  server-rendered contents for the popover, ONE prop rather than two so a
+   *  count and a panel that disagree is unrepresentable. Absent for a plant
+   *  with no screens at all — the rail then shows one icon, not two. */
+  exhibition?: { count: number; panel: ReactNode };
+  children: ReactNode;
+}) {
   const [open, setOpen] = useState(false);
+  const [showing, setShowing] = useState(false);
 
   return (
     <>
@@ -62,7 +91,8 @@ export function PlantInside({ items, children }: { items: InsideItem[]; children
           width and its caret keeps its place while the panel opens. */}
       <div
         className={
-          "transition-transform duration-200 ease-out " + (open ? "lg:-translate-x-28" : "")
+          "transition-transform duration-200 ease-out " +
+          (open || showing ? "lg:-translate-x-28" : "")
         }
       >
         {children}
@@ -117,6 +147,41 @@ export function PlantInside({ items, children }: { items: InsideItem[]; children
             </ul>
           </PopoverContent>
         </Popover>
+
+        {exhibition ? (
+          <Popover open={showing} onOpenChange={setShowing}>
+            <ChromeItem
+              label={`Exhibition${exhibition.count > 0 ? ` (${exhibition.count})` : ""}`}
+            >
+              <PopoverTrigger
+                render={
+                  <button
+                    type="button"
+                    aria-label="Exhibition"
+                    className={chromeItemClass(showing)}
+                  >
+                    <GalleryHorizontal className="size-4" />
+                  </button>
+                }
+              />
+            </ChromeItem>
+
+            {/* Same measured sideOffset as the panel above it, for the same
+                reason: the anchor is the button but what has to be cleared is
+                the pill around it. */}
+            <PopoverContent
+              side="left"
+              align="center"
+              sideOffset={16}
+              className="max-h-[70vh] w-80 overflow-y-auto"
+            >
+              <p className="mb-2 font-heading text-xs uppercase tracking-[0.15em] text-muted-foreground">
+                Exhibition
+              </p>
+              {exhibition.panel}
+            </PopoverContent>
+          </Popover>
+        ) : null}
       </Chrome>
     </>
   );

@@ -189,6 +189,43 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
   beans index left the page for a floating panel on a right-hand rail, the
   mirror of the chrome's, which slides the page left rather than covering it.
 
+  That rail carries a **second panel** since the screen-gallery slice: the
+  **Exhibition** (`app/admin/_components/exhibition-panel.tsx`) — the plant's
+  strip of screens, in order, with ↑ / ↓ / ✕ on each row. It is the first thing
+  on the rail that writes, and it is still not a new exception, for two
+  reasons. Its contents are **server-rendered by the page and handed down as a
+  prop**, exactly as `metaForm` / `roleForm` / `logoForm` are, so
+  `plant-inside.tsx` composes no payload and learns no field name. And what its
+  absence costs is **re-sequencing alone**: membership lives on the screen's own
+  page in the library (`screen-exhibit-form.tsx`, an ordinary zero-client-JS
+  form), so script-off the author can still add and withdraw — and every
+  survivor renders *in the order it was added*, because `exhibitionWrites` maps
+  a newly-added slug to `undefined`, which never equals a stored index, so an
+  `add` always writes a concrete `order`. The strip script-off is not merely
+  tolerable; it is correctly ordered. Only moving a screen once several are
+  exhibited needs the panel.
+
+  `lib/exhibition-panel-source.test.ts` pins both halves, because both
+  violations are the silent kind this repo keeps testing for: an import of
+  `../actions` into `plant-inside.tsx` to add a "Clear all", or a `"use client"`
+  on the panel to add a confirm dialog, would each pass `tsc`, `npm test` *and*
+  `npm run build` while quietly making the claim above false. It also pins the
+  render, in `plant-hero-mount.test.ts`'s shape and for its reason: the failure
+  mode is a half-rendered form, not a missing one.
+
+  Two rules that slice carries are worth stating where they can be found.
+  **Exhibiting and publishing are one act** — a screen is private at birth, so
+  `writeExhibition` writes `visibility: "public"` beside `exhibited: true` and
+  reverses both on withdrawal; an author who had to flip visibility separately
+  would produce, as the commonest mistake, a screen marked for a strip it
+  cannot appear on. And **the strip requires both facts**: `filterPublic`
+  enforces privacy, `Dataset.exhibitionForPlant` enforces the editorial opt-in,
+  and neither re-checks the other's — which is why a screen made public by some
+  other route never silently appears on a plant page. The renumbering half of
+  the write is filtered on `exhibited: true` for a related reason: a reorder
+  computed against a stale strip would otherwise republish a screen someone had
+  just withdrawn.
+
   Script-off, **nothing on the header can be edited** — no popover, no sheet, no
   fields, five inert icons. That is a real loss, in the seed overlay's sense
   rather than the media picker's, and it was taken deliberately: a header whose
@@ -328,6 +365,19 @@ mistaken for further exceptions:
   `EntityAvatar`, and the screen library's contact sheet draws each tile's plant
   mark with the same `EntityAvatarGlyph`** — four consumers of one island, which
   is why it is imported rather than reproduced.
+- The public strip (`components/screen-strip.tsx`) and the phone it draws
+  (`components/phone-frame.tsx`, extracted from `components/bean-cover.tsx` so
+  the gallery and the landing row draw one phone rather than two). Both are
+  **server** components pinned in `lib/server-safe-source.test.ts`, the row is
+  CSS `overflow-x-auto` with scroll snapping — `components/media.tsx`'s
+  `Gallery` reused rather than reinvented — and `app/(public)` still has exactly
+  one island. Every phone is a real `<a href>` to the full image, which is
+  deliberate and load-bearing: it is what the lightbox slice will intercept, and
+  what makes that island an enhancement rather than the only route to the
+  picture. `PhoneFrame` takes a **required** `alt`, because the answer differs
+  by caller — the landing card's phone is decorative (the bean's name is two
+  lines below), the strip's is the content — and a shared default is precisely
+  what silently changed one caller's accessibility when the phone was extracted.
 - The public chrome (`app/(public)/_components/public-chrome.tsx`) and the plant
   head (`app/(public)/_components/plant-head.tsx`). Both are **server**
   components, both are now thin compositions over the shared files above, and

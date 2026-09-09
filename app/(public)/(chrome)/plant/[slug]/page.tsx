@@ -7,6 +7,8 @@ import { PlantHead } from "@/app/(public)/_components/plant-head";
 import { ProfanePreload } from "@/components/brand/profane-preload";
 import { Prose } from "@/components/markdown";
 import { LinkRow } from "@/components/link-row";
+import { ScreenStrip } from "@/components/screen-strip";
+import type { ExhibitionRow } from "@/lib/exhibition";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +29,17 @@ export default async function PlantPage({ params }: { params: Promise<{ slug: st
 
   const pods = data.podsForPlant(slug);
   const beans = data.beansForPlant(slug);
+
+  // The exhibition, with both Texts resolved HERE rather than in the strip —
+  // which is what keeps components/screen-strip.tsx isomorphic instead of
+  // server-only, and what will let the lightbox slice hand the same rows to a
+  // client island.
+  const screens: ExhibitionRow[] = data.exhibitionForPlant(slug).map((screen) => ({
+    slug: screen.slug,
+    name: resolveText(screen.name, lang),
+    legend: resolveText(screen.legend ?? "", lang).trim(),
+    image: screen.image,
+  }));
 
   return (
     <article className="flex flex-col gap-8">
@@ -55,6 +68,13 @@ export default async function PlantPage({ params }: { params: Promise<{ slug: st
           <LinkRow links={plant.links} lang={lang} label={`Find ${resolveText(plant.name, lang)} elsewhere`} />
         </div>
       ) : null}
+
+      {/* The exhibition, ABOVE the narrative: show first, explain after. It
+          renders nothing at all for a plant with no exhibited screens, so this
+          needs no guard of its own — ScreenStrip returns null and React drops
+          the flex item, which is the shape the links block above could not
+          take (a centring wrapper around null is still an item). */}
+      <ScreenStrip rows={screens} plantName={resolveText(plant.name, lang)} />
 
       {/* The narrative — where the argument lives. Its entity refs resolve
           against the public dataset, so anything hidden renders as nothing. */}

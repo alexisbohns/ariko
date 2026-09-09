@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import yaml from "js-yaml";
+import { exhibitionOrder } from "./exhibition";
 
 export type Visibility = "private" | "public";
 export type SproutState = "draft" | "private" | "published";
@@ -219,11 +220,15 @@ export interface Bean {
  * which is what lets the cascade in filterPublic be the BEAN's cascade rather
  * than a second one nobody would think to audit.
  *
- * Deliberately ABSENT: `exhibited` and `order`. Those belong to the gallery,
- * they are optional, and Mongo adds an optional field with no migration — so
- * declaring them here would put two fields in the type that nothing reads and
- * nothing writes, which is the speculative generality this file argues against
- * everywhere else. The gallery slice adds them when it has a use for them.
+ * `exhibited` and `order` arrived with the gallery slice, which is the slice
+ * that had a use for them — they were deliberately absent until then. They are
+ * still optional, and Mongo added them with no migration.
+ *
+ * Two fields where one nearly does, and the reason is the seam: the strip
+ * requires `exhibited === true` AND a screen that survived filterPublic. Those
+ * are two different facts, editorial and privacy, enforced in two different
+ * places. Collapsing them would put a screen on a plant page because it was
+ * public, without anyone having said it belonged there.
  */
 export interface Screen {
   slug: string; // stable id — the capture's filename stem, already kebab-case
@@ -245,6 +250,13 @@ export interface Screen {
   visibility?: Visibility; // default treated as "public", the pod/bean rule
   tags?: string[];
   capturedAt?: string; // ISO date of the capture run
+  /** The editorial opt-in — the strip's membership test. See the docblock
+   *  above for why this is not simply "is it public". */
+  exhibited?: boolean;
+  /** Position in the plant's strip, normalized to 0..n-1 on every write
+   *  (lib/exhibition.ts). Absent on an exhibited screen sorts it LAST rather
+   *  than hiding it: the author's opt-in outranks a missing sort key. */
+  order?: number;
 }
 
 export interface Sprout {
@@ -308,6 +320,9 @@ export interface Dataset {
   getPlants(): Plant[];
   podsForPlant(slug: string): Pod[];
   beansForPlant(slug: string): Bean[]; // beans parented DIRECTLY to the plant
+  /** The plant's exhibited screens, in strip order (the gallery slice). Only
+   *  the OPT-IN is checked here — privacy is filterPublic's, upstream. */
+  exhibitionForPlant(slug: string): Screen[];
   unrootedPods(): Pod[]; // pods with no resolvable plant parent
   plantForBean(slug: string): Plant | null;
   getPods(): Pod[];
@@ -392,6 +407,29 @@ export function buildDataset(raw: RawGarden): Dataset {
     }
   }
 
+  // plant slug -> exhibited screens, in strip order. Only resolvable plant
+  // refs index, exactly as pods and beans above: a screen naming a plant that
+  // does not exist survives filterPublic as standalone and has no page to
+  // appear on.
+  //
+  // Sorted ONCE here rather than per render, and `exhibited` is the only
+  // predicate — `visibility` is not re-checked, because the caller reading a
+  // public Dataset is reading one filterPublic already emptied of private
+  // screens, and a security check with two copies has two behaviours.
+  const exhibitionByPlant = new Map<string, Screen[]>();
+  for (const screen of raw.screens ?? []) {
+    if (screen.exhibited !== true) continue;
+    for (const p of parentsWithPrefix(screen.parents, PLANT_PREFIX)) {
+      if (!plantBySlug.has(p)) continue;
+      const list = exhibitionByPlant.get(p) ?? [];
+      list.push(screen);
+      exhibitionByPlant.set(p, list);
+    }
+  }
+  for (const list of exhibitionByPlant.values()) {
+    list.sort(exhibitionOrder);
+  }
+
   // bean slug -> sprouts, sorted newest first.
   const sproutsByBean = new Map<string, Sprout[]>();
   for (const sprout of sprouts) {
@@ -440,6 +478,7 @@ export function buildDataset(raw: RawGarden): Dataset {
     getPlants: () => plants,
     podsForPlant: (slug) => podsByPlant.get(slug) ?? [],
     beansForPlant: (slug) => beansByPlant.get(slug) ?? [],
+    exhibitionForPlant: (slug) => exhibitionByPlant.get(slug) ?? [],
     unrootedPods: () => unrooted,
     plantForBean,
     getPods: () => pods,
