@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
-import { CircleDot, Sprout, Tag } from "lucide-react";
+import { Bean, CircleDot, Sprout, Tag } from "lucide-react";
 import type { ComponentType } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,12 +14,13 @@ import {
 } from "@/components/ui/popover";
 
 /**
- * The vault's three filter dimensions, collapsed into popovers.
+ * The admin's filter dimensions, collapsed into popovers — the vault's three
+ * and the screen library's three, from one file.
  *
  * A container and nothing more: every option inside is the same <a href> the
- * page used to render inline, built by the page's own vaultHref, so filtering
- * stays server-side and a filter URL stays shareable. Client only because a
- * popover is — and now because of the hotkeys, which are the same kind of
+ * page used to render inline, built by lib/admin-filters.ts's filterHref, so
+ * filtering stays server-side and a filter URL stays shareable. Client only
+ * because a popover is — and now because of the hotkeys, which are the same kind of
  * shell-only affordance the seed overlay's `k` is: script-off costs discovery
  * (the triggers do not open, the keys do nothing), never a filter.
  *
@@ -32,7 +33,7 @@ import {
 
 export interface FilterGroup {
   /** The dimension, used as the trigger's label. */
-  key: "state" | "plant" | "tag";
+  key: "state" | "plant" | "bean" | "tag";
   /** Every option, "all" first — already resolved by the page. */
   options: string[];
   /** The active option, or "all". */
@@ -43,7 +44,7 @@ export interface FilterGroup {
 
 /**
  * Icon and hotkey per dimension. The keys are the dimensions' own initials —
- * `s`tate, `p`lant, `t`ag — spelled uppercase because @tanstack/react-hotkeys
+ * `s`tate, `p`lant, `b`ean, `t`ag — spelled uppercase because @tanstack/react-hotkeys
  * canonicalises letter keys to uppercase and carries Shift as a separate flag,
  * so these are unshifted presses, not Shift+letter. (The same spelling the seed
  * overlay's "K" uses.)
@@ -51,13 +52,14 @@ export interface FilterGroup {
 const DIMENSIONS = {
   state: { icon: CircleDot, hotkey: "S" },
   plant: { icon: Sprout, hotkey: "P" },
+  bean: { icon: Bean, hotkey: "B" },
   tag: { icon: Tag, hotkey: "T" },
 } as const satisfies Record<
   FilterGroup["key"],
   { icon: ComponentType<{ className?: string }>; hotkey: string }
 >;
 
-export function VaultFilters({ groups }: { groups: FilterGroup[] }) {
+export function AdminFilters({ groups }: { groups: FilterGroup[] }) {
   // One dimension open at a time, tracked here rather than in each popover:
   // three independently uncontrolled popovers could all be open at once, and a
   // hotkey needs to know whether *another* one already holds focus.
@@ -102,7 +104,25 @@ function FilterPopover({
   // primitive). The library's defaults are relied on for the rest — a bare
   // single key defaults to ignoreInputs:true, so these never fire from a text
   // field elsewhere on the page.
-  useHotkey(hotkey, () => onOpenChange(true), { enabled: !anyOpen });
+  useHotkey(
+    hotkey,
+    () => {
+      // THE COST OF THE GRID STAYING MOUNTED UNDER THE PANEL. Interception is
+      // exactly what keeps /admin/screens rendered — and these hotkeys bound —
+      // while a screen's side sheet is open, which is the property the whole
+      // design rests on. Without this check, `p`, `b` or `t` pressed with a
+      // screen open pops a filter popover BEHIND the panel; because the
+      // popovers run in `trap-focus`, focus leaves the sheet for an invisible
+      // popup, and the Escape that closes it also fires SheetKeys' close href.
+      //
+      // A press-time DOM read rather than a subscription: nothing here
+      // re-renders when the panel arrives or leaves, and nothing needs to —
+      // the question is only ever asked on a keystroke.
+      if (document.querySelector("[data-screen-sheet]")) return;
+      onOpenChange(true);
+    },
+    { enabled: !anyOpen },
+  );
 
   return (
     <Popover

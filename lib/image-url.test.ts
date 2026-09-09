@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cloudinaryThumb } from "./image-url";
+import { cloudinaryFit, cloudinaryThumb } from "./image-url";
 
 // The canonical shape lib/storage.test.ts already treats as real: a Cloudinary
 // upload's secure_url, versioned, inside this app's "beanstalk" folder.
@@ -51,4 +51,25 @@ test("a res.cloudinary.com URL that is NOT an /image/upload/ delivery URL is lef
 test("a lookalike host is not mistaken for res.cloudinary.com", () => {
   const url = "https://res.cloudinary.com.attacker.example/image/upload/v1/beanstalk/abc.jpg";
   assert.equal(cloudinaryThumb(url, { width: 80, height: 80 }), url);
+});
+
+test("cloudinaryFit scales to a width without cropping", () => {
+  const url = "https://res.cloudinary.com/demo/image/upload/v1/a.png";
+  assert.equal(
+    cloudinaryFit(url, { width: 480 }),
+    "https://res.cloudinary.com/demo/image/upload/w_480,c_limit,q_auto,f_auto/v1/a.png",
+  );
+});
+
+test("cloudinaryFit leaves a non-Cloudinary URL untouched", () => {
+  assert.equal(cloudinaryFit("https://example.test/a.png", { width: 480 }), "https://example.test/a.png");
+});
+
+test("cloudinaryFit is idempotent — no stacked transform", () => {
+  const once = cloudinaryFit("https://res.cloudinary.com/demo/image/upload/v1/a.png", { width: 480 });
+  assert.equal(cloudinaryFit(once, { width: 240 }), once);
+});
+
+test("cloudinaryFit leaves a malformed value alone rather than throwing", () => {
+  assert.equal(cloudinaryFit("not a url", { width: 480 }), "not a url");
 });

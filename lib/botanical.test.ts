@@ -6,15 +6,21 @@ import {
   createBean,
   createScreen,
   createSprout,
+  deleteScreen,
   deleteVersion,
+  getScreen,
+  listScreens,
   setPublic,
   setPrivate,
   listPods,
   listBeans,
   updateBeanCover,
   updateBeanKeyword,
+  updateScreenImage,
+  updateScreenMeta,
   SlugExistsError,
 } from "./botanical";
+import { resolveText } from "./data";
 import { getDb, closeDb } from "./db";
 
 const hasDb = Boolean(process.env.MONGODB_URI);
@@ -241,6 +247,92 @@ test("createScreen omits a legend that carries no words in either language", { s
   const stored = await db.collection("screens").findOne({ slug: "__test__screen-blank" });
   assert.equal("legend" in (stored ?? {}), false);
   assert.deepEqual(stored?.parents, []);
+});
+
+test("updateScreenMeta writes the named fields and clears the empty ones", { skip: !hasDb }, async (t) => {
+  t.after(cleanup);
+  const slug = "__test__screen-meta";
+  await createScreen({
+    slug,
+    name: "Before",
+    image: { kind: "image", storageKey: "k", url: "https://x.test/a.png" },
+    plantSlug: "__test__plant",
+    legend: "gone soon",
+    tags: ["a"],
+  });
+
+  await updateScreenMeta(slug, {
+    name: { en: "After", fr: "Après" },
+    legend: null,
+    tags: [],
+    parents: [],
+    relations: [{ kind: "shows", ref: "bean:b" }],
+  });
+
+  const stored = await getScreen(slug);
+  assert.deepEqual(stored?.name, { en: "After", fr: "Après" });
+  assert.equal("legend" in (stored ?? {}), false);
+  assert.equal("tags" in (stored ?? {}), false);
+  assert.deepEqual(stored?.parents, []);
+  assert.deepEqual(stored?.relations, [{ kind: "shows", ref: "bean:b" }]);
+  // Untouched by this writer, and that is the promise it makes.
+  assert.equal(stored?.image.storageKey, "k");
+  assert.equal(stored?.visibility, "private");
+});
+
+test("updateScreenImage replaces only the image", { skip: !hasDb }, async (t) => {
+  t.after(cleanup);
+  const slug = "__test__screen-image";
+  await createScreen({
+    slug,
+    name: "Shot",
+    image: { kind: "image", storageKey: "old", url: "https://x.test/old.png" },
+    plantSlug: null,
+  });
+
+  await updateScreenImage(slug, {
+    kind: "image",
+    storageKey: "new",
+    url: "https://x.test/new.png",
+    width: 10,
+    height: 20,
+  });
+
+  const stored = await getScreen(slug);
+  assert.equal(stored?.image.storageKey, "new");
+  assert.equal(stored?.image.height, 20);
+  assert.equal(resolveText(stored?.name ?? ""), "Shot");
+});
+
+test("deleteScreen removes the document and is idempotent", { skip: !hasDb }, async (t) => {
+  t.after(cleanup);
+  const slug = "__test__screen-delete";
+  await createScreen({
+    slug,
+    name: "Doomed",
+    image: { kind: "image", storageKey: "k", url: "https://x.test/a.png" },
+    plantSlug: null,
+  });
+
+  await deleteScreen(slug);
+  assert.equal(await getScreen(slug), null);
+  await deleteScreen(slug); // a second delete is a no-op, not an error
+});
+
+test("listScreens returns the collection with no _id", { skip: !hasDb }, async (t) => {
+  t.after(cleanup);
+  const slug = "__test__screen-list";
+  await createScreen({
+    slug,
+    name: "Listed",
+    image: { kind: "image", storageKey: "k", url: "https://x.test/a.png" },
+    plantSlug: null,
+  });
+
+  const all = await listScreens();
+  const mine = all.find((s) => s.slug === slug);
+  assert.ok(mine);
+  assert.equal("_id" in mine, false);
 });
 
 test.after(async () => {

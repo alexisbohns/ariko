@@ -1,11 +1,12 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Archive, ExternalLink, Inbox, LogOut, Sprout, Waypoints } from "lucide-react";
-import type { ComponentType, ReactNode } from "react";
+import { ExternalLink, LogOut } from "lucide-react";
+import type { ReactNode } from "react";
 import { NAV_ITEMS, resolveColumn, resolveNavItem } from "@/lib/admin-nav";
 import { logoutAction } from "../actions";
 import { CommandPalette } from "./command-palette";
+import { SECTION_ICONS } from "./section-icons";
 import { Chrome, ChromeItem, ChromeLink, chromeItemClass } from "@/components/chrome";
 import { READING_COLUMN, RAIL_CLEARANCE, WIDE_COLUMN } from "@/components/page-column";
 
@@ -33,13 +34,6 @@ import { READING_COLUMN, RAIL_CLEARANCE, WIDE_COLUMN } from "@/components/page-c
  *  content column is centred rather than offset on. */
 const BARE = "/admin/login";
 
-const ICONS: Record<string, ComponentType<{ className?: string }>> = {
-  "/admin": Inbox,
-  "/admin/vault": Archive,
-  "/admin/garden": Sprout,
-  "/admin/beanstalk": Waypoints,
-};
-
 export function AdminChrome() {
   const pathname = usePathname();
 
@@ -54,7 +48,7 @@ export function AdminChrome() {
     <>
       <Chrome magnet="left" orientation="vertical" label="Admin sections">
         {NAV_ITEMS.map((item) => {
-          const Icon = ICONS[item.href];
+          const Icon = SECTION_ICONS[item.href];
           return (
             <ChromeLink
               key={item.href}

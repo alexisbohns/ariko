@@ -31,9 +31,9 @@ function canonical(logo: MediaImage | null): string {
  * nothing at all.
  *
  * siblings: lib/media-edit.ts (buildMediaPatch), lib/bean-cover-edit.ts
- * (buildBeanCoverPatch) — the same three guards over a different field. Fix
- * the `__ready` guard or the failed-save discriminator here and check whether
- * it applies there too.
+ * (buildBeanCoverPatch), lib/screen-image.ts (buildScreenImagePatch) — the same
+ * three guards over a different field. Fix the `__ready` guard or the
+ * failed-save discriminator here and check whether it applies there too.
  */
 export function buildPlantLogoPatch(current: LogoOwner, form: FormData): LogoPatchResult {
   const raw = form.getAll("logo").map((v) => String(v));

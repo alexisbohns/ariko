@@ -67,7 +67,7 @@ test("with a database, the index is served uncached", { skip: !hasDb }, async ()
   const body = (await res.json()) as { error?: string; items?: PaletteItem[] };
   assert.equal(body.error, undefined);
   assert.ok(Array.isArray(body.items));
-  // The four sections are built by lib/palette.ts itself, so a reachable but
+  // The sections are built by lib/palette.ts itself, so a reachable but
   // empty garden still yields rows — an empty array here would mean the index
   // is not being built at all.
   assert.ok((body.items ?? []).some((item) => item.kind === "section"));

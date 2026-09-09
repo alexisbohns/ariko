@@ -10,7 +10,7 @@ import { NAV_ITEMS } from "./admin-nav";
  * component. Without this split, importing the index builder from the browser
  * drags `node:fs` into the bundle and the build fails outright.
  *
- * So: the row type, the group order, the four sections, and the grouping —
+ * So: the row type, the group order, the sections, and the grouping —
  * all of which the client needs and none of which touches the garden — live
  * here. lib/palette.ts imports this file and adds the part that reads Mongo.
  */
@@ -39,7 +39,7 @@ export interface PaletteItem {
 export const GROUPS = ["Go to", "Garden", "Vault", "Inbox"] as const;
 
 /**
- * The "Go to" rows — the four sections, built from the rail's own model rather
+ * The "Go to" rows — the sections, built from the rail's own model rather
  * than re-typed, so a fifth section appears in both places or in neither.
  *
  * Called by `buildPaletteIndex` on the server AND used directly by the palette

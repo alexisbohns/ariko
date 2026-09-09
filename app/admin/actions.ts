@@ -54,9 +54,24 @@ import {
   updatePlantVisibility,
   updateBeanCover,
   updateBeanKeyword,
+  createScreen,
+  getScreen,
+  updateScreenMeta,
+  updateScreenImage,
+  deleteScreen,
 } from "@/lib/botanical";
 import { buildBeanCoverPatch } from "@/lib/bean-cover-edit";
 import { buildBeanKeywordPatch } from "@/lib/bean-keyword";
+import { buildScreenMetaPatch } from "@/lib/screen-edit";
+import { buildScreenImagePatch } from "@/lib/screen-image";
+import { buildNewScreenInput } from "@/lib/screen-create";
+import {
+  SCREEN_FILTER_KEYS,
+  filterFieldName,
+  newScreenHref,
+  screensHref,
+  screensQuery,
+} from "@/lib/screens";
 import { uploadImage } from "@/lib/storage";
 import { checkUploadFile, uploadedFilename } from "@/lib/upload-input";
 import {
@@ -611,6 +626,135 @@ export async function syncNowAction(): Promise<void> {
       ? `/admin/beanstalk?error=${encodeURIComponent(failed.map((f) => `${f.feedId}: ${f.error ?? "unknown"}`).join(" · "))}`
       : "/admin/beanstalk",
   );
+}
+
+/**
+ * The library's write paths.
+ *
+ * All four share one arrangement worth naming once. Each form carries the
+ * index's active filters in three hidden fields and each action redirects back
+ * through them, so a save does not drop the author out of the filtered set they
+ * were working through — they are walking a hundred and seventy screens with
+ * prev/next, and losing the filter on the first save would send them back to
+ * the top of the whole collection.
+ *
+ * Those fields are client-controlled, so they are re-canonicalized by
+ * `screensQuery` rather than concatenated: whatever arrives, only `plant`,
+ * `bean` and `tag` survive, and `lib/screens.ts` is the only thing that builds
+ * the URL — `screensHref` for the index and a screen, `newScreenHref` for the
+ * create page. A hidden field reaching `redirect()` intact would be an open
+ * redirect; one that can only ever produce three known keys on a known path is
+ * not.
+ *
+ * The field names are DERIVED, from `SCREEN_FILTER_KEYS` through
+ * `filterFieldName`, and so are the ones `filter-fields.tsx` renders. Spelled
+ * out on both sides — which they were — a fourth dimension would type-check,
+ * build, and silently drop out of every save's round trip.
+ *
+ * Not exported and not async: only the EXPORTS of a "use server" module have to
+ * be async, and there is nothing to await here.
+ */
+function activeFilterQuery(formData: FormData): string {
+  return screensQuery(
+    Object.fromEntries(
+      SCREEN_FILTER_KEYS.map((key) => [key, String(formData.get(filterFieldName(key)) ?? "")]),
+    ),
+  );
+}
+
+export async function createScreenAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const query = activeFilterQuery(formData);
+
+  const result = buildNewScreenInput(formData);
+  if (!result.ok) redirect(newScreenHref(query, result.error));
+
+  // Only slug collisions are recoverable; anything else propagates. redirect()
+  // stays OUT of the try (it throws to control flow), so the taken slug leaves
+  // on a flag — promoteSeedAction's arrangement.
+  let taken = false;
+  try {
+    await createScreen({
+      ...result.input,
+      // Not in the pure builder: it is a clock, and the builder is tested
+      // without one. The list sorts on this, so a new screen lands at the top
+      // of the library rather than at the bottom under an empty date — from the
+      // day after an import, at least: scripts/import-paulopus-screens.ts stamps its
+      // whole run with the same date, so a screen added by hand on an import
+      // day ties with the batch and falls through to the slug tie-break.
+      capturedAt: new Date().toISOString().slice(0, 10),
+    });
+  } catch (err) {
+    if (!(err instanceof SlugExistsError)) throw err;
+    taken = true;
+  }
+  if (taken) redirect(newScreenHref(query, `that slug is taken: ${result.input.slug}`));
+
+  revalidatePath("/admin/screens");
+  redirect(screensHref(result.input.slug, query));
+}
+
+export async function editScreenMetaAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+  const query = activeFilterQuery(formData);
+
+  // Existence first, so every redirect below targets a real page and only ever
+  // interpolates a known-good stored slug.
+  const existing = await getScreen(slug);
+  if (!existing) redirect(screensHref(null, query));
+
+  const result = buildScreenMetaPatch(existing, formData);
+  if (!result.ok) redirect(screensHref(slug, query, result.error));
+  if (result.dirty) await updateScreenMeta(slug, result.patch);
+
+  revalidatePath("/admin/screens");
+  redirect(screensHref(slug, query));
+}
+
+/**
+ * The screen's image — the one client-island write in this slice. Its form is
+ * nothing BUT the picker, so the picker renders the submit button and
+ * script-off there is no button at all: inert rather than destructive, which is
+ * the rule CLAUDE.md states. buildScreenImagePatch enforces the same thing
+ * server-side for a POST that never rendered one.
+ */
+export async function editScreenImageAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+  const query = activeFilterQuery(formData);
+
+  const existing = await getScreen(slug);
+  if (!existing) redirect(screensHref(null, query));
+
+  const result = buildScreenImagePatch(existing, formData);
+  if (result.dirty) await updateScreenImage(slug, result.image);
+
+  revalidatePath("/admin/screens");
+  redirect(screensHref(slug, query));
+}
+
+/**
+ * Hard delete, behind a confirm checkbox re-checked here — `deleteVersionAction`'s
+ * shape, because the browser's `required` is only UX and this is the one
+ * irreversible act in the library.
+ */
+export async function deleteScreenAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+  const query = activeFilterQuery(formData);
+
+  const existing = await getScreen(slug);
+  if (!existing) redirect(screensHref(null, query));
+
+  if (String(formData.get("confirm") ?? "") !== "on") {
+    redirect(screensHref(slug, query, "could not delete: confirm the permanent deletion first"));
+  }
+
+  await deleteScreen(slug);
+
+  revalidatePath("/admin/screens");
+  redirect(screensHref(null, query));
 }
 
 export type UploadResult = { ok: true; media: MediaImage } | { ok: false; error: string };

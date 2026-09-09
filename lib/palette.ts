@@ -25,7 +25,7 @@ import {
  * resolved HERE, which is what keeps the palette component free of any opinion
  * about language.
  *
- * The row type, the group order, the four sections and the grouping live in
+ * The row type, the group order, the sections and the grouping live in
  * lib/palette-items.ts instead, and are re-exported below. That is not tidiness:
  * this file imports lib/data.ts, which opens with `node:fs`, so it can never be
  * reached from the browser — and the palette component is a client component.
@@ -70,7 +70,7 @@ export function buildPaletteIndex(input: { garden: RawGarden; seeds: Seed[] }): 
   index(BEAN_PREFIX, garden.beans);
 
   // The same function the client calls before this index has loaded — one
-  // definition of "the four sections", not two that must be kept in step.
+  // definition of "the sections", not two that must be kept in step.
   const items: PaletteItem[] = sectionItems();
 
   for (const plant of garden.plants ?? []) {

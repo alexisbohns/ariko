@@ -60,10 +60,13 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
 
   > The picker renders **nothing until it mounts**. Without script, the form
   > around it is byte-for-byte what it was, and **its absence never costs
-  > anything** — a form it merely adds to still submits, and a form that is
-  > *only* the picker goes inert rather than destructive.
+  > anything** — a form it merely adds to still submits; a form that is *only*
+  > the picker goes inert rather than destructive; and a form of its own fields
+  > *plus* the picker, which script-off cannot be submitted at all, is
+  > admissible only where it **creates** — a record that never came into
+  > existence loses nothing and mis-saves nothing.
 
-  Both halves are load-bearing. The capture bar still submits without script,
+  All three halves are load-bearing. The capture bar still submits without script,
   minus the images — and a submit is never blocked by an upload either: an
   in-flight or failed image simply is not in the payload. The sprout media card
   is the other case: it is nothing *but* the picker, so the picker renders its
@@ -96,6 +99,22 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
   survives, and the keyword is silently lost with nothing on the page to say
   so. Two forms make that impossible rather than survivable, which is the
   plant's Meta-beside-Logo arrangement again.
+
+  The screen **Create form** (`app/admin/_components/screen-create-form.tsx`,
+  the screen-library slice) is the **third case** the rule above names, and the
+  only one in the admin: three fields of its own — `slug`, `name`, `plant` —
+  *and* the picker owning the submit button. Script-off it renders those three
+  fields, renders no button, and cannot be submitted at all, so the first half
+  of the rule ("a form it merely adds to still submits") is simply untrue of
+  it. It is admissible anyway because it **creates**: there is no record yet, so
+  nothing is lost and nothing is silently mis-saved — the author is told
+  nothing, and nothing happens, which is the honest end of an inert form.
+  `lib/screen-create.ts`'s docblock argues the same thing at the write path.
+  Two of its details are load-bearing: TWO text inputs rather than one, because
+  a lone text input in a button-less form submits on Enter (the bean Keyword
+  trap), and `buildNewScreenInput` refusing a payload with no `image__ready`
+  regardless. Widening this shape to a form that EDITS would be a different
+  decision, and a worse one.
 
   That slice added **no seventh exception**: the cover itself
   (`components/bean-cover.tsx`) is a server component pinned in
@@ -140,7 +159,7 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
 
   What makes it mild is that **its absence costs nothing**, in the strong sense
   the media picker's rule uses: the palette adds no destination of its own. Every
-  row is a faster route to a page that still has its slow route — the four
+  row is a faster route to a page that still has its slow route — the
   sections from the rail, everything else from the list page that already links
   to it. And it **never writes**: no form, no server action, no submit. It is a
   navigator, not a command runner, which is what keeps it small enough to trust.
@@ -153,7 +172,7 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
 
   One split is load-bearing and easy to undo by accident: `lib/palette.ts`
   imports `lib/data.ts`, which opens with `node:fs`, so it is **server-only**.
-  The client half — the row type, the group order, the four sections, the
+  The client half — the row type, the group order, the sections, the
   grouping — lives in `lib/palette-items.ts`. Importing the wrong one from the
   palette component does not merely bloat the bundle; it fails the build.
 
@@ -228,7 +247,7 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
   (`lib/toc.ts`, `lib/toc.test.ts`); `lib/toc-mount.test.ts` pins the absence.
 
 Those six are the whole list. Every *other* admin metadata form is unchanged
-and still zero-client-JS. Four neighbours are worth naming so they are not
+and still zero-client-JS. Five neighbours are worth naming so they are not
 mistaken for further exceptions:
 
 - The chrome (`app/admin/_components/admin-chrome.tsx`) is a client component so
@@ -236,16 +255,63 @@ mistaken for further exceptions:
   plain `<a href>` and Log out is still a real `<form>` with a real submit
   button. It renders the palette, which is the one thing inside it that is an
   island rather than chrome.
-- The vault's filter popovers (`app/admin/_components/vault-filters.tsx`) are a
+- The admin's filter popovers (`app/admin/_components/admin-filters.tsx`) are a
   container only — every option inside is the same `<a href>` the page rendered
-  inline before, filtering stays server-side in `lib/vault.ts`, and filter URLs
-  stay shareable. The `s`/`p`/`t` hotkeys that open the status, plant and tag
-  popovers are the same kind of shell affordance as the seed overlay's `k`, and
-  the popovers open in the primitive's `trap-focus` mode so Tab and Shift+Tab
-  cycle the options rather than walking off into the table behind. What
-  script-off *does* cost there is **discovery**: the triggers no longer open and
-  the keys do nothing, so the filters cannot be found from the page, only typed
-  as a query string.
+  inline before, built by `filterHref()` in `lib/admin-filters.ts`; filtering
+  stays server-side (`lib/vault.ts` for the vault, `lib/screens.ts` for the
+  screen library), and filter URLs stay shareable. It was the vault's alone
+  until the screen library needed the same bar, so it carries four dimensions
+  now — `s`tate, `p`lant, `b`ean, `t`ag — and each page hands it the three it
+  has. Those four letters are also the hotkeys that open the popovers: the same
+  kind of shell affordance as the seed overlay's `k`. The popovers open in the
+  primitive's `trap-focus` mode so Tab and Shift+Tab cycle the options rather
+  than walking off into the table behind. What script-off *does* cost there is
+  **discovery**: the triggers no longer open and the keys do nothing, so the
+  filters cannot be found from the page, only typed as a query string.
+- The screen library's side sheet (`app/admin/_components/side-sheet.tsx`, the
+  screen-library slice). `/admin/screens` is a contact sheet of every stored
+  screen; clicking a tile opens its editors in a panel on the right that the
+  page slides out from under, rather than an overlay — so the grid stays visible
+  and clickable and the author can swap screens without closing anything. It
+  looks like a seventh exception and is not, because **the panel renders nothing
+  that is not already a page**: it is a Next parallel + intercepting route
+  (`app/admin/@sheet/(.)screens/[slug]`) that imports and wraps
+  `app/admin/screens/[slug]/page.tsx` itself. Script-off, the same tile click is
+  an ordinary navigation to that page, where the metadata and delete forms
+  still work — prev, next and close included, since all three are real
+  `<a href>` (`screen-nav.tsx`), never `router.back()`. (The image card and the
+  create form are the picker's exception, below.) `sheet-keys.tsx` binds Escape
+  and the arrows over those same hrefs and renders nothing, which is the filter
+  popovers' category of affordance rather than a destination of its own. The
+  library is also this repo's first use of `next/link` — every other LINK in
+  both zones is a plain `<a href>`, the palette and `sheet-keys.tsx` being the
+  two places that navigate by `router.push` instead — and it is still confined
+  to this slice's four files:
+  interception needs a client-side navigation, and `Link` renders the same
+  anchor a plain `<a>` would. `lib/screen-sheet-source.test.ts` pins both halves
+  — the slot importing the page's own module, and the tiles navigating by `href`
+  — because reimplementing the body in the slot or turning a tile into a button
+  passes `tsc`, `npm test` AND `npm run build` while quietly making the library
+  script-only.
+
+  The push itself is CSS, not state: the layout asks
+  `:has(~ [data-screen-sheet])`, which is `plant-inside.tsx`'s idiom, and
+  `@sheet/default.tsx` returning null is what makes the question honest —
+  everywhere but a screen there is no element beside the page to match. The two
+  places the panel does render something the standalone route does not are
+  `@sheet/(.)screens/[slug]/not-found.tsx` — a boundary, not a form: a stale
+  tile would otherwise replace the whole page, grid included, to say a screen is
+  gone — and the one `<style>` rule that rings the open tile (`activeTileCss` in
+  `lib/screens.ts`, called by the slot). Interception is exactly what keeps the
+  index from re-rendering while the panel navigates, so the grid cannot know
+  which tile is open and the panel says so in CSS; the slug is guarded rather
+  than trusted there, because a stored slug came from a filename and a quote in
+  one would escape the selector. Neither is a form, neither writes, and both
+  vanish with the panel. The one thing the library genuinely spends is the picker
+  exception it already had — the image card and the create form are the picker,
+  so neither works without script, and `buildScreenImagePatch` enforces the
+  `__ready` marker. It adds one rule its three siblings lack: **a screen's image
+  cannot be cleared**, because `Screen.image` is required.
 - The three admin tables' glyphs (`components/admin/glyphs.tsx`). The inbox's
   source column, the vault's plant column and the garden's name/tier/visibility
   columns *draw* their values — a lucide icon for the capture route, a
@@ -259,7 +325,9 @@ mistaken for further exceptions:
   (from `lib/glyphs.ts`, the one place a display form is decided, exactly as
   `lib/plant-status.ts` is for its enum), so no value is icon-only in the
   accessibility tree. **The palette draws plant rows with the same
-  `EntityAvatar`**, which is why that island is imported rather than reproduced.
+  `EntityAvatar`, and the screen library's contact sheet draws each tile's plant
+  mark with the same `EntityAvatarGlyph`** — four consumers of one island, which
+  is why it is imported rather than reproduced.
 - The public chrome (`app/(public)/_components/public-chrome.tsx`) and the plant
   head (`app/(public)/_components/plant-head.tsx`). Both are **server**
   components, both are now thin compositions over the shared files above, and

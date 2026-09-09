@@ -19,6 +19,7 @@ import type { SproutInput } from "./promote";
 import type { SproutPatch } from "./sprout-edit";
 import type { ContentPatch } from "./content-edit";
 import { plantMetaUpdate, type PlantMetaPatch } from "./plant-meta";
+import { screenMetaUpdate, type ScreenMetaPatch } from "./screen-edit";
 
 // Thrown when a create hits the unique slug index. Lets the server action turn a
 // collision into a friendly message instead of a 500.
@@ -186,6 +187,76 @@ export async function createScreen(input: NewScreen): Promise<Screen> {
     throw err;
   }
   return doc;
+}
+
+/** Every screen, slug-ordered.
+ *
+ *  NO CALLER BUT ITS TEST, deliberately: `/admin/screens` reads
+ *  `loadRawGarden()` instead, because the contact sheet needs the plants too
+ *  (each tile draws its plant's mark) and one read is better than two. This is
+ *  kept for the GALLERY slice, which will want screens and nothing else —
+ *  every screen is private at birth, so the admin is still the only surface
+ *  that sees them until then. Delete it if that slice lands on a different
+ *  read. */
+export async function listScreens(): Promise<Screen[]> {
+  const db = await getDb();
+  return db.collection<Screen>("screens").find({}, { projection: { _id: 0 } }).sort({ slug: 1 }).toArray();
+}
+
+/** Single read for the edit page's prefill (projection drops _id) —
+ *  `getSprout`'s shape, one species over. */
+export async function getScreen(slug: string): Promise<Screen | null> {
+  const db = await getDb();
+  return db.collection<Screen>("screens").findOne({ slug }, { projection: { _id: 0 } });
+}
+
+/**
+ * Writes a screen's name, legend, tags, parents and relations — and nothing
+ * else.
+ *
+ * A SIBLING of updatePlantMeta, down to the reason its update document is built
+ * elsewhere: `screenMetaUpdate` is pure and tested because composing `$set` and
+ * `$unset` inline with a spread silently drops fields (see `plantMetaUpdate`'s
+ * comment, which is that bug's headstone).
+ *
+ * `image` is NOT among the fields, and that is the whole safety of the arrangement:
+ * the Meta form and the picker form are separate forms on the same page, so a
+ * metadata save can never blank an image and an image save can never blank a name.
+ */
+export async function updateScreenMeta(slug: string, patch: ScreenMetaPatch): Promise<void> {
+  const db = await getDb();
+  await db
+    .collection<Screen>("screens")
+    .updateOne({ slug }, screenMetaUpdate(patch) as UpdateFilter<Screen>);
+}
+
+/**
+ * Writes a screen's image — and nothing else.
+ *
+ * A plain `$set` with no `$unset` twin, unlike `updateBeanCover` and
+ * `updatePlantLogo`: `Screen.image` is required, so there is no clear to
+ * express. That is also why this is not the fourth copy of the `$set`/`$unset`
+ * shape `updateBeanCover`'s comment warns about — it is half of it.
+ */
+export async function updateScreenImage(slug: string, image: MediaImage): Promise<void> {
+  const db = await getDb();
+  await db.collection<Screen>("screens").updateOne({ slug }, { $set: { image } });
+}
+
+/**
+ * Hard delete. Idempotent — deleting a missing slug matches 0 and is a no-op.
+ *
+ * The DOCUMENT only. The Cloudinary asset stays, deliberately: until covers
+ * become screen references, a bean's `cover` holds its own inline copy of the
+ * same asset, so deleting the bytes here would break the landing row. An asset
+ * nothing points at any more is `npm run check:orphans`'s to sweep, and
+ * lib/orphan-assets.ts already counts `screens.image` among the four homes a
+ * storageKey can have — so an asset a bean still uses is correctly reported as
+ * referenced and left alone.
+ */
+export async function deleteScreen(slug: string): Promise<void> {
+  const db = await getDb();
+  await db.collection<Screen>("screens").deleteOne({ slug });
 }
 
 export async function createSprout(input: SproutInput): Promise<Sprout> {
