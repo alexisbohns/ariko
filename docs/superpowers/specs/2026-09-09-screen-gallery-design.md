@@ -225,9 +225,13 @@ slice lands.
 - `lib/exhibition.test.ts` — the comparator (ascending, unordered last, slug
   tie-break), every `null` no-op in §4, and the write diff: a swap promotes two
   slugs and no more.
-- `lib/visibility.test.ts` — `exhibitionForPlant` beside the screen cascade
-  tests already there: exhibited-only, ordered, and a private exhibited screen
-  absent because `filterPublic` took it.
+- `lib/data.test.ts` — `exhibitionForPlant` itself, beside the other
+  `buildDataset` accessors: exhibited-only, ordered, a plant's own screens
+  only, and a dangling plant ref indexed nowhere.
+- `lib/visibility.test.ts` — the SEAM, beside the screen cascade tests already
+  there: a screen marked exhibited but stored private reaches no strip, because
+  `filterPublic` took it first. The two files split the way the two halves of
+  the rule do.
 - `lib/botanical.test.ts` — a DB-gated round trip of `writeExhibition` under
   the existing `{ skip: !hasDb }` gate and the `__test__` slug convention:
   promote sets all three fields, withdraw unsets two and re-privatizes.
