@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   applyExhibitionOp,
+  exhibitionOf,
   exhibitionOpOf,
   exhibitionOrder,
   exhibitionWrites,
@@ -31,9 +32,56 @@ test("exhibitionOrder breaks a tie on slug", () => {
   assert.deepEqual(unordered.map((e) => e.slug), ["y", "z"]);
 });
 
+test("exhibitionOrder sorts a NaN order last rather than returning NaN", () => {
+  // `typeof NaN === "number"` passes a naive guard, so `ao - bo` would be NaN
+  // and the sort's behaviour would become implementation-defined. Assert the
+  // resulting slug order, not the comparator's return value, because it is the
+  // strip's position that matters.
+  const sorted = [{ slug: "a", order: 0 }, { slug: "b", order: NaN }].sort(exhibitionOrder);
+  assert.deepEqual(sorted.map((e) => e.slug), ["a", "b"]);
+});
+
+// --- exhibitionOf: the narrowing exhibitionWrites' first argument requires.
+
+test("exhibitionOf returns only the exhibited entries", () => {
+  const screens = [
+    { slug: "a", exhibited: true, order: 0 },
+    { slug: "b", exhibited: false },
+    { slug: "c" },
+  ];
+  assert.deepEqual(exhibitionOf(screens).map((s) => s.slug), ["a"]);
+});
+
+test("exhibitionOf returns them in exhibitionOrder", () => {
+  // Built out of order so a missing sort fails this.
+  const screens = [
+    { slug: "c", exhibited: true, order: 2 },
+    { slug: "a", exhibited: true, order: 0 },
+    { slug: "b", exhibited: true, order: 1 },
+  ];
+  assert.deepEqual(exhibitionOf(screens).map((s) => s.slug), ["a", "b", "c"]);
+});
+
+test("exhibitionOf does not reorder or filter the array it was given", () => {
+  const screens = [
+    { slug: "b", exhibited: true, order: 1 },
+    { slug: "a", exhibited: true, order: 0 },
+  ];
+  exhibitionOf(screens);
+  assert.deepEqual(screens.map((s) => s.slug), ["b", "a"]);
+});
+
+test("exhibitionOf keeps the caller's extra fields", () => {
+  // Pins the generic: a caller's rows are never narrowed to ExhibitionEntry.
+  const screens = [{ slug: "a", exhibited: true, order: 0, name: "Home screen" }];
+  assert.deepEqual(exhibitionOf(screens), [
+    { slug: "a", exhibited: true, order: 0, name: "Home screen" },
+  ]);
+});
+
 // --- exhibitionOpOf: the vocabulary, re-validated rather than trusted.
 
-test("exhibitionOpOf admits exactly the four members", () => {
+test("exhibitionOpOf admits the four members", () => {
   assert.equal(exhibitionOpOf("add"), "add");
   assert.equal(exhibitionOpOf("remove"), "remove");
   assert.equal(exhibitionOpOf("up"), "up");
@@ -122,4 +170,12 @@ test("an unchanged strip writes nothing at all", () => {
   const writes = exhibitionWrites(before, ["a", "b"]);
   assert.deepEqual(writes.promote, []);
   assert.deepEqual(writes.withdraw, []);
+});
+
+test("withdraw is a set difference: present in exhibited and absent from after is withdrawn, present in both is not", () => {
+  const before = [{ slug: "a", order: 0 }, { slug: "b", order: 1 }, { slug: "c", order: 2 }];
+  const writes = exhibitionWrites(before, ["a", "c"]);
+  assert.deepEqual(writes.withdraw, ["b"]);
+  assert.ok(!writes.withdraw.includes("a"));
+  assert.ok(!writes.withdraw.includes("c"));
 });
