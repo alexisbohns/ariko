@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import type { EntityResolver } from "@/lib/entity-resolve";
+import { DEFAULT_LANG, type Lang } from "@/lib/locale";
+import { BeanCover } from "@/components/bean-cover";
 import { EntityCardBody, UnresolvedRef } from "@/components/entity-card";
 
 // Fail-closed (spec §2.3): an unresolved ref renders NOTHING on a public page —
@@ -14,10 +16,20 @@ export function EntityCard({
   refValue,
   resolve,
   showUnresolved,
+  lang = DEFAULT_LANG,
 }: {
   refValue?: string;
   resolve?: EntityResolver;
   showUnresolved?: boolean;
+  /**
+   * The reader's language, for the cover's KEYWORD alone — every other string
+   * on the card was already resolved by `resolveEntity`, which closes over the
+   * same lang. It travels separately because the resolver's payload is
+   * deliberately lang-agnostic where a `Text` survives in it: `BeanCover`
+   * carries the keyword unresolved (lib/bean-cover.ts says why), so the
+   * component that draws it is the one that has to answer.
+   */
+  lang?: Lang;
 }) {
   const entity = refValue && resolve ? resolve(refValue) : null;
   if (!entity) {
@@ -28,12 +40,14 @@ export function EntityCard({
     ) : null;
   }
   return (
-    // The anchor wraps the CARD, not the image — and that placement is
-    // load-bearing. components/ui/card.tsx ships `has-[>img:first-child]:pt-0`
-    // and `*:[img:first-child]:rounded-t-xl`, and BOTH selectors match a
-    // direct-child <img> only: an anchor around the image silently opts out and
-    // produces an inset band with square corners instead of a flush one.
-    // Wrapping the whole card keeps the image where those selectors can see it.
+    // The anchor wraps the CARD, not the art — and that placement is
+    // load-bearing twice over. The card's own `overflow-hidden rounded-xl` is
+    // what rounds the flush cover's left corners, so anything wrapped around
+    // the art instead would paint a square-cornered band inside a rounded card.
+    // And `group` has to sit OUTSIDE the frame: the cover's whole choreography
+    // is `group-hover` (components/bean-cover.tsx), so a hover scoped to the
+    // picture would leave the word and the phone still while the visitor is
+    // reading the description beside them.
     //
     // The whole card is the link, where only the name line used to be — the
     // cover and the description were dead pixels over a link-shaped object. One
@@ -47,7 +61,9 @@ export function EntityCard({
       <EntityCardBody
         name={entity.name}
         description={entity.description}
-        cover={entity.cover}
+        coverArt={
+          entity.cover ? <BeanCover cover={entity.cover} lang={lang} /> : undefined
+        }
         // No `refText` here, in either zone. The ref belongs to the WRITING
         // surface — it is how an author checks that a card points where they
         // meant — and a rendered page is a rendered page whoever is looking at
