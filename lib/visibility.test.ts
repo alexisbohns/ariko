@@ -428,13 +428,29 @@ test("filterPublic never mutates the input when scrubbing plant relations or bee
   assert.deepEqual(seed, snapshot);
 });
 
-test("a private screen never reaches the exhibition, however it is marked", () => {
-  // The two halves of the rule are enforced in two places and this is the
-  // seam between them: filterPublic is the security boundary and drops the
-  // screen, so exhibitionForPlant never has to re-check visibility — and a
-  // second copy of a security check would be a second behaviour.
+test("the exhibition is the seam: privacy drops a screen, the opt-in selects one", () => {
+  // The two halves of the rule are enforced in two places and this test is the
+  // seam between them: filterPublic is the security boundary, so
+  // exhibitionForPlant never re-checks visibility — a second copy of a security
+  // check would be a second behaviour.
+  //
+  // Both halves are asserted, and that is the point. Pinning only the private
+  // screen's absence would pass just as well against an accessor that always
+  // returned nothing, so the test would survive the thing it exists to protect
+  // being deleted.
   const seed = screenSeed();
   seed.screens![0] = { ...seed.screens![0], exhibited: true, order: 0 }; // sc-private
+  seed.screens![1] = { ...seed.screens![1], exhibited: true, order: 0 }; // sc-cascaded
+  seed.screens![2] = { ...seed.screens![2], exhibited: true, order: 1 }; // sc-public
+
   const d = buildDataset(filterPublic(seed));
-  assert.deepEqual(d.exhibitionForPlant("pl-pub"), []);
+
+  // The explicitly private screen is gone; the public one is there. Only
+  // filterPublic can tell those two apart.
+  assert.deepEqual(d.exhibitionForPlant("pl-pub").map((s) => s.slug), ["sc-public"]);
+
+  // And the cascade half, which is defended twice over: filterPublic drops a
+  // screen whose only plant parent was filtered out, AND buildDataset's index
+  // refuses to file one under a plant that is not in the garden it was handed.
+  assert.deepEqual(d.exhibitionForPlant("pl-priv"), []);
 });

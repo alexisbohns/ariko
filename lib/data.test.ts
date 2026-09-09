@@ -652,6 +652,7 @@ const EXHIBITED: RawGarden = {
     { slug: "s-stored", name: "Stored", image: EXHIBIT_IMAGE, parents: ["plant:pl"] },
     { slug: "s-elsewhere", name: "Elsewhere", image: EXHIBIT_IMAGE, parents: ["plant:pl-other"], exhibited: true, order: 0 },
     { slug: "s-dangling", name: "Dangling", image: EXHIBIT_IMAGE, parents: ["plant:ghost"], exhibited: true, order: 0 },
+    { slug: "s-shared", name: "Shared", image: EXHIBIT_IMAGE, parents: ["plant:pl", "plant:pl-other"], exhibited: true, order: 9 },
   ],
 };
 
@@ -660,6 +661,7 @@ test("exhibitionForPlant returns the plant's exhibited screens, in order", () =>
   assert.deepEqual(d.exhibitionForPlant("pl").map((s) => s.slug), [
     "s-first",
     "s-second",
+    "s-shared",
     "s-unordered",
   ]);
 });
@@ -674,7 +676,7 @@ test("exhibitionForPlant omits a stored screen that was never exhibited", () => 
 test("exhibitionForPlant does not borrow another plant's screens", () => {
   const d = buildDataset(EXHIBITED);
   assert.equal(d.exhibitionForPlant("pl").some((s) => s.slug === "s-elsewhere"), false);
-  assert.deepEqual(d.exhibitionForPlant("pl-other").map((s) => s.slug), ["s-elsewhere"]);
+  assert.deepEqual(d.exhibitionForPlant("pl-other").map((s) => s.slug), ["s-elsewhere", "s-shared"]);
 });
 
 test("exhibitionForPlant ignores a screen whose plant parent does not resolve", () => {
@@ -685,7 +687,19 @@ test("exhibitionForPlant ignores a screen whose plant parent does not resolve", 
   assert.deepEqual(d.exhibitionForPlant("ghost"), []);
 });
 
-test("exhibitionForPlant is empty for a plant with no screens at all", () => {
+test("exhibitionForPlant is empty for a slug that names no plant", () => {
+  // Pins the `?? []` fallback: "nobody" is not a plant in EXHIBITED at all,
+  // as distinct from a plant that merely has no screens.
   const d = buildDataset(EXHIBITED);
   assert.deepEqual(d.exhibitionForPlant("nobody"), []);
+});
+
+test("exhibitionForPlant lets a screen with two plant parents appear in both strips", () => {
+  // The index's inner loop over parentsWithPrefix exists exactly for this: a
+  // refactor to `parents.find(...)` (taking only the first resolvable plant)
+  // would pass the rest of this suite, since no other fixture screen has two
+  // plant parents.
+  const d = buildDataset(EXHIBITED);
+  assert.equal(d.exhibitionForPlant("pl").some((s) => s.slug === "s-shared"), true);
+  assert.equal(d.exhibitionForPlant("pl-other").some((s) => s.slug === "s-shared"), true);
 });
