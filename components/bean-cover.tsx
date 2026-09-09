@@ -2,6 +2,7 @@ import type { BeanCover as BeanCoverValue } from "@/lib/bean-cover";
 import type { Lang } from "@/lib/locale";
 import { resolveText } from "@/lib/data";
 import { cloudinaryThumb } from "@/lib/image-url";
+import { PhoneFrame } from "@/components/phone-frame";
 
 // One movement, two elements: the word leaving and the phone rising are the
 // same gesture, so they share one duration and one curve by construction —
@@ -46,6 +47,10 @@ const GLIDE =
  * baked into the stored file: baking it would make cloudinaryThumb crop a
  * composite instead of a screen, and turn "re-shoot that screen" into
  * "re-composite that screen".
+ *
+ * The phone itself is `components/phone-frame.tsx` since the gallery slice
+ * needed the same one. What stayed here is what is the COVER's: where the phone
+ * sits, how it rises on hover, and the word that leaves as it does.
  *
  * Three more numbers worth naming so they don't read as arbitrary: the frame
  * is 168px tall and the phone should show 110px of ITSELF at rest — the same
@@ -107,43 +112,31 @@ export function BeanCover({
           {word}
         </span>
       ) : null}
-      <span
+      <PhoneFrame
+        image={cover.image}
+        // ~2.15x the box the screenshot actually paints — 104 x 225, once
+        // `p-1` is taken out of the 112px span — rather than the flat 2x
+        // lib/image-url.ts states every caller asks for. This is the one
+        // caller that departs from that rule, and the departure is in the safe
+        // direction: a little sharper than needed, never softer.
+        //
+        // The FULL height, not the ~110px visible at rest: hover reveals more
+        // of the image, and a derivative sized to the rest state would blur
+        // exactly when the visitor leans in.
+        width={224}
+        height={484}
         // The transform is written whole rather than composed from Tailwind's
-        // translate-x / translate-y / scale utilities. Those set separate custom
-        // properties that a hover variant then has to re-declare in full anyway,
-        // and getting one of them wrong centres the phone off-axis for the
-        // duration of the transition only — which is exactly the kind of bug
-        // that survives review.
+        // translate-x / translate-y / scale utilities. Those set separate
+        // custom properties that a hover variant then has to re-declare in full
+        // anyway, and getting one of them wrong centres the phone off-axis for
+        // the duration of the transition only — which is exactly the kind of
+        // bug that survives review.
         //
-        // -46px with a 0.80 scale from `origin-top`: 110px of the phone
-        // visible at rest becomes ~156px of a smaller phone on hover. Against
-        // the span's real ~229px that is 48% of it showing, becoming 85%.
-        //
-        // bg-neutral-900, not a theme token: this is the one non-token colour
-        // in the file, and it is deliberate rather than an oversight. A phone
-        // is dark in both themes, so `bg-foreground` (near-white in dark mode)
-        // or `bg-card` (vanishes into the page) would both be silently wrong
-        // fixes for something that was never broken.
-        className={`absolute left-1/2 top-[58px] w-1/2 origin-top rounded-2xl bg-neutral-900 p-1 pb-0 shadow-lg [transform:translateX(-50%)] ${GLIDE} group-hover:[transform:translateX(-50%)_translateY(-46px)_scale(0.8)]`}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          // ~2.15x the box the screenshot actually paints — 104 x 225, once
-          // `p-1` is taken out of the 112px span — rather than the flat 2x
-          // lib/image-url.ts states every caller asks for. This is the one
-          // caller that departs from that rule, and the departure is in the
-          // safe direction: a little sharper than needed, never softer.
-          //
-          // The FULL height, not the ~110px visible at rest: hover reveals
-          // more of the image, and a derivative sized to the rest state would
-          // blur exactly when the visitor leans in.
-          src={cloudinaryThumb(cover.image.url, { width: 224, height: 484 })}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          className="block w-full rounded-t-xl"
-        />
-      </span>
+        // -46px with a 0.80 scale from `origin-top`: 110px of the phone visible
+        // at rest becomes ~156px of a smaller phone on hover. Against the
+        // span's real ~229px that is 48% of it showing, becoming 85%.
+        className={`absolute left-1/2 top-[58px] w-1/2 origin-top [transform:translateX(-50%)] ${GLIDE} group-hover:[transform:translateX(-50%)_translateY(-46px)_scale(0.8)]`}
+      />
     </div>
   );
 }
