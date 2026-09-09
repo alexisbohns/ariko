@@ -223,17 +223,44 @@ export async function listScreensForPlant(plantSlug: string): Promise<Screen[]> 
  * filterPublic drops a private screen — so `exhibited: true` on its own would
  * render nothing at all, and an author who had to flip visibility separately
  * would produce, as the commonest mistake, a screen marked for the strip and
- * stored private, showing nothing with nothing on any page to say why.
+ * stored private, showing nothing with nothing on any page to say why. This
+ * function OWNS `visibility` on a screen for that reason: `screen-edit.ts`
+ * keeps it out of the metadata form so there is exactly one writer of the
+ * field, and this is it.
  *
  * Withdrawing is the exact mirror, down to the `$unset`: an absent optional
  * field has ONE representation in this database — `createScreen`'s omission
  * discipline — so a withdrawn screen carries no `exhibited: false` and no
  * stale `order` for the next reader to interpret.
  *
- * A loop of updateOne for the promote half rather than a bulkWrite, because
- * each row writes a different `order`; setVisibility's shape, and a strip is a
- * handful of screens rather than a hundred and seventy. The withdraw half is
- * uniform, so it is one updateMany.
+ * A loop of updateOne for the promote half rather than a bulkWrite, and NOT
+ * because the rows differ: bulkWrite carries a separate update document per
+ * operation, so differing `order` values are the ordinary case for it rather
+ * than an obstacle. The honest trade is that this costs N + 1 round trips
+ * where a single ordered bulkWrite would cost one, and it widens the window in
+ * which a dying process leaves the two halves half-applied. It is taken
+ * anyway, because a strip is a handful of screens rather than a hundred and
+ * seventy, and a loop of updateOne is the plainest thing in this file to read.
+ * If a strip ever grows to a size where N round trips are a cost, this is the
+ * function to change and the reason to change it. The withdraw half is
+ * uniform across every row, which is what lets it be a single updateMany —
+ * setVisibility's shape, above.
+ *
+ * The two halves are NOT atomic with respect to each other, and what saves that
+ * is that nothing strands. Each DOCUMENT is atomic — a screen is never
+ * exhibited-and-private or public-and-unexhibited, because both facts are
+ * written by one update — so a crash mid-loop leaves a strip that is merely
+ * OVER-inclusive, possibly with two screens sharing an `order`. exhibitionOrder
+ * tie-breaks a collision by slug deterministically, the next read shows the
+ * author the state that actually exists, and the next press renormalizes the
+ * whole strip to 0..n-1.
+ *
+ * Promote runs before withdraw, so a slug in both lists would end private —
+ * the safe direction. `exhibitionWrites` produces disjoint lists by
+ * construction, so that ordering is defence rather than a live requirement, and
+ * this function does not re-check it: stated so the absence of a guard reads as
+ * a conclusion rather than an oversight, which is the stance
+ * buildScreenMetaPatch takes about unvalidated refs.
  *
  * Empty lists write nothing, which is what makes lib/exhibition.ts's `null`
  * no-op cheap all the way down.
@@ -243,17 +270,14 @@ export async function writeExhibition(writes: ExhibitionWrites): Promise<void> {
   const screens = db.collection<Screen>("screens");
 
   for (const { slug, order } of writes.promote) {
-    await screens.updateOne(
-      { slug },
-      { $set: { exhibited: true, visibility: "public", order } } as UpdateFilter<Screen>,
-    );
+    await screens.updateOne({ slug }, { $set: { exhibited: true, visibility: "public", order } });
   }
 
   if (writes.withdraw.length > 0) {
-    await screens.updateMany({ slug: { $in: writes.withdraw } }, {
-      $set: { visibility: "private" },
-      $unset: { exhibited: "", order: "" },
-    } as UpdateFilter<Screen>);
+    await screens.updateMany(
+      { slug: { $in: writes.withdraw } },
+      { $set: { visibility: "private" }, $unset: { exhibited: "", order: "" } },
+    );
   }
 }
 

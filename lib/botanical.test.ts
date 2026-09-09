@@ -354,9 +354,21 @@ test("writeExhibition promotes in lockstep and withdraws in lockstep", { skip: !
   assert.equal(one?.visibility, "public");
   assert.equal(one?.order, 0);
 
+  // The SEQUENCE, which is the whole reason promote is a loop rather than one
+  // updateMany: the second row must get order 1, not a copy of the first row's.
+  // Without this, an implementation writing a constant order passes every other
+  // assertion in this file.
+  const two = await db.collection("screens").findOne({ slug: "__test__ex2" });
+  assert.equal(two?.order, 1);
+  // And the lockstep is asserted on BOTH rows, not just the first: a promote
+  // that wrote exhibited/visibility to only one of them would otherwise survive.
+  assert.equal(two?.exhibited, true);
+  assert.equal(two?.visibility, "public");
+
   await writeExhibition({ promote: [{ slug: "__test__ex2", order: 0 }], withdraw: ["__test__ex1"] });
 
   const withdrawn = await db.collection("screens").findOne({ slug: "__test__ex1" });
+  assert.ok(withdrawn);
   assert.equal(withdrawn?.visibility, "private");
   // UNSET, not false and not 0: an absent optional field has one representation
   // in this database, which is createScreen's omission discipline continued.
@@ -387,6 +399,9 @@ test("listScreensForPlant returns only that plant's screens", { skip: !hasDb }, 
 
   const rows = await listScreensForPlant("__test__lpplant");
   assert.deepEqual(rows.map((s) => s.slug), ["__test__lp1"]);
+  // The projection, which the deleted listScreens test used to pin. An ObjectId
+  // reaching a prop is a serialization error at RENDER time, not build time.
+  assert.equal("_id" in rows[0], false);
 });
 
 test.after(async () => {

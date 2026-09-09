@@ -14,8 +14,11 @@ import {
  * `slug` is absent for `PlantMetaPatch`'s reason: it is the stable id, and the
  * gallery, the covers migration and every future `screen:` ref will point at
  * it. `image` is absent because it has its own form and its own guards
- * (lib/screen-image.ts). `visibility` is absent because nothing public reads
- * screens yet, so a control for it would write a field with no reader.
+ * (lib/screen-image.ts). `visibility` is absent because `writeExhibition`
+ * (lib/botanical.ts) OWNS the field: exhibiting a screen publishes it and
+ * withdrawing it makes it private again, one act tied to the strip. A second
+ * control writing `visibility` from this form could contradict that act with
+ * nothing to reconcile the two.
  */
 export interface ScreenMetaPatch {
   name: Text;
