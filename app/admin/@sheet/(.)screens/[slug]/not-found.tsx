@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { SideSheet } from "@/app/admin/_components/side-sheet";
 
 /**
  * A screen that is no longer there, said inside the panel.
@@ -11,8 +10,9 @@ import { SideSheet } from "@/app/admin/_components/side-sheet";
  * slug), and losing the grid to say so is the wrong trade. The boundary keeps
  * the loss the size of the panel.
  *
- * It is the shell plus one sentence: there is nothing to edit, so there is no
- * form, and the only way out is back to the library.
+ * It is one sentence inside the panel the segment's layout already draws:
+ * there is nothing to edit, so there is no form, and the only way out is back
+ * to the library.
  *
  * TWO THINGS THIS BOUNDARY CANNOT DO, both by Next's rules rather than by
  * choice, and both stated here so neither reads as an oversight:
@@ -28,18 +28,14 @@ import { SideSheet } from "@/app/admin/_components/side-sheet";
  */
 export default function ScreenSheetNotFound() {
   return (
-    <SideSheet>
-      <div className="flex flex-col gap-4">
-        <p className="text-sm text-muted-foreground">
-          That screen is gone.
-        </p>
-        <Link
-          href="/admin/screens"
-          className="text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-        >
-          ← library
-        </Link>
-      </div>
-    </SideSheet>
+    <div className="flex flex-col gap-4">
+      <p className="text-sm text-muted-foreground">That screen is gone.</p>
+      <Link
+        href="/admin/screens"
+        className="text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+      >
+        ← library
+      </Link>
+    </div>
   );
 }

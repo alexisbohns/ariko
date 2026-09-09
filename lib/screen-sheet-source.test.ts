@@ -23,8 +23,27 @@ import { join } from "node:path";
  * reason: "renders the same module" is a fact about the import graph, and
  * `renderToStaticMarkup` cannot see it.
  */
+/**
+ * A file's CODE — comments removed.
+ *
+ * Every assertion here is a substring search, and the files it searches are the
+ * most heavily commented in the repo, several of them ABOUT the very things
+ * being searched for. Reading the raw text, `// No <SideSheet> here: the panel
+ * is the segment's layout` fails the assertion that no page draws a panel, and
+ * the honest fix would be to stop writing the comment — which is the wrong way
+ * round for a codebase where the comments are the spec.
+ *
+ * (Tailwind v4 has the same hazard from the other side: it scans source as
+ * text, so a utility named inside a comment is minted into the stylesheet.
+ * `app/admin/layout.tsx` carries that note.)
+ *
+ * Block comments go entirely. Line comments go only when the `//` starts the
+ * line, so an `https://` inside an href is never mistaken for one.
+ */
 function source(path: string): string {
-  return readFileSync(join(process.cwd(), path), "utf8");
+  return readFileSync(join(process.cwd(), path), "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^[ \t]*\/\/.*$/gm, "");
 }
 
 const SHEET_SLOT_DIR = "app/admin/@sheet";
@@ -32,6 +51,8 @@ const SLOT = "app/admin/@sheet/(.)screens/[slug]/page.tsx";
 const NEW_SLOT = "app/admin/@sheet/(.)screens/new/page.tsx";
 /** The slot's route AT the library — what closes the panel. See its own test. */
 const CLEAR_SLOT = "app/admin/@sheet/screens/page.tsx";
+/** Where the panel itself is drawn, so the arrows never remount it. */
+const SHEET_LAYOUT = "app/admin/@sheet/(.)screens/layout.tsx";
 const INDEX = "app/admin/screens/page.tsx";
 
 /**
@@ -113,6 +134,32 @@ test("no slot file rebuilds a form of its own", () => {
         `${path} neither renders a page's own module nor deliberately renders nothing`,
       );
     }
+  }
+});
+
+/**
+ * The panel is the segment's LAYOUT, and that is what makes the arrows a
+ * content swap.
+ *
+ * Next keys a route segment by its params, so with the shell inside
+ * `[slug]/page.tsx` every move to the next screen unmounted the whole `<aside>`
+ * and mounted another: the panel visibly left, came back, and replayed its
+ * entry animation on each press of `→`. A layout sits above that boundary and
+ * stays mounted while `children` changes underneath it.
+ *
+ * Moving the shell back down into a page is a one-line change that looks
+ * tidier, breaks nothing any other test can see, and restores the flicker.
+ */
+test("the panel is drawn by the layout, never by a page in the slot", () => {
+  assert.match(source(SHEET_LAYOUT), /<SideSheet>/, "the slot's layout must draw the panel");
+
+  for (const path of slotFiles()) {
+    if (path === SHEET_LAYOUT) continue;
+    assert.equal(
+      source(path).includes("<SideSheet"),
+      false,
+      `${path} draws its own panel — the arrows will remount it`,
+    );
   }
 });
 

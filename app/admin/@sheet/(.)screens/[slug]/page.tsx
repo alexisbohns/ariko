@@ -1,5 +1,4 @@
 import ScreenPage from "@/app/admin/screens/[slug]/page";
-import { SideSheet } from "@/app/admin/_components/side-sheet";
 import { activeTileCss } from "@/lib/screens";
 
 export const dynamic = "force-dynamic";
@@ -31,11 +30,14 @@ export default async function ScreenSheet(props: {
 }) {
   const { slug } = await props.params;
 
+  // No <SideSheet> here: the panel is the segment's LAYOUT, so that walking
+  // the library with the arrows swaps this content inside a frame that never
+  // unmounts. See `../layout.tsx`.
   return (
-    <SideSheet>
+    <>
       <ActiveTile slug={slug} />
       <ScreenPage {...props} />
-    </SideSheet>
+    </>
   );
 }
 

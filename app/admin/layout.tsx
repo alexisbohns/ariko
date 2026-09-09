@@ -45,9 +45,21 @@ import { AdminChrome, AdminMain } from "./_components/admin-chrome";
  * every tile stays on screen.
  *
  * So: padding, not translate. `mx-auto` inside re-centres the column in what is
- * left, and nothing is ever off-screen. No transition on it either: animating
- * padding re-flows 170 images on every frame, and the panel's own
- * `slide-in-from-right` already carries the movement.
+ * left, and nothing is ever off-screen.
+ *
+ * THE DURATION AND THE CURVE ARE THE PANEL'S, deliberately. Left untransitioned
+ * the room appeared instantly and the panel then slid into it over 200ms — so
+ * the page was seen re-laying itself out BEFORE anything arrived to justify it,
+ * which reads as a glitch rather than as a push. Matching
+ * `side-sheet.tsx`'s `duration-200` makes the two one movement: the column
+ * narrows at exactly the rate the panel takes up the space.
+ *
+ * It is a re-flow per frame, which is the cost, and on this page that is 170
+ * thumbnails. It is affordable because the grid is `object-contain` images in
+ * fixed `aspect-[3/4]` boxes — the box geometry does not depend on the image,
+ * so the browser re-flows boxes, not pictures, and nothing is decoded again.
+ * If it ever does judder, the fix is to transition the panel's width and the
+ * padding together off one variable, not to drop back to a transform.
  *
  * Below `lg` the panel covers instead — reserving 28rem of a narrow screen
  * would leave the column nothing to live in.
@@ -62,7 +74,7 @@ export default function AdminLayout({
   return (
     <>
       <AdminChrome />
-      <div className="lg:[&:has(~[data-screen-sheet])]:pr-[28rem]">
+      <div className="transition-[padding] duration-200 ease-out lg:[&:has(~[data-screen-sheet])]:pr-[28rem]">
         <AdminMain>{children}</AdminMain>
       </div>
       {sheet}
