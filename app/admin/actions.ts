@@ -854,9 +854,33 @@ async function applyExhibition(slug: string, rawOp: string): Promise<string | nu
   return plantSlug;
 }
 
-/** Membership, from the screen's own page in the library — the half that works
- *  without script. Redirects back through the author's filters, exactly as the
- *  library's four other write paths do. */
+/**
+ * Membership, from the screen's own page in the library — the half that works
+ * without script. Redirects back through the author's filters, exactly as the
+ * library's four other write paths do.
+ *
+ * NEITHER exhibition action carries an `error` message, and the four write
+ * paths above them all do. That asymmetry is a decision rather than an
+ * omission, and it turns on WHOSE mistake each refusal is. `createScreenAction`
+ * refuses a taken slug, `editScreenMetaAction` a nameless screen,
+ * `deleteScreenAction` an unticked confirm — every one of those is something
+ * the author did, on a page that is telling the truth, and that they can fix by
+ * doing it differently. There is a message because there is a correction.
+ *
+ * An exhibition op has no such case. `applyExhibition` returns null for an
+ * unknown op, a screen that is gone, or a screen with no plant — and
+ * `applyExhibitionOp` returns null for `up` at the head or `add` for something
+ * already exhibited. The first three are a crafted POST or a page whose world
+ * changed underneath it; the last two are a button the panel renders
+ * `disabled`. In none of them did the author get anything wrong, and in none of
+ * them is there anything to do differently. "Could not move it up" on a screen
+ * that is already first is noise dressed as an error.
+ *
+ * What the author gets instead is the page, re-rendered from the database. A
+ * screen that was deleted 404s on arrival; one that lost its plant shows the
+ * card's no-plant sentence; a strip that did not move shows the order it
+ * actually has. The state is the message.
+ */
 export async function toggleScreenExhibitAction(formData: FormData): Promise<void> {
   await requireSession();
   const slug = String(formData.get("slug") ?? "");
@@ -881,7 +905,13 @@ export async function reorderExhibitionAction(formData: FormData): Promise<void>
   const plantSlug = await applyExhibition(slug, String(formData.get("op") ?? ""));
 
   revalidatePath("/admin/screens");
-  if (!plantSlug) redirect("/admin/screens");
+  // Refused, and the plant is the thing we could not establish — so there is no
+  // plant page to go back to. The SCREEN is the next most honest destination:
+  // it is the row the author pressed, and it says what happened by being what
+  // it is (gone, and it 404s; plantless, and the Exhibition card says so). The
+  // library index would be a third place, related to neither the press nor the
+  // reason it failed.
+  if (!plantSlug) redirect(screensHref(slug, ""));
   revalidatePath(`/admin/plant/${plantSlug}`);
   redirect(`/admin/plant/${encodeURIComponent(plantSlug)}`);
 }
