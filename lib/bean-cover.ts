@@ -64,15 +64,16 @@ export function beanCoverFor(bean: Bean, sprouts: Sprout[]): BeanCover | null {
  * The sibling of `beanCoverFor`, and the split between them is the whole point
  * of having two: `beanCoverFor` answers "what TREATMENT", `fillCoverFor`
  * answers "which IMAGE". Surfaces that draw a cover in a fixed frame and have
- * no phone branch want only the second — the prose entity card
- * (`components/entity-card.tsx`, via lib/entity-resolve.ts) and the public
- * graph payload (lib/graph.ts).
+ * no phone branch want only the second — today that is the public graph
+ * payload (lib/graph.ts) alone, because a JSON node has no frame at all.
  *
- * They have no use for the first because spec §8 already excused them from the
- * phone: a phone cannot sit in the card's 720×128 letterbox, and a JSON node
- * has no frame at all. But §8 excused them from the TREATMENT, never from the
- * OVERRIDE. Calling `coverFor` directly there — which both did until this was
- * written — makes `lib/data.ts`'s "explicit cover art, OVERRIDING the
+ * The prose entity card was the other one, and stopped being: spec §8 excused
+ * it from the phone because a phone cannot sit in a 720×128 letterbox, and the
+ * card is no longer a letterbox — it is the landing row's 224×168 frame with
+ * the name beside it (`components/entity-card.tsx`), so it asks `beanCoverFor`
+ * like the landing page does. §8 excused these callers from the TREATMENT,
+ * never from the OVERRIDE. Calling `coverFor` directly there — which both did
+ * until this was written — makes `lib/data.ts`'s "explicit cover art, OVERRIDING the
  * derivation" true on the landing page and false everywhere else: an authored
  * bean shows its phone on the landing page while its card shows a different
  * image, or, in the field's own motivating case (cover art that does not live

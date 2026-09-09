@@ -59,7 +59,12 @@ export function Prose({
   const components = {
     ...baseComponents,
     "entity-card": (props: { "data-ref"?: string }) => (
-      <EntityCard refValue={props["data-ref"]} resolve={resolve} showUnresolved={showUnresolved} />
+      <EntityCard
+        refValue={props["data-ref"]}
+        resolve={resolve}
+        showUnresolved={showUnresolved}
+        lang={lang}
+      />
     ),
     "entity-link": (props: { "data-ref"?: string; children?: ReactNode }) => (
       <EntityLink refValue={props["data-ref"]} resolve={resolve}>

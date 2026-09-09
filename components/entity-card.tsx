@@ -1,5 +1,4 @@
-import type { MediaImage } from "@/lib/data";
-import { cloudinaryThumb } from "@/lib/image-url";
+import type { ReactNode } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 
 /**
@@ -18,6 +17,22 @@ import { Card, CardContent } from "@/components/ui/card";
  * surface passes, and the padding is now whatever `CardContent` says it is in
  * both places.
  *
+ * The cover arrives as a SLOT rather than as an image, and that is what keeps
+ * this file server-safe while the art it frames is not. The card used to draw
+ * the cover itself — one `<img>` in a 720×128 letterbox — and a letterbox is
+ * the one shape the landing page's cover treatment cannot live in: the phone
+ * needs a frame it can rise inside of and run off the bottom of. Handing the
+ * frame's CONTENTS in from outside is what lets the published card wear
+ * `components/bean-cover.tsx` (server-only: it reaches `lib/data`, which opens
+ * with `node:fs`) while this file is still imported by the editor's client node
+ * view, which passes no slot at all.
+ *
+ * What this file owns is the FRAME — 224×168, the landing card's box to the
+ * pixel, because `components/bean-cover.tsx` derives its phone geometry from
+ * exactly those numbers — and the fact that a card with art is a ROW: cover at
+ * the left, name and description beside it. Without art it is the same stack of
+ * text it always was.
+ *
  * Server-safe, and used from a client node view — the same property
  * `components/chrome.tsx` and `components/plant-header.tsx` rest on.
  */
@@ -25,14 +40,19 @@ import { Card, CardContent } from "@/components/ui/card";
 export function EntityCardBody({
   name,
   description,
-  cover,
+  coverArt,
   refText,
   interactive,
 }: {
   name: string;
   description?: string;
-  /** Beans only — derived from the newest sprout carrying an image (lib/cover.ts). */
-  cover?: MediaImage;
+  /**
+   * Beans only — what goes INSIDE the cover frame, composed by the caller.
+   * `components/entity.tsx` passes `<BeanCover>`; the editor passes nothing and
+   * gets the text-only card. Its absence is what switches the layout back to a
+   * column, so there is never an empty frame beside a name.
+   */
+  coverArt?: ReactNode;
   /**
    * The prefixed ref (`bean:some-slug`), shown ONLY where a ref is information
    * rather than a leak: the editor, and the admin's read pages. Public prose
@@ -46,44 +66,55 @@ export function EntityCardBody({
    */
   interactive?: boolean;
 }) {
-  return (
-    <Card className={interactive ? "transition-shadow group-hover:shadow-md" : undefined}>
-      {cover ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          // The card renders at the reading column's full width
-          // (components/page-column.tsx: `max-w-3xl px-6` -> 768px - 2*24px =
-          // 720px at its widest) and h-32 (128px) tall, so 1440x256 is that box
-          // doubled for a 2x display. Matching the box's own aspect ratio
-          // (~5.6:1), rather than picking a rounder but narrower number, keeps
-          // Cloudinary's c_fill crop aligned with what object-cover shows
-          // instead of cropping a differently-shaped box.
-          //
-          // Since the shared-surfaces slice that arithmetic holds in the ADMIN
-          // too: both zones render the same column string.
-          //
-          // Decorative: the name below carries the accessible name.
-          src={cloudinaryThumb(cover.url, { width: 1440, height: 256 })}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          className="h-32 w-full object-cover"
-        />
+  const text = (
+    <>
+      <span
+        className={
+          "text-sm font-medium" +
+          (interactive ? " underline-offset-4 group-hover:underline" : "")
+        }
+      >
+        {name}
+      </span>
+      {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
+      {refText ? (
+        <span className="font-heading text-[10px] text-muted-foreground">{refText}</span>
       ) : null}
-      <CardContent className="flex flex-col gap-1">
-        <span
-          className={
-            "text-sm font-medium" +
-            (interactive ? " underline-offset-4 group-hover:underline" : "")
-          }
-        >
-          {name}
-        </span>
-        {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
-        {refText ? (
-          <span className="font-heading text-[10px] text-muted-foreground">{refText}</span>
-        ) : null}
-      </CardContent>
+    </>
+  );
+
+  if (!coverArt) {
+    return (
+      <Card className={interactive ? "transition-shadow group-hover:shadow-md" : undefined}>
+        <CardContent className="flex flex-col gap-1">{text}</CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    // `py-0` because the cover is flush: the card's vertical padding would
+    // otherwise inset the art from the top and bottom edges and leave two
+    // stripes of card either side of it. The row's height is then the frame's
+    // own, and the text pads itself back with the same `--card-spacing` the
+    // card would have applied.
+    <Card
+      className={`py-0${interactive ? " transition-shadow group-hover:shadow-md" : ""}`}
+    >
+      <div className="flex items-stretch">
+        {/* The landing row's frame, verbatim (app/(public)/page.tsx): the same
+            224×168 box, the same `overflow-hidden` that clips the departing
+            word and crops the phone at the bottom, the same bare `bg-muted`
+            underneath. `relative` is belt-and-braces — the phone branch
+            establishes its own positioning context — and `shrink-0` is not:
+            without it a long description squeezes the frame and the phone's
+            geometry, which is reckoned in pixels, stops matching its box. */}
+        <div className="relative aspect-[4/3] w-56 shrink-0 overflow-hidden bg-muted">
+          {coverArt}
+        </div>
+        <CardContent className="flex min-w-0 flex-col justify-center gap-1 py-(--card-spacing)">
+          {text}
+        </CardContent>
+      </div>
     </Card>
   );
 }

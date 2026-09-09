@@ -68,8 +68,8 @@ test("a bean ref resolves with the cover derived from its newest sprout with an 
     ],
   });
   const resolved = resolveEntity(data, "bean:cover-bean");
-  assert.equal(resolved?.cover?.storageKey, "k9");
-  assert.equal(resolved?.cover?.alt, "nine");
+  assert.equal(resolved?.cover?.image.storageKey, "k9");
+  assert.equal(resolved?.cover?.image.alt, "nine");
 });
 
 test("a bean with no images resolves with no cover key at all", () => {
