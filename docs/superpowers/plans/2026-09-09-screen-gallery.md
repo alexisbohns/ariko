@@ -335,7 +335,7 @@ export interface ExhibitionRow {
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `TSX_TSCONFIG_PATH=tsconfig.test.json node --import tsx --test lib/exhibition.test.ts`
-Expected: PASS, 16 tests.
+Expected: PASS, 17 tests.
 
 - [ ] **Step 5: Commit**
 
