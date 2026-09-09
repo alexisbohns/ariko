@@ -102,9 +102,21 @@ build and is not a cycle.
   `null` for a no-op: `up` at the head, `down` at the tail, `add` for a slug
   already present, `remove`/`up`/`down` for a slug that is not. `null` is what
   dirty-gates the write, so a stray press writes nothing at all.
-- `exhibitionWrites(before: string[], after: string[]): { promote: { slug: string; order: number }[]; withdraw: string[] }`
-  — `promote` carries **only** the screens whose index actually changed. A swap
-  writes two documents, not the whole strip.
+- `exhibitionOf(screens): ExhibitionEntry[]` — the plant's screens narrowed to
+  the strip: `exhibited === true`, sorted by `exhibitionOrder`. It exists so the
+  narrowing cannot be forgotten, which matters because of the next function.
+- `exhibitionWrites(exhibited: ExhibitionEntry[], after: string[]): { promote: { slug: string; order: number }[]; withdraw: string[] }`
+  — `promote` carries **only** the screens whose STORED `order` differs from
+  their new index. A swap writes two documents, not the whole strip.
+
+  Two things about the first argument are load-bearing. It carries entries
+  rather than bare slugs, because an index-to-index diff would judge a screen
+  with no stored `order` as "did not move" and never write it one — so it would
+  sort last forever, however often the author pressed ↑. And it must be the
+  **exhibited entries and nothing else**: `withdraw` is set difference, and
+  withdrawal re-privatizes (§3), so handing it a plant's whole screen list would
+  make every unexhibited screen private on one press. `exhibitionOf` is the
+  answer to that, and a test pins the difference.
 
 `ExhibitionOp` is a named vocabulary (`"add" | "remove" | "up" | "down"`) that
 the action re-validates rather than trusts, which is `lib/plant-status.ts`'s
@@ -223,8 +235,12 @@ slice lands.
 ## 8. Tests
 
 - `lib/exhibition.test.ts` — the comparator (ascending, unordered last, slug
-  tie-break), every `null` no-op in §4, and the write diff: a swap promotes two
-  slugs and no more.
+  tie-break, and a non-finite `order` folded into the sorts-last bucket rather
+  than poisoning the sort), every `null` no-op in §4, `exhibitionOf`'s
+  narrowing, and the write diff: a swap promotes two slugs and no more, and
+  `withdraw` is set difference.
+- `lib/exhibition-source.test.ts` — the zero-value-import rule, for the reason
+  §4 gives: every `import` line in `lib/exhibition.ts` must be an `import type`.
 - `lib/data.test.ts` — `exhibitionForPlant` itself, beside the other
   `buildDataset` accessors: exhibited-only, ordered, a plant's own screens
   only, and a dangling plant ref indexed nowhere.

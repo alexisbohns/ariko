@@ -775,8 +775,8 @@ In `app/admin/actions.ts`, extend the `from "@/lib/botanical"` import with
 ```ts
 import {
   applyExhibitionOp,
+  exhibitionOf,
   exhibitionOpOf,
-  exhibitionOrder,
   exhibitionWrites,
 } from "@/lib/exhibition";
 import { PLANT_PREFIX, parentsWithPrefix } from "@/lib/data";
@@ -822,9 +822,12 @@ async function applyExhibition(slug: string, rawOp: string): Promise<string | nu
   const plantSlug = parentsWithPrefix(screen.parents, PLANT_PREFIX)[0];
   if (!plantSlug) return null;
 
-  const current = (await listScreensForPlant(plantSlug))
-    .filter((s) => s.exhibited === true)
-    .sort(exhibitionOrder);
+  // `exhibitionOf`, never a hand-rolled filter-and-sort. It is the one place
+  // that narrows a plant's screens to the strip, and the narrowing is not
+  // optional: `exhibitionWrites`' withdraw half re-privatizes, so handing it
+  // this plant's WHOLE screen list would make every unexhibited screen private
+  // on one press of an arrow.
+  const current = exhibitionOf(await listScreensForPlant(plantSlug));
 
   const after = applyExhibitionOp(
     current.map((s) => s.slug),
@@ -1301,7 +1304,7 @@ Add imports:
 
 ```ts
 import { ExhibitionPanel, type ExhibitionPanelRow } from "../../_components/exhibition-panel";
-import { exhibitionOrder } from "@/lib/exhibition";
+import { exhibitionOf } from "@/lib/exhibition";
 import { PLANT_PREFIX, parentsWithPrefix } from "@/lib/data";
 ```
 
@@ -1317,15 +1320,12 @@ After the `inside` array, add:
   const plantScreens = (raw.screens ?? []).filter((s) =>
     parentsWithPrefix(s.parents, PLANT_PREFIX).includes(slug),
   );
-  const exhibitionRows: ExhibitionPanelRow[] = plantScreens
-    .filter((s) => s.exhibited === true)
-    .sort(exhibitionOrder)
-    .map((s) => ({
-      slug: s.slug,
-      name: resolveText(s.name),
-      url: s.image.url,
-      alt: s.image.alt ?? "",
-    }));
+  const exhibitionRows: ExhibitionPanelRow[] = exhibitionOf(plantScreens).map((s) => ({
+    slug: s.slug,
+    name: resolveText(s.name),
+    url: s.image.url,
+    alt: s.image.alt ?? "",
+  }));
 ```
 
 Change the `<PlantInside items={inside}>` opening tag to:
