@@ -2,6 +2,7 @@ import type { UpdateFilter } from "mongodb";
 import { getDb } from "./db";
 import {
   resolveText,
+  PLANT_PREFIX,
   type Bean,
   type Media,
   type MediaImage,
@@ -20,6 +21,7 @@ import type { SproutPatch } from "./sprout-edit";
 import type { ContentPatch } from "./content-edit";
 import { plantMetaUpdate, type PlantMetaPatch } from "./plant-meta";
 import { screenMetaUpdate, type ScreenMetaPatch } from "./screen-edit";
+import type { ExhibitionWrites } from "./exhibition";
 
 // Thrown when a create hits the unique slug index. Lets the server action turn a
 // collision into a friendly message instead of a 500.
@@ -189,18 +191,70 @@ export async function createScreen(input: NewScreen): Promise<Screen> {
   return doc;
 }
 
-/** Every screen, slug-ordered.
+/**
+ * One plant's screens — the read both admin exhibition surfaces work from.
  *
- *  NO CALLER BUT ITS TEST, deliberately: `/admin/screens` reads
- *  `loadRawGarden()` instead, because the contact sheet needs the plants too
- *  (each tile draws its plant's mark) and one read is better than two. This is
- *  kept for the GALLERY slice, which will want screens and nothing else —
- *  every screen is private at birth, so the admin is still the only surface
- *  that sees them until then. Delete it if that slice lands on a different
- *  read. */
-export async function listScreens(): Promise<Screen[]> {
+ * A real query on `parents` rather than `loadRawGarden()`, because the two
+ * callers want screens and nothing else: the plant page already has the garden
+ * it needs, and the library's actions would otherwise load five collections to
+ * reorder one strip.
+ *
+ * It replaces `listScreens`, whose docblock said to delete it if the gallery
+ * slice landed on a different read. It did.
+ *
+ * Slug-ordered, and that is not the strip's order: this is a stable READ, and
+ * `exhibitionOrder` is what puts it in sequence at the point of use, from the
+ * `order` field this returns.
+ */
+export async function listScreensForPlant(plantSlug: string): Promise<Screen[]> {
   const db = await getDb();
-  return db.collection<Screen>("screens").find({}, { projection: { _id: 0 } }).sort({ slug: 1 }).toArray();
+  return db
+    .collection<Screen>("screens")
+    .find({ parents: `${PLANT_PREFIX}${plantSlug}` }, { projection: { _id: 0 } })
+    .sort({ slug: 1 })
+    .toArray();
+}
+
+/**
+ * The exhibition, written.
+ *
+ * EXHIBITING AND PUBLISHING ARE ONE ACT, and this function is where that is
+ * true. Every screen is private at birth (createScreen, above), and
+ * filterPublic drops a private screen — so `exhibited: true` on its own would
+ * render nothing at all, and an author who had to flip visibility separately
+ * would produce, as the commonest mistake, a screen marked for the strip and
+ * stored private, showing nothing with nothing on any page to say why.
+ *
+ * Withdrawing is the exact mirror, down to the `$unset`: an absent optional
+ * field has ONE representation in this database — `createScreen`'s omission
+ * discipline — so a withdrawn screen carries no `exhibited: false` and no
+ * stale `order` for the next reader to interpret.
+ *
+ * A loop of updateOne for the promote half rather than a bulkWrite, because
+ * each row writes a different `order`; setVisibility's shape, and a strip is a
+ * handful of screens rather than a hundred and seventy. The withdraw half is
+ * uniform, so it is one updateMany.
+ *
+ * Empty lists write nothing, which is what makes lib/exhibition.ts's `null`
+ * no-op cheap all the way down.
+ */
+export async function writeExhibition(writes: ExhibitionWrites): Promise<void> {
+  const db = await getDb();
+  const screens = db.collection<Screen>("screens");
+
+  for (const { slug, order } of writes.promote) {
+    await screens.updateOne(
+      { slug },
+      { $set: { exhibited: true, visibility: "public", order } } as UpdateFilter<Screen>,
+    );
+  }
+
+  if (writes.withdraw.length > 0) {
+    await screens.updateMany({ slug: { $in: writes.withdraw } }, {
+      $set: { visibility: "private" },
+      $unset: { exhibited: "", order: "" },
+    } as UpdateFilter<Screen>);
+  }
 }
 
 /** Single read for the edit page's prefill (projection drops _id) —

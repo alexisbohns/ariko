@@ -9,7 +9,7 @@ import {
   deleteScreen,
   deleteVersion,
   getScreen,
-  listScreens,
+  listScreensForPlant,
   setPublic,
   setPrivate,
   listPods,
@@ -18,6 +18,7 @@ import {
   updateBeanKeyword,
   updateScreenImage,
   updateScreenMeta,
+  writeExhibition,
   SlugExistsError,
 } from "./botanical";
 import { resolveText } from "./data";
@@ -319,20 +320,73 @@ test("deleteScreen removes the document and is idempotent", { skip: !hasDb }, as
   await deleteScreen(slug); // a second delete is a no-op, not an error
 });
 
-test("listScreens returns the collection with no _id", { skip: !hasDb }, async (t) => {
+test("writeExhibition promotes in lockstep and withdraws in lockstep", { skip: !hasDb }, async (t) => {
+  await ensureBotanicalIndexes();
   t.after(cleanup);
-  const slug = "__test__screen-list";
-  await createScreen({
-    slug,
-    name: "Listed",
-    image: { kind: "image", storageKey: "k", url: "https://x.test/a.png" },
-    plantSlug: null,
+
+  const image = {
+    kind: "image" as const,
+    storageKey: "__test__k",
+    url: "https://example.com/x.png",
+    width: 1179,
+    height: 2556,
+  };
+  await createScreen({ slug: "__test__ex1", name: "One", image, plantSlug: "__test__expl" });
+  await createScreen({ slug: "__test__ex2", name: "Two", image, plantSlug: "__test__expl" });
+
+  // Both land private, which is the whole reason the promote half also writes
+  // visibility: `exhibited: true` on a private screen renders nothing.
+  const before = await listScreensForPlant("__test__expl");
+  assert.deepEqual(before.map((s) => s.slug).sort(), ["__test__ex1", "__test__ex2"]);
+  assert.equal(before.every((s) => s.visibility === "private"), true);
+
+  await writeExhibition({
+    promote: [
+      { slug: "__test__ex1", order: 0 },
+      { slug: "__test__ex2", order: 1 },
+    ],
+    withdraw: [],
   });
 
-  const all = await listScreens();
-  const mine = all.find((s) => s.slug === slug);
-  assert.ok(mine);
-  assert.equal("_id" in mine, false);
+  const db = await getDb();
+  const one = await db.collection("screens").findOne({ slug: "__test__ex1" });
+  assert.equal(one?.exhibited, true);
+  assert.equal(one?.visibility, "public");
+  assert.equal(one?.order, 0);
+
+  await writeExhibition({ promote: [{ slug: "__test__ex2", order: 0 }], withdraw: ["__test__ex1"] });
+
+  const withdrawn = await db.collection("screens").findOne({ slug: "__test__ex1" });
+  assert.equal(withdrawn?.visibility, "private");
+  // UNSET, not false and not 0: an absent optional field has one representation
+  // in this database, which is createScreen's omission discipline continued.
+  assert.equal("exhibited" in (withdrawn ?? {}), false);
+  assert.equal("order" in (withdrawn ?? {}), false);
+
+  const moved = await db.collection("screens").findOne({ slug: "__test__ex2" });
+  assert.equal(moved?.order, 0);
+});
+
+test("writeExhibition is a no-op on two empty lists", { skip: !hasDb }, async () => {
+  await writeExhibition({ promote: [], withdraw: [] });
+});
+
+test("listScreensForPlant returns only that plant's screens", { skip: !hasDb }, async (t) => {
+  await ensureBotanicalIndexes();
+  t.after(cleanup);
+
+  const image = {
+    kind: "image" as const,
+    storageKey: "__test__k",
+    url: "https://example.com/x.png",
+    width: 1179,
+    height: 2556,
+  };
+  await createScreen({ slug: "__test__lp1", name: "Mine", image, plantSlug: "__test__lpplant" });
+  await createScreen({ slug: "__test__lp2", name: "Theirs", image, plantSlug: "__test__other" });
+
+  const rows = await listScreensForPlant("__test__lpplant");
+  assert.deepEqual(rows.map((s) => s.slug), ["__test__lp1"]);
 });
 
 test.after(async () => {
