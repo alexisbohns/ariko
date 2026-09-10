@@ -36,7 +36,7 @@
 | `.github/workflows/test.yml` | A `npm run lint` step |
 | `lib/server-safe-source.test.ts` | `SERVER_SAFE` gains the public-rendered `ui/` files |
 | `components/ui/table.tsx` | Drop `"use client"` |
-| `components/ui/label.tsx` | Drop `"use client"` |
+| `components/ui/badge.tsx`, `components/ui/card.tsx` | Unchanged — added to `SERVER_SAFE` so they stay server components |
 | `components/ui/separator.tsx` | Drop `"use client"` **if** Base UI permits (Task 3 decides) |
 | `lib/exhibition-panel-source.test.ts` | Third test + its docblock paragraph removed |
 | `lib/toc-mount.test.ts` | The forty-line "this repo ships no ESLint" comment becomes a two-line pointer |
@@ -192,14 +192,15 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-## Task 2: The public-safe `ui/` primitives — `table` and `label`
+## Task 2: The public-safe `ui/` primitives
 
 **Files:**
 - Modify: `lib/server-safe-source.test.ts:43-51`
 - Modify: `components/ui/table.tsx:1`
-- Modify: `components/ui/label.tsx:1`
 
-**Context:** `components/ui/table.tsx` carries shadcn's stock `"use client"` and is imported by the **server** component `components/markdown.tsx:8-15`, so every prose page (`/plant/[slug]`, `/pod/[slug]`, `/bean/[id]`) ships `clsx` + `tailwind-merge` — 8.5 kB gzip — for nothing. Neither file contains a hook, an event handler, or a Base UI import; both import only `react` and `cn`. `label.tsx` is imported by the public `/beanstalk` page.
+**Context:** `components/ui/table.tsx` carries shadcn's stock `"use client"` and is imported by the **server** component `components/markdown.tsx:8-15`, so every prose page (`/plant/[slug]`, `/pod/[slug]`, `/bean/[id]`) ships `clsx` + `tailwind-merge` — 8.5 kB gzip — for nothing. It contains no hook, no event handler and no Base UI import — only `react` and `cn`.
+
+The public zone renders exactly **four** `ui/` files: `table`, `badge`, `card` and `separator`. `badge` and `card` are server components already; they join the list so a future `npx shadcn add` cannot quietly change that. `separator` is Task 3's, because it imports a Base UI primitive.
 
 This is TDD in its literal form: the test extension is the failing test, and deleting the directive is the implementation.
 
@@ -230,30 +231,31 @@ const SERVER_SAFE = [
   // clsx+tailwind-merge for twenty slices, because this list used to stop at
   // components/. If `npx shadcn add` ever overwrites one, this test is what
   // notices.
-  "components/ui/table.tsx", // <- components/markdown.tsx renders it
-  "components/ui/label.tsx", // <- app/(public)/(chrome)/beanstalk/page.tsx
+  "components/ui/table.tsx", // components/markdown.tsx, for GFM tables
+  "components/ui/badge.tsx", // plant-head.tsx, beanstalk, components/media.tsx
+  "components/ui/card.tsx",  // bean/[id], components/entity-card.tsx
 ];
 ```
 
 - [ ] **Step 3: Run the test to verify it fails**
 
 ```bash
-npm test 2>&1 | grep -A3 "ui/table\|ui/label"
+npm test 2>&1 | grep -A3 "ui/table\|ui/badge\|ui/card"
 ```
 
-Expected: FAIL — two failures reading `components/ui/table.tsx must not be a client component — the public zone renders it` and the same for `label.tsx`.
+Expected: FAIL — **one** failure, `components/ui/table.tsx must not be a client component — the public zone renders it`. `badge.tsx` and `card.tsx` pass immediately; listing them is what keeps them passing.
 
 - [ ] **Step 4: Drop the directives**
 
-Delete line 1 of `components/ui/table.tsx` (`"use client"`) and the blank line under it. Do the same in `components/ui/label.tsx`. Both files should now begin with `import * as React from "react"`.
+Delete line 1 of `components/ui/table.tsx` (`"use client"`) and the blank line under it. The file should then begin with `import * as React from "react"`.
 
 ```bash
-sed -i '' '1{/^"use client"$/d;}' components/ui/table.tsx components/ui/label.tsx
-sed -i '' '1{/^$/d;}' components/ui/table.tsx components/ui/label.tsx
-head -3 components/ui/table.tsx components/ui/label.tsx
+sed -i '' '1{/^"use client"$/d;}' components/ui/table.tsx
+sed -i '' '1{/^$/d;}' components/ui/table.tsx
+head -3 components/ui/table.tsx
 ```
 
-Expected: each file starts with `import * as React from "react"`.
+Expected: the file starts with `import * as React from "react"`.
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
@@ -276,13 +278,17 @@ Expected: `/plant/[slug]`, `/pod/[slug]`, `/bean/[id]` fall from **111 kB to ~10
 - [ ] **Step 7: Commit**
 
 ```bash
-git add lib/server-safe-source.test.ts components/ui/table.tsx components/ui/label.tsx
+git add lib/server-safe-source.test.ts components/ui/table.tsx
 git commit -m "perf: the public zone stops shipping clsx for a table
 
 components/ui/table.tsx carried shadcn's stock \"use client\" and is imported
 by the server component components/markdown.tsx, so every prose page shipped
-clsx+tailwind-merge — 8.5 kB gzip — to render a GFM table. Neither it nor
-label.tsx has a hook, a handler or a Base UI import.
+clsx+tailwind-merge — 8.5 kB gzip — to render a GFM table. It has no hook, no
+handler and no Base UI import; the directive was shadcn's, not ours.
+
+badge.tsx and card.tsx join the list unchanged. They are the other two ui/
+files the public zone renders, they are server components today, and nothing
+was watching that.
 
 server-safe-source.test.ts's list used to stop at components/, which is why
 this survived twenty slices while the rule it belongs to was enforced
@@ -300,11 +306,11 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 - Modify: `lib/server-safe-source.test.ts` (SERVER_SAFE)
 - Modify: `components/ui/separator.tsx:1`
 
-**Context:** Unlike `table` and `label`, `components/ui/separator.tsx:3` imports `@base-ui/react/separator`. Base UI's own module may carry `"use client"`, in which case dropping the wrapper's directive changes nothing but is harmless; or the primitive may use a hook or context, in which case the build breaks. **This task may legitimately end in "keep the directive."** That is a result, not a failure.
+**Context:** Unlike `table`, `badge` and `card`, `components/ui/separator.tsx:3` imports `@base-ui/react/separator`. Base UI's own module may carry `"use client"`, in which case dropping the wrapper's directive changes nothing but is harmless; or the primitive may use a hook or context, in which case the build breaks. **This task may legitimately end in "keep the directive."** That is a result, not a failure.
 
 - [ ] **Step 1: Add it to the list and drop the directive**
 
-Add to `SERVER_SAFE` in `lib/server-safe-source.test.ts`, after the `label.tsx` line:
+Add to `SERVER_SAFE` in `lib/server-safe-source.test.ts`, after the `card.tsx` line:
 
 ```ts
   "components/ui/separator.tsx", // <- app/(public)/(chrome)/beanstalk/page.tsx
@@ -359,7 +365,7 @@ npx tsc --noEmit && npm test 2>&1 | tail -5 && npm run build 2>&1 | tail -5
 git add lib/server-safe-source.test.ts
 git commit -m "docs: record why separator keeps its client directive
 
-Probed as part of the rulebook slice: unlike table.tsx and label.tsx, Base UI's
+Probed as part of the rulebook slice: unlike table.tsx, badge.tsx and card.tsx, Base UI's
 Separator does not render in a server tree. The list now says so, so nobody
 re-probes it.
 
