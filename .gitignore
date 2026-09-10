@@ -10,6 +10,9 @@ next-env.d.ts
 .superpowers/
 .vercel
 .env*
+# .env.example carries names and comments only, never values — it is the one
+# .env file that belongs in the repo.
+!.env.example
 .worktrees/
 
 # scratch probes from agent verification runs — never committed
