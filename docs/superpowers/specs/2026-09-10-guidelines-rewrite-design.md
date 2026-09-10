@@ -229,15 +229,23 @@ The replacement is one screen:
 
 ### 6.3 `.env.example`
 
-New. Eleven runtime variables, enumerable from source, each with a one-line
-comment and no value:
+New. Ten runtime variables, each with a one-line comment and no value:
 
 `MONGODB_URI`, `MONGODB_DB`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`,
-`CLOUDINARY_URL`, `CLOUDINARY_FOLDER`, `ARIKO_URL`, `INBOX_TOKENS`,
-`ARTICLES_TOKEN`, `SYNC_TOKEN`, `SYNTHESIS_TOKEN`.
+`CLOUDINARY_URL`, `CLOUDINARY_FOLDER`, `INBOX_TOKENS`, `ARTICLES_TOKEN`,
+`SYNC_TOKEN`, `SYNTHESIS_TOKEN`.
 
-Excluded deliberately: the `LAB_NOTE_*` family (set by CI), `DRY_RUN` and
-`COLUMNS` (script-local), `NODE_ENV` and `GITHUB_API_URL` (platform).
+Only nine are greppable. **`CLOUDINARY_URL` never appears as
+`process.env.CLOUDINARY_URL` in `app/` or `lib/`** — the Cloudinary SDK reads it
+from the environment itself (`lib/storage.ts:27`) — so a `process.env` sweep
+finds every required variable but that one, which is exactly the kind of thing
+a `.env.example` exists to record.
+
+Excluded deliberately: **`ARIKO_URL`**, whose only reader is
+`scripts/lab-note/post.mjs` with the value supplied by
+`.github/workflows/lab-note.yml` — a CI variable, not a runtime one; the
+`LAB_NOTE_*` family, for the same reason; `DRY_RUN` and `COLUMNS`
+(script-local); `NODE_ENV` and `GITHUB_API_URL` (platform).
 
 ### 6.4 The `CLAUDE.md:30` rename
 
