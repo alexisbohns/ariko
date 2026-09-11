@@ -20,7 +20,7 @@ export const GARDEN_WARN_BYTES = 1_500_000;
 export function gardenCacheWarning(bytes: number): string | null {
   if (bytes < GARDEN_WARN_BYTES) return null;
   return (
-    `garden is ${Math.round(bytes / 1024)} kB, approaching Vercel's 2 MB Data ` +
+    `garden is ${Math.round(bytes / 1000)} kB, approaching Vercel's 2 MB Data ` +
     `Cache entry limit. Above it unstable_cache silently declines to cache and ` +
     `every public request goes back to Mongo. Split the load per collection — ` +
     `docs/superpowers/specs/2026-09-11-cache-the-garden-design.md §3.5, §6.`

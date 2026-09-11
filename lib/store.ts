@@ -11,6 +11,11 @@ import {
   type Sprout,
 } from "./data";
 
+// LIVE — always hits Mongo. The admin and every server action read this one.
+// The public zone reads `loadCachedGarden` in `lib/garden-cache.ts` instead:
+// two names rather than one wrapped function, because `actions.ts` re-reads
+// the garden after a write so the publish cascade sees the just-saved state,
+// and a cached read there would compute it against the pre-write garden.
 export async function loadRawGarden(): Promise<RawGarden> {
   const db = await getDb();
   const [plants, pods, beans, sprouts, bees, screens] = await Promise.all([
