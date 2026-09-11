@@ -926,10 +926,11 @@ export async function toggleScreenExhibitAction(formData: FormData): Promise<voi
  * its Exhibition card says why (the no-plant sentence, or simply an unmoved
  * strip for a stale op) — `screensHref(slug, "")`.
  *
- * `settled`: the plant page, as before. `encodeURIComponent` on both the
- * revalidated path and the redirect — a screen's slug came from a filename
- * and a plant's is hand-authored, but neither is a reason to be the one place
- * in the slice that trusts one.
+ * `settled`: the plant page, as before, with `encodeURIComponent` on the
+ * redirect — a screen's slug came from a filename and a plant's is
+ * hand-authored, but neither is a reason to be the one place in the slice
+ * that trusts one. (It used to guard a revalidated path too; the garden
+ * cache slice replaced that with one `revalidateGarden()` above.)
  */
 export async function reorderExhibitionAction(formData: FormData): Promise<void> {
   await requireSession();
