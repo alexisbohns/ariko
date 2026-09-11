@@ -1,6 +1,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { loadRawGarden, getPublicDataset } from "./store";
+import { loadRawGarden } from "./store";
+import { buildDataset, filterPublic } from "./data";
 import { closeDb, getDb } from "./db";
 
 const hasDb = Boolean(process.env.MONGODB_URI);
@@ -45,7 +46,8 @@ test("public dataset includes published but excludes drafted sprouts", { skip: !
   await db.collection("sprouts").updateOne({ slug: published.slug }, { $set: published }, { upsert: true });
   await db.collection("sprouts").updateOne({ slug: draft.slug }, { $set: draft }, { upsert: true });
   try {
-    const slugs = new Set((await getPublicDataset()).timelineSprouts().map((e) => e.sprout.slug));
+    const data = buildDataset(filterPublic(await loadRawGarden()));
+    const slugs = new Set(data.timelineSprouts().map((e) => e.sprout.slug));
     assert.equal(slugs.has(published.slug), true, "published version missing — dataset is degenerate, test would pass vacuously");
     assert.equal(slugs.has(draft.slug), false, "draft version leaked into the public dataset");
   } finally {

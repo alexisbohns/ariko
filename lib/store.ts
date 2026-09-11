@@ -1,7 +1,6 @@
 import { getDb } from "./db";
 import {
   buildDataset,
-  filterPublic,
   type Bean,
   type Bee,
   type Dataset,
@@ -23,11 +22,6 @@ export async function loadRawGarden(): Promise<RawGarden> {
     db.collection<Screen>("screens").find({}, { projection: { _id: 0 } }).toArray(),
   ]);
   return { plants, pods, beans, sprouts, bees, screens };
-}
-
-// Public site: published-only.
-export async function getPublicDataset(): Promise<Dataset> {
-  return buildDataset(filterPublic(await loadRawGarden()));
 }
 
 // Admin (used by later plans): everything.
