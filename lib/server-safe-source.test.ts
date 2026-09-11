@@ -44,6 +44,19 @@ const SERVER_SAFE = [
   "components/bean-cover.tsx",
   "components/phone-frame.tsx",
   "components/screen-strip.tsx",
+  // The registry primitives the public zone renders — all of them, which is
+  // the whole point. This list used to stop at components/, so shadcn's stock
+  // "use client" on table.tsx cost every prose page 8.5 kB of
+  // clsx+tailwind-merge for twenty slices with nothing watching. badge and card
+  // carry no directive today; they are here so that stays true the next time
+  // `npx shadcn add` overwrites one.
+  //
+  // components/ui/separator.tsx is the fourth public-rendered one and is not
+  // here yet — it wraps Base UI's Separator, so whether it can drop its
+  // directive is a question to be answered by trying, not by assuming.
+  "components/ui/table.tsx", // components/markdown.tsx, for GFM tables
+  "components/ui/badge.tsx", // plant-head.tsx, /beanstalk, components/media.tsx
+  "components/ui/card.tsx", // bean/[id], components/entity-card.tsx
 ];
 
 for (const path of SERVER_SAFE) {
