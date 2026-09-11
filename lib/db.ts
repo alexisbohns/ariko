@@ -13,7 +13,15 @@ export async function getDb(): Promise<Db> {
   if (!globalForMongo.__mongoConn) {
     const uri = process.env.MONGODB_URI;
     if (!uri) throw new Error("MONGODB_URI is not set");
-    const client = new MongoClient(uri);
+    // Both default to 30 s, which is how an outage came to hold a request for
+    // half a minute before failing it. 5 s is the useful bound: with a warm
+    // Data Cache the public zone never reaches this code at all — it renders
+    // stale from the cached garden — so this applies only to a cold cache and
+    // to the admin, where a fast error beats a long hang.
+    const client = new MongoClient(uri, {
+      serverSelectionTimeoutMS: 5_000,
+      connectTimeoutMS: 5_000,
+    });
     globalForMongo.__mongoConn = client
       .connect()
       .then((c) => ({ client: c, db: c.db(process.env.MONGODB_DB ?? "beanstalk") }))
