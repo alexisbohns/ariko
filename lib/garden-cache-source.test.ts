@@ -246,6 +246,29 @@ test("every function in app/admin/actions.ts that calls a garden writer also inv
 
   const functions = topLevelFunctions(actions.text);
 
+  // `topLevelFunctions` finds a function's end by counting braces, which a
+  // stray `{` inside a string literal would throw off — and the failure would
+  // be a FALSE PASS, not a false alarm: a collapsed split yields one giant
+  // body that contains both a writer and a `revalidateGarden()`, so every
+  // offender hides inside it and the assertion below passes vacuously. That
+  // is the exact shape this whole file exists to prevent, so the split is
+  // checked before it is trusted.
+  assert.ok(
+    functions.length > 20,
+    `the function splitter found only ${functions.length} functions in ` +
+      `${ACTIONS_PATH} — it has collapsed, and the check below would pass ` +
+      `vacuously rather than fail`,
+  );
+  for (const known of ["createSeedAction", "flipPlantField", "reorderExhibitionAction"]) {
+    // One from the top of the file, one non-exported helper in the middle, one
+    // from the bottom: a split that survives all three is splitting, not
+    // swallowing a run of the file into a neighbour.
+    assert.ok(
+      functions.some((fn) => fn.name === known),
+      `the function splitter lost ${known} — see above`,
+    );
+  }
+
   // Keeps DELEGATES_INVALIDATION honest: an entry naming a function that no
   // longer exists (renamed, deleted) would silently exempt nothing and mean
   // nothing, and this is the only thing that would ever notice.
