@@ -8,6 +8,51 @@
 
 **Tech Stack:** Next 15.3, React 19, TypeScript (strict), `node:test` + `tsx`, ESLint 9 flat config.
 
+## Status — 2026-09-11
+
+**Tasks 1 and 2 are shipped** (PR on `claude/rulebook-rewrite`). **Tasks 3–12
+remain**, and they are the slice's substance: the rulebook itself is still
+unwritten, `CLAUDE.md` is still 458 lines, and the three drifted documents are
+still drifted.
+
+| Task | State |
+|---|---|
+| 1 — `.env.example` | ✅ `782766f` |
+| 2 — `table` server-safe, `badge`/`card` guarded | ✅ `7191987` |
+| 3 — `separator` probe | ⬜ |
+| 4 — retire `palette-mount` | ⬜ |
+| 5 — `plant-hero-mount` → `plant-hero-a11y` | ⬜ |
+| 6 — trim `exhibition-panel-source` | ⬜ |
+| 7 — rename `editor-mount` | ⬜ |
+| 8 — ESLint | ⬜ |
+| 9 — rewrite `CLAUDE.md` | ⬜ |
+| 10 — `README` §Constraints | ⬜ |
+| 11 — replace `ROADMAP` | ⬜ |
+| 12 — final verification | ⬜ |
+
+**Three corrections were folded into this plan during execution**, each found by
+an implementer told to stop on any mismatch rather than reconcile it:
+
+1. **Task 1 Step 3** used `git check-ignore -v`, which prints whichever pattern
+   matched *including a negated one* and exits 0 either way — it cannot answer
+   "is this ignored?". Now `-q` plus a `git status` cross-check.
+2. **Task 1's variable list had eleven names; ten are right.** `ARIKO_URL` is
+   read only by `scripts/lab-note/post.mjs`, with the value supplied by the Lab
+   Note workflow — a CI variable, like `LAB_NOTE_*`. Conversely `CLOUDINARY_URL`
+   never appears as `process.env` in app code at all, because the Cloudinary SDK
+   reads it itself, so a `process.env` sweep finds nine of the ten.
+3. **Task 2 named `label.tsx` as public-rendered. It is admin-only.** The
+   annotation came from a grep that combined `ui/label` and `ui/separator`, so
+   `/beanstalk` matched on *separator*. The public zone renders exactly four
+   `ui/` files — `table`, `badge`, `card`, `separator` — and `badge` and `card`
+   were unguarded, which is the same gap that hid `table` for twenty slices.
+
+The lesson for Tasks 3–12: the "Expected:" lines in this plan are claims, not
+facts, and an implementer that stops on a mismatch is worth the round trip. Three
+for three so far.
+
+---
+
 **Spec:** [`docs/superpowers/specs/2026-09-10-guidelines-rewrite-design.md`](../specs/2026-09-10-guidelines-rewrite-design.md)
 
 **Audit:** [`docs/audits/2026-09-10-code-quality-audit.md`](../../audits/2026-09-10-code-quality-audit.md)
