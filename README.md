@@ -4,7 +4,7 @@
 
 * **Intention**: I want to showcase all my creative and professional work, organized around a botanical content model.
 * **Vision**: Everything I create — songs, product features, podcast episodes, blog posts — is a bean. Beans group into pods (albums, products, podcasts, blogs). The key insight is that beans evolve: every bean has one or more sprouts, which are the fundamental unit of work. A song can have a demo, a studio recording, a live take. A feature can have a POC, an MVP, a V2. The portfolio tells the story of evolution, not just the final state.
-* **Approach**: Build a zero-CSS Next.js app (App Router) as a POC for a personal portfolio system based on a botanical content model.
+* **Approach**: Build a Next.js app (App Router) as a POC for a personal portfolio system based on a botanical content model.
 
 ## Data model
 
@@ -294,7 +294,14 @@ Contract: [`docs/POLLEN.md`](docs/POLLEN.md) §Read.
 
 ## Admin zone
 
-As of Plan 2b-i, a password-gated admin zone lets you capture into the inbox from the browser and review it — no curl needed. It is intentionally **bare functional HTML** (no CSS, no client JavaScript) until the project's artistic direction is set; triage/promote/publish (2b-ii) and the vault browser (2b-iii) come next.
+A password-gated admin zone lets you capture into the inbox from the browser, triage it, and browse the whole vault. It is a JavaScript application on the shared design system — see §Constraints above and `CLAUDE.md` §"Script, by zone".
+
+> **The route descriptions below are stale**, and are kept only until they get
+> their own pass. They were written before the botanical rename and still use
+> `Molecule → Atom → Version`; `/admin/atom/[id]` and `/admin/version/[slug]`
+> no longer exist. `docs/audits/2026-09-10-code-quality-audit.md` lists this as
+> outstanding. The environment variables and the auth model immediately below
+> are current; the page-by-page walkthrough is not.
 
 * Set `ADMIN_PASSWORD` in `.env.local` — the login password.
 * Set `ADMIN_SESSION_SECRET` in `.env.local` — a long random value (e.g. `openssl rand -hex 32`) used to HMAC-sign the session cookie. Rotating it invalidates existing sessions.
@@ -350,7 +357,7 @@ A dedicated edit page for a single Version, reached from each version's `edit` l
 The graph playground's data contract (roadmap G1): the published-only dataset as JSON —
 `{ nodes: [{ id, kind, name, domain?, type?, date?, tags? }], edges: [{ source, target, kind: "contains" }] }`.
 
-* Node ids reuse the prefixed-ref grammar (`molecule:<slug>` / `atom:<slug>` / `version:<slug>`); slugs are immutable, so ids are stable across publishes.
+* Node ids reuse the prefixed-ref grammar; slugs are immutable, so ids are stable across publishes. (The grammar's terms predate the botanical rename — see the note under §Admin zone.)
 * Unauthenticated and `force-dynamic` — it is the data twin of the public pages and composes the same `filterPublic` projection, so it can never expose more than the public HTML does. Node payloads deliberately exclude `description`/`content`/`media`/`source` until the exhibition slice (B3) defines what a focused node shows.
 * Edges: containment (from `parents[]`, kind `contains`) plus non-containment relations (from `relations[]`, per-relation kind); an edge is emitted only when both ends survive the projection.
 
