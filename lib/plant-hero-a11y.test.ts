@@ -36,7 +36,6 @@ import type { Plant } from "./data";
 
 async function render(element: unknown): Promise<string> {
   const { renderToStaticMarkup } = await import("react-dom/server");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return renderToStaticMarkup(element as any);
 }
 

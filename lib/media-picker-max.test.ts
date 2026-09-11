@@ -55,7 +55,6 @@ async function mount(props: Record<string, unknown>): Promise<HTMLElement> {
   const container = window.document.createElement("div");
   window.document.body.appendChild(container);
   await React.act(async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     createRoot(container).render(React.createElement(MediaPicker as any, props));
   });
   return container as unknown as HTMLElement;

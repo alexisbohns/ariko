@@ -71,7 +71,6 @@ Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", {
 
 import type { PaletteItem } from "./palette-items.js";
 
-/* eslint-disable @typescript-eslint/no-require-imports */
 const { test, before, after } = require("node:test") as typeof import("node:test");
 const assert: typeof import("node:assert/strict") = require("node:assert/strict");
 const React = require("react") as typeof import("react");
