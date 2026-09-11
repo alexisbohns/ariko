@@ -10,10 +10,9 @@
 
 ## Status — 2026-09-11
 
-**Tasks 1–8 are shipped.** 1–3 landed on `main` (PRs #84, #85); 4–8 are on
-`claude/rulebook-rewrite-tasks-4-8`. **Tasks 9–12 remain, and they are the
-slice's point**: the rulebook itself is still unwritten, `CLAUDE.md` is still
-458 lines, and the three drifted documents are still drifted.
+**Tasks 1–12 are shipped.** 1–3 landed on `main` (PRs #84, #85); 4–11 are on
+`claude/rulebook-rewrite-tasks-4-8`. The slice is complete: `CLAUDE.md` is 234
+lines and states three invariants, and all three drifted documents are fixed.
 
 | Task | State |
 |---|---|
@@ -25,20 +24,32 @@ slice's point**: the rulebook itself is still unwritten, `CLAUDE.md` is still
 | 6 — trim `exhibition-panel-source` | ✅ `cfb39a8` |
 | 7 — rename `editor-mount` | ✅ `b6b5490` |
 | 8 — ESLint | ✅ `5caa9e9` |
-| 9 — rewrite `CLAUDE.md` | ⬜ |
-| 10 — `README` §Constraints | ⬜ |
-| 11 — replace `ROADMAP` | ⬜ |
-| 12 — final verification | ⬜ |
+| 9 — rewrite `CLAUDE.md` | ✅ `4a65f6a` — 458 → 234, **11** rescued rules, not 8 |
+| 10 — `README` §Constraints | ✅ `31075f4`, plus `5b75a20` for two contradictions outside it |
+| 11 — replace `ROADMAP` | ✅ `8b29188` — 292 → 90 |
+| 12 — final verification | ✅ tsc / lint / 1147 tests / build all clean |
 
-**Gate at Task 8:** `tsc` clean, `lint` clean (289 files, 0 messages), suite
+**Final gate:** `tsc` clean, `lint` clean (289 files, 0 messages), suite
 **1147 / 1099 pass / 48 skipped / 0 fail** (was 1152 / 1104), build clean with
-the prose routes at 102 kB.
+the prose routes at 102 kB. The only surviving mention of a deleted test file
+is `lib/plant-hero-a11y.test.ts:24`, which names its predecessor on purpose.
 
-**Task 9 must clear two dangling references.** `CLAUDE.md:213` and `:237` still
-name `lib/plant-hero-mount.test.ts`, which Task 5 deleted. Both fall inside the
-46–408 block Task 9 replaces, so they go with it — but if that rewrite is ever
-descoped, they must be fixed by hand. Until Task 9 lands, this branch carries a
-`CLAUDE.md` that cites a file that is not there.
+**Task 9's rescue list was incomplete, and that is the finding worth keeping.**
+Its Step 5 check greps for eight phrases the replacement text contains *by
+construction*, so it can only fail on a typo — it cannot see a rule that was in
+the old 363 lines and is in neither list. Reading the old text independently
+found **six** such survivors. Three were kept: the icon-trigger accessibility
+rule (pinned by the live `lib/plant-hero-a11y.test.ts` and cited nowhere), the
+upload path (`uploadImageAction`, provider derived server-side), and **route
+placement** — `middleware.ts` matches `/admin/:path*`, so an agent adding the
+next admin data route under `/api/admin/…` ships an unauthenticated endpoint.
+Three were dropped because their docblock sits on the line an editor would be
+changing: `PhoneFrame`'s required `alt`, the `activeTileCss` slug guard, and
+`lib/toc.ts`'s fourth-reader argument.
+
+**The test that decided each:** does a future agent violate this rule while
+writing a file that does not exist yet? If yes it belongs in `CLAUDE.md`; if
+the docblock is on the line they would be editing, it does not.
 
 **Three corrections were folded into this plan during execution**, each found by
 an implementer told to stop on any mismatch rather than reconcile it:
