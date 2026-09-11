@@ -10,25 +10,35 @@
 
 ## Status — 2026-09-11
 
-**Tasks 1 and 2 are shipped** (PR on `claude/rulebook-rewrite`). **Tasks 3–12
-remain**, and they are the slice's substance: the rulebook itself is still
-unwritten, `CLAUDE.md` is still 458 lines, and the three drifted documents are
-still drifted.
+**Tasks 1–8 are shipped.** 1–3 landed on `main` (PRs #84, #85); 4–8 are on
+`claude/rulebook-rewrite-tasks-4-8`. **Tasks 9–12 remain, and they are the
+slice's point**: the rulebook itself is still unwritten, `CLAUDE.md` is still
+458 lines, and the three drifted documents are still drifted.
 
 | Task | State |
 |---|---|
 | 1 — `.env.example` | ✅ `782766f` |
 | 2 — `table` server-safe, `badge`/`card` guarded | ✅ `7191987` |
 | 3 — `separator` probe | ✅ clean — and an 8 kB win the plan did not predict |
-| 4 — retire `palette-mount` | ⬜ |
-| 5 — `plant-hero-mount` → `plant-hero-a11y` | ⬜ |
-| 6 — trim `exhibition-panel-source` | ⬜ |
-| 7 — rename `editor-mount` | ⬜ |
-| 8 — ESLint | ⬜ |
+| 4 — retire `palette-mount` | ✅ `fcb641f` |
+| 5 — `plant-hero-mount` → `plant-hero-a11y` | ✅ `bd24fc2` |
+| 6 — trim `exhibition-panel-source` | ✅ `cfb39a8` |
+| 7 — rename `editor-mount` | ✅ `b6b5490` |
+| 8 — ESLint | ✅ `5caa9e9` |
 | 9 — rewrite `CLAUDE.md` | ⬜ |
 | 10 — `README` §Constraints | ⬜ |
 | 11 — replace `ROADMAP` | ⬜ |
 | 12 — final verification | ⬜ |
+
+**Gate at Task 8:** `tsc` clean, `lint` clean (289 files, 0 messages), suite
+**1147 / 1099 pass / 48 skipped / 0 fail** (was 1152 / 1104), build clean with
+the prose routes at 102 kB.
+
+**Task 9 must clear two dangling references.** `CLAUDE.md:213` and `:237` still
+name `lib/plant-hero-mount.test.ts`, which Task 5 deleted. Both fall inside the
+46–408 block Task 9 replaces, so they go with it — but if that rewrite is ever
+descoped, they must be fixed by hand. Until Task 9 lands, this branch carries a
+`CLAUDE.md` that cites a file that is not there.
 
 **Three corrections were folded into this plan during execution**, each found by
 an implementer told to stop on any mismatch rather than reconcile it:
@@ -47,9 +57,42 @@ an implementer told to stop on any mismatch rather than reconcile it:
    `ui/` files — `table`, `badge`, `card`, `separator` — and `badge` and `card`
    were unguarded, which is the same gap that hid `table` for twenty slices.
 
-The lesson for Tasks 3–12: the "Expected:" lines in this plan are claims, not
-facts, and an implementer that stops on a mismatch is worth the round trip. Three
-for three so far.
+The lesson for Tasks 9–12: the "Expected:" lines in this plan are claims, not
+facts, and an implementer that stops on a mismatch is worth the round trip.
+**Seven of the eight tasks so far have contained at least one wrong claim**, and
+Task 8's was the expensive kind — see below.
+
+**Five more corrections, found during Tasks 4–8:**
+
+4. **Task 4's Step 3 grep cannot return `clean` when Task 4 runs.** A fourth
+   file cited `lib/palette-mount.test.ts` — `lib/plant-hero-mount.test.ts`,
+   which Task 5 deletes. The reference resolves itself one commit later.
+   Likewise Task 5's grep leaves two hits in `lib/exhibition-panel-source.test.ts`,
+   inside the exact paragraph Task 6 replaces. The greps are correct only at
+   the end of Task 6, not task by task.
+5. **Task 5's prose says one test survives; its own draft file contains two.**
+   Both were kept. The second ("the name and the mark are server-rendered") is
+   not a script-off claim — it pins that the header's name is not gated behind
+   a mount flag the way the palette and the media picker are. Everything else
+   in that draft — every prop name, every type, both accessible-name strings —
+   matched the real component exactly, which is the one place this plan guessed
+   right about code it had not run.
+6. **Task 7's "ten other files" is ten *occurrences* across seven files**
+   (`editor-extensions.ts` alone has four). The Expected path list is right;
+   the prose counting it is wrong. And `lib/editor.test.ts` has **seven**
+   tests, not the six the task text and its commit message both claim.
+7. **Task 8's config was a no-op, and this is the one that mattered.** Stock
+   ESLint cannot parse TypeScript. As drafted, all 283 `.ts`/`.tsx` files came
+   back as parse errors — `ruleId: null` × 258, not one rule firing — while
+   `npx eslint .` still exited 0 and CI would have gone green. A gate that
+   enforces nothing is worse than no gate, because it is believed.
+   `@typescript-eslint/parser` (the parser only; none of its rules) is what
+   makes it real. **Any config a plan drafts but never runs should be assumed
+   not to run**, and a new gate should be proved to *bite* — with a deliberate
+   violation — before it is trusted.
+8. **`.github/workflows/test.yml`'s own header said "All three steps".** Adding
+   a fourth made its secret-free claim stale. The new step was then actually
+   run under `env -i` so the sentence stays true.
 
 ---
 
