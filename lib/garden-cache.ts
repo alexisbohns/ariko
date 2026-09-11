@@ -63,10 +63,50 @@ export async function getPublicDataset(): Promise<Dataset> {
 }
 
 /**
+ * The message Next throws from `revalidateTag` when there is no request store.
+ * Matched on rather than caught broadly — see `revalidateGarden`.
+ */
+const NO_REQUEST_STORE = "static generation store missing";
+
+/**
+ * Exported so the rethrow half of `revalidateGarden` is testable at all: the
+ * tolerated case can be reproduced just by calling it under `node --test`, but
+ * "everything else is rethrown" cannot be, without a way to name the predicate.
+ */
+export function isMissingRequestStore(err: unknown): boolean {
+  return err instanceof Error && err.message.includes(NO_REQUEST_STORE);
+}
+
+/**
  * Called at the four write doors — the admin actions and the three API write
- * routes. Never in a writer in lib/: those run under `npm run test:db` with no
- * Next request context, where revalidateTag throws.
+ * routes. Never in a writer in lib/: `lib/botanical.ts` and the stores are
+ * called all over `npm run test:db`, and this would throw in every one.
+ *
+ * THE CATCH IS NARROW ON PURPOSE. The design for this slice claimed the four
+ * doors were places "where node --test never runs", and that was simply wrong:
+ * `lib/articles-route.test.ts` imports `POST` from `app/api/articles/route.ts`
+ * and calls it against a real database, which is a genuinely good test — a
+ * write door exercised end to end — and is not a Next request, so
+ * `revalidateTag` has no store and throws. `lib/synthesis-route.test.ts` and
+ * `lib/pollen-sync-route.test.ts` do the same for the other two doors.
+ *
+ * So exactly one condition is tolerated and everything else is rethrown. Every
+ * way this can fail is loud:
+ *
+ *  - In production a route handler and a server action always HAVE a store, so
+ *    the catch never runs and an invalidation is never quietly skipped.
+ *  - If Next changes that message, the rethrow fires and `npm run test:db`
+ *    goes red. Noisy, but it cannot fail silently into a stale public site.
+ *
+ * A broad `catch {}` here would have neither property, which is why the design
+ * rejected error-swallowing in the writer layer. One narrow, asserted case at
+ * one function is a different trade from twenty-five blind ones.
+ * `lib/garden-cache.test.ts` pins both halves.
  */
 export function revalidateGarden(): void {
-  revalidateTag(GARDEN_TAG);
+  try {
+    revalidateTag(GARDEN_TAG);
+  } catch (err) {
+    if (!isMissingRequestStore(err)) throw err;
+  }
 }
