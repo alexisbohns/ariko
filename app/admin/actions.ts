@@ -1,5 +1,14 @@
 "use server";
 
+/**
+ * Several `revalidateGarden()` calls below sit OUTSIDE their action's
+ * `if (result.dirty)` guard, so a save that turned out to change nothing
+ * still invalidates. That is deliberate, not an oversight: the two mistakes
+ * are not symmetric. Invalidating after a no-op write costs one extra Mongo
+ * read on the next public request. Failing to invalidate after a real write
+ * costs a stale public site until GARDEN_TTL expires. Erring toward the
+ * cheap mistake is the whole point of putting the call outside the guard.
+ */
 import { redirect } from "next/navigation";
 import { revalidateGarden } from "@/lib/garden-cache";
 import { verifyPassword } from "@/lib/session";
