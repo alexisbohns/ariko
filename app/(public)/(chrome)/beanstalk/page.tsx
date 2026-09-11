@@ -1,5 +1,5 @@
 import { buildDataset, filterPublic, resolveText } from "@/lib/data";
-import { loadRawGarden } from "@/lib/store";
+import { loadCachedGarden } from "@/lib/garden-cache";
 import { getFederation } from "@/lib/federation";
 import { listPollen } from "@/lib/pollen-store";
 import { exhibitedPollen, mergeBeanstalk, plantSlugOf } from "@/lib/beanstalk";
@@ -19,7 +19,7 @@ export default async function BeanstalkPage({
 }) {
   const { plant } = await searchParams;
   const lang = await currentLang();
-  const [raw, allPollen] = await Promise.all([loadRawGarden(), listPollen()]);
+  const [raw, allPollen] = await Promise.all([loadCachedGarden(), listPollen()]);
   const pub = filterPublic(raw);
   const data = buildDataset(pub);
   const plantSlugs = data.getPlants().map((p) => p.slug);

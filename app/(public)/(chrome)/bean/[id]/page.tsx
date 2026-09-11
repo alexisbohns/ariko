@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { resolveText, type Relation, type Text } from "@/lib/data";
 import type { Lang } from "@/lib/locale";
 import { currentLang } from "@/lib/locale-server";
-import { getPublicDataset } from "@/lib/store";
+import { getPublicDataset } from "@/lib/garden-cache";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { articleFor } from "@/lib/article";
 import { Prose } from "@/components/markdown";

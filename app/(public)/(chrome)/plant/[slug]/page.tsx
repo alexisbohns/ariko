@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { resolveText, textPart } from "@/lib/data";
 import { currentLang } from "@/lib/locale-server";
-import { getPublicDataset } from "@/lib/store";
+import { getPublicDataset } from "@/lib/garden-cache";
 import { resolveEntity } from "@/lib/entity-resolve";
 import { PlantHead } from "@/app/(public)/_components/plant-head";
 import { ProfanePreload } from "@/components/brand/profane-preload";
