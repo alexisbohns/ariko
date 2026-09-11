@@ -175,6 +175,22 @@ while quietly becoming false.
   matches `/admin/:path*`, so `app/admin/palette/route.ts` inherits the session
   gate with zero new auth code. A sibling under `/api/admin/…` falls outside
   that matcher and is public unless it writes its own check.
+- **The garden has two readers, and which one you import is a privacy
+  decision.** `loadRawGarden` (`lib/store.ts`) is live; `loadCachedGarden`
+  (`lib/garden-cache.ts`) is behind Next's Data Cache under the `garden` tag.
+  The public zone reads the cached one, the admin and **every server action**
+  read the live one — because `editVersionAction` and `promoteSeedAction`
+  re-read *after* writing so `publishCascade` sees the just-saved state, and a
+  cached read there computes the cascade against the pre-write garden: a
+  published sprout whose bean silently stays private, or an unpublish that
+  leaves a parent public. In the other direction, a public page that imports
+  anything from `lib/store.ts` bypasses the cache — and `getFullDataset` skips
+  `filterPublic` on the way, which is a leak rather than a slow page. Writes
+  invalidate at four doors, three of which are not actions:
+  `app/admin/actions.ts` plus `/api/articles`, `/api/synthesis` and
+  `/api/pollen/sync`. `lib/garden-cache-source.test.ts` pins all of it,
+  per-function for `actions.ts` because a whole-file check there would pass on
+  one call out of nineteen.
 
 The slice histories that used to be narrated here — the prose editor, the media
 picker, the seed overlay, the ⌘K palette, the plant hero, the TOC rail, the
