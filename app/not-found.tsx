@@ -10,7 +10,7 @@ export default function NotFound() {
   return (
     <main className="flex min-h-svh items-center">
       <div className={READING_COLUMN}>
-        <h1 className="font-mono text-2xl">Not here</h1>
+        <h1 className="font-heading text-2xl">Not here</h1>
         <p className="mt-3 text-muted-foreground">
           This page does not exist, or it was never public.
         </p>
