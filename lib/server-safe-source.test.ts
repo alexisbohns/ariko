@@ -51,12 +51,17 @@ const SERVER_SAFE = [
   // carry no directive today; they are here so that stays true the next time
   // `npx shadcn add` overwrites one.
   //
-  // components/ui/separator.tsx is the fourth public-rendered one and is not
-  // here yet — it wraps Base UI's Separator, so whether it can drop its
-  // directive is a question to be answered by trying, not by assuming.
+  // separator.tsx is here too, and it is the interesting one. It WRAPS a Base
+  // UI primitive whose own module carries "use client", so the boundary does
+  // not go away — but the wrapper does not have to be on the far side of it.
+  // Dropping its directive left `cn` (and so clsx + tailwind-merge) on the
+  // server and took /beanstalk from 113 kB to 105 kB. The lesson generalises:
+  // wrapping a client primitive is not a reason for the wrapper to be a client
+  // component, and the stock directive shadcn ships assumes otherwise.
   "components/ui/table.tsx", // components/markdown.tsx, for GFM tables
   "components/ui/badge.tsx", // plant-head.tsx, /beanstalk, components/media.tsx
   "components/ui/card.tsx", // bean/[id], components/entity-card.tsx
+  "components/ui/separator.tsx", // /beanstalk
 ];
 
 for (const path of SERVER_SAFE) {
