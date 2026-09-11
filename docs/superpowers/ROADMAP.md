@@ -54,9 +54,15 @@ Per-slice detail: [`specs/`](specs/), and the merged PRs they name.
 From [`../audits/2026-09-10-code-quality-audit.md`](../audits/2026-09-10-code-quality-audit.md)
 §6, whose ordering this follows — except that two of its ten items shipped
 ahead of turn, as part of this same rulebook slice: the guidelines rewrite
-(item 5) and the `table`/`separator` de-clientizing (item 2, `label.tsx` not
-included — it is admin-only, so it costs the public zone nothing left as
-`"use client"`).
+(item 5) and most of the `table`/`separator` de-clientizing (item 2 — its
+`label.tsx` third is outstanding, tracked in
+[#87](https://github.com/alexisbohns/ariko/issues/87)).
+
+Two findings the audit records but never sequenced, so they have no turn here:
+[#87](https://github.com/alexisbohns/ariko/issues/87) above, and
+[#88](https://github.com/alexisbohns/ariko/issues/88) — the botanical rename
+never finished in the identifiers, the write path, or the strings the author
+reads (`ATOM_PREFIX = "bean:"`, an "Edit version" heading on the sprout page).
 
 1. ~~**Rewrite the guidelines.**~~ Shipped — [`specs/2026-09-10-guidelines-rewrite-design.md`](specs/2026-09-10-guidelines-rewrite-design.md).
 2. **Cache the garden.** `unstable_cache` + `revalidateTag("garden")`, replacing
