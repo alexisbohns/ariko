@@ -98,7 +98,7 @@ public site serves the pre-write garden. With a tag and no TTL that is stale
 exists to bound and the source test in §4.3 exists to prevent.
 
 There is also a fourth door that writes the garden and *is* an action:
-`syncPollenAction` calls the same `runSync`.
+`syncNowAction` calls the same `runSync`.
 
 ## 3. The design
 
@@ -208,6 +208,22 @@ a reader will later assume it means something.
 `/api/inbox` (seeds), `/api/synthesis/week` (read), `/api/upload` (Cloudinary)
 and `/api/graph` (read) write nothing to the garden and get nothing.
 
+**A fifth kind of write exists and deliberately gets no door: `scripts/`.**
+`scripts/migrate-garden.ts`, `scripts/migrate-retier.ts`,
+`scripts/import-casa-media.ts`, `scripts/import-paulopus-screens.ts`,
+`scripts/backfill-plant-roles.ts` and `scripts/pollen-rebuild.ts` write garden
+collections directly, under `node --import tsx` with no Next runtime anywhere —
+so `revalidateTag` has nothing to talk to and a door there could not work even
+if one were added.
+
+This is what `GARDEN_TTL` is for, and it is the clearest case of it: after a
+migration the public site serves the pre-script garden for **up to five
+minutes**, then corrects itself with no intervention. On a hand-run one-shot,
+on a single-author site, that is the right trade against making every script
+carry Next's runtime. If five minutes is too long after a particular migration,
+the two ways to force it are a redeploy or any single write through a real
+door — saving a plant's name and saving it back, say.
+
 ### 3.3 `lib/db.ts`
 
 `serverSelectionTimeoutMS: 5000` and `connectTimeoutMS: 5000` on the
@@ -219,6 +235,28 @@ the Data Cache and never reaches Mongo at all. The 5 s applies only to a cold
 cache, where it turns a 30 s hang into a fast error page. The two halves of this
 slice compose: the cache removes the common failure, the timeout bounds the rare
 one.
+
+> **Correction, written during implementation.** What shipped is
+> `serverSelectionTimeoutMS: 5_000`, `connectTimeoutMS: 10_000` and
+> `socketTimeoutMS: 10_000` — not the symmetric 5 s pair above.
+>
+> Two reasons, both found in review. First, this section's claim to bound the
+> outage was incomplete: `serverSelectionTimeoutMS` bounds *choosing* a server,
+> but `getDb()` caches its connection on `globalThis` for the life of the
+> container, so an operation on an already-selected server that blackholes
+> mid-query was bounded by `socketTimeoutMS` — which defaults to infinite.
+> Setting only the two named here would have left the commit's own headline
+> ("fails in 5 s instead of 30") untrue for the case most likely to happen to a
+> warm serverless container.
+>
+> Second, 5 s is at the tight end for *connecting* from a cold Vercel container
+> to Atlas — SRV lookup, TLS, SCRAM — and on a shared tier that can auto-pause,
+> a resume would blow through it and turn a recoverable delay into a hard 500.
+> Selection stays aggressive at 5 s; connect and socket get 10 s.
+>
+> One caveat this section should not leave implied: `mongodb+srv://` DNS
+> resolution happens *before* server selection begins and is not fully bounded
+> by any of the three, so "never more than 5 s" is not airtight.
 
 ### 3.4 The three pages
 
@@ -245,6 +283,32 @@ is a client component by requirement. The `npm run build` first-load-JS delta is
 recorded in §5 and is part of the acceptance criteria: if the boundary costs
 more than about a kilobyte, that is a finding to surface rather than absorb.
 
+> **Correction, written during implementation.** Four pages shipped, not three:
+> there is a **second** error boundary at `app/(public)/(chrome)/error.tsx`.
+>
+> The reason is the argument this section already makes for the 404, applied to
+> the case it forgot. `(chrome)/layout.tsx` is a *child* of the `(public)`
+> segment, so a boundary at `app/(public)/error.tsx` replaces the chrome layout
+> along with the page: a Mongo failure on `/plant/x` would have taken the mark,
+> the nav and the language switch with it — on exactly the three pages that read
+> Mongo, and in a slice that argues a visitor should be able to leave without
+> the back button. A boundary *inside* the group keeps the furniture standing.
+>
+> The outer one stays and is not redundant: a segment's `error.tsx` cannot catch
+> a throw from that same segment's own layout, so only the outer boundary can
+> catch a failure inside `(chrome)/layout.tsx` itself — and it is also the one
+> covering `app/(public)/page.tsx`, the landing, which sits outside the group.
+>
+> Two further deviations from the paragraph above. The headings use
+> `font-heading`, not the `font-mono` the plan specified: this design system
+> defines `--font-sans`, `--font-heading` and `--font-display` and **no
+> `--font-mono`**, so `font-mono` would have fallen through to the visitor's OS
+> mono font on the only three pages in the repo using it. And the outer boundary
+> imports `READING_COLUMN` rather than hand-copying its class string, per
+> `CLAUDE.md`'s "grep for the name rather than copying the classes" — so the
+> claim is now "imports the measure and nothing else", which `lib/error-pages.test.tsx`
+> pins as an import **allowlist** rather than the blocklist first written.
+
 ### 3.5 A size guard on the cached entry
 
 §1's 411 kB sits under Vercel's 2 MB Data Cache entry limit with room, but the
@@ -268,9 +332,27 @@ imports and not what it asserts.
 
 ### 4.2 The pages
 
-Render tests for the two `not-found.tsx` files and for `error.tsx` — the latter
-asserting the reset control exists and is a `<button>`, since an error page
-whose only affordance is broken is worse than Next's default.
+Render tests for the two `not-found.tsx` files and for **both** error
+boundaries (§3.4's correction) — asserting the reset control exists and is a
+`<button>`, since an error page whose only affordance is broken is worse than
+Next's default.
+
+`lib/error-pages.test.tsx` ended up pinning three things this section did not
+ask for, each closing a way the pages could become quietly wrong:
+
+- **An import allowlist, not a blocklist.** "Imports nothing that costs bytes"
+  was first written as a scan for three specific strings, which `next/link` or
+  anything future walks straight past. The test now parses every `import` and
+  asserts the module list exactly — `["@/components/page-column"]` for the
+  outer boundary, `[]` for the inner one.
+- **The chrome pages render no `<main>` and no `max-w-3xl`.** Their layout owns
+  both. The plausible regression is someone "fixing" one by wrapping it in
+  `<main className={READING_COLUMN}>`, which nests landmarks and double-pads the
+  column while passing `tsc`, `npm test` and `npm run build`.
+- **The French branch actually renders French.** `COPY` and a synchronous
+  `NotFoundCopy` are exported so both can be tested against an explicit `lang`
+  without going through `currentLang()`, which reads real request cookies and
+  throws outside a request.
 
 ### 4.3 `lib/garden-cache-source.test.ts`
 
@@ -310,6 +392,11 @@ while quietly making the public site stale, or the cascade wrong.
   | `/bean/[id]` | 103 kB | 102 kB |
   | `/beanstalk` | 105 kB | 105 kB |
   | `/_not-found` | 104 kB (1 kB route) | 102 kB (172 B route) |
+
+  `/beanstalk` is the row that did not move, and honestly so: it is
+  `Promise.all([loadCachedGarden(), listPollen()])`, and §6 declines to cache
+  `pollen`. So four of the five public pages stopped waiting on Mongo and that
+  one still does, on its pollen half.
 
   The error boundary's own chunk is **890 bytes raw, ~400 B gzipped**, and adds
   no measurable per-route first load: React's error-boundary machinery is
