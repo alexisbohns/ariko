@@ -215,10 +215,19 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
     else throw err;
   }
 
+  // Above the slugError redirect, not below: createPod or createBean can
+  // each succeed before a LATER SlugExistsError throws (the bean's slug
+  // collides right after the pod was created; the sprout's collides right
+  // after both parents were), so a garden write can land here with the
+  // success path below never reached. revalidateGarden() is idempotent and
+  // cheap — the same argument the module docblock above makes for calling it
+  // outside the `if (result.dirty)` guards elsewhere in this file — so it
+  // runs unconditionally rather than only when nothing went wrong.
+  revalidateGarden();
+
   if (slugError) {
     redirect(`/admin/triage/${seedId}?error=${encodeURIComponent(slugError)}`);
   }
-  revalidateGarden();
   redirect("/admin");
 }
 

@@ -35,20 +35,39 @@ import { join, relative } from "node:path";
  * written, and neither `renderToStaticMarkup` nor a unit test can see it.
  *
  * ADDING A WRITER HERE IS THE CHEAP HALF. A new write export in
- * `lib/botanical.ts` belongs in GARDEN_WRITERS on the day it is written —
- * and the completeness test below refuses to let it belong to neither list.
+ * `lib/botanical.ts`, or in one of the three FOREIGN_MODULES, belongs in
+ * GARDEN_WRITERS (and FOREIGN_WRITERS, if foreign) on the day it is written
+ * — and the completeness tests below refuse to let it belong to neither list
+ * in its own module, or belong to a module's list without also being in
+ * FOREIGN_WRITERS.
  *
  * `app/admin/actions.ts` IS SPECIAL-CASED throughout this file, by path, on
- * purpose: it carries 19 of the 21 `revalidateGarden()` call sites, so a
- * whole-file "does this string appear anywhere" check would pass as long as
- * ONE of its ~30 actions remembers to invalidate — invisible to the file the
- * next 26th action gets added to. Below, its writers are checked per
- * FUNCTION instead. When the roadmap's planned split of `actions.ts` lands,
- * the hard-coded door list in "the four write doors are all still here", the
- * hard-coded path in "the write path reads the LIVE garden", and the
- * per-function walk here all need to move with it — update them, don't
- * delete them; a fifth door (or a sixth, after a split) should fail loudly
- * here rather than pass by accident.
+ * purpose: it carries 19 of the 22 `revalidateGarden()` call sites repo-wide
+ * (the other 3 are one each in the API routes), so a whole-file "does this
+ * string appear anywhere" check would pass as long as ONE of its ~30 actions
+ * remembers to invalidate — invisible to the file the next 26th action gets
+ * added to. Below, its writers are checked per FUNCTION instead. When the
+ * roadmap's planned split of `actions.ts` lands, the hard-coded door list in
+ * "the four write doors are all still here", the hard-coded path in "the
+ * write path reads the LIVE garden", and the per-function walk here all need
+ * to move with it — update them, don't delete them; a fifth door (or a
+ * sixth, after a split) should fail loudly here rather than pass by
+ * accident.
+ *
+ * NEXT VERSION THIS WAS VERIFIED AGAINST: 15.3. In Next 13/14,
+ * `export const dynamic = "force-dynamic"` implied `fetchCache:
+ * "force-no-store"`, which `unstable_cache` honours by skipping the cache
+ * read outright. In 15.3 it does not: `workStore.fetchCache` is set only
+ * from an explicit `export const fetchCache`, which no page here declares —
+ * that is WHY the cache is live rather than a no-op. An explicit
+ * `fetchCache` added to a public page, or to a layout above one, would turn
+ * `loadCachedGarden` back into a Mongo round trip per visitor while every
+ * other check in this file, and in this repo, stayed green. The assertion
+ * below catches the half of that regression a human can cause. The other
+ * half — a future Next version restoring the old `force-dynamic` →
+ * `fetchCache` mapping, or removing it from `unstable_cache` entirely — is
+ * not visible in source text and is not catchable here, which is why this
+ * paragraph names the version rather than stating the mapping as a fact.
  */
 
 const APP = join(process.cwd(), "app");
@@ -90,15 +109,33 @@ const GARDEN_WRITERS = new Set([
   "writeArticles",
   "upsertDigestDrafts",
   "runSync",
+  "makeSink",
+  "deleteFeedData",
 ]);
 
 /**
- * The three writers above that do NOT live in `lib/botanical.ts` — the
- * article, synthesis and pollen-sync stores. Named here once so the
+ * The writers above that do NOT live in `lib/botanical.ts` — the article,
+ * synthesis and pollen stores, plus `runSync` (`lib/pollen-run.ts`, a single-
+ * export module with nothing left to reconcile). Named here once so the
  * completeness test can subtract them before comparing GARDEN_WRITERS
  * against `lib/botanical.ts`'s own export list.
+ *
+ * `makeSink` and `deleteFeedData` (`lib/pollen-store.ts`) both belong here:
+ * `makeSink`'s returned sink writes the `beans` collection in `projectBeans`,
+ * and `deleteFeedData` deletes from it. Neither is imported from `app/`
+ * today — `lib/pollen-run.ts`'s `runSync` is the only caller — so there is no
+ * live hole. But `scripts/pollen-rebuild.ts` already contemplates an admin
+ * rebuild button, and wiring `deleteFeedData` to one would satisfy every
+ * OTHER check in this file while the public site served deleted beans for up
+ * to GARDEN_TTL seconds.
  */
-const FOREIGN_WRITERS = new Set(["writeArticles", "upsertDigestDrafts", "runSync"]);
+const FOREIGN_WRITERS = new Set([
+  "writeArticles",
+  "upsertDigestDrafts",
+  "runSync",
+  "makeSink",
+  "deleteFeedData",
+]);
 
 /**
  * The READ exports of `lib/botanical.ts` — named explicitly, exactly like
@@ -115,6 +152,39 @@ const GARDEN_READERS = new Set([
   "getScreen",
   "getSprout",
 ]);
+
+/**
+ * The reader/writer split for every FOREIGN module — one entry per module in
+ * FOREIGN_WRITERS, `lib/pollen-run.ts` excepted (it exports only `runSync`,
+ * which leaves nothing to reconcile). Mirrors the `lib/botanical.ts`
+ * completeness test below: every export of each module must be classified
+ * here as a writer or a reader, verified against the file rather than
+ * trusted on faith. This is what keeps FOREIGN_WRITERS from being the one
+ * hand-maintained list with no equivalent check.
+ */
+const FOREIGN_MODULES: { path: string; writers: Set<string>; readers: Set<string> }[] = [
+  {
+    path: "lib/articles-store.ts",
+    writers: new Set(["writeArticles"]),
+    readers: new Set([]),
+  },
+  {
+    path: "lib/synthesis-store.ts",
+    writers: new Set(["upsertDigestDrafts"]),
+    readers: new Set(["loadWeekMaterial", "listDigestBeanSlugs"]),
+  },
+  {
+    path: "lib/pollen-store.ts",
+    writers: new Set(["makeSink", "deleteFeedData"]),
+    readers: new Set([
+      "ensurePollenIndexes",
+      "listPollen",
+      "listCursors",
+      "countRefusalsByFeed",
+      "listRefusals",
+    ]),
+  },
+];
 
 /**
  * Functions in `app/admin/actions.ts` that call a garden writer but never
@@ -344,25 +414,58 @@ test("the public zone never imports lib/store directly", () => {
   // if app/(public)/ gets renamed, or app/api/graph/route.ts moves, this
   // filter silently returns [] and the assertion after it would pass for
   // having nothing left to check — the exact vacuous-pass this file exists
-  // to prevent happening to itself.
+  // to prevent happening to itself. Deliberately scoped to the app/-side
+  // files only: components/ always exists and is never empty, so folding it
+  // into this same count would make the guard pass no matter what happened
+  // to app/(public)/.
   assert.ok(
     publicFiles.length > 0,
     "no public files were found under app/(public)/ or at app/api/graph/route.ts " +
       "— one of those paths moved, and this test needs to move with it",
   );
 
-  const offenders = publicFiles
+  // components/ is added to the candidate set (not the guard above) because
+  // the assertion message below makes a repo-wide claim — "outside the
+  // admin" — not a app/(public)/-only one. A shared component imported by a
+  // public page is exactly as dangerous as the page importing lib/store
+  // itself, and app/-only would never see it: nothing under components/
+  // starts with "app/".
+  const componentFiles = sourceFiles(COMPONENTS).map((path) => ({
+    path: relative(process.cwd(), path),
+    text: readFileSync(path, "utf8"),
+  }));
+
+  const offenders = [...publicFiles, ...componentFiles]
     .filter((f) => importsFromModule(f.text, "/lib/store"))
     .map((f) => f.path);
 
   assert.deepEqual(
     offenders,
     [],
-    "these public files import lib/store directly. loadRawGarden bypasses the " +
-      "Data Cache and hits Mongo on every request; getFullDataset does that AND " +
+    "these files import lib/store directly. loadRawGarden bypasses the Data " +
+      "Cache and hits Mongo on every request; getFullDataset does that AND " +
       "skips filterPublic, which is a privacy leak, not just a perf regression. " +
       "lib/garden-cache.ts should be the only importer of lib/store outside the " +
       "admin — route the read through getPublicDataset or loadCachedGarden instead",
+  );
+});
+
+test("no file under app/(public)/ or app/api/graph/ exports fetchCache", () => {
+  const offenders = FILES.filter(
+    (f) =>
+      (f.path.startsWith("app/(public)/") || f.path.startsWith("app/api/graph/")) &&
+      /export\s+const\s+fetchCache\b/.test(f.text),
+  ).map((f) => f.path);
+
+  assert.deepEqual(
+    offenders,
+    [],
+    "these files export fetchCache — as of Next 15.3 that is the only thing " +
+      "that makes force-dynamic imply force-no-store for unstable_cache, so " +
+      "adding it here turns loadCachedGarden back into a Mongo round trip per " +
+      "visitor while every other check in this file stays green (see this " +
+      "file's docblock: the OTHER half of this regression, a Next upgrade " +
+      "restoring the old mapping, is not catchable from source text at all)",
   );
 });
 
@@ -391,9 +494,62 @@ test("GARDEN_WRITERS and GARDEN_READERS classify every export of lib/botanical.t
     stale,
     [],
     "GARDEN_WRITERS or GARDEN_READERS names a lib/botanical.ts export that no " +
-      "longer exists — update the list (writeArticles, upsertDigestDrafts and " +
-      "runSync are expected to be absent here; they are FOREIGN_WRITERS, " +
-      "hand-listed because they live outside lib/botanical.ts)",
+      "longer exists — update the list (every name in FOREIGN_WRITERS is " +
+      "expected to be absent here; those live outside lib/botanical.ts, and " +
+      "are reconciled against their own modules by FOREIGN_MODULES below)",
+  );
+});
+
+test("FOREIGN_MODULES classifies every export of the three foreign writer modules", () => {
+  for (const mod of FOREIGN_MODULES) {
+    const text = readFileSync(join(process.cwd(), mod.path), "utf8");
+    const exported = new Set(
+      [...text.matchAll(/^export\s+(?:async\s+)?function\s+([A-Za-z0-9_]+)/gm)].map((m) => m[1]),
+    );
+    const classified = new Set([...mod.writers, ...mod.readers]);
+
+    const unclassified = [...exported].filter((n) => !classified.has(n)).sort();
+    assert.deepEqual(
+      unclassified,
+      [],
+      `${mod.path} exports a function that FOREIGN_MODULES classifies as ` +
+        "neither a writer nor a reader — classify it (a writer needs adding " +
+        "to FOREIGN_MODULES' entry AND to GARDEN_WRITERS/FOREIGN_WRITERS, and " +
+        "every app/ caller needs revalidateGarden())",
+    );
+
+    const stale = [...classified].filter((n) => !exported.has(n)).sort();
+    assert.deepEqual(
+      stale,
+      [],
+      `FOREIGN_MODULES names an export of ${mod.path} that no longer exists — update the entry`,
+    );
+  }
+
+  // The two hand-maintained lists could each be internally consistent (every
+  // module's own exports fully classified above) while still drifting apart
+  // from EACH OTHER — a writer added to a module's entry here but forgotten
+  // in FOREIGN_WRITERS would satisfy every assertion above and still leave
+  // the whole-file and per-function checks blind to it.
+  const moduleWriters = new Set(FOREIGN_MODULES.flatMap((m) => [...m.writers]));
+  const missingFromForeignWriters = [...moduleWriters].filter((n) => !FOREIGN_WRITERS.has(n)).sort();
+  assert.deepEqual(
+    missingFromForeignWriters,
+    [],
+    "FOREIGN_MODULES lists a writer that FOREIGN_WRITERS (and so GARDEN_WRITERS) " +
+      "does not — add it there too, or the writer/invalidate checks above never see it",
+  );
+
+  const notAModuleWriter = [...FOREIGN_WRITERS].filter(
+    (n) => !moduleWriters.has(n) && n !== "runSync",
+  );
+  assert.deepEqual(
+    notAModuleWriter,
+    [],
+    "FOREIGN_WRITERS names something that is neither runSync (lib/pollen-run.ts, " +
+      "the one foreign writer with no module entry — it has nothing else to " +
+      "reconcile) nor a writer any FOREIGN_MODULES entry claims — check it is " +
+      "still a real export of the module it is supposed to live in",
   );
 });
 
