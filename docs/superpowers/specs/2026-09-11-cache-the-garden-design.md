@@ -162,13 +162,37 @@ data loss.
 ### 3.2 The four doors
 
 `revalidateGarden()` is called at exactly four places, all of them request
-boundaries where `revalidateTag` is legal and where `node --test` never runs:
+boundaries where `revalidateTag` is legal:
 
 1. `app/admin/actions.ts` — in place of the `revalidatePath` calls, which
    already sit at the right moments.
 2. `app/api/articles/route.ts`
 3. `app/api/synthesis/route.ts`
 4. `app/api/pollen/sync/route.ts`
+
+> **Correction, written during implementation.** This section originally added
+> "and where `node --test` never runs", and used that to argue the doors needed
+> no tolerance for a missing request context — unlike the writer layer, which
+> the rejected alternative would have had to guard. **The claim was false.**
+> `lib/articles-route.test.ts` imports `POST` from `app/api/articles/route.ts`
+> and calls it against a real database, and `lib/synthesis-route.test.ts` and
+> `lib/pollen-sync-route.test.ts` do the same for the other two doors. Those are
+> good tests — a write door exercised end to end — and they are not Next
+> requests, so `revalidateTag` finds no store and throws. `npm run test:db` went
+> red the moment the first door was wired.
+>
+> So `revalidateGarden` carries a catch, narrow enough to keep the property the
+> door exists for: it tolerates exactly "no request store" and rethrows
+> everything else. Both failure modes stay loud — in production a route handler
+> always HAS a store, so the catch never runs and an invalidation is never
+> quietly skipped; and if Next changes that message, the rethrow takes
+> `test:db` red rather than letting the public site go silently stale.
+> `lib/garden-cache.test.ts` pins both halves, with the predicate exported so
+> the rethrow is testable at all.
+>
+> This does not reopen the writer-layer option §2.2 rejected. That would have
+> been roughly twenty-five blind catches across four modules; this is one
+> asserted case at one function.
 
 **The 29 `revalidatePath` calls are deleted, not mechanically renamed.** Each
 action gets **one** `revalidateGarden()` where it previously had one or two
@@ -274,13 +298,35 @@ while quietly making the public site stale, or the cascade wrong.
 ## 5. Acceptance
 
 - `npm run lint`, `npm test`, `npm run test:db`, `npm run build` all green.
-- First-load JS for every public route recorded before and after; the delta is
-  the `error.tsx` boundary and is expected to be ≲ 1 kB. A larger number is
-  reported, not absorbed.
+- **First-load JS, measured** (`npm run build` on `main` at `8d72c3b` against
+  the branch). The budget was "the `error.tsx` boundary, ≲ 1 kB". It came in
+  under that and the public routes ended up *smaller* than before:
+
+  | Route | main | branch |
+  |---|---|---|
+  | `/` | 103 kB | 102 kB |
+  | `/plant/[slug]` | 103 kB | 102 kB |
+  | `/pod/[slug]` | 103 kB | 102 kB |
+  | `/bean/[id]` | 103 kB | 102 kB |
+  | `/beanstalk` | 105 kB | 105 kB |
+  | `/_not-found` | 104 kB (1 kB route) | 102 kB (172 B route) |
+
+  The error boundary's own chunk is **890 bytes raw, ~400 B gzipped**, and adds
+  no measurable per-route first load: React's error-boundary machinery is
+  already in the shared runtime, and the component itself imports nothing. The
+  `/_not-found` row is the real saving and the one with a clear cause —
+  `app/not-found.tsx` replaces Next's heavier built-in default. The ~0.5 kB off
+  the shared chunk is left unattributed rather than claimed; it is below the
+  granularity at which this build reports honestly.
+
 - Manually: publish a sprout in the admin, confirm it appears on the public page
   on the next request rather than in five minutes. That is the one behaviour a
   test in this repo cannot assert, because it needs both a Next runtime and a
   database.
+- Manually: create a seed and discard one, and confirm the inbox updates
+  immediately. Those two actions are the only ones in the slice that lost their
+  invalidation call outright (§3.2), so they are the only place a regression
+  would not show up as a stale *public* page.
 
 ## 6. Not in this slice
 
