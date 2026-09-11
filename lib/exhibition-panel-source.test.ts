@@ -41,14 +41,13 @@ import { join } from "node:path";
  * X" and "this file is a client component" are properties of the file AS
  * WRITTEN, and `renderToStaticMarkup` cannot see either.
  *
- * The third property — that the popover's contents genuinely do not reach
- * the script-off HTML — IS observable by rendering, and gets
- * `lib/plant-hero-mount.test.ts`'s technique exactly: hand `PlantInside` a
- * recognisable marker as `exhibition.panel` and assert the marker never
- * appears in `renderToStaticMarkup`'s output. It does not, because the
- * popover is CLOSED on a server render (no script, no `open` state) and Base
- * UI does not mount closed content — the same reason none of
- * `plant-hero-mount.test.ts`'s sheets or popovers leak a field name either.
+ * There used to be a third test here, rendering PlantInside with a marker as
+ * `exhibition.panel` and asserting the marker never reached the script-off
+ * HTML. It pinned an entry in CLAUDE.md's exception ledger; the rulebook slice
+ * replaced that ledger with three invariants, under which an admin island
+ * rendering nothing before it mounts is unremarkable. The two rules above are
+ * NOT that rule — they are about where a payload is composed, which is
+ * invariant 3's territory and survives the ledger intact.
  */
 
 const PLANT_INSIDE = "app/admin/_components/plant-inside.tsx";
@@ -76,35 +75,5 @@ test(`${EXHIBITION_PANEL} is not a client component`, () => {
     !/^\s*["']use client["']/m.test(text),
     `${EXHIBITION_PANEL} must not be a client component — its forms must ` +
       `stay server-composed, exactly like every other admin metadata form`,
-  );
-});
-
-async function renderScriptOff(element: unknown): Promise<string> {
-  const { renderToStaticMarkup } = await import("react-dom/server");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return renderToStaticMarkup(element as any);
-}
-
-test("the Exhibition panel's contents do not reach the script-off HTML", async () => {
-  const React = await import("react");
-  const { PlantInside } = await import("@/app/admin/_components/plant-inside");
-
-  // A marker rather than a real ExhibitionPanel: what this test pins is that
-  // PlantInside never renders WHATEVER it is handed while the popover is
-  // closed, not that ExhibitionPanel in particular behaves — that half is
-  // exhibition-panel.tsx's own concern.
-  const marker = React.createElement("input", { name: "__exhibition_marker__" });
-
-  const html = await renderScriptOff(
-    React.createElement(PlantInside, {
-      items: [],
-      exhibition: { count: 3, panel: marker },
-      children: React.createElement("div", null, "body"),
-    }),
-  );
-
-  assert.ok(
-    !html.includes("__exhibition_marker__"),
-    `the Exhibition panel's contents leaked into the script-off render:\n${html}`,
   );
 });
