@@ -16,7 +16,7 @@ import type { Media } from "@/lib/data";
  * disappear without a single failure to announce it.
  *
  * renderToStaticMarkup, no jsdom: this component is server-only by design, and
- * the static markup IS its output. lib/editor-mount.test.ts and
+ * the static markup IS its output. lib/editor.test.ts and
  * lib/markdown-conformance.test.ts already take the same route.
  *
  * `tsconfig.test.json` exists for this file and nothing else. The repo's

@@ -51,7 +51,6 @@ import type { EntityOption } from "./entity-options.js";
 // statements textually placed above it — so it would reach `@tiptap/core`
 // before the jsdom globals above are installed. A plain `require()` call
 // runs exactly where it's written, in file order, which is the whole point.
-/* eslint-disable @typescript-eslint/no-require-imports */
 const { test, after } = require("node:test") as typeof import("node:test");
 // Explicit type annotation, not `as`: TypeScript's assertion-function
 // narrowing (assert.ok's `asserts value` signature) only kicks in when the
@@ -63,7 +62,6 @@ const { createElement } = require("react") as typeof import("react");
 const { renderToStaticMarkup } = require("react-dom/server") as typeof import("react-dom/server");
 const ReactMarkdown = require("react-markdown") as typeof import("react-markdown");
 const { remarkPlugins, rehypePlugins } = require("./markdown.js") as typeof import("./markdown.js");
-/* eslint-enable @typescript-eslint/no-require-imports */
 
 // The EXACT chain the public site renders — same helper as
 // lib/markdown-conformance.test.ts and lib/entity-refs.test.ts. Whole-document

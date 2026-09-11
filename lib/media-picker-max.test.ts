@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
  * module-evaluation time, and static imports are hoisted above this file's own
  * statements. Everything DOM-touching is therefore reached through dynamic
  * `import()` below. Same reasoning, and the same shape, as
- * lib/editor-mount.test.ts.
+ * lib/editor.test.ts.
  */
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {
   url: "http://localhost/",
@@ -55,7 +55,6 @@ async function mount(props: Record<string, unknown>): Promise<HTMLElement> {
   const container = window.document.createElement("div");
   window.document.body.appendChild(container);
   await React.act(async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     createRoot(container).render(React.createElement(MediaPicker as any, props));
   });
   return container as unknown as HTMLElement;

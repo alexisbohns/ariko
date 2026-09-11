@@ -22,8 +22,9 @@ export const dynamic = "force-dynamic";
  *
  * The mark, the name and three icons are the whole header; each editor is one
  * click behind the thing it edits (the logo behind the logo, meta behind the
- * title, the role behind the crown), and the two enum fields are toggles that
- * write on the click itself. What is left in the column is the prose — unboxed,
+ * title, the role behind the crown), and the two enum fields open their
+ * vocabulary as radios and commit on a separate Save — never on the click that
+ * opens them. What is left in the column is the prose — unboxed,
  * because it is the page's actual content and a card around it was a frame
  * around the only thing worth looking at. The index of pods and beans moved to
  * a floating panel on a right-hand rail, where it costs the page nothing until

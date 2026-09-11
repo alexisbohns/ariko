@@ -6,8 +6,9 @@ import { join } from "node:path";
 /**
  * The claim the screen library rests on, enforced rather than written down.
  *
- * The side sheet costs no entry on CLAUDE.md's exception list for exactly one
- * reason: **nothing in it exists that is not also a page.** The slot imports
+ * The side sheet is an ordinary admin island, and the reason it stays cheap is
+ * the one thing worth enforcing about it: **nothing in it exists that is not
+ * also a page.** The slot imports
  * the route's own module and wraps it; the tiles are links with real hrefs. So
  * script-off, a click on a tile is an ordinary navigation to the same editors,
  * and the panel's absence costs nothing.

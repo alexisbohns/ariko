@@ -10,7 +10,7 @@ import type { MenuItem } from "./suggestion-menu";
 /**
  * The production extension list, React-free (the node VIEWS from
  * entity-views.tsx pull in React, but nothing here does). Built by
- * `components/editor/prose-editor.tsx` and by `lib/editor-mount.test.ts` —
+ * `components/editor/prose-editor.tsx` and by `lib/editor.test.ts` —
  * one definition, so a defect here (like two suggestion plugins sharing a
  * key, 65bb5ff) is something a test can actually catch, instead of a test
  * building its own approximation of this array and missing what the real one
@@ -48,7 +48,7 @@ export interface BlockCommand {
  * text and hands off, and the ASYNC half (open a picker, upload, insert)
  * lives in components/editor/prose-editor.tsx where it can hold React state.
  *
- * Exported so lib/editor-mount.test.ts can run a row against a real Editor
+ * Exported so lib/editor.test.ts can run a row against a real Editor
  * without a DOM file dialog.
  */
 export function buildBlocks(onInsertImage: () => void): BlockCommand[] {
@@ -76,7 +76,7 @@ export interface BuildEditorExtensionsOptions {
   /**
    * Called whenever the current suggestion menu should change — opened,
    * moved to a different active row, or closed. React callers wire this to
-   * `setState`; a headless caller (lib/editor-mount.test.ts) that never
+   * `setState`; a headless caller (lib/editor.test.ts) that never
    * opens a menu can pass a no-op.
    */
   onMenu: (next: MenuState | null) => void;
@@ -92,7 +92,7 @@ export interface BuildEditorExtensionsOptions {
   /**
    * Ask the host to pick an image file and insert it. Called by the `/image`
    * command AFTER the typed text is deleted. A headless caller
-   * (lib/editor-mount.test.ts) can pass a no-op.
+   * (lib/editor.test.ts) can pass a no-op.
    */
   onInsertImage: () => void;
 }

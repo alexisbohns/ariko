@@ -4,13 +4,13 @@ import { JSDOM } from "jsdom";
  * The palette actually rendering, opening, filtering and navigating — in a DOM.
  *
  * The rest of the slice is pinned by pure tests (lib/palette.test.ts) and by a
- * no-DOM render (lib/palette-mount.test.ts), and neither can reach the part
- * that was genuinely uncertain when this was written: Base UI's Autocomplete
+ * no-DOM render, and neither could reach the part that was genuinely
+ * uncertain when this was written: Base UI's Autocomplete
  * driven with `inline` + `open`, fed GROUPED items, filtering as the query
  * changes. That contract is the palette. If a Base UI upgrade changes it, this
  * file is what says so.
  *
- * Same jsdom-globals-first discipline as lib/editor-mount.test.ts, and for the
+ * Same jsdom-globals-first discipline as lib/editor.test.ts, and for the
  * same reason: modules in this graph read `window`/`document` at
  * module-evaluation time, static imports are hoisted above every statement in
  * this file, so the globals go in synchronously and everything DOM-touching is
@@ -71,7 +71,6 @@ Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", {
 
 import type { PaletteItem } from "./palette-items.js";
 
-/* eslint-disable @typescript-eslint/no-require-imports */
 const { test, before, after } = require("node:test") as typeof import("node:test");
 const assert: typeof import("node:assert/strict") = require("node:assert/strict");
 const React = require("react") as typeof import("react");

@@ -4,7 +4,7 @@
 
 * **Intention**: I want to showcase all my creative and professional work, organized around a botanical content model.
 * **Vision**: Everything I create — songs, product features, podcast episodes, blog posts — is a bean. Beans group into pods (albums, products, podcasts, blogs). The key insight is that beans evolve: every bean has one or more sprouts, which are the fundamental unit of work. A song can have a demo, a studio recording, a live take. A feature can have a POC, an MVP, a V2. The portfolio tells the story of evolution, not just the final state.
-* **Approach**: Build a zero-CSS Next.js app (App Router) as a POC for a personal portfolio system based on a botanical content model.
+* **Approach**: Build a Next.js app (App Router) as a POC for a personal portfolio system based on a botanical content model.
 
 ## Data model
 
@@ -56,12 +56,23 @@ Sprouts carry optional markdown in `content` (localizable — `Text`, like `name
 
 ## Constraints
 
-* Zero CSS.
-* No styling whatsoever.
-* No UI library.
-* Plain semantic HTML only.
-* TypeScript.
-* Public zone is zero-CSS, plain semantic HTML.
+* **TypeScript**, strict. CI is `tsc`, `eslint`, `npm test`, `npm run build`.
+* **The public zone is progressively enhanced.** Every page reads, every link
+  navigates and every media item is reachable with script off; islands add and
+  never replace. `lib/server-safe-source.test.ts` is the enforcement.
+* **The admin zone is a JavaScript application**, behind a password, with one
+  user. Server actions are the write path and server-rendered forms are the
+  default because they are less code — not because script is forbidden.
+* **A write never mis-saves from a partial form** — an island that has not
+  mounted is inert, never destructive.
+* **Design system:** Tailwind v4 + shadcn on Base UI. Never hand-roll a
+  primitive the registry ships.
+
+`CLAUDE.md` §"Script, by zone" states the three invariants in full, and
+`docs/audits/2026-09-10-code-quality-audit.md` §1 records why they replaced the
+list that used to sit here — *Zero CSS. No styling whatsoever. No UI library.
+Plain semantic HTML only.* — which was true when it was written and had been
+false for months by the time it was read.
 
 ## Database & development
 
@@ -283,64 +294,69 @@ Contract: [`docs/POLLEN.md`](docs/POLLEN.md) §Read.
 
 ## Admin zone
 
-As of Plan 2b-i, a password-gated admin zone lets you capture into the inbox from the browser and review it — no curl needed. It is intentionally **bare functional HTML** (no CSS, no client JavaScript) until the project's artistic direction is set; triage/promote/publish (2b-ii) and the vault browser (2b-iii) come next.
+A password-gated authoring zone: capture into the inbox, triage a seed into the botanical model, edit every tier, and browse the whole archive whatever its state. It is a JavaScript application on the shared design system — see §Constraints above, and `CLAUDE.md` §"Script, by zone" for what that does and does not permit.
+
+`middleware.ts` gates `/admin/:path*` (everything but the login page) on the signed session cookie and redirects a failure to it; every server action in `app/admin/actions.ts` opens with `requireSession()` as well, because a POST passes through no navigation gate. The chrome is rendered once by the layout, not by the pages: a floating icon rail — Inbox, Vault, Garden, Beanstalk, Screens (`lib/admin-nav.ts`) — plus the public-site and log-out buttons top-right; the ⌘K palette rides with it, so it works on every admin route and withdraws with the chrome on the login page. A section index reads in the wide column, every other route in the public site's own measure.
 
 * Set `ADMIN_PASSWORD` in `.env.local` — the login password.
 * Set `ADMIN_SESSION_SECRET` in `.env.local` — a long random value (e.g. `openssl rand -hex 32`) used to HMAC-sign the session cookie. Rotating it invalidates existing sessions.
 
 ### `/admin/login`
 
-The login gate. Submitting the correct `ADMIN_PASSWORD` sets an httpOnly, `SameSite=Lax` (Secure in production) signed session cookie and redirects to `/admin`; a wrong password re-renders with an error. `middleware.ts` protects every `/admin/*` route (except the login page) and redirects unauthenticated requests here; each mutating server action re-checks the session as well.
+The login gate, and the one admin route the chrome withdraws from. Submitting the correct `ADMIN_PASSWORD` sets an httpOnly, `SameSite=Lax` (Secure in production) signed cookie good for 30 days and redirects to `/admin`; a wrong password re-renders with an error. Either secret unset means every password is wrong — the door fails closed.
 
-### `/admin`
+### `/admin` — the inbox
 
-* **Quick-capture bar** — title (required), an optional note with an en/fr toggle, and one or more paste-a-link fields. Submitting creates a `Capture` in the inbox via the same `validateInboxPayload` → `createOrUpdateCapture` path as `/api/inbox`; embed providers are auto-detected. Image attach is deferred to a later slice.
-* **Inbox** — a read-only table of `status:"inbox"` captures (source, title, note, media, age), newest first. Each row's title links to the capture's triage page.
+The `status:"inbox"` seeds, newest first: source glyph, title, note snippet, media count, age. A row's title is its triage page. Seeds arrive from the sibling repos' CIs through `POST /api/inbox` (§Ingestion spine) and from the capture overlay here — the `+` beside the title, or the `k` key, opens a full-screen sheet with an autofocused title, a note with an en/fr toggle, paste-a-link fields and the media picker in its compact form, posting to the same `createSeedAction` the API path ends in. The garden is loaded separately from the seeds and fails separately: an unreachable garden costs the source column's plant avatars, never the list.
 
 ### `/admin/triage/[id]`
 
-Turns a captured item into a first-class `Version` in the atomic model (or discards it).
+Where a seed becomes a sprout, or leaves. Pick an existing plant, pod and bean from the selects or type a new pod/bean slug and name, then fill the sprout's own fields — slug, name (en/fr), type, date, description — and its state (`draft` / `private` / `published`). Prefills come from the seed's title and note, and from the `suggested` block a lab note carries.
 
-* **Promote** — choose an existing molecule and atom from the dropdowns, or type a new slug/name (a blank "new slug" falls back to the selection; new-fields win when filled). Fill the version fields (slug, name, type, date, description) and pick a state: `draft` / `private` / `published`. The capture's media and provenance are carried onto the version.
-* **Private by default** — newly created molecules/atoms are `visibility:"private"`. Publishing a version runs the pure `publishCascade` (the write-time mirror of `filterPublic`) which flips that version's parent atom and molecule to `public`, so a published version never dangles under a private parent. Promoting as draft/private leaves the parents untouched.
-* **Discard** — drops the capture from the inbox (`status:"discarded"`).
-* Run `npm run validators` after pulling this change to ensure the atomic-model slug indexes. Publishing is reflected on the public site immediately (the public pages are `force-dynamic`).
+Parents are resolved and the sprout validated **before any write**, so a rejected form never leaves an orphan pod or bean behind; a new pod must be paired with a new bean under it rather than have the intent silently dropped. Promoting as published runs `publishCascade` — the write-time mirror of `filterPublic` — flipping the sprout's bean, pod and plant public, so a published sprout can never dangle under a private parent; draft and private leave the lineage untouched. **Discard** drops the seed from the inbox.
 
 ### `/admin/vault`
 
-A read-only browser of the **whole** archive — every molecule/atom/version regardless of state or visibility (the counterpart to the inbox; linked from `/admin`).
+Every sprout in the archive regardless of state or visibility — the authoring counterpart to the public `/beanstalk`. Sprout, state, plant mark, bean, date and tags, newest first, filtered by `state` / `plant` / `tag`. The filter popovers contain nothing but `<a href>` query-param links (`lib/admin-filters.ts`), so filtering stays server-side in `lib/vault.ts` and a filtered URL is shareable; `s`, `p` and `t` open them. A row's name leads to its bean page.
 
-* Version-centric table (name, state, domain, atom, date, tags), newest first.
-* Filter by `state` / `domain` / `tag` via query-param links (zero-JS, like `/beanstalk`); an unrecognized filter value falls back to "all".
-* Read-only — a row's version name links to its atom-detail page, where each version has an `edit` link (see `/admin/version/[slug]` below).
+### `/admin/garden`
 
-### /admin/atom/[id]
+Plants and pods — the two tiers that hold narrative — in one table: mark and name, tier, role line, status, visibility, and whether the tier has a narrative at all. Mechanical, and the only way to reach a container's editor without typing its URL. Role and status exist at the plant tier only: a pod under an inactive plant is inactive by containment, and a second stored flag would be a second source of truth.
 
-A read-only detail view of a single atom over the **full** dataset (every state/visibility), reached from each vault row's version name — so `draft`/`private` versions no longer 404 (they previously linked to the public `/atom/[id]`, which hides unpublished content).
+### `/admin/beanstalk`
 
-* Header: the atom's name, slug, visibility, domain, molecule parent(s), and tags.
-* Then every version of the atom, newest first, with its `state` (draft/private/published), scalar fields, and tags. Each version has an `edit` link to `/admin/version/[slug]`.
-* Gated by the same `/admin/*` middleware; `force-dynamic` so it reflects current DB state.
+The federation operations surface (§Federation read model): each configured feed with its cursor, last sync, status and refusal count; a **Sync now** button running the same sync the cron does; the latest refusals with their reasons; and the merged entry list — every authored sprout at every state beside every cached pollen envelope, private and non-exhibited included. The public `/beanstalk` is a strict subset of it.
 
-### /admin/version/[slug]
+### The entity editors — `/admin/plant/[slug]`, `/admin/pod/[slug]`, `/admin/bean/[id]`, `/admin/sprout/[slug]`
 
-A dedicated edit page for a single Version, reached from each version's `edit` link on the atom-detail view.
+One page per tier, each reading the **full** dataset rather than the public projection: in the authoring zone a ref to a draft or private entity should resolve and be visible, not vanish the way it does in public.
 
-* Editable: `name`, `type`, `date`, `description`, and `state` (draft/private/published). The `slug` is immutable (identity); re-parenting, media, source, content, and tags are out of scope.
-* Re-publishing (→ `published`) runs the same upward `publishCascade` as promote, flipping the parent atom/molecule public. Un-publishing (`published` → `draft`/`private`) runs the downward `unpublishCascade` + `setPrivate`: the withdrawn version's atom, left with no published version, is re-privatized — and its molecule too when no public atom remains under it — so pulled work leaves no empty public shell (not even its name). A still-published sibling version keeps its lineage public.
-* The recompute is **transition-gated**: it fires only when the version actually leaves `published`. A routine draft save never flips visibility that was authored directly (e.g. seeded name-only public atoms), and re-running `npm run migrate` no longer force-republishes — the migration's public/published defaults apply on first insert only, so admin un-publishes survive a re-migrate.
-* **Delete** — a "Danger zone" form at the bottom of the page hard-deletes the version (confirm checkbox required, re-checked server-side). When the deleted version was `published`, the same downward recompute runs against the post-delete dataset (its atom parents are captured before the delete), so a delete can never leave an empty public shell either. References to the deleted slug elsewhere (a capture's `promotedTo`) are left dangling by design — every read path tolerates dangling refs.
-* Read-only `slug`/atom context is shown; a blank required field re-renders with an error and writes nothing. Gated by the `/admin/*` middleware and the action's `requireSession()`.
+* **Plant** — the mark centred in a squircle with the name beneath it, and each editor one click behind the thing it edits: the logo behind the logo, name and description behind the title, the role behind a crown, status and visibility behind two icons that open their vocabulary as radios and commit on a separate Save (disabled until the pick differs from what is stored — a stray click should not unpublish a project). Below that is the narrative, unboxed. The index of pods and beans, and the plant's exhibition of screens with ↑ / ↓ / ✕ per row, are panels on a right-hand rail that slides the page left rather than covering it.
+* **Pod** — name, ref, visibility, description, the prose editor, and a mechanical index of the beans inside.
+* **Bean** — reached by slug, despite the `[id]` segment. Parents, visibility and tags, then the Cover card and, beside it rather than inside it, the Keyword drawn onto a phone-shaped cover; then every sprout of the bean with its scalar fields and an `edit` link. A bean projected from a feed is source-owned and gets no write forms at all — a full feed rebuild deletes the document, and anything authored onto it with it.
+* **Sprout** — the most written page. A rendered preview, the prose editor, the media list (whose **first image becomes the bean's cover**, which makes its order an authoring act), the metadata form (name en/fr, type, date, description, state) and a Danger zone. Saving `published` runs the same upward cascade as promote, except for digest types, whose publication marks review sign-off rather than exhibition. An actual un-publish — it *was* published and no longer is — runs the downward `unpublishCascade`, re-privatizing a bean left sheltering no published sprout, and its pod and plant when nothing public remains under them. The recompute is transition-gated, so a routine draft save never flips visibility somebody authored directly. Delete runs that same recompute against the post-delete dataset, its confirm checkbox re-checked server-side; references to a deleted slug elsewhere are left dangling by design, since every read path tolerates them.
+
+### The screen library — `/admin/screens`, `/admin/screens/[slug]`, `/admin/screens/new`
+
+A contact sheet rather than a table. A hundred and seventy rows of `match-hero-m104-final-spain-argentina-aet` are not scannable by eye, and those names are honest filename stems because nobody was ever going to write a hundred and seventy titles — so the page shows the screens themselves, `object-contain` (a 9:19.5 capture cropped to a tile is a picture of its middle third), with the name as the caption and the vault's filter bar carrying `plant` / `bean` / `tag`. `npm run import:screens` fills it; the `+` beside the title is a link to the create page.
+
+A screen's own page carries its metadata, its exhibition — which plant's strip it appears on — its image and a delete, with prev/next walking the *filtered* set. Clicking a tile opens that page in a panel on the right that the index slides out from under: `app/admin/@sheet/(.)screens/[slug]`, a parallel + intercepting route that **imports and renders the page's own module** rather than reimplementing it. That is the whole design — there is nothing in the panel that is not a page, so script-off the same click is an ordinary navigation to the same editors, and prev, next and close stay real `<a href>`s. `lib/screen-sheet-source.test.ts` pins both halves. Two files there look like dead code and are load-bearing: `@sheet/default.tsx` returns null, which is what makes the layout's `:has(~ [data-screen-sheet])` push honest on every other route, and `@sheet/screens/page.tsx` gives the slot a route that matches the library itself — without it a soft navigation keeps the slot's last state and the panel stays open over the grid it just returned to.
+
+Exhibiting and publishing are one act: `writeExhibition` writes `visibility:"public"` beside `exhibited:true` and reverses both on withdrawal, because splitting them would make "marked for a strip it cannot appear on" the commonest state to end up in.
+
+### `GET /admin/palette`
+
+The ⌘K palette's index — every section, plant, pod, bean, sprout and inbox seed as a flat list of rows, fetched on open rather than server-rendered into the layout, so no admin page's render cost changes. It lives under `/admin` rather than `/api` because `middleware.ts` already matches `/admin/:path*`: the index inherits the session gate with no new auth code. It navigates and never writes; on failure it answers `500` and the palette falls back to the sections it builds itself.
 
 ## Public graph endpoint
 
 ### `GET /api/graph`
 
 The graph playground's data contract (roadmap G1): the published-only dataset as JSON —
-`{ nodes: [{ id, kind, name, domain?, type?, date?, tags? }], edges: [{ source, target, kind: "contains" }] }`.
+`{ nodes: [{ id, kind, name, description?, natures?, cover?, type?, date?, status?, tags? }], edges: [{ source, target, kind }] }` — optional fields ride along only when the entity carries them (`natures` on plants, `cover` on beans, `type`/`date` on sprouts, `type`/`status` on bees).
 
-* Node ids reuse the prefixed-ref grammar (`molecule:<slug>` / `atom:<slug>` / `version:<slug>`); slugs are immutable, so ids are stable across publishes.
-* Unauthenticated and `force-dynamic` — it is the data twin of the public pages and composes the same `filterPublic` projection, so it can never expose more than the public HTML does. Node payloads deliberately exclude `description`/`content`/`media`/`source` until the exhibition slice (B3) defines what a focused node shows.
-* Edges: containment (from `parents[]`, kind `contains`) plus non-containment relations (from `relations[]`, per-relation kind); an edge is emitted only when both ends survive the projection.
+* Node ids reuse the prefixed-ref grammar — `plant:<slug>`, `pod:<slug>`, `bean:<slug>`, `sprout:<slug>`, `bee:<slug>` — and slugs are immutable, so ids are stable across publishes.
+* Unauthenticated and `force-dynamic` — it is the data twin of the public pages and composes the same `filterPublic` projection, so it can never expose more than the public HTML does. A node carries its resolved `description` and, for a bean, the cover image (explicit or derived — the picture only, never the phone treatment, and only when its URL is http(s)); `content`, raw `media` and `source` stay out.
+* Edges: containment (from `parents[]`, kind `contains`) plus non-containment relations (from `relations[]`, per-relation kind, plus a bee's `serves` refs); an edge is emitted only when both ends survive the projection.
 
 See `docs/superpowers/specs/` and `docs/superpowers/plans/` for the design and implementation plans.

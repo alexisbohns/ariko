@@ -115,7 +115,7 @@ type LoadState = "idle" | "loading" | "error";
  * flag inside the one below: the server render IS the script-off render, so
  * `mounted` stays false there and this returns null — no dead search button
  * that looks pressable and does nothing, and no `useRouter()` call on a path
- * that has no router. lib/palette-mount.test.ts pins exactly this.
+ * that has no router.
  *
  * Same shape as MediaPicker's gate, for the same reason.
  */

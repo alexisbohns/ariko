@@ -3,13 +3,13 @@
 # test-glob gap that made an entire directory unreachable survived a full slice:
 # CI was never going to catch it, because CI did not run the suite at all.
 #
-# No secrets, deliberately. All three steps are environment-free: the 34
-# DB-backed tests skip themselves without MONGODB_URI (the test script does not
-# load .env.local, so a developer's local run is already this run), lib/db.ts
-# reads its env inside a function rather than at module load, and every page is
+# No secrets, deliberately. Every step is environment-free: the 34 DB-backed
+# tests skip themselves without MONGODB_URI (the test script does not load
+# .env.local, so a developer's local run is already this run), lib/db.ts reads
+# its env inside a function rather than at module load, and every page is
 # force-dynamic so nothing touches a database at build time. Verified by running
-# all three under `env -i`. Keep it that way: a gate that needs a secret is a
-# gate that silently stops running when the secret rotates.
+# them under `env -i`. Keep it that way: a gate that needs a secret is a gate
+# that silently stops running when the secret rotates.
 name: test
 
 on:
@@ -33,6 +33,11 @@ jobs:
       # Types first: a type error explains itself better than the test failure
       # it would otherwise cause.
       - run: npx tsc --noEmit
+      # The class of bug the other three miss: a conditional hook passes tsc,
+      # passes the suite and builds, and throws only at runtime on the path
+      # that reaches it. Scoped to react-hooks and @next/next — not a style
+      # gate, and still secret-free like everything else here.
+      - run: npm run lint
       - run: npm test
       # The build is its own check, not a formality — next.config.ts imports
       # from lib/, so a runtime import added to lib/upload-input.ts or
