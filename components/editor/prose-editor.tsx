@@ -81,7 +81,7 @@ export function ProseEditor({
   };
 
   // The schema, markdown wiring, and `@`/`/` suggestion plugins — built by
-  // the same function lib/editor-mount.test.ts drives against a real headless
+  // the same function lib/editor.test.ts drives against a real headless
   // Editor, so a defect in this array (like two suggestion plugins sharing a
   // key, 65bb5ff) is something a test can catch.
   //

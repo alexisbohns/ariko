@@ -98,7 +98,7 @@ const FIXTURES: Record<string, string> = {
   // schema-check loop below): the document parsed, then the NEXT keystroke
   // threw a RangeError out of dispatchTransaction and froze the editor —
   // invisible to this render-equality loop, which never drives a real
-  // Editor or its transactions (that's what lib/editor-mount.test.ts is for).
+  // Editor or its transactions (that's what lib/editor.test.ts is for).
   imageInline: "text ![a](/i.png) more",
   imageInItem: "- ![a](/i.png)",
   // Item 2: TaskItem defaults to `nested: false` (content "paragraph+"), but

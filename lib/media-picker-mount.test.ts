@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
  * into the script-off HTML and re-open the data-loss path that
  * `media__ready` was added to close. This test fails loudly if that happens.
  *
- * No jsdom here, unlike lib/editor-mount.test.ts: renderToStaticMarkup is
+ * No jsdom here, unlike lib/editor.test.ts: renderToStaticMarkup is
  * exactly the no-DOM path we want to exercise, and needing a DOM to run it
  * would defeat the point.
  */

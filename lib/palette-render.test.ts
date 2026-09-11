@@ -10,7 +10,7 @@ import { JSDOM } from "jsdom";
  * changes. That contract is the palette. If a Base UI upgrade changes it, this
  * file is what says so.
  *
- * Same jsdom-globals-first discipline as lib/editor-mount.test.ts, and for the
+ * Same jsdom-globals-first discipline as lib/editor.test.ts, and for the
  * same reason: modules in this graph read `window`/`document` at
  * module-evaluation time, static imports are hoisted above every statement in
  * this file, so the globals go in synchronously and everything DOM-touching is
