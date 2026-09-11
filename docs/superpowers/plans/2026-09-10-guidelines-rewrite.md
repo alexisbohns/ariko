@@ -19,7 +19,7 @@ still drifted.
 |---|---|
 | 1 — `.env.example` | ✅ `782766f` |
 | 2 — `table` server-safe, `badge`/`card` guarded | ✅ `7191987` |
-| 3 — `separator` probe | ⬜ |
+| 3 — `separator` probe | ✅ clean — and an 8 kB win the plan did not predict |
 | 4 — retire `palette-mount` | ⬜ |
 | 5 — `plant-hero-mount` → `plant-hero-a11y` | ⬜ |
 | 6 — trim `exhibition-panel-source` | ⬜ |
@@ -350,6 +350,16 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 **Files:**
 - Modify: `lib/server-safe-source.test.ts` (SERVER_SAFE)
 - Modify: `components/ui/separator.tsx:1`
+
+**OUTCOME (2026-09-11): Step 3a, with a wrinkle worth keeping.** The plan framed
+this as two outcomes — the build is clean, or Base UI needs the boundary. The
+real answer was a third: Base UI's own `Separator.js` carries `"use client"`, so
+the boundary does not go away *and* the build is clean, because a server
+component may render a client one. Dropping the wrapper's directive still won
+**8 kB on `/beanstalk` (113 kB → 105 kB)**, because `cn` — and so clsx +
+tailwind-merge — stayed on the server side of the boundary instead of crossing
+it. Wrapping a client primitive is not a reason for the wrapper to be a client
+component, which is the opposite of what shadcn's stock directive assumes.
 
 **Context:** Unlike `table`, `badge` and `card`, `components/ui/separator.tsx:3` imports `@base-ui/react/separator`. Base UI's own module may carry `"use client"`, in which case dropping the wrapper's directive changes nothing but is harmless; or the primitive may use a hook or context, in which case the build breaks. **This task may legitimately end in "keep the directive."** That is a result, not a failure.
 
