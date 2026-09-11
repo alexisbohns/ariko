@@ -56,12 +56,23 @@ Sprouts carry optional markdown in `content` (localizable — `Text`, like `name
 
 ## Constraints
 
-* Zero CSS.
-* No styling whatsoever.
-* No UI library.
-* Plain semantic HTML only.
-* TypeScript.
-* Public zone is zero-CSS, plain semantic HTML.
+* **TypeScript**, strict. CI is `tsc`, `eslint`, `npm test`, `npm run build`.
+* **The public zone is progressively enhanced.** Every page reads, every link
+  navigates and every media item is reachable with script off; islands add and
+  never replace. `lib/server-safe-source.test.ts` is the enforcement.
+* **The admin zone is a JavaScript application**, behind a password, with one
+  user. Server actions are the write path and server-rendered forms are the
+  default because they are less code — not because script is forbidden.
+* **A write never mis-saves from a partial form** — an island that has not
+  mounted is inert, never destructive.
+* **Design system:** Tailwind v4 + shadcn on Base UI. Never hand-roll a
+  primitive the registry ships.
+
+`CLAUDE.md` §"Script, by zone" states the three invariants in full, and
+`docs/audits/2026-09-10-code-quality-audit.md` §1 records why they replaced the
+list that used to sit here — *Zero CSS. No styling whatsoever. No UI library.
+Plain semantic HTML only.* — which was true when it was written and had been
+false for months by the time it was read.
 
 ## Database & development
 
