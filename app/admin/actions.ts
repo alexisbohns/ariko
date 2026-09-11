@@ -499,8 +499,7 @@ export async function editPlantLogoAction(formData: FormData): Promise<void> {
  * NEITHER SURVIVES WITHOUT SCRIPT, and neither is one click. `EnumForm` in
  * app/admin/_components/plant-hero.tsx renders the vocabulary as native radios
  * plus a Save button disabled until the pick differs from what is stored, and
- * it lives inside a client-only popover — script-off there is no form here at
- * all, which is what lib/plant-hero-mount.test.ts pins. That is deliberate:
+ * it lives inside a client-only popover. That is deliberate:
  * a one-click flip means a stray click on the globe unpublishes a project and
  * the undo is another stray click on the same pixel.
  */
