@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { revalidateGarden } from "@/lib/garden-cache";
 import { verifyPassword } from "@/lib/session";
 import { buildSeedBody } from "@/lib/seed-form";
 import { validateInboxPayload } from "@/lib/inbox";
@@ -117,7 +117,6 @@ export async function createSeedAction(formData: FormData): Promise<void> {
     redirect(`/admin?error=${encodeURIComponent(parsed.error)}`);
   }
   await createOrUpdateSeed(parsed.value);
-  revalidatePath("/admin");
   redirect("/admin");
 }
 
@@ -125,7 +124,6 @@ export async function discardSeedAction(formData: FormData): Promise<void> {
   await requireSession();
   const seedId = String(formData.get("seedId") ?? "");
   await discardSeed(seedId);
-  revalidatePath("/admin");
   redirect("/admin");
 }
 
@@ -211,7 +209,7 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
   if (slugError) {
     redirect(`/admin/triage/${seedId}?error=${encodeURIComponent(slugError)}`);
   }
-  revalidatePath("/admin");
+  revalidateGarden();
   redirect("/admin");
 }
 
@@ -249,7 +247,7 @@ export async function editVersionAction(formData: FormData): Promise<void> {
     await setPrivate(plantSlugs, podSlugs, beanSlugs);
   }
 
-  revalidatePath("/admin");
+  revalidateGarden();
   const beanSlug = (existing.parents ?? [])
     .filter((p) => p.startsWith("bean:"))
     .map((p) => p.slice("bean:".length))[0];
@@ -295,7 +293,7 @@ export async function deleteVersionAction(formData: FormData): Promise<void> {
     await setPrivate(plantSlugs, podSlugs, flipBeans);
   }
 
-  revalidatePath("/admin");
+  revalidateGarden();
   redirect(beanSlugs[0] ? `/admin/bean/${beanSlugs[0]}` : "/admin/vault");
 }
 
@@ -323,7 +321,7 @@ export async function editContentAction(formData: FormData): Promise<void> {
   // nothing at all, so reading can never normalize what a bee wrote.
   if (result.dirty) await updateSproutContent(slug, result.patch);
 
-  revalidatePath("/admin");
+  revalidateGarden();
   redirect(`/admin/sprout/${encodeURIComponent(slug)}`);
 }
 
@@ -342,7 +340,7 @@ export async function editSproutMediaAction(formData: FormData): Promise<void> {
   // it untouched writes nothing at all.
   if (result.dirty) await updateSproutMedia(slug, result.media);
 
-  revalidatePath("/admin");
+  revalidateGarden();
   redirect(`/admin/sprout/${encodeURIComponent(slug)}`);
 }
 
@@ -374,7 +372,7 @@ export async function editContainerContentAction(formData: FormData): Promise<vo
     else await updatePodContent(slug, result.patch);
   }
 
-  revalidatePath("/admin");
+  revalidateGarden();
   redirect(back);
 }
 
@@ -412,9 +410,7 @@ export async function editPlantRoleAction(formData: FormData): Promise<void> {
 
   await updatePlantRole(slug, role);
 
-  revalidatePath("/admin");
-  // The role renders on the landing gallery and the plant page, both
-  // force-dynamic — nothing to revalidate there, they re-read on next request.
+  revalidateGarden();
   redirect(back);
 }
 
@@ -450,11 +446,7 @@ export async function editPlantMetaAction(formData: FormData): Promise<void> {
 
   await updatePlantMeta(slug, patch);
 
-  revalidatePath("/admin");
-  // /admin/garden tabulates name and status, so it is stale after this write
-  // in a way /admin/plant/[slug] (force-dynamic) is not. The public landing and
-  // plant page are force-dynamic too — they re-read on the next request.
-  revalidatePath("/admin/garden");
+  revalidateGarden();
   redirect(back);
 }
 
@@ -478,8 +470,7 @@ export async function editPlantLogoAction(formData: FormData): Promise<void> {
   const result = buildPlantLogoPatch(existing, formData);
   if (result.dirty) await updatePlantLogo(slug, result.logo);
 
-  revalidatePath("/admin");
-  revalidatePath("/admin/garden");
+  revalidateGarden();
   redirect(`/admin/plant/${encodeURIComponent(slug)}`);
 }
 
@@ -526,11 +517,7 @@ async function flipPlantField(
 
   await write(slug, value);
 
-  revalidatePath("/admin");
-  // /admin/garden tabulates both fields, so it is stale after either write in
-  // a way /admin/plant/[slug] (force-dynamic) is not. The public landing and
-  // plant pages are force-dynamic too — they re-read on the next request.
-  revalidatePath("/admin/garden");
+  revalidateGarden();
   redirect(back);
 }
 
@@ -581,10 +568,7 @@ export async function editBeanCoverAction(formData: FormData): Promise<void> {
   const result = buildBeanCoverPatch(existing, formData);
   if (result.dirty) await updateBeanCover(slug, result.cover);
 
-  // The landing page is force-dynamic, so it re-reads on the next request; the
-  // admin surfaces that list beans are the ones that need telling.
-  revalidatePath("/admin");
-  revalidatePath("/admin/vault");
+  revalidateGarden();
   redirect(`/admin/bean/${encodeURIComponent(slug)}`);
 }
 
@@ -616,8 +600,7 @@ export async function editBeanKeywordAction(formData: FormData): Promise<void> {
 
   await updateBeanKeyword(slug, buildBeanKeywordPatch(formData));
 
-  revalidatePath("/admin");
-  revalidatePath("/admin/vault");
+  revalidateGarden();
   redirect(`/admin/bean/${encodeURIComponent(slug)}`);
 }
 
@@ -627,7 +610,7 @@ export async function editBeanKeywordAction(formData: FormData): Promise<void> {
 export async function syncNowAction(): Promise<void> {
   await requireSession();
   const results = await runSync();
-  revalidatePath("/admin/beanstalk");
+  revalidateGarden();
   const failed = results.filter((r) => r.status === "error");
   redirect(
     failed.length > 0
@@ -698,7 +681,7 @@ export async function createScreenAction(formData: FormData): Promise<void> {
   }
   if (taken) redirect(newScreenHref(query, `that slug is taken: ${result.input.slug}`));
 
-  revalidatePath("/admin/screens");
+  revalidateGarden();
   redirect(screensHref(result.input.slug, query));
 }
 
@@ -716,7 +699,7 @@ export async function editScreenMetaAction(formData: FormData): Promise<void> {
   if (!result.ok) redirect(screensHref(slug, query, result.error));
   if (result.dirty) await updateScreenMeta(slug, result.patch);
 
-  revalidatePath("/admin/screens");
+  revalidateGarden();
   redirect(screensHref(slug, query));
 }
 
@@ -738,7 +721,7 @@ export async function editScreenImageAction(formData: FormData): Promise<void> {
   const result = buildScreenImagePatch(existing, formData);
   if (result.dirty) await updateScreenImage(slug, result.image);
 
-  revalidatePath("/admin/screens");
+  revalidateGarden();
   redirect(screensHref(slug, query));
 }
 
@@ -761,7 +744,7 @@ export async function deleteScreenAction(formData: FormData): Promise<void> {
 
   await deleteScreen(slug);
 
-  revalidatePath("/admin/screens");
+  revalidateGarden();
   redirect(screensHref(null, query));
 }
 
@@ -923,8 +906,7 @@ export async function toggleScreenExhibitAction(formData: FormData): Promise<voi
 
   const outcome = await applyExhibition(slug, String(formData.get("op") ?? ""));
 
-  revalidatePath("/admin/screens");
-  if (outcome.kind === "settled") revalidatePath(`/admin/plant/${encodeURIComponent(outcome.plantSlug)}`);
+  revalidateGarden();
   redirect(outcome.kind === "gone" ? screensHref(null, query) : screensHref(slug, query));
 }
 
@@ -955,9 +937,8 @@ export async function reorderExhibitionAction(formData: FormData): Promise<void>
 
   const outcome = await applyExhibition(slug, String(formData.get("op") ?? ""));
 
-  revalidatePath("/admin/screens");
+  revalidateGarden();
   if (outcome.kind === "gone") redirect(screensHref(null, ""));
   if (outcome.kind === "refused") redirect(screensHref(slug, ""));
-  revalidatePath(`/admin/plant/${encodeURIComponent(outcome.plantSlug)}`);
   redirect(`/admin/plant/${encodeURIComponent(outcome.plantSlug)}`);
 }
