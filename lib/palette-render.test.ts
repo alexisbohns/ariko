@@ -4,8 +4,8 @@ import { JSDOM } from "jsdom";
  * The palette actually rendering, opening, filtering and navigating — in a DOM.
  *
  * The rest of the slice is pinned by pure tests (lib/palette.test.ts) and by a
- * no-DOM render (lib/palette-mount.test.ts), and neither can reach the part
- * that was genuinely uncertain when this was written: Base UI's Autocomplete
+ * no-DOM render, and neither could reach the part that was genuinely
+ * uncertain when this was written: Base UI's Autocomplete
  * driven with `inline` + `open`, fed GROUPED items, filtering as the query
  * changes. That contract is the palette. If a Base UI upgrade changes it, this
  * file is what says so.

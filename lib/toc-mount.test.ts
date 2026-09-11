@@ -35,9 +35,8 @@ import assert from "node:assert/strict";
  * the failure mode that matters: that no markup at all reaches the script-off
  * HTML.
  *
- * No jsdom, like lib/palette-mount.test.ts: renderToStaticMarkup is exactly the
- * no-DOM path being exercised, and needing a DOM to run it would defeat the
- * point.
+ * No jsdom: renderToStaticMarkup is exactly the no-DOM path being exercised,
+ * and needing a DOM to run it would defeat the point.
  */
 
 async function renderScriptOff(element: unknown): Promise<string> {
