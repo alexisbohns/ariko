@@ -50,19 +50,20 @@ import { READING_COLUMN, RAIL_CLEARANCE, WIDE_COLUMN } from "@/components/page-c
  * happened).
  */
 
-/** The one route the chrome withdraws from — and therefore the one route the
- *  content column is centred rather than offset on. */
-const BARE = "/admin/login";
-
 export function AdminChrome({ plants }: { plants: PlantMark[] }) {
   const pathname = usePathname();
   const params = useSearchParams();
 
-  // The login page lives under /admin but gets no chrome. Under the old bar
-  // this was expressed by the page simply not calling it; the layout owns the
-  // chrome now, so it is expressed here. Both hooks are read ABOVE it — a
-  // conditional hook is not a hook.
-  if (pathname === BARE) return null;
+  // There used to be a `if (pathname === "/admin/login") return null` here, and
+  // deleting it was the point of the route-group slice rather than a tidy-up.
+  // It suppressed the chrome's MARKUP on the login page while the layout above
+  // still read the garden and handed `plants` across the client boundary — and
+  // props cross that boundary as serialized flight data inlined in the HTML,
+  // which happens before this function is ever called. So the withdrawal was
+  // visual and the leak was total: an anonymous GET of the login page returned
+  // every plant, its logo URL and its visibility. The login page now sits
+  // outside `app/admin/(chrome)/`, so this component is not rendered there at
+  // all and the guard had nothing left to guard.
 
   // Read once, passed down twice. `Object.fromEntries` is the shape
   // `lib/admin-filters.ts` works in, and it degrades a repeated `?plant=` to a
@@ -137,9 +138,15 @@ export function AdminChrome({ plants }: { plants: PlantMark[] }) {
 
 /**
  * The content column. A client component only so it can read the pathname: the
- * layout is a server component and cannot, and without that the login card sat
- * centred inside an off-centre box — padded on both sides for a rail and an
- * account cluster that AdminChrome had already withdrawn.
+ * layout is a server component and cannot, and the measure is route-dependent —
+ * a section index is wide, a document reads.
+ *
+ * It used to have a third measure, `"bare"`, for the login page: no clearance,
+ * because AdminChrome had withdrawn and there was nothing to clear. The login
+ * page is outside `app/admin/(chrome)/` now and this layout does not wrap it,
+ * so that branch — and `resolveColumn`'s `"bare"` with it — was unreachable
+ * code claiming a route this component never sees. The login page draws its own
+ * `<main>`; the two surviving measures are the two the chrome actually offsets.
  *
  * The measure itself is `components/page-column.tsx`, shared with the public
  * zone, and the shared-surfaces slice is what put it there. What this page used
@@ -159,9 +166,6 @@ export function AdminChrome({ plants }: { plants: PlantMark[] }) {
 export function AdminMain({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const column = resolveColumn(pathname);
-  if (column === "bare") {
-    return <main className="mx-auto max-w-5xl px-6 py-8">{children}</main>;
-  }
   return (
     <main className={`${RAIL_CLEARANCE} pb-20 pt-24`}>
       <div className={column === "wide" ? WIDE_COLUMN : READING_COLUMN}>{children}</div>

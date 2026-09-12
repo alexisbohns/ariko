@@ -39,8 +39,8 @@ function source(path: string): string {
   return readFileSync(join(process.cwd(), path), "utf8");
 }
 
-const INBOX = "app/admin/inbox/page.tsx";
-const BEANS = "app/admin/beans/page.tsx";
+const INBOX = "app/admin/(chrome)/inbox/page.tsx";
+const BEANS = "app/admin/(chrome)/beans/page.tsx";
 
 test(`${INBOX} hands SeedOverlay the unfiltered seed total`, () => {
   const text = source(INBOX);

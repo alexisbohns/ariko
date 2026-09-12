@@ -12,10 +12,21 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
 - Primitives live in `components/ui/`. Add more with
   `npx shadcn@latest add <name>` — never hand-roll one the registry already has.
 - Chrome belongs to the zones, not the root layout: `app/(public)/(chrome)/layout.tsx`
-  and `app/admin/layout.tsx` + `app/admin/_components/admin-chrome.tsx` (a
-  floating icon rail on the left edge, plus the public-site and log-out icon
-  buttons top-right, which withdraws itself on the login page). The root layout
-  owns only the document shell and the fonts.
+  and `app/admin/(chrome)/layout.tsx` + `app/admin/_components/admin-chrome.tsx`
+  (a floating icon rail on the left edge, plus the public-site and log-out icon
+  buttons top-right). The root layout owns only the document shell and the
+  fonts. **Both zones spell "this page has no chrome" as a route group, and in
+  the admin that is a privacy boundary rather than a tidiness one**: the chrome
+  layout reads the garden to compose the plant switcher's marks, and it hands
+  them to a client island — so they are serialized into the flight payload and
+  inlined in the HTML *before* the island can decline to render. The admin
+  chrome used to withdraw on `/admin/login` with an early `return null` while
+  the layout above it read anyway, which published every plant, logo URL and
+  visibility to an anonymous `curl` of the one route `middleware.ts` lets
+  through. `login/` is now the one routeable thing left outside
+  `app/admin/(chrome)/`; `lib/admin-login-layout-source.test.ts` pins it.
+  A route group's name is invisible to the URL, so no admin URL and no
+  middleware matcher changed.
 - **Four things the two zones now DRAW FROM ONE FILE** (the shared-surfaces
   slice, [`specs/2026-09-06-shared-surfaces-design.md`](docs/superpowers/specs/2026-09-06-shared-surfaces-design.md)).
   All four are **server-safe** — no `"use client"`, no `lucide-react` — which is

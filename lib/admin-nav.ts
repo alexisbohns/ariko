@@ -134,26 +134,33 @@ export function resolveNavItem(pathname: string): string | null {
 }
 
 /** Which measure a route reads in — see `components/page-column.tsx`. */
-export type Column = "bare" | "wide" | "reading";
+export type Column = "wide" | "reading";
 
 /**
  * The admin's column, from its pathname.
  *
- * **A section index is wide, the welcome page is wide, everything else reads,
- * and login is bare.** The section indexes are exactly the NAV_ITEMS hrefs, so
- * this reads NAV_ITEMS rather than a parallel array that could drift from it.
- * The root is spelled as its own clause rather than pushed back into NAV_ITEMS,
- * because it is not a section — it is the page the sections hang off.
+ * **A section index is wide, the welcome page is wide, everything else reads.**
+ * The section indexes are exactly the NAV_ITEMS hrefs, so this reads NAV_ITEMS
+ * rather than a parallel array that could drift from it. The root is spelled as
+ * its own clause rather than pushed back into NAV_ITEMS, because it is not a
+ * section — it is the page the sections hang off.
  *
  * An unrecognized route gets the reading column rather than the wide one.
  * Detail pages outnumber indexes and always will, and a document that renders
  * 80px too narrow is a smaller wrong than one that renders 280px too wide.
+ *
+ * THERE WAS A THIRD MEMBER, `"bare"`, answering `/admin/login` — the one route
+ * with no chrome to clear. It is gone because the login page is no longer a
+ * route this function can be asked about: `resolveColumn`'s only caller is
+ * `AdminMain`, `AdminMain` is rendered only by `app/admin/(chrome)/layout.tsx`,
+ * and the login page sits outside that group precisely so it never enters a
+ * layout that reads the garden (`lib/admin-login-layout-source.test.ts` says
+ * why that matters). A special case for a path the caller cannot receive is
+ * dead code that reads like a live rule, and it is worth a paragraph because
+ * it will look like an omission to whoever next greps for "login" here.
  */
 export function resolveColumn(pathname: string): Column {
   const path = normalizePath(pathname);
-  if (path === LOGIN_PATH) return "bare";
   if (path === ROOT_PATH) return "wide";
   return NAV_ITEMS.some((item) => item.href === path) ? "wide" : "reading";
 }
-
-const LOGIN_PATH = "/admin/login";

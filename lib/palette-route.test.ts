@@ -27,7 +27,7 @@ const DB_URI = process.env.MONGODB_URI;
 const hasDb = Boolean(DB_URI);
 
 async function get(): Promise<Response> {
-  const { GET } = await import("../app/admin/palette/route");
+  const { GET } = await import("../app/admin/(chrome)/palette/route");
   return GET();
 }
 

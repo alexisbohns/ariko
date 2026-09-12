@@ -137,10 +137,15 @@ test("detail pages read in the same column the public site does", () => {
   assert.equal(resolveColumn("/admin/screens/karma-top"), "reading");
 });
 
-test("login is bare — it has no chrome to clear", () => {
-  assert.equal(resolveColumn("/admin/login"), "bare");
-  assert.equal(resolveColumn("/admin/login/"), "bare");
-});
+// There used to be a "login is bare" test here, asserting a third Column
+// member for the one route with no chrome to clear. The login page moved
+// outside `app/admin/(chrome)/` — so that it never enters a layout that reads
+// the garden — and `resolveColumn`'s only caller lives inside that group, which
+// left the case unreachable, and a special case for a path the caller cannot
+// receive reads like a live rule. `resolveNavItem("/admin/login")` above is a
+// different kind of assertion and stays: it is one of several paths standing in
+// for "a route that belongs to no section", and it answers null by the same
+// fallthrough any unknown path does. See `lib/admin-login-layout-source.test.ts`.
 
 test("an unknown route reads rather than sprawls", () => {
   assert.equal(resolveColumn("/admin/nowhere"), "reading");
