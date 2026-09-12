@@ -38,6 +38,16 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
   - `components/plant-header.tsx` and `components/entity-card.tsx` — the plant
     head and the entity card. Each takes slots or one extra prop where the admin
     genuinely shows more (`refText` on a card in the editor), and nothing else.
+  - `components/brand/ariko-icon.tsx` and `ariko-logo.tsx` are **generated**,
+    not hand-drawn: `npm run brand:build` derives both, in one batch, from
+    `assets/brand/*.svg`. Edit the source SVGs and re-run — never hand-patch
+    a component, since the next regeneration overwrites the patch without
+    warning. `lib/brand-source.test.ts` pins that both paint their
+    letterforms from `currentColor` and their leaves from
+    `--ariko-leaf-dark` / `--ariko-leaf-light` rather than the artwork's
+    literal colours, and that each keeps its `viewBox` — svgo's
+    `preset-default` deletes `viewBox` outright once width/height are
+    present, so the test guards a deletion, not a degradation.
 
   The rule these four share: **if the admin and the public site draw the same
   thing, they draw it from the same file, and what differs is a parameter.**
@@ -155,6 +165,27 @@ while quietly becoming false.
   bundle — it fails the build. (The same trap is why `lib/exhibition.ts` may
   import `MediaImage` only as a type, pinned by
   `lib/exhibition-source.test.ts`.)
+- **The service worker writes to no cache at runtime.** `public/sw.js`'s
+  fetch handler returns — without calling `respondWith` — for anything that
+  is not a GET navigation; navigations always go to the network, and the
+  cache is consulted only when that fetch rejects, so it holds exactly what
+  `install` precached, forever. It matters because the worker's scope is
+  `/`, which includes `/admin` — a runtime cache there could store an
+  authenticated response, or serve a page composed against a pre-write
+  garden, the same staleness `loadCachedGarden` is careful about, arriving
+  by a second door. `lib/pwa-source.test.ts` counts the write family against
+  **comment-stripped** source — `caches.open` exactly once (in `install`),
+  `.put(` and `.add(` never, `.addAll(` exactly once — because the only
+  `caches.open(` the original regex matched was a sentence inside a docblock
+  while the real, line-wrapped call went unmatched; `.add(` is counted on
+  its own because it fetches *and* stores, so hoisting the cache handle out
+  of `install` would defeat every other assertion at once. A digest of the
+  precached bytes is embedded in `VERSION`, so editing `public/offline.html`
+  without bumping it fails rather than shipping a change no
+  already-installed browser ever sees — and a fifth test pins the offline
+  page's inlined mark against `app/icon.svg`, since an `<img>` there cannot
+  read the Cache API and would fail offline, the one situation the page
+  exists for.
 - **Every glyph carries its word.** `components/admin/glyphs.tsx` draws the
   admin tables' values as icons, and each also renders its word in an
   `sr-only` span from `lib/glyphs.ts` — the one place a display form is
