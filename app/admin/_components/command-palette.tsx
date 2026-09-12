@@ -112,6 +112,10 @@ function RowMark({ item }: { item: PaletteItem }) {
   );
 }
 
+/** The shortcut as engraved. A JS string, deliberately: a JSX attribute is raw
+ *  text, so `hotkey="\u2318K"` renders the six characters rather than ⌘K. */
+const CMD_K = "⌘K";
+
 const KIND_LABEL: Record<PaletteKind, string> = {
   section: "",
   plant: "plant",
@@ -421,7 +425,7 @@ function Palette() {
           `aria-label` stays the plain word: a screen reader user gets "Search",
           not "Search (⌘K)", and the chip is `aria-hidden` with the rest of the
           label. */}
-      <ChromeItem label="Search" hotkey="\u2318K">
+      <ChromeItem label="Search" hotkey={CMD_K}>
         <button
           ref={triggerRef}
           type="button"

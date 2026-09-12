@@ -3,7 +3,7 @@
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useHeldKeys, useHotkeys } from "@tanstack/react-hotkeys";
 import { ExternalLink, LogOut } from "lucide-react";
-import type { ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { navHref, navItems, resolveColumn, resolveNavItem, type NavItem } from "@/lib/admin-nav";
 import { resolveScope } from "@/lib/admin-scope";
 import { logoutAction } from "../actions";
@@ -78,7 +78,22 @@ import { READING_COLUMN, RAIL_CLEARANCE, WIDE_COLUMN } from "@/components/page-c
  * line to make conditional — and this file, unlike `components/chrome.tsx`,
  * is already a client component and free to ask.
  */
-const ALT_SYMBOL = "\u2325";
+const ALT_SYMBOL = "⌥";
+
+/**
+ * The two chrome shortcuts that are not rail positions.
+ *
+ * `0` for the switcher is the digit the rail's numbering will never reach — the
+ * rail runs 1…9 and stops, so the key that would have meant ten is free, and it
+ * sits at the end of the same row of digits the sections use. `Q` for log out is
+ * the letter the platform already spends on quitting.
+ *
+ * Both are safe to take for the same reason the digits are: the matcher falls
+ * back to `event.code`, so ⌥Q is the physical Q key and not the `œ` macOS would
+ * otherwise type.
+ */
+const SWITCHER_KEY = "0";
+const LOGOUT_KEY = "Q";
 
 function useRailHotkeys(items: readonly NavItem[], scope: string | null): boolean {
   const router = useRouter();
@@ -114,6 +129,8 @@ function useRailHotkeys(items: readonly NavItem[], scope: string | null): boolea
 export function AdminChrome({ plants }: { plants: PlantMark[] }) {
   const pathname = usePathname();
   const params = useSearchParams();
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+  const logoutRef = useRef<HTMLFormElement>(null);
 
   // There used to be a `if (pathname === "/admin/login") return null` here, and
   // deleting it was the point of the route-group slice rather than a tidy-up.
@@ -135,6 +152,17 @@ export function AdminChrome({ plants }: { plants: PlantMark[] }) {
   const items = navItems(scope);
   const altHeld = useRailHotkeys(items, scope);
 
+  useHotkeys(
+    [
+      { hotkey: `Alt+${SWITCHER_KEY}`, callback: () => setSwitcherOpen((wasOpen) => !wasOpen) },
+      // `requestSubmit`, never `submit`: it runs the form's own submit path —
+      // the server action, and any validation — where `.submit()` would bypass
+      // it. The button stays the real control; this only presses it.
+      { hotkey: `Alt+${LOGOUT_KEY}`, callback: () => logoutRef.current?.requestSubmit() },
+    ],
+    { preventDefault: true },
+  );
+
   return (
     <>
       {/* The mark and the subject. The mark goes home to the welcome page —
@@ -149,7 +177,15 @@ export function AdminChrome({ plants }: { plants: PlantMark[] }) {
         <ChromeLink href="/admin" label="Ariko">
           <ArikoIcon className="size-4" />
         </ChromeLink>
-        <PlantSwitcher plants={plants} scope={scope} pathname={pathname} active={active} />
+        <PlantSwitcher
+          plants={plants}
+          scope={scope}
+          pathname={pathname}
+          active={active}
+          hotkey={`${ALT_SYMBOL}${SWITCHER_KEY}`}
+          open={switcherOpen}
+          onOpenChange={setSwitcherOpen}
+        />
       </Chrome>
 
       <Chrome magnet="left" orientation="vertical" label="Admin sections" hotkeysVisible={altHeld}>
@@ -192,8 +228,8 @@ export function AdminChrome({ plants }: { plants: PlantMark[] }) {
           <ExternalLink className="size-4" />
         </ChromeLink>
 
-        <form action={logoutAction} className="flex">
-          <ChromeItem label="Log out">
+        <form ref={logoutRef} action={logoutAction} className="flex">
+          <ChromeItem label="Log out" hotkey={`${ALT_SYMBOL}${LOGOUT_KEY}`}>
             <button type="submit" aria-label="Log out" className={chromeItemClass()}>
               <LogOut className="size-4" />
             </button>

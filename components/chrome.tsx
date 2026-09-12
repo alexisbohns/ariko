@@ -108,11 +108,22 @@ export function Chrome({
   const hotkeys = hotkeysVisible ? "on" : undefined;
 
   return label ? (
-    <nav aria-label={label} data-side={side} data-hotkeys={hotkeys} className={shared}>
+    <nav
+      aria-label={label}
+      data-side={side}
+      data-hotkeys={hotkeys}
+      data-orientation={orientation}
+      className={shared}
+    >
       {children}
     </nav>
   ) : (
-    <div data-side={side} data-hotkeys={hotkeys} className={shared}>
+    <div
+      data-side={side}
+      data-hotkeys={hotkeys}
+      data-orientation={orientation}
+      className={shared}
+    >
       {children}
     </div>
   );
@@ -160,7 +171,7 @@ export function chromeItemClass(current?: boolean): string {
  *    only emits what it can read in a source file.
  */
 const LABEL =
-  "pointer-events-none absolute z-10 flex items-center gap-1.5 whitespace-nowrap rounded-md border bg-popover " +
+  "group/label pointer-events-none absolute z-10 flex items-center gap-1.5 whitespace-nowrap rounded-md border bg-popover " +
   "px-2 py-1 font-heading text-xs text-popover-foreground opacity-0 shadow-md " +
   "transition-opacity group-hover/item:opacity-100 group-has-[:focus-visible]/item:opacity-100 " +
   // Holding the modifier shows every label in the cluster at once, which is a
@@ -185,6 +196,24 @@ const LABEL =
  * VISIBLE label only. `ChromeLink` writes both from one string and is the right
  * choice wherever it fits.
  */
+/**
+ * The word inside the label, separated from the chip so a horizontal reveal can
+ * drop it.
+ *
+ * A VERTICAL cluster reveals label and chip together: the rail stacks, so each
+ * label opens into its own empty row and six of them can sit open at once.
+ * A HORIZONTAL cluster cannot — its items are 36px apart and its labels open
+ * downward into the same strip, so revealing six words at once puts them on top
+ * of each other. There the chip alone is shown, which is the whole of what the
+ * modifier was asked about, and it is narrow enough to sit under its own icon.
+ *
+ * An item with NO chip keeps its word in both orientations: hiding it would
+ * leave an empty box floating under the icon, and the word is the only thing
+ * that item has to say. `has-[kbd]` on the label is what draws that line.
+ */
+const LABEL_TEXT =
+  "group-data-[orientation=horizontal]/chrome:group-data-[hotkeys=on]/chrome:group-has-[kbd]/label:hidden";
+
 export function ChromeItem({
   label,
   hotkey,
@@ -207,7 +236,7 @@ export function ChromeItem({
     <span className="group/item relative flex">
       {children}
       <span aria-hidden="true" className={LABEL}>
-        {label}
+        <span className={LABEL_TEXT}>{label}</span>
         {hotkey ? <Kbd>{hotkey}</Kbd> : null}
       </span>
     </span>

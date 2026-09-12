@@ -44,11 +44,24 @@ export function PlantSwitcher({
   scope,
   pathname,
   active,
+  hotkey,
+  open,
+  onOpenChange,
 }: {
   plants: PlantMark[];
   scope: string | null;
   pathname: string;
   active: FilterValues;
+  /** The shortcut as engraved ("⌥0"), drawn as a chip beside the label. */
+  hotkey?: string;
+  /**
+   * Controlled open state, so a shortcut registered by the chrome can open
+   * this. Held THERE rather than here because `AdminChrome` is where every
+   * other chrome shortcut lives, and two files registering keys for one
+   * cluster is how a conflict gets built.
+   */
+  open?: boolean;
+  onOpenChange?: (next: boolean) => void;
 }) {
   const publishedId = useId();
   const privateId = useId();
@@ -76,8 +89,8 @@ export function PlantSwitcher({
   ];
 
   return (
-    <Popover>
-      <ChromeItem label={label}>
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <ChromeItem label={label} hotkey={hotkey}>
         <PopoverTrigger aria-label={label} className={chromeItemClass()}>
           {current ? (
             <EntityAvatar mark={{ name: current.name, logoUrl: current.logoUrl }} />
