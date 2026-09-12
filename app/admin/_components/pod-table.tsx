@@ -1,9 +1,4 @@
-import {
-  EntityAvatarGlyph,
-  NarrativeGlyph,
-  VisibilityGlyph,
-  type EntityMark,
-} from "@/components/admin/glyphs";
+import { NarrativeGlyph, VisibilityGlyph, type EntityMark } from "@/components/admin/glyphs";
 import {
   Table,
   TableBody,
@@ -13,6 +8,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { Visibility } from "@/lib/data";
+import { EntityNameCell, MarkCell } from "./table-cells";
 
 export interface PodRow {
   slug: string;
@@ -27,9 +23,21 @@ export interface PodRow {
 }
 
 /**
- * Pod rows — `/admin/pods` and the hub's preview, one file, two callers.
- * `limit` is what differs; `showPlant` is the other parameter, because the hub
- * is already inside a plant and a column repeating it would be noise.
+ * Pod rows, wherever pod rows are drawn — `/admin/pods` and a plant hub's
+ * preview of the same pods, out of one file, so the section and the preview
+ * cannot disagree about what a pod row looks like.
+ *
+ * Two parameters carry the difference. `limit` is for a preview: it draws the
+ * first n rows and says nothing about the rest, so any "n more" line belongs
+ * to the caller, which is the only side that knows the full count. `showPlant`
+ * drops the plant column, because a hub is already inside a plant and a column
+ * repeating it would be noise.
+ *
+ * `showPlant` is a boolean because there is one axis here with two states. If
+ * a second ever appears — a bean list narrowed by pod, say — the move is a
+ * single `scope?: "plant" | "pod"`, since the page already knows what it
+ * narrowed by, rather than a second boolean and eight nominal states of which
+ * most are nonsense.
  */
 export function PodTable({
   rows,
@@ -40,7 +48,10 @@ export function PodTable({
   limit?: number;
   showPlant?: boolean;
 }) {
-  const shown = limit ? rows.slice(0, limit) : rows;
+  // `limit === undefined`, not `limit ?` — a computed limit reaches zero
+  // legitimately (the slots left in a preview), and a falsy test would read
+  // that as "no limit" and dump the whole table into the card.
+  const shown = limit === undefined ? rows : rows.slice(0, limit);
   return (
     <Table>
       <TableHeader>
@@ -55,26 +66,12 @@ export function PodTable({
       <TableBody>
         {shown.map((row) => (
           <TableRow key={row.slug}>
-            <TableCell>
-              <div className="flex flex-col leading-tight">
-                <a
-                  href={`/admin/pod/${encodeURIComponent(row.slug)}`}
-                  className="underline-offset-4 hover:underline"
-                >
-                  {row.name}
-                </a>
-                <span className="font-heading text-xs text-muted-foreground">{row.slug}</span>
-              </div>
-            </TableCell>
-            {showPlant ? (
-              <TableCell>
-                {row.plant ? (
-                  <EntityAvatarGlyph mark={row.plant} />
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </TableCell>
-            ) : null}
+            <EntityNameCell
+              href={`/admin/pod/${encodeURIComponent(row.slug)}`}
+              name={row.name}
+              slug={row.slug}
+            />
+            {showPlant ? <MarkCell mark={row.plant} /> : null}
             <TableCell className="text-muted-foreground">{row.beanCount}</TableCell>
             <TableCell>
               <VisibilityGlyph visibility={row.visibility} />

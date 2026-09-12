@@ -1,8 +1,4 @@
-import {
-  EntityAvatarGlyph,
-  VisibilityGlyph,
-  type EntityMark,
-} from "@/components/admin/glyphs";
+import { VisibilityGlyph, type EntityMark } from "@/components/admin/glyphs";
 import {
   Table,
   TableBody,
@@ -12,6 +8,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { Visibility } from "@/lib/data";
+import { EntityNameCell, MarkCell } from "./table-cells";
 
 export interface BeanRow {
   slug: string;
@@ -24,11 +21,18 @@ export interface BeanRow {
 }
 
 /**
- * Bean rows — `/admin/beans` and the hub's preview, one file, two callers.
+ * Bean rows, wherever bean rows are drawn — `/admin/beans` and a plant hub's
+ * preview, out of one file.
  *
- * A sibling of `PodTable` rather than a generalisation of it: the two tables
- * rhyme, but a shared config object able to express both columns sets would run
- * longer than the two written out.
+ * A sibling of `PodTable` rather than a specialisation of it. The two rhyme
+ * closely enough to tempt one table driven by a column config; what they
+ * actually share is two cells, and those are extracted into
+ * `table-cells.tsx`, which argues the rest of that case. The columns here are
+ * written out because which columns a bean has is the substance of this file.
+ *
+ * `limit` and `showPlant` mean what they mean in `PodTable`: `limit` draws the
+ * first n and leaves any "n more" line to the caller, which is the only side
+ * that knows the full count; `showPlant` drops a column a hub already answers.
  */
 export function BeanTable({
   rows,
@@ -39,7 +43,8 @@ export function BeanTable({
   limit?: number;
   showPlant?: boolean;
 }) {
-  const shown = limit ? rows.slice(0, limit) : rows;
+  // See `PodTable`: zero is a limit, not the absence of one.
+  const shown = limit === undefined ? rows : rows.slice(0, limit);
   return (
     <Table>
       <TableHeader>
@@ -54,26 +59,12 @@ export function BeanTable({
       <TableBody>
         {shown.map((row) => (
           <TableRow key={row.slug}>
-            <TableCell>
-              <div className="flex flex-col leading-tight">
-                <a
-                  href={`/admin/bean/${encodeURIComponent(row.slug)}`}
-                  className="underline-offset-4 hover:underline"
-                >
-                  {row.name}
-                </a>
-                <span className="font-heading text-xs text-muted-foreground">{row.slug}</span>
-              </div>
-            </TableCell>
-            {showPlant ? (
-              <TableCell>
-                {row.plant ? (
-                  <EntityAvatarGlyph mark={row.plant} />
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </TableCell>
-            ) : null}
+            <EntityNameCell
+              href={`/admin/bean/${encodeURIComponent(row.slug)}`}
+              name={row.name}
+              slug={row.slug}
+            />
+            {showPlant ? <MarkCell mark={row.plant} /> : null}
             <TableCell className="text-muted-foreground">{row.pod ?? "—"}</TableCell>
             <TableCell className="text-muted-foreground">{row.sproutCount}</TableCell>
             <TableCell>

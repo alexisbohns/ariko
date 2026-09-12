@@ -1,4 +1,3 @@
-import { EntityAvatarGlyph } from "@/components/admin/glyphs";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -9,14 +8,28 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { resolveText, type TimelineEntry } from "@/lib/data";
+import { MarkCell } from "./table-cells";
 
 /**
- * Sprout rows — `/admin/sprouts` and the hub's preview, one file, two callers.
+ * Sprout rows, wherever sprout rows are drawn — `/admin/sprouts` and a plant
+ * hub's preview, out of one file. The table this draws is the one that lived
+ * inside `/admin/sprouts`, lifted whole: the same six columns, the same Badge,
+ * the same avatar in the plant cell.
  *
  * It takes `TimelineEntry[]` rather than a prepared row type, unlike its three
- * siblings: a timeline entry already carries the sprout with its bean and its
- * plant resolved, so a row shape here would be that entry re-typed, and the one
- * caller that exists would spend a `.map` restating it.
+ * siblings, for two reasons that do not expire. A timeline entry already
+ * carries the sprout with its bean and its plant resolved, so a row type here
+ * would be that entry re-typed and every caller would restate it. And this
+ * file therefore imports `resolveText` as a VALUE from `lib/data.ts`, which
+ * opens with `node:fs` — so a `"use client"` added here fails the build
+ * outright rather than silently shipping a table to the browser. That is a
+ * guard the three type-only tables do not have, which is why
+ * `lib/admin-table-source.test.ts` has to assert for all five what this one
+ * enforces for itself.
+ *
+ * `limit` and `showPlant` mean what they mean in `PodTable`: `limit` draws the
+ * first n and leaves any "n more" line to the caller, which is the only side
+ * that knows the full count; `showPlant` drops a column a hub already answers.
  */
 export function SproutTable({
   entries,
@@ -27,7 +40,8 @@ export function SproutTable({
   limit?: number;
   showPlant?: boolean;
 }) {
-  const shown = limit ? entries.slice(0, limit) : entries;
+  // See `PodTable`: zero is a limit, not the absence of one.
+  const shown = limit === undefined ? entries : entries.slice(0, limit);
   return (
     <Table>
       <TableHeader>
@@ -59,19 +73,17 @@ export function SproutTable({
               <Badge variant="secondary">{e.sprout.state ?? "—"}</Badge>
             </TableCell>
             {showPlant ? (
-              <TableCell>
-                {e.plant ? (
-                  <EntityAvatarGlyph
-                    mark={{
-                      name: resolveText(e.plant.name),
-                      hint: e.plant.slug,
-                      ...(e.plant.logo ? { logoUrl: e.plant.logo.url } : {}),
-                    }}
-                  />
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </TableCell>
+              <MarkCell
+                mark={
+                  e.plant
+                    ? {
+                        name: resolveText(e.plant.name),
+                        hint: e.plant.slug,
+                        ...(e.plant.logo ? { logoUrl: e.plant.logo.url } : {}),
+                      }
+                    : undefined
+                }
+              />
             ) : null}
             <TableCell className="text-muted-foreground">{e.bean?.slug ?? "—"}</TableCell>
             <TableCell className="text-muted-foreground">{e.sprout.date}</TableCell>

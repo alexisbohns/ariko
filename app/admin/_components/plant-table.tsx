@@ -1,9 +1,4 @@
-import {
-  EntityAvatar,
-  NarrativeGlyph,
-  RoleGlyph,
-  StatusGlyph,
-} from "@/components/admin/glyphs";
+import { NarrativeGlyph, RoleGlyph, StatusGlyph } from "@/components/admin/glyphs";
 import {
   Table,
   TableBody,
@@ -12,7 +7,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { PlantStatus, PlantRoleKind, Visibility } from "@/lib/data";
+import type { PlantStatus, PlantRoleKind } from "@/lib/data";
+import { EntityNameCell } from "./table-cells";
 
 export interface PlantRow {
   slug: string;
@@ -24,19 +20,22 @@ export interface PlantRow {
   role: { kind: PlantRoleKind; label: string };
   status: PlantStatus;
   hasNarrative: boolean;
-  /** Which of the two tables the row belongs to. The table draws no column for
-   *  it — the heading above it is the column. */
-  visibility: Visibility;
 }
 
 /**
- * The root's plant table — rendered twice, once per visibility, which is why
- * it is a component and not markup in the page: two tables that differ only in
- * their rows must not be two pieces of markup that can drift.
+ * The root's plant table.
  *
- * There is no visibility column, deliberately. The two tables ARE the
- * visibility, and a column repeating the heading of the table it sits in is a
- * column saying nothing. There is no tier column either: only plants are here.
+ * It exists as a component rather than as markup in the page because the page
+ * draws it more than once — the welcome page groups plants by visibility and
+ * renders one table per group — and two pieces of markup that differ only in
+ * their rows are two pieces of markup that can drift.
+ *
+ * There is no visibility column, deliberately: where the tables ARE the
+ * grouping, a column repeating the heading above it is a column saying
+ * nothing. Nor does a row CARRY its visibility. The caller groups before it
+ * builds rows, so the grouping key never enters the draw contract and no
+ * future caller has to supply a field this component ignores. There is no tier
+ * column either — only plants are here.
  */
 export function PlantTable({ rows }: { rows: PlantRow[] }) {
   return (
@@ -52,20 +51,12 @@ export function PlantTable({ rows }: { rows: PlantRow[] }) {
       <TableBody>
         {rows.map((row) => (
           <TableRow key={row.slug}>
-            <TableCell>
-              <div className="flex items-center gap-2.5">
-                <EntityAvatar mark={{ name: row.name, logoUrl: row.logoUrl }} />
-                <div className="flex flex-col leading-tight">
-                  <a
-                    href={`/admin/plant/${encodeURIComponent(row.slug)}`}
-                    className="underline-offset-4 hover:underline"
-                  >
-                    {row.name}
-                  </a>
-                  <span className="font-heading text-xs text-muted-foreground">{row.slug}</span>
-                </div>
-              </div>
-            </TableCell>
+            <EntityNameCell
+              href={`/admin/plant/${encodeURIComponent(row.slug)}`}
+              name={row.name}
+              slug={row.slug}
+              avatar={{ name: row.name, logoUrl: row.logoUrl }}
+            />
             <TableCell className="text-muted-foreground">
               <RoleGlyph kind={row.role.kind} label={row.role.label} />
             </TableCell>
