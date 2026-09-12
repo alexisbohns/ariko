@@ -35,6 +35,40 @@ export interface NavItem {
   id: NavId;
   href: string;
   label: string;
+  /**
+   * The digit in this item's `Alt+<n>` shortcut, present on everything
+   * `navItems` returns and absent from `NAV_ITEMS` itself.
+   *
+   * That asymmetry is the point: the number is a POSITION, not a property of
+   * the section. Scoped, Overview takes the 1 and every section below it shifts
+   * down — which is right, because the shortcut has to agree with what the rail
+   * actually shows, and the rail changes shape with the scope. Storing it
+   * beside `id` would freeze a number the composition is entitled to move.
+   */
+  hotkey?: HotkeyDigit;
+}
+
+/**
+ * The shortcut digits, in order, and the ceiling on how many a rail can have.
+ *
+ * A closed union rather than `string`, because the consumer composes it into
+ * `Alt+${digit}` and the hotkey library's own type is a template literal over
+ * real key names — so a stray digit is a compile error at the call site rather
+ * than a shortcut that silently never fires.
+ *
+ * Alt+0 is not a tenth shortcut. It is the key that would have to mean ten, and
+ * no rail has ever been that long.
+ */
+export type HotkeyDigit = "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9";
+
+const HOTKEY_DIGITS: readonly HotkeyDigit[] = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
+
+/** Position → shortcut digit, for the first nine items and nothing after. */
+function withHotkeys(items: readonly NavItem[]): readonly NavItem[] {
+  return items.map((item, i) => {
+    const hotkey = HOTKEY_DIGITS[i];
+    return hotkey ? { ...item, hotkey } : item;
+  });
 }
 
 export const NAV_ITEMS: readonly NavItem[] = [
@@ -62,11 +96,11 @@ export type ScopedId = Exclude<NavId, (typeof UNSCOPED_IDS)[number]>;
 
 /** The rail for a given scope. See the docblock for why it is a function. */
 export function navItems(scope: string | null): readonly NavItem[] {
-  if (!scope) return NAV_ITEMS;
-  return [
+  if (!scope) return withHotkeys(NAV_ITEMS);
+  return withHotkeys([
     { id: "overview", href: hubHref(scope), label: "Overview" },
     ...NAV_ITEMS.filter((item) => item.id !== "beanstalk"),
-  ];
+  ]);
 }
 
 /**

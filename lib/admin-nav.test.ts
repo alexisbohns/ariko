@@ -82,8 +82,44 @@ test("a prefix must end at a segment boundary", () => {
   assert.equal(resolveNavItem("/admin/screen/karma-top"), null);
 });
 
-test("unscoped, the rail is exactly NAV_ITEMS", () => {
-  assert.deepEqual(navItems(null), NAV_ITEMS);
+test("unscoped, the rail is NAV_ITEMS in order", () => {
+  // Not `deepEqual` against NAV_ITEMS itself: `navItems` adds the shortcut
+  // digit, which is a position rather than a property of the section and is
+  // deliberately absent from the stored list.
+  assert.deepEqual(
+    navItems(null).map((i) => i.id),
+    NAV_ITEMS.map((i) => i.id),
+  );
+  assert.deepEqual(
+    navItems(null).map((i) => i.href),
+    NAV_ITEMS.map((i) => i.href),
+  );
+});
+
+test("the shortcut digit is the item's position in the rail as drawn", () => {
+  assert.deepEqual(
+    navItems(null).map((i) => i.hotkey),
+    ["1", "2", "3", "4", "5", "6"],
+  );
+});
+
+test("scoped, the digits follow the rail's new shape rather than the old one", () => {
+  // Overview takes the 1 and everything below it shifts down. A shortcut that
+  // disagreed with the position it is drawn beside would be worse than none:
+  // Beanstalk is gone from this rail, so nothing may still answer to its digit.
+  const items = navItems("ariko");
+  assert.deepEqual(
+    items.map((i) => `${i.id}:${i.hotkey}`),
+    ["overview:1", "inbox:2", "pods:3", "beans:4", "sprouts:5", "screens:6"],
+  );
+});
+
+test("no rail item is numbered past nine", () => {
+  // The ceiling is real rather than theoretical: Alt+0 is the key that would
+  // have to mean ten, and the digits run out before a rail could need it.
+  for (const item of [...navItems(null), ...navItems("ariko")]) {
+    if (item.hotkey) assert.match(item.hotkey, /^[1-9]$/, item.id);
+  }
 });
 
 test("scoped, Overview leads and Beanstalk steps aside", () => {

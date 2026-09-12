@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { CHROME_PLATE } from "./chrome-plate";
+import { Kbd } from "./ui/kbd";
 import { magnetLabelSide, magnetPosition, type Magnet } from "@/lib/chrome-magnet";
 import { cn } from "@/lib/utils";
 
@@ -62,6 +63,7 @@ export function Chrome({
   orientation = "horizontal",
   label,
   content,
+  hotkeysVisible,
   className,
   children,
 }: {
@@ -69,6 +71,16 @@ export function Chrome({
   orientation?: "horizontal" | "vertical";
   /** When present, the cluster is a `<nav>` with this accessible name. */
   label?: string;
+  /**
+   * Reveal every item's label and shortcut at once, as holding Alt does.
+   *
+   * A BOOLEAN PROP RATHER THAN A KEY LISTENER, because this file is server-safe
+   * and a listener would need `"use client"` — the one property that lets the
+   * public zone use it at all. Whoever holds the key state passes the flag;
+   * today that is `app/admin/_components/admin-chrome.tsx`, and the public
+   * zone, which has no shortcuts, passes nothing and pays nothing.
+   */
+  hotkeysVisible?: boolean;
   /**
    * A cluster of TEXT rather than icons — the language switch is the only one.
    * Its own radius and padding, as a named variant rather than a `className`
@@ -90,13 +102,17 @@ export function Chrome({
     className,
   );
   const side = magnetLabelSide(magnet);
+  // `undefined` rather than "off", so the attribute is absent when it is not
+  // wanted — `group-data-[hotkeys=on]` then has nothing to match and the public
+  // zone's markup is byte-identical to what it was before shortcuts existed.
+  const hotkeys = hotkeysVisible ? "on" : undefined;
 
   return label ? (
-    <nav aria-label={label} data-side={side} className={shared}>
+    <nav aria-label={label} data-side={side} data-hotkeys={hotkeys} className={shared}>
       {children}
     </nav>
   ) : (
-    <div data-side={side} className={shared}>
+    <div data-side={side} data-hotkeys={hotkeys} className={shared}>
       {children}
     </div>
   );
@@ -144,9 +160,14 @@ export function chromeItemClass(current?: boolean): string {
  *    only emits what it can read in a source file.
  */
 const LABEL =
-  "pointer-events-none absolute z-10 whitespace-nowrap rounded-md border bg-popover " +
+  "pointer-events-none absolute z-10 flex items-center gap-1.5 whitespace-nowrap rounded-md border bg-popover " +
   "px-2 py-1 font-heading text-xs text-popover-foreground opacity-0 shadow-md " +
   "transition-opacity group-hover/item:opacity-100 group-has-[:focus-visible]/item:opacity-100 " +
+  // Holding the modifier shows every label in the cluster at once, which is a
+  // different question from "what am I pointing at" — it is "what can I reach
+  // from here". The rail answers it for all six items simultaneously, so the
+  // shortcuts are learnable without a legend to go and read.
+  "group-data-[hotkeys=on]/chrome:opacity-100 " +
   "group-data-[side=bottom]/chrome:left-1/2 group-data-[side=bottom]/chrome:top-full " +
   "group-data-[side=bottom]/chrome:mt-2 group-data-[side=bottom]/chrome:-translate-x-1/2 " +
   "group-data-[side=top]/chrome:bottom-full group-data-[side=top]/chrome:left-1/2 " +
@@ -164,12 +185,30 @@ const LABEL =
  * VISIBLE label only. `ChromeLink` writes both from one string and is the right
  * choice wherever it fits.
  */
-export function ChromeItem({ label, children }: { label: string; children: ReactNode }) {
+export function ChromeItem({
+  label,
+  hotkey,
+  children,
+}: {
+  label: string;
+  /**
+   * The shortcut, already spelled the way the key is engraved — "⌥1", "⌘K" —
+   * drawn as a `<kbd>` beside the label. Absent on every control without one.
+   *
+   * The CALLER composes it, because choosing between "⌥" and "Alt" means
+   * knowing the platform, and knowing the platform means `"use client"` — the
+   * one property this file cannot spend. Whoever registers the shortcut already
+   * knows what it is; this only draws it.
+   */
+  hotkey?: string;
+  children: ReactNode;
+}) {
   return (
     <span className="group/item relative flex">
       {children}
       <span aria-hidden="true" className={LABEL}>
         {label}
+        {hotkey ? <Kbd>{hotkey}</Kbd> : null}
       </span>
     </span>
   );
@@ -185,16 +224,20 @@ export function ChromeLink({
   href,
   label,
   current,
+  hotkey,
   children,
 }: {
   href: string;
   label: string;
   /** Renders `aria-current="page"` as well as the active box. */
   current?: boolean;
+  /** The shortcut as engraved ("⌥1"). Visible only — the shortcut itself is
+   *  registered by whoever owns the key state. */
+  hotkey?: string;
   children: ReactNode;
 }) {
   return (
-    <ChromeItem label={label}>
+    <ChromeItem label={label} hotkey={hotkey}>
       <a
         href={href}
         aria-label={label}

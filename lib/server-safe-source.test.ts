@@ -69,6 +69,7 @@ const SERVER_SAFE = [
   "components/ui/badge.tsx", // plant-head.tsx, /beanstalk, components/media.tsx
   "components/ui/card.tsx", // bean/[id], components/entity-card.tsx
   "components/ui/separator.tsx", // /beanstalk
+  "components/ui/kbd.tsx", // components/chrome.tsx, for the rail's shortcut hints
 ];
 
 for (const path of SERVER_SAFE) {

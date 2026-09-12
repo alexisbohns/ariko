@@ -1,9 +1,10 @@
 "use client";
 
-import { usePathname, useSearchParams } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useHeldKeys, useHotkeys } from "@tanstack/react-hotkeys";
 import { ExternalLink, LogOut } from "lucide-react";
 import type { ReactNode } from "react";
-import { navHref, navItems, resolveColumn, resolveNavItem } from "@/lib/admin-nav";
+import { navHref, navItems, resolveColumn, resolveNavItem, type NavItem } from "@/lib/admin-nav";
 import { resolveScope } from "@/lib/admin-scope";
 import { logoutAction } from "../actions";
 import { ArikoIcon } from "@/components/brand/ariko-icon";
@@ -50,6 +51,66 @@ import { READING_COLUMN, RAIL_CLEARANCE, WIDE_COLUMN } from "@/components/page-c
  * happened).
  */
 
+/**
+ * The rail's keyboard shortcuts: `Alt+1` … `Alt+9`, in the order the rail is
+ * drawn, plus the held-modifier reveal.
+ *
+ * WHY THE NUMBERS COME FROM `navItems` RATHER THAN FROM A TABLE HERE: the rail
+ * changes shape with the scope — Overview appears, Beanstalk steps aside — and
+ * a shortcut that disagreed with the position it is drawn beside would be worse
+ * than no shortcut at all. `lib/admin-nav.ts` assigns the digit as a position,
+ * this reads it back, and `lib/admin-nav.test.ts` pins that they are the same
+ * list.
+ *
+ * `Alt+<digit>` IS SAFE TO TAKE on a Mac, where it would otherwise type `¡™£`.
+ * The matcher falls back to `event.code`, so `Alt+1` is the physical Digit1 key
+ * whatever character the layout produces — which is also why these work on an
+ * AZERTY keyboard, where the unshifted digits are punctuation.
+ *
+ * The reveal is `useHeldKeys`, not a keydown listener of our own: the library
+ * already tracks what is down, and a second tracker would be a second answer to
+ * the same question — one that would miss a key released while the window was
+ * blurred, which is the bug every hand-rolled version of this has.
+ */
+/**
+ * The modifier as the key is engraved. A constant rather than a platform
+ * sniff: this admin has one author, on a Mac. If that changes, this is the one
+ * line to make conditional — and this file, unlike `components/chrome.tsx`,
+ * is already a client component and free to ask.
+ */
+const ALT_SYMBOL = "\u2325";
+
+function useRailHotkeys(items: readonly NavItem[], scope: string | null): boolean {
+  const router = useRouter();
+
+  useHotkeys(
+    // `flatMap` rather than filter-then-map: a filter does not narrow
+    // `hotkey` out of `undefined`, and the library's hotkey type is a template
+    // literal over real key names — so the narrowing has to be real, not
+    // asserted.
+    items.flatMap((item) =>
+      item.hotkey
+        ? [
+            {
+              hotkey: `Alt+${item.hotkey}` as const,
+              // `navHref`, so a shortcut carries the scope exactly as clicking
+              // the icon would. The two must not differ; they are the same
+              // navigation.
+              callback: () => router.push(navHref(item, scope)),
+            },
+          ]
+        : [],
+    ),
+    // The browser has no Alt+digit binding worth keeping, and macOS would
+    // otherwise insert `¡™£` into whatever field has focus.
+    { preventDefault: true },
+  );
+
+  // `Alt` while a field has focus is still `Alt` — the reveal is a legend, not
+  // an action, so there is nothing to suppress and nothing to get wrong.
+  return useHeldKeys().includes("Alt");
+}
+
 export function AdminChrome({ plants }: { plants: PlantMark[] }) {
   const pathname = usePathname();
   const params = useSearchParams();
@@ -72,20 +133,26 @@ export function AdminChrome({ plants }: { plants: PlantMark[] }) {
   const scope = resolveScope(pathname, active);
   const activeHref = resolveNavItem(pathname);
   const items = navItems(scope);
+  const altHeld = useRailHotkeys(items, scope);
 
   return (
     <>
       {/* The mark and the subject. The mark goes home to the welcome page —
           the all-plants overview — which is why the rail no longer carries a
           root item of its own. */}
-      <Chrome magnet="top-left">
+      {/* All three clusters reveal together, not just the rail. Holding the
+          modifier asks "what can I reach from here", and answering for one
+          cluster while the other two stay dark would make the chrome look
+          half-lit rather than annotated — the mark and the switcher have no
+          shortcut, so they simply show their names. */}
+      <Chrome magnet="top-left" hotkeysVisible={altHeld}>
         <ChromeLink href="/admin" label="Ariko">
           <ArikoIcon className="size-4" />
         </ChromeLink>
         <PlantSwitcher plants={plants} scope={scope} pathname={pathname} active={active} />
       </Chrome>
 
-      <Chrome magnet="left" orientation="vertical" label="Admin sections">
+      <Chrome magnet="left" orientation="vertical" label="Admin sections" hotkeysVisible={altHeld}>
         {items.map((item) => {
           const Icon = SECTION_ICONS[item.id];
           return (
@@ -93,6 +160,7 @@ export function AdminChrome({ plants }: { plants: PlantMark[] }) {
               key={item.id}
               href={navHref(item, scope)}
               label={item.label}
+              hotkey={item.hotkey ? `${ALT_SYMBOL}${item.hotkey}` : undefined}
               // The item's OWN href, not the scoped one: `resolveNavItem`
               // answers with a path, and the scoped href carries a query the
               // pathname never will.
@@ -112,7 +180,7 @@ export function AdminChrome({ plants }: { plants: PlantMark[] }) {
           Not a <nav>: it is a log-out form and two actions, so a landmark here
           would put a second "navigation" in the page that navigates nowhere.
           `Chrome` expresses that by taking no `label`. */}
-      <Chrome magnet="top-right">
+      <Chrome magnet="top-right" hotkeysVisible={altHeld}>
         {/* The palette rides with the chrome rather than the page: rendered
             here, it is behind the same login-page withdrawal above — one route
             constant, now three consumers — and ⌘K works on every admin route

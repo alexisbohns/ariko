@@ -415,7 +415,13 @@ function Palette() {
           that sized itself differently from the two icons beside it was the
           clearest sign the cluster had three implementations. The label and its
           side come from the cluster it is dropped into. */}
-      <ChromeItem label="Search (⌘K)">
+      {/* The shortcut is a `<kbd>` chip beside the label now rather than
+          parenthetical text inside it — same treatment as the rail's ⌥ digits,
+          so every shortcut in the chrome is drawn one way. The control's own
+          `aria-label` stays the plain word: a screen reader user gets "Search",
+          not "Search (⌘K)", and the chip is `aria-hidden` with the rest of the
+          label. */}
+      <ChromeItem label="Search" hotkey="\u2318K">
         <button
           ref={triggerRef}
           type="button"
