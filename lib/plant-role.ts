@@ -62,11 +62,11 @@ export function isPlantRoleKind(raw: string): raw is PlantRoleKind {
 /**
  * Pure. Maps the role card's form → the stored role.
  *
- * An unrecognized `kind` throws rather than falling back, which is the opposite
- * of buildSproutPatch's `state` handling. That fallback is safe because it
- * HIDES things; a wrong role is a public claim about Alexis's relationship to
- * someone else's project, so it fails loudly instead. The action turns the
- * throw into a ?error redirect.
+ * An unrecognized `kind` throws rather than falling back. A fallback is safe
+ * where it HIDES things — `stateOf` reads a sprout's absent state as `draft`,
+ * which keeps it OFF the public site; a wrong role is a public claim about
+ * Alexis's relationship to someone else's project, so it fails loudly instead.
+ * The action turns the throw into a ?error redirect.
  */
 export function buildPlantRolePatch(form: FormData): PlantRole {
   const get = (k: string) => String(form.get(k) ?? "").trim();

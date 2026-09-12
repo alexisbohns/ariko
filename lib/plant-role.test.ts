@@ -72,8 +72,8 @@ test("buildPlantRolePatch keeps an fr-only title (B1: either language is enough)
 });
 
 test("buildPlantRolePatch REJECTS an unknown kind instead of defaulting", () => {
-  // Deliberately unlike buildSproutPatch's `state`, which falls back to "draft".
-  // That fallback hides things; this one would publish a false claim.
+  // Deliberately unlike `stateOf`, which reads a sprout's absent state as
+  // "draft". That fallback hides things; this one would publish a false claim.
   assert.throws(() => buildPlantRolePatch(form({ kind: "founder" })), InvalidRoleKindError);
   assert.throws(() => buildPlantRolePatch(form({ kind: "" })), InvalidRoleKindError);
   assert.throws(() => buildPlantRolePatch(new FormData()), InvalidRoleKindError);

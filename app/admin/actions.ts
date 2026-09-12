@@ -30,7 +30,7 @@ import {
   type Visibility,
 } from "@/lib/data";
 import { resolveParentChoice, buildSproutInput, buildNewBean, validateSproutInput } from "@/lib/promote";
-import { buildSproutPatch, validateSproutPatch, shouldCascadePublish } from "@/lib/sprout-edit";
+import { shouldCascadePublish } from "@/lib/sprout-edit";
 import { buildSproutMetaPatch, BlankSproutNameError, type SproutMetaPatch } from "@/lib/sprout-meta";
 import { isSproutState } from "@/lib/sprout-state";
 import { isTimelineDate } from "@/lib/sprout-date";
@@ -56,7 +56,6 @@ import {
   setPublic,
   SlugExistsError,
   getSprout,
-  updateVersion,
   setPrivate,
   updateSproutContent,
   updatePlantContent,
@@ -249,47 +248,6 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
   redirect("/admin/inbox");
 }
 
-export async function editVersionAction(formData: FormData): Promise<void> {
-  await requireSession();
-  const slug = String(formData.get("slug") ?? "");
-  const existing = await getSprout(slug);
-  if (!existing) redirect("/admin/sprouts");
-
-  const patch = buildSproutPatch(formData);
-  const check = validateSproutPatch(patch);
-  if (!check.ok) {
-    // The page renders ?error verbatim (the delete action shares the slot), so the
-    // message carries its own "could not save" context.
-    redirect(`/admin/sprout/${slug}?error=${encodeURIComponent(`could not save: ${check.error}`)}`);
-  }
-
-  await updateVersion(slug, patch);
-
-  // Re-publish reuses the upward, idempotent cascade (same as promote). An actual
-  // un-publish — the version WAS published and no longer is — runs the downward
-  // recompute (A1): re-privatize parents left sheltering no published version.
-  // Gated on the transition (existing = pre-save state) so a routine draft save can
-  // never flip visibility somebody authored directly (e.g. a seeded public bean
-  // that has no published versions yet). Both branches load the dataset AFTER
-  // updateVersion, so the cascade evaluates the just-saved state.
-  // Further gated on the type being SAVED (final review C1): digest publication
-  // marks review sign-off, not public exhibition — visibility of digest-*/
-  // weekly-wrap beans and their plants stays a separate human act.
-  if (patch.state === "published" && shouldCascadePublish(patch.type)) {
-    const { plantSlugs, podSlugs, beanSlugs } = publishCascade(await loadRawGarden(), slug);
-    await setPublic(plantSlugs, podSlugs, beanSlugs);
-  } else if (existing.state === "published") {
-    const { plantSlugs, podSlugs, beanSlugs } = unpublishCascade(await loadRawGarden(), slug);
-    await setPrivate(plantSlugs, podSlugs, beanSlugs);
-  }
-
-  revalidateGarden();
-  const beanSlug = (existing.parents ?? [])
-    .filter((p) => p.startsWith("bean:"))
-    .map((p) => p.slice("bean:".length))[0];
-  redirect(beanSlug ? `/admin/bean/${beanSlug}` : "/admin/sprouts");
-}
-
 // Hard delete (roadmap A2). The bean parents and published state are captured BEFORE
 // the delete — afterwards the version is gone from the dataset, so the slug-keyed
 // unpublishCascade would silently no-op. The recompute (only when the deleted version
@@ -329,10 +287,8 @@ export async function deleteSproutAction(formData: FormData): Promise<void> {
   redirect(beanSlugs[0] ? `/admin/bean/${beanSlugs[0]}` : "/admin/sprouts");
 }
 
-// Prose only. Deliberately separate from editVersionAction: content touches
-// neither `state` nor `visibility`, so there is no cascade to run here, and
-// keeping it apart is what lets the metadata form stay a zero-JS server-action
-// form (spec §2.2).
+// Prose only. Deliberately separate from the head's four writes: content
+// touches neither `state` nor `visibility`, so there is no cascade to run here.
 export async function editContentAction(formData: FormData): Promise<void> {
   await requireSession();
   const slug = String(formData.get("slug") ?? "");

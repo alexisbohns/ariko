@@ -19,7 +19,7 @@ import { join, relative } from "node:path";
  *    /api/synthesis, /api/pollen/sync) do not go through actions at all.
  *
  *  - `app/admin/actions.ts` reading the CACHED garden is the dangerous one.
- *    `editVersionAction` and `promoteSeedAction` re-read after writing so
+ *    `setSproutStateAction` and `promoteSeedAction` re-read after writing so
  *    `publishCascade` sees the just-saved state; a cached read there hands
  *    them the pre-write garden and the cascade publishes the wrong set of
  *    parents. Nothing crashes. A bean silently stays private, or a parent
@@ -91,7 +91,6 @@ const GARDEN_WRITERS = new Set([
   "updateScreenImage",
   "deleteScreen",
   "createSprout",
-  "updateVersion",
   "deleteSprout",
   "updateSproutMeta",
   "updateSproutState",
@@ -404,7 +403,7 @@ test("the write path reads the LIVE garden, never the cached one", () => {
   assert.equal(
     importedNames(actions.text).has("loadCachedGarden"),
     false,
-    `${ACTIONS_PATH} must NOT read the cached garden — editVersionAction ` +
+    `${ACTIONS_PATH} must NOT read the cached garden — setSproutStateAction ` +
       "and promoteSeedAction re-read after writing so publishCascade sees the " +
       "just-saved state, and a cached read there publishes the wrong parents",
   );

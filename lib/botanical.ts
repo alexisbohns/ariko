@@ -18,7 +18,6 @@ import {
   type Visibility,
 } from "./data";
 import type { SproutInput } from "./promote";
-import type { SproutPatch } from "./sprout-edit";
 import type { SproutMetaPatch } from "./sprout-meta";
 import type { ContentPatch } from "./content-edit";
 import { plantMetaUpdate, type PlantMetaPatch } from "./plant-meta";
@@ -378,14 +377,6 @@ export async function getSprout(slug: string): Promise<Sprout | null> {
   return db.collection<Sprout>("sprouts").findOne({ slug }, { projection: { _id: 0 } });
 }
 
-// Updates ONLY the editable fields via $set. Never touches slug / parents / media /
-// source / content, so an edit can never re-parent or drop carried media. slug is
-// immutable, so there is no unique-index collision path here.
-export async function updateVersion(slug: string, patch: SproutPatch): Promise<void> {
-  const db = await getDb();
-  await db.collection<Sprout>("sprouts").updateOne({ slug }, { $set: { ...patch } });
-}
-
 // Hard delete (roadmap A2). Idempotent — deleting a missing slug is a no-op
 // (deleteOne matches 0). Callers needing the visibility recompute must seed the
 // sprout's bean parents and state BEFORE calling this; afterwards the sprout no
@@ -432,11 +423,13 @@ export async function setPrivate(plantSlugs: string[], podSlugs: string[], beanS
 /**
  * Writes prose and its mirrored relations — and nothing else.
  *
- * The two fields are named explicitly rather than spread, deliberately. This is
- * the mirror of updateVersion's `$set: { ...patch }`: because that one spreads,
- * `content` must never join SproutPatch (the metadata form has no content input
- * and would blank the prose on every save), and because this one does not
- * spread, a widened caller can never reach `state`, `media` or `source`.
+ * The two fields are named explicitly rather than spread, deliberately: a
+ * spread is what lets a widened caller reach `state`, `media` or `source` from
+ * a form that has no business touching them. This used to read as the mirror of
+ * the sprout's whole-record writer, which DID spread its patch and so had to
+ * keep `content` out of it or a metadata save would blank the prose. That
+ * writer is gone; the half that outlived it is the half that was ever this
+ * function's own.
  */
 async function writeContent(collection: string, slug: string, patch: ContentPatch): Promise<void> {
   const db = await getDb();
@@ -586,11 +579,12 @@ export async function updatePlantVisibility(slug: string, visibility: Visibility
 /**
  * Writes a sprout's media — and nothing else.
  *
- * A SIBLING of writeContent, not a widening of updateVersion. updateVersion
- * writes `$set: { ...patch }` and its comment promises it "never touches slug /
- * parents / media / source / content"; that promise is what makes the metadata
- * form safe, so media gets its own narrow writer instead. `media` is named
- * explicitly rather than spread, for the same reason writeContent names its
+ * A SIBLING of `writeContent`, not a widening of any metadata writer. It was
+ * written against the whole-record writer that then served the sprout's
+ * metadata form, whose comment promised it never touched media: media got a
+ * narrow writer of its own rather than a seat on that patch, which is why
+ * nothing here had to be unpicked when that writer was deleted. `media` is
+ * named explicitly rather than spread, for the reason `writeContent` names its
  * two fields: a spread lets a widened caller reach `state` or `source`.
  */
 export async function updateSproutMedia(slug: string, media: Media[]): Promise<void> {
@@ -609,6 +603,11 @@ export async function updateSproutMedia(slug: string, media: Media[]): Promise<v
  *
  * No `$unset` half, unlike `updatePlantMeta`: `Sprout.description` is required
  * in `lib/data.ts`, so a cleared description is `""`. See `lib/sprout-meta.ts`.
+ *
+ * None of the four touch `slug`, `parents`, `media`, `source` or `content`, so
+ * no edit from the head can re-parent a sprout or drop its carried media. That
+ * used to be one writer's comment about a spread it performed carefully; it is
+ * now a property of there being no spread at all.
  */
 export async function updateSproutMeta(slug: string, patch: SproutMetaPatch): Promise<void> {
   const db = await getDb();
