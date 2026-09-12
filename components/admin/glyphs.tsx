@@ -305,11 +305,21 @@ export function StatusGlyph({ status }: { status: PlantStatus }) {
  * member with no counterpart in the visibility vocabulary — which is the
  * honest reading of draft.
  *
+ * THE TWO DO CO-OCCUR, and it is worth knowing where before changing either.
+ * A plant hub stacks `BeanTable` and `SproutTable` as two previews on one page,
+ * so a reader scrolling it sees the same globe and the same lock in a
+ * `visibility` column and then in a `state` column. That is the intended
+ * reading — the same mark for the same underlying fact — but it means the two
+ * columns are told apart by their heading and their tooltip rather than at a
+ * glance. If a third vocabulary ever wants a globe, that is the page to look at
+ * before granting it one.
+ *
  * EXPORTED, and that is the point of it, exactly as `PLANT_STATUS_ICONS` is:
- * `sprout-hero.tsx`'s state trigger imports this map rather than picking the
- * same three lucide names again, so the icon on the head is the icon on the row
- * that links to it. `plant-hero.tsx` records what happens when that is a
- * comment instead of an import.
+ * the sprout head's state trigger (`sprout-hero.tsx`, the slice this map was
+ * written for) imports it rather than picking the same three lucide names
+ * again, so the icon on the head is the icon on the row that links to it.
+ * `plant-hero.tsx` records what happens when that is a comment instead of an
+ * import: the claim stays true only until someone picks a fourth `Zap`.
  */
 export const SPROUT_STATE_ICONS: Record<SproutState, ComponentType<{ className?: string }>> = {
   draft: PencilLine,
