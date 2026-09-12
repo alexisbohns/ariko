@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
  * an edge of the viewport, holding ghost icon-buttons that say their name on
  * hover. There were five of them and five implementations —
  * `app/admin/_components/admin-chrome.tsx` (the rail and the account cluster),
- * `app/admin/_components/plant-inside.tsx` (the Inside rail),
+ * `app/admin/_components/plant-rail.tsx` (the plant's Exhibition rail),
  * `app/(public)/_components/public-chrome.tsx` (the nav and the language pill).
  * `components/chrome-plate.ts` had already made the case for sharing their
  * PAINT; this is the same case, carried to their geometry and their behaviour.
@@ -77,7 +77,7 @@ export function Chrome({
    * outcome to the order Tailwind happens to emit its utilities in.
    */
   content?: boolean;
-  /** Additive classes only — see plant-inside.tsx's PLATE_WHILE_OPEN. */
+  /** Additive classes only — see plant-rail.tsx's PLATE_WHILE_OPEN. */
   className?: string;
   children: ReactNode;
 }) {
@@ -107,14 +107,14 @@ export function Chrome({
  *
  * Exported as a string rather than hidden inside a component because three call
  * sites cannot use `ChromeLink`: log out is a submit button inside a form, the
- * palette's trigger is a client button that opens a dialog, and the Inside
+ * palette's trigger is a client button that opens a dialog, and the plant
  * rail's is a Base UI `PopoverTrigger`. Base UI's `render` prop CLONES the
  * element it is handed and forwards its props to it, so a component that wrapped
  * the control in a span would receive the trigger's props — and its ref — on the
  * wrapper instead of on the button. Handing out the class is the composition
  * that cannot break.
  *
- * `current` is the active state: the rail's page, and the Inside rail's
+ * `current` is the active state: the rail's page, and the plant rail's
  * open panel.
  */
 export function chromeItemClass(current?: boolean): string {

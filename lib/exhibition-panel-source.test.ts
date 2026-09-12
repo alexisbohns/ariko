@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * The claim `plant-inside.tsx`'s docblock rests on, enforced rather than
+ * The claim `plant-rail.tsx`'s docblock rests on, enforced rather than
  * written down: the client island composes no Exhibition payload and learns
  * no field name, because the panel's contents are server-rendered by
  * `app/admin/plant/[slug]/page.tsx` and handed down as the `exhibition` prop
@@ -16,13 +16,13 @@ import { join } from "node:path";
  * describe for their own files:
  *
  *  - Someone imports `reorderExhibitionAction`, or a field name, into
- *    `plant-inside.tsx` — to fire a "Clear all" straight from the island,
+ *    `plant-rail.tsx` — to fire a "Clear all" straight from the island,
  *    say. `tsc` passes: the action is a plain async function and nothing
  *    stops a client component from importing one. `npm test` passes: nothing
  *    else in the suite reads this file's import list. `npm run build`
  *    passes: a server action imported into a client component is legal
  *    Next — it becomes an RPC. The panel keeps working. What is gone,
- *    silently, is the property `plant-inside.tsx`'s docblock claims: the
+ *    silently, is the property `plant-rail.tsx`'s docblock claims: the
  *    island now knows a field name and the next change to it can build a
  *    payload of its own.
  *
@@ -41,7 +41,7 @@ import { join } from "node:path";
  * X" and "this file is a client component" are properties of the file AS
  * WRITTEN, and `renderToStaticMarkup` cannot see either.
  *
- * There used to be a third test here, rendering PlantInside with a marker as
+ * There used to be a third test here, rendering PlantRail with a marker as
  * `exhibition.panel` and asserting the marker never reached the script-off
  * HTML. It pinned an entry in CLAUDE.md's exception ledger; the rulebook slice
  * replaced that ledger with three invariants, under which an admin island
@@ -50,19 +50,19 @@ import { join } from "node:path";
  * invariant 3's territory and survives the ledger intact.
  */
 
-const PLANT_INSIDE = "app/admin/_components/plant-inside.tsx";
+const PLANT_RAIL = "app/admin/_components/plant-rail.tsx";
 const EXHIBITION_PANEL = "app/admin/_components/exhibition-panel.tsx";
 
 function source(path: string): string {
   return readFileSync(join(process.cwd(), path), "utf8");
 }
 
-test(`${PLANT_INSIDE} imports no server action and no lib module that would let it compose a payload`, () => {
-  const text = source(PLANT_INSIDE);
+test(`${PLANT_RAIL} imports no server action and no lib module that would let it compose a payload`, () => {
+  const text = source(PLANT_RAIL);
   for (const spec of ["../actions", "@/lib/exhibition", "@/lib/data"]) {
     assert.ok(
       !text.includes(`from "${spec}"`) && !text.includes(`from '${spec}'`),
-      `${PLANT_INSIDE} must not import from "${spec}" — that would let the ` +
+      `${PLANT_RAIL} must not import from "${spec}" — that would let the ` +
         `island compose the Exhibition payload plant-hero.tsx's arrangement ` +
         `is meant to keep server-side`,
     );

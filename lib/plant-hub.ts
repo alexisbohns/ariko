@@ -18,10 +18,14 @@ import { resolveText, type Bean, type Dataset, type Pod, type Text } from "./dat
  * narrower question with a safe, one-definition answer, and it is still worth
  * having exactly once.
  *
- * One definition, for two callers — the hub's preview and `/admin/beans`
- * scoped to a plant, neither built yet — so the preview's count and the
- * section's count will be the same number by construction rather than by
- * coincidence, once both exist.
+ * One definition, two callers: the hub's bean preview
+ * (`app/admin/plant/[slug]/page.tsx`) and `/admin/beans` scoped to a plant.
+ * **They report the same count because they call the same function**, not
+ * because two pieces of arithmetic happen to agree — which is the property to
+ * protect when a third caller appears. Inlining the rollup at either one, or
+ * "simplifying" it to `beansForPlant`, leaves a hub that says 4 links to a
+ * section that shows 11, and passes `tsc`, `npm test` and `npm run build`
+ * while doing it.
  */
 
 /**

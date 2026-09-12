@@ -1,14 +1,28 @@
 import { notFound } from "next/navigation";
-import { buildDataset, resolveText, textPart, PLANT_PREFIX, parentsWithPrefix } from "@/lib/data";
+import {
+  buildDataset,
+  resolveText,
+  textPart,
+  PLANT_PREFIX,
+  POD_PREFIX,
+  parentsWithPrefix,
+} from "@/lib/data";
 import { loadRawGarden } from "@/lib/store";
 import { entityOptions } from "@/lib/entity-options";
+import { beansForPlantDeep, podsForPlantSorted } from "@/lib/plant-hub";
+import { filterSproutEntries } from "@/lib/sprouts";
 import { editContainerContentAction } from "../../actions";
 import { PlantHero } from "../../_components/plant-hero";
-import { PlantInside, type InsideItem } from "../../_components/plant-inside";
+import { PlantRail } from "../../_components/plant-rail";
 import { ExhibitionPanel, type ExhibitionPanelRow } from "../../_components/exhibition-panel";
 import { PlantMetaForm } from "../../_components/plant-meta-form";
 import { PlantRoleForm } from "../../_components/plant-role-form";
 import { PlantLogoForm } from "../../_components/plant-logo-form";
+import { PreviewPanel } from "../../_components/preview-panel";
+import { PodTable, type PodRow } from "../../_components/pod-table";
+import { BeanTable, type BeanRow } from "../../_components/bean-table";
+import { SproutTable } from "../../_components/sprout-table";
+import { ScreenStrip, type StripItem } from "../../_components/screen-strip";
 import { ProseEditor } from "@/components/editor/prose-editor";
 import { roleParts } from "@/lib/plant-role";
 import { statusOf } from "@/lib/plant-status";
@@ -17,18 +31,40 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export const dynamic = "force-dynamic";
 
+/** How many rows a preview draws before deferring to its section. */
+const PREVIEW_ROWS = 5;
+
+/** How many thumbnails the screens preview draws — one row of the grid. */
+const PREVIEW_SCREENS = 4;
+
 /**
- * A plant, as one page rather than as five stacked cards.
+ * A plant, as its HUB.
  *
  * The mark, the name and three icons are the whole header; each editor is one
  * click behind the thing it edits (the logo behind the logo, meta behind the
  * title, the role behind the crown), and the two enum fields open their
  * vocabulary as radios and commit on a separate Save — never on the click that
- * opens them. What is left in the column is the prose — unboxed,
- * because it is the page's actual content and a card around it was a frame
- * around the only thing worth looking at. The index of pods and beans moved to
- * a floating panel on a right-hand rail, where it costs the page nothing until
- * it is asked for.
+ * opens them. Below that is the prose — unboxed, because it is the page's
+ * actual content and a card around it was a frame around the only thing worth
+ * looking at.
+ *
+ * Below THAT is what the plant contains: four previews — the three tiers under
+ * a plant, then its screens. The three tiers are drawn by the very component
+ * their section draws (`PodTable`, `BeanTable`, `SproutTable`) with a row
+ * limit and no plant column, since this page is already inside a plant; the
+ * screens are `ScreenStrip`, which is NOT the library's tiles, for the reason
+ * that file gives. Each heading carries the FULL count and links into
+ * its section pre-filtered by `?plant=`, so the preview is an entry point and
+ * never a second, shorter truth: the page shows five and says how many there
+ * are, and the section it points at narrows by the same rule this page counted
+ * with. For beans that rule is `beansForPlantDeep`, the one function both
+ * sides call, which is why the hub's number and `/admin/beans?plant=`'s number
+ * cannot drift.
+ *
+ * This replaced a floating "Inside" panel that listed the plant's pods and
+ * beans one click behind an icon, because the page had nowhere in the document
+ * to put them. It has one now. What stayed on the rail is the Exhibition
+ * panel, which reorders the strip — the one thing a preview cannot do.
  */
 export default async function AdminPlantPage({
   params,
@@ -45,21 +81,39 @@ export default async function AdminPlantPage({
   if (!plant) notFound();
 
   const dataset = buildDataset(raw);
-  const inside: InsideItem[] = [
-    ...dataset.podsForPlant(slug).map((pod) => ({
-      href: `/admin/pod/${pod.slug}`,
-      name: resolveText(pod.name),
-      ref: `pod:${pod.slug}`,
-    })),
-    ...dataset.beansForPlant(slug).map((bean) => ({
-      href: `/admin/bean/${bean.slug}`,
+
+  // The four sets, at FULL length. Each preview slices for display and reports
+  // `count` from the length here — `PreviewPanel`'s docblock is explicit that
+  // passing the drawn length instead renders "Pods (5) · all 5 →" over a
+  // garden of forty, and promises a link that goes nowhere new.
+  const pods = podsForPlantSorted(dataset, slug);
+  const beans = beansForPlantDeep(dataset, slug);
+  const sprouts = filterSproutEntries(dataset.timelineSprouts(), { plant: slug });
+
+  // Built exactly as `/admin/pods` and `/admin/beans` build theirs, minus the
+  // plant mark: `showPlant={false}` below drops that column, and a mark
+  // computed for a column nobody draws is work done to be thrown away.
+  const podRows: PodRow[] = pods.map((pod) => ({
+    slug: pod.slug,
+    name: resolveText(pod.name),
+    visibility: pod.visibility ?? "public",
+    hasNarrative: textPart(pod.content, "en").trim().length > 0,
+    beanCount: dataset.beansForPod(pod.slug).length,
+  }));
+
+  const beanRows: BeanRow[] = beans.map((bean) => {
+    const podSlug = parentsWithPrefix(bean.parents, POD_PREFIX)[0];
+    return {
+      slug: bean.slug,
       name: resolveText(bean.name),
-      ref: `bean:${bean.slug}`,
-    })),
-  ];
+      visibility: bean.visibility ?? "public",
+      sproutCount: dataset.sproutsForBean(bean.slug).length,
+      ...(podSlug ? { pod: podSlug } : {}),
+    };
+  });
 
   // The plant's screens, from the garden already loaded. Every screen it has —
-  // the panel needs the count to decide whether the rail shows a second icon at
+  // the preview counts them, and the rail needs to know whether to appear at
   // all — and the exhibited ones, in strip order, from `dataset` rather than a
   // second `exhibitionOf` narrowing: `buildDataset` already builds this exact
   // index (`exhibitionForPlant`), filtered by `exhibited === true` and sorted
@@ -74,6 +128,18 @@ export default async function AdminPlantPage({
     url: s.image.url,
     alt: s.image.alt ?? "",
   }));
+  const stripItems: StripItem[] = plantScreens.slice(0, PREVIEW_SCREENS).map((s) => ({
+    slug: s.slug,
+    name: resolveText(s.name),
+    url: s.image.url,
+    alt: s.image.alt ?? "",
+  }));
+
+  // One query string, four hrefs. `encodeURIComponent` because a slug is not
+  // guaranteed to be URL-safe, and this is the same spelling `navHref` and
+  // `scopeHref` use — the scope a preview hands to a section is the scope the
+  // chrome would have handed it.
+  const scopeQuery = `?plant=${encodeURIComponent(slug)}`;
 
   const { label, title } = roleParts(plant.role);
   // Which sheet a rejected save came from — narrowed here rather than trusted:
@@ -82,12 +148,11 @@ export default async function AdminPlantPage({
   const errorForm = form === "meta" || form === "role" ? form : undefined;
 
   return (
-    // PlantInside wraps the WHOLE body, not just the editor: its panel floats
+    // PlantRail wraps the WHOLE body, not just the editor: its panel floats
     // over the page and the page slides out from under it, so what slides has
     // to be everything — a header that stayed put while the prose moved would
     // read as a glitch rather than as a nudge.
-    <PlantInside
-      items={inside}
+    <PlantRail
       // One prop carrying both the trigger's count and the popover's
       // server-rendered contents, so the two cannot disagree. Absent when the
       // plant has no screens at all: a rail icon opening onto "nothing to
@@ -103,10 +168,10 @@ export default async function AdminPlantPage({
     >
       <article className="flex flex-col gap-10">
         <a
-          href="/admin/garden"
+          href="/admin"
           className="self-start text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
         >
-          ← garden
+          ← plants
         </a>
 
         <PlantHero
@@ -163,7 +228,37 @@ export default async function AdminPlantPage({
           action={editContainerContentAction}
           hidden={{ ref: `plant:${plant.slug}` }}
         />
+
+        {/* Two columns where there is room for two, one where there is not.
+            The previews are in tier order — pods hold beans, beans hold
+            sprouts — and screens last, because they are the only ones that are
+            not a tier of the content model. */}
+        <div className="grid gap-8 lg:grid-cols-2">
+          <PreviewPanel title="Pods" count={pods.length} allHref={`/admin/pods${scopeQuery}`}>
+            <PodTable rows={podRows} limit={PREVIEW_ROWS} showPlant={false} />
+          </PreviewPanel>
+
+          <PreviewPanel title="Beans" count={beans.length} allHref={`/admin/beans${scopeQuery}`}>
+            <BeanTable rows={beanRows} limit={PREVIEW_ROWS} showPlant={false} />
+          </PreviewPanel>
+
+          <PreviewPanel
+            title="Sprouts"
+            count={sprouts.length}
+            allHref={`/admin/sprouts${scopeQuery}`}
+          >
+            <SproutTable entries={sprouts} limit={PREVIEW_ROWS} showPlant={false} />
+          </PreviewPanel>
+
+          <PreviewPanel
+            title="Screens"
+            count={plantScreens.length}
+            allHref={`/admin/screens${scopeQuery}`}
+          >
+            <ScreenStrip items={stripItems} />
+          </PreviewPanel>
+        </div>
       </article>
-    </PlantInside>
+    </PlantRail>
   );
 }

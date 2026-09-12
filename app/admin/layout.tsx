@@ -23,11 +23,11 @@ import type { PlantMark } from "./_components/plant-switcher";
  * The page makes ROOM for it when one is open, and the whole of that is the CSS
  * below: `:has(~ [data-screen-sheet])` asks whether a panel exists beside this
  * wrapper, which needs no open flag, no client state and no knowledge of the
- * route. It is the idiom `plant-inside.tsx` already uses to hold its plate open
+ * route. It is the idiom `plant-rail.tsx` already uses to hold its plate open
  * under a portaled popover.
  *
  * IT MAKES ROOM RATHER THAN MOVING, and the distinction is the whole of a bug
- * this shipped with. The first version was `plant-inside.tsx`'s move — a 14rem
+ * this shipped with. The first version was `plant-rail.tsx`'s move — a 14rem
  * negative translate — with that file's reasoning copied across: a transform
  * does not re-flow, so the grid keeps its columns and its scroll position. Both
  * halves of that were wrong here.
@@ -37,7 +37,7 @@ import type { PlantMark } from "./_components/plant-switcher";
  * into the stylesheet. The docs/ specs do this too — a code block in a plan is
  * indistinguishable from markup to the scanner.)
  *
- * A transform does not make room, it MOVES. `PlantInside` nudges a *reading*
+ * A transform does not make room, it MOVES. `PlantRail` nudges a *reading*
  * column 7rem and gets away with it because a 768px measure on a wide screen
  * has gutters to spare. The library is the WIDE column, and 14rem pushed its
  * left edge past the viewport: the page title rendered as "creens" and the

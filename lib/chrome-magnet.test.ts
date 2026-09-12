@@ -46,7 +46,7 @@ test("labels open away from the edge the cluster is pinned to", () => {
   assert.equal(magnetLabelSide("top-left"), "bottom"); // the public nav
   assert.equal(magnetLabelSide("top-right"), "bottom"); // the account cluster
   assert.equal(magnetLabelSide("left"), "right"); // the admin rail
-  assert.equal(magnetLabelSide("right"), "left"); // the plant's Inside rail
+  assert.equal(magnetLabelSide("right"), "left"); // the plant's Exhibition rail
   assert.equal(magnetLabelSide("bottom-center"), "top");
 });
 
