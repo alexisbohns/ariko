@@ -19,7 +19,7 @@ import sharp from "sharp";
 
 const ROOT = process.cwd();
 
-/** The three literal colours the artwork ships, and the tokens they become. */
+/** The three literal colours the artwork ships, as svgo normalises them (`black` → `#000`), and the tokens they become. */
 const INK = "#000";
 const LEAF_DARK = "#006400";
 const LEAF_LIGHT = "#90ee90";
@@ -161,11 +161,11 @@ const CLEAR: Rgba = { r: 0, g: 0, b: 0, alpha: 0 };
 const WHITE: Rgba = { r: 255, g: 255, b: 255, alpha: 1 };
 
 /**
- * ≈4× the CSS-pixel default of 96dpi. `removeDimensions` leaves the source
- * SVG with a viewBox but no width/height, so librsvg falls back to a small
- * intrinsic size unless told otherwise; at 384dpi a 320-unit viewBox
- * rasterises to ~1280px, comfortably above the largest output below (512),
- * so every icon downsamples cleanly instead of upsampling a blurry one.
+ * sharp rasterises SVG at 72dpi by default. `removeDimensions` leaves the
+ * source with a viewBox and no width/height, so at the default it comes out
+ * at exactly its viewBox — 320×320, BELOW the 512 icon, which would then be
+ * upsampled from a 320px bitmap. 384dpi is 320 × 384/72 ≈ 1707px, comfortably
+ * above every size below, so all four downsample cleanly instead.
  */
 const RASTER_DENSITY = 384;
 
