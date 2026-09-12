@@ -34,7 +34,14 @@ test("section roots resolve to themselves", () => {
   assert.equal(resolveNavItem("/admin/pods"), "/admin/pods");
   assert.equal(resolveNavItem("/admin/beans"), "/admin/beans");
   assert.equal(resolveNavItem("/admin/sprouts"), "/admin/sprouts");
+  assert.equal(resolveNavItem("/admin/screens"), "/admin/screens");
   assert.equal(resolveNavItem("/admin/beanstalk"), "/admin/beanstalk");
+});
+
+test("Screens is a section, and its children light it", () => {
+  assert.equal(resolveNavItem("/admin/screens"), "/admin/screens");
+  assert.equal(resolveNavItem("/admin/screens/karma-top"), "/admin/screens");
+  assert.equal(resolveNavItem("/admin/screens/new"), "/admin/screens");
 });
 
 test("detail routes resolve to the section they belong to", () => {
@@ -46,6 +53,11 @@ test("detail routes resolve to the section they belong to", () => {
 
 test("a plant page belongs to Overview, which only exists when scoped", () => {
   assert.equal(resolveNavItem("/admin/plant/ariko"), "/admin/plant/ariko");
+});
+
+test("a plant route tolerates depth — a hub child still lights Overview", () => {
+  assert.equal(resolveNavItem("/admin/plant/ariko/screens"), "/admin/plant/ariko");
+  assert.equal(resolveNavItem("/admin/plant/ariko/screens/karma-top"), "/admin/plant/ariko");
 });
 
 test("login belongs to no section", () => {
@@ -60,6 +72,12 @@ test("an unknown admin route highlights nothing", () => {
 test("a prefix must end at a segment boundary", () => {
   assert.equal(resolveNavItem("/admin/podsy"), null);
   assert.equal(resolveNavItem("/admin/beanstalked"), null);
+  // Screens has no singular "/admin/screen" entry the way pod/bean/sprout do.
+  // "screen" would be a STRING prefix of "screens" without being a PATH
+  // prefix of it, and both directions have to stay out: /admin/screenshots is
+  // a route "screens" is not a path-prefix of, and /admin/screen/karma-top is
+  // a route a hypothetical "screen" entry would wrongly claim were one ever
+  // added without the same boundary check.
   assert.equal(resolveNavItem("/admin/screenshots"), null);
   assert.equal(resolveNavItem("/admin/screen/karma-top"), null);
 });
@@ -87,6 +105,18 @@ test("navHref carries the scope to a section and leaves Overview alone", () => {
   assert.equal(navHref(NAV_ITEMS[1], null), "/admin/pods");
   const overview = navItems("ariko")[0];
   assert.equal(navHref(overview, "ariko"), "/admin/plant/ariko");
+});
+
+test("navHref encodes the scope through the shared filter builder, not its own", () => {
+  // Pins the spelling to filterHref's (URLSearchParams: "+"), not a stray
+  // encodeURIComponent ("%20") that would make this a second encoder for the
+  // same query key.
+  assert.equal(navHref(NAV_ITEMS[1], "a b"), "/admin/pods?plant=a+b");
+});
+
+test("Beanstalk never carries a scope — the docblock's reason it isn't in a scoped rail", () => {
+  const beanstalk = NAV_ITEMS.find((item) => item.id === "beanstalk")!;
+  assert.equal(navHref(beanstalk, "ariko"), "/admin/beanstalk");
 });
 
 test("every section index reads in the wide column", () => {

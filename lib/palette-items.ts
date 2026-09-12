@@ -1,4 +1,4 @@
-import { NAV_ITEMS } from "./admin-nav";
+import { NAV_ITEMS, type NavId } from "./admin-nav";
 
 /**
  * The half of the palette model the BROWSER is allowed to have.
@@ -48,6 +48,11 @@ export const SECTION_ID_PREFIX = "section:";
  * than re-typed, so a new section appears in both places or in neither. The
  * UNSCOPED rail: the palette is a navigator, and Overview is a destination
  * that only means something relative to a scope the palette does not have.
+ *
+ * Called by `buildPaletteIndex` on the server AND used directly by the palette
+ * as its starting index, which is the same function in both places by design:
+ * it is what makes the palette impossible to open onto nothing. It touches no
+ * garden and no network, so it cannot fail.
  */
 export function sectionItems(): PaletteItem[] {
   return NAV_ITEMS.map((nav) => ({
@@ -57,6 +62,21 @@ export function sectionItems(): PaletteItem[] {
     href: nav.href,
     group: "Go to",
   }));
+}
+
+/**
+ * The other half of the id grammar `sectionItems()` writes: the `NavId` a
+ * section row's id names, or null when the id was never one of these in the
+ * first place. `iconFor` (command-palette.tsx) needs this rather than its own
+ * `slice` + cast — an unchecked cast over a plain `string` is exactly the kind
+ * of thing that slices garbage out of a malformed id and silently falls
+ * through to the generic icon, which is the same "two sections draw the same
+ * picture" bug `lib/section-icons.test.ts` exists to catch, arriving by the
+ * one path that test cannot see.
+ */
+export function sectionNavId(item: PaletteItem): NavId | null {
+  if (item.kind !== "section" || !item.id.startsWith(SECTION_ID_PREFIX)) return null;
+  return item.id.slice(SECTION_ID_PREFIX.length) as NavId;
 }
 
 /** Group a flat index for rendering, dropping empty groups and preserving

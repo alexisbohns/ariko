@@ -1,3 +1,5 @@
+import { filterHref } from "./admin-filters";
+
 /**
  * The admin rail's model. Pure and JSX-free so `npm test` can reach it: the
  * rail itself is a client component, and icons are bound to these ids there.
@@ -34,7 +36,7 @@ export interface NavItem {
   label: string;
 }
 
-export const NAV_ITEMS: NavItem[] = [
+export const NAV_ITEMS: readonly NavItem[] = [
   { id: "inbox", href: "/admin/inbox", label: "Inbox" },
   { id: "pods", href: "/admin/pods", label: "Pods" },
   { id: "beans", href: "/admin/beans", label: "Beans" },
@@ -44,7 +46,7 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 /** The rail for a given scope. See the docblock for why it is a function. */
-export function navItems(scope: string | null): NavItem[] {
+export function navItems(scope: string | null): readonly NavItem[] {
   if (!scope) return NAV_ITEMS;
   return [
     {
@@ -57,19 +59,37 @@ export function navItems(scope: string | null): NavItem[] {
 }
 
 /**
- * A rail item's href, carrying the scope. Overview already IS the scope, so it
- * is left alone — appending ?plant= to a plant's own page would be a second
- * spelling of the same fact, and `resolveScope` would then have two sources to
- * disagree about.
+ * A rail item's href, carrying the scope through the one encoder every other
+ * filtering control already uses (`lib/admin-filters.ts`'s `filterHref`) —
+ * so `?plant=a+b` is spelled the same way here as it is in `scopeHref`
+ * (lib/admin-scope.ts), rather than this file keeping its own
+ * `encodeURIComponent` as a second, silently different builder for the same
+ * query key. Delegating also means a `NavItem.href` that ever carried a query
+ * of its own would gain `plant` correctly instead of a bare `?plant=` suffix
+ * producing `?a=b?plant=s`.
+ *
+ * Two ids are left alone regardless of scope, for the same reason stated
+ * twice rather than once: Overview already IS the scope — appending `?plant=`
+ * to a plant's own page would be a second spelling of the same fact, and
+ * `resolveScope` would then have two sources to disagree about — and
+ * Beanstalk never admits one at all (see the docblock above): `navItems`
+ * never emits a scoped rail that still contains Beanstalk, and this function
+ * keeps that true even if it is ever called with a stale or hand-built item.
  */
 export function navHref(item: NavItem, scope: string | null): string {
-  if (!scope || item.id === "overview") return item.href;
-  return `${item.href}?plant=${encodeURIComponent(scope)}`;
+  if (!scope || item.id === "overview" || item.id === "beanstalk") return item.href;
+  return filterHref(item.href, {}, ["plant"], "plant", scope);
 }
 
-// [route prefix, the nav href it lights]. Order is irrelevant — no prefix here
-// is a prefix of another, and the boundary check below is what keeps that true
-// as routes are added.
+// [route prefix, the nav href it lights]. Order is irrelevant, but for a
+// narrower reason than "no string here is a prefix of another" — that reads
+// false today: "/admin/pod" is a string-prefix of "/admin/pods", "/admin/bean"
+// is a string-prefix of both "/admin/beans" and "/admin/beanstalk", and
+// "/admin/sprout" is a string-prefix of "/admin/sprouts". The invariant that
+// actually holds, and the one the boundary check below makes safe, is that no
+// entry is a PATH prefix of another: no entry equals another, and no entry is
+// another followed by "/". That is the one thing to check before adding a
+// route here — a plain string prefix like the four above is fine.
 const SECTIONS: ReadonlyArray<readonly [string, string]> = [
   ["/admin/inbox", "/admin/inbox"],
   ["/admin/triage", "/admin/inbox"],
@@ -88,12 +108,19 @@ const SECTIONS: ReadonlyArray<readonly [string, string]> = [
  * none (the welcome page, the login page, and anything unrecognized — an
  * unknown route lights nothing rather than guessing).
  *
- * A plant page resolves to ITSELF, which is how Overview lights: the rail's
- * Overview href for scope `s` is `/admin/plant/s`, and that is the pathname.
+ * A plant page resolves to its own two-segment address
+ * (`/admin/plant/<slug>`), truncated from whatever follows — which is how
+ * Overview lights: the rail's Overview href for scope `s` is
+ * `/admin/plant/s`, and truncation is what makes that still true once the hub
+ * grows children of its own, the way every other section already tolerates a
+ * detail route underneath it.
  */
 export function resolveNavItem(pathname: string): string | null {
   const path = normalize(pathname);
-  if (path.startsWith(PLANT_PREFIX_PATH)) return path;
+  if (path.startsWith(PLANT_PREFIX_PATH)) {
+    const slug = path.slice(PLANT_PREFIX_PATH.length).split("/")[0];
+    return slug ? `${PLANT_PREFIX_PATH}${slug}` : null;
+  }
   for (const [prefix, href] of SECTIONS) {
     // The boundary check is what keeps "/admin/podsy" out of Pods.
     if (path === prefix || path.startsWith(`${prefix}/`)) return href;

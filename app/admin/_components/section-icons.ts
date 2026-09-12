@@ -3,7 +3,7 @@ import type { ComponentType } from "react";
 import type { NavId } from "@/lib/admin-nav";
 
 /**
- * One href → icon map for the admin's sections, drawn by both the rail
+ * One id → icon map for the admin's sections, drawn by both the rail
  * (admin-chrome.tsx) and the palette's "Go to" rows (command-palette.tsx), so
  * the same destination looks the same in both places.
  *
