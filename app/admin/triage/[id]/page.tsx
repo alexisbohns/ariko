@@ -47,7 +47,7 @@ export default async function TriagePage({
       <div className="flex flex-col gap-8">
         <div className="flex flex-col gap-3">
           <a
-            href="/admin"
+            href="/admin/inbox"
             className="text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
           >
             ← inbox
