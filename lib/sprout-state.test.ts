@@ -34,6 +34,23 @@ test("lib/sprout-state.ts imports nothing that reaches node:", async () => {
   // lib/sprouts.ts imports resolveText as a VALUE from lib/data.ts, which
   // opens with node:fs. A value import added here would fail `npm run build`
   // with UnhandledSchemeError and nothing earlier would notice.
+  //
+  // WHAT THIS ACTUALLY CHECKS, because the failure is otherwise confusing: the
+  // SYNTAX of every import statement, not the module each one resolves to. Two
+  // consequences, both deliberate.
+  //
+  // It is STRICTER than the rule it protects. `lib/palette-items.ts` imports a
+  // value — just not from a node-reaching module — and would fail this test.
+  // That is fine for a file this narrow: the cheapest way to guarantee nothing
+  // reaches `node:` four hops down is to let nothing but types in at all, and
+  // `lib/server-safe-source.test.ts` is the place that polices import TARGETS
+  // when a file needs real dependencies.
+  //
+  // And it rejects two spellings that are harmless: a per-specifier
+  // `import { type Sprout } from "./data"`, and anything that puts a newline
+  // between `import` and `type`. Both erase at compile time, so if one of them
+  // ever trips this, the test is what is wrong and not the import — rewrite it
+  // as a top-level `import type`, or widen the regex. Do NOT delete the test.
   const { readFileSync } = await import("node:fs");
   const source = readFileSync("lib/sprout-state.ts", "utf8");
   assert.equal(
