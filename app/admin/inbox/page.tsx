@@ -1,7 +1,11 @@
 import { type Plant, type Seed, resolveText } from "@/lib/data";
 import { listSeeds } from "@/lib/seeds";
 import { loadRawGarden } from "@/lib/store";
+import { filterHref } from "@/lib/admin-filters";
+import { resolveScope, scopeKeysFor } from "@/lib/admin-scope";
+import { filterSeedsByPlant } from "@/lib/inbox-filter";
 import { SeedOverlay } from "../_components/seed-overlay";
+import { AdminFilters, type FilterGroup } from "../_components/admin-filters";
 import { SeedSourceGlyph, type EntityMark } from "@/components/admin/glyphs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -14,6 +18,14 @@ import {
 } from "@/components/ui/table";
 
 export const dynamic = "force-dynamic";
+
+const PATH = "/admin/inbox";
+
+// The accessor, not a bare index: `tsconfig.json` has `strict` without
+// `noUncheckedIndexedAccess`, so a bare `scopeKeys[PATH]` is typed as always
+// present and a renamed path would reach `filterQuery` as undefined — "keys is
+// not iterable" at runtime, clean through `tsc`, `npm test` and `npm run build`.
+const KEYS = scopeKeysFor(PATH) ?? [];
 
 function noteSnippet(body: Seed["body"]): string {
   const text = body?.en || body?.fr || "";
@@ -56,12 +68,35 @@ function ageLabel(createdAt: string, now: number): string {
   return `${Math.round(hrs / 24)}d`;
 }
 
+/**
+ * The inbox, narrowed by the plant a seed SUGGESTS.
+ *
+ * The rule itself is `lib/inbox-filter.ts`, not this page: a seed that
+ * suggests nothing is not evidence of membership, so it appears under All and
+ * under no plant — the same refusal `plantMark` above makes when it declines
+ * to draw an avatar for a suggestion the garden cannot resolve. The scope
+ * itself comes from `resolveScope`, the one reader of `?plant=`, so every
+ * surface that asks what a URL is scoped to gets the same answer — the table,
+ * the filter trigger below it, and whatever else comes to ask.
+ *
+ * The heading carries BOTH numbers while a scope is active — `Inbox (3 of 11)`
+ * — and a narrowed queue that hides rows says how many more are under All,
+ * because the failure to avoid here is an author reading a narrowed inbox as
+ * an empty one and capturing a seed they already have.
+ *
+ * `SeedOverlay`'s `inboxCount` stays the UNFILTERED total on purpose: it is
+ * how the overlay detects that a save landed (one more seed than it last saw)
+ * and closes itself. Handed the narrowed count, a capture whose suggestion
+ * falls outside the current scope would leave the count unchanged, and the
+ * overlay would sit open over a seed that was in fact saved.
+ */
 export default async function AdminInboxPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; plant?: string }>;
 }) {
-  const { error } = await searchParams;
+  const active = await searchParams;
+  const { error } = active;
 
   let seeds: Seed[] | null = null;
   try {
@@ -82,6 +117,47 @@ export default async function AdminInboxPage({
 
   const now = Date.now();
 
+  const scope = resolveScope(PATH, active);
+  const total = seeds?.length ?? 0;
+  const visible = filterSeedsByPlant(seeds ?? [], scope);
+  const hidden = total - visible.length;
+
+  // The options are the slugs the queue actually suggests, not the garden's
+  // plants: an option that matches nothing is a click that empties the table
+  // for no reason, and a suggestion naming a plant the garden no longer holds
+  // still needs a way to be found.
+  //
+  // Named rather than spelled inline: `as const` on an inline array makes a
+  // READONLY tuple, which `FilterGroup["options"]` does not admit — the same
+  // move the pods, sprouts and screens pages make.
+  const plantOptions = [
+    "all",
+    ...[
+      ...new Set(
+        (seeds ?? []).flatMap((seed) =>
+          seed.suggested?.plantSlug ? [seed.suggested.plantSlug] : [],
+        ),
+      ),
+    ].sort(),
+  ];
+
+  // `scope` rather than `active.plant` for `current`, so the trigger reads what
+  // the rows were actually narrowed by: `?plant=all` and a repeated `?plant=`
+  // are both "no filter" to `resolveScope`, and a trigger reading either back
+  // as a filter would be the chrome contradicting the page.
+  //
+  // `KEYS` is `["plant"]`, so `filterHref` drops `?error=` on the way out —
+  // which is the behaviour wanted: a filter click is not a re-run of the save
+  // that failed, and the overlay should not reopen onto a stale banner.
+  const groups: FilterGroup[] = [
+    {
+      key: "plant",
+      options: plantOptions,
+      current: scope ?? "all",
+      hrefs: plantOptions.map((opt) => filterHref(PATH, active, KEYS, "plant", opt)),
+    },
+  ];
+
   return (
     <article>
       <div className="flex flex-col gap-8">
@@ -89,10 +165,14 @@ export default async function AdminInboxPage({
           <div className="flex items-center gap-3">
             <h1 className="font-heading text-2xl font-medium tracking-tight">
               Inbox{" "}
-              {seeds ? <span className="text-muted-foreground">({seeds.length})</span> : null}
+              {seeds ? (
+                <span className="text-muted-foreground">
+                  ({scope ? `${visible.length} of ${total}` : total})
+                </span>
+              ) : null}
             </h1>
             <div className="ml-auto">
-              <SeedOverlay error={error} inboxCount={seeds?.length ?? 0} />
+              <SeedOverlay error={error} inboxCount={total} />
             </div>
           </div>
           {seeds === null ? (
@@ -102,39 +182,57 @@ export default async function AdminInboxPage({
           ) : seeds.length === 0 ? (
             <p className="text-sm text-muted-foreground">Inbox empty.</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>source</TableHead>
-                  <TableHead>title</TableHead>
-                  <TableHead>note</TableHead>
-                  <TableHead>media</TableHead>
-                  <TableHead>age</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {seeds.map((c) => (
-                  <TableRow key={c.id}>
-                    <TableCell>
-                      <SeedSourceGlyph kind={c.source.kind} plant={plantMark(c, plants)} />
-                    </TableCell>
-                    <TableCell>
-                      <a
-                        href={`/admin/triage/${c.id}`}
-                        className="underline-offset-4 transition-colors hover:underline"
-                      >
-                        {resolveText(c.title)}
-                      </a>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{noteSnippet(c.body)}</TableCell>
-                    <TableCell className="text-muted-foreground">{mediaLabel(c.media)}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {ageLabel(c.createdAt, now)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <>
+              <AdminFilters groups={groups} />
+              {visible.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No seeds suggest this plant.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>source</TableHead>
+                      <TableHead>title</TableHead>
+                      <TableHead>note</TableHead>
+                      <TableHead>media</TableHead>
+                      <TableHead>age</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {visible.map((c) => (
+                      <TableRow key={c.id}>
+                        <TableCell>
+                          <SeedSourceGlyph kind={c.source.kind} plant={plantMark(c, plants)} />
+                        </TableCell>
+                        <TableCell>
+                          <a
+                            href={`/admin/triage/${c.id}`}
+                            className="underline-offset-4 transition-colors hover:underline"
+                          >
+                            {resolveText(c.title)}
+                          </a>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {noteSnippet(c.body)}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {mediaLabel(c.media)}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {ageLabel(c.createdAt, now)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+              {scope && hidden > 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  <a href={PATH} className="underline-offset-4 hover:underline">
+                    {hidden} more under All
+                  </a>
+                </p>
+              ) : null}
+            </>
           )}
         </section>
       </div>

@@ -118,29 +118,38 @@ export async function logoutAction(): Promise<void> {
 }
 
 // Map the form → raw body → the SAME validate + persist seam /api/inbox uses.
+//
+// The three seed actions land on "/admin/inbox", never on "/admin". The two
+// meant the same place while "/admin" WAS the inbox; the inbox has an address
+// of its own now and "/admin" lists no seeds, so an action still returning
+// there would drop the author out of the queue they were working through —
+// a regression that passes `tsc`, `npm test` and `npm run build`.
 export async function createSeedAction(formData: FormData): Promise<void> {
   await requireSession();
   const raw = buildSeedBody(formData);
   const parsed = validateInboxPayload(raw);
   if (!parsed.ok) {
-    redirect(`/admin?error=${encodeURIComponent(parsed.error)}`);
+    // The error flag has to come back to the page that renders the overlay:
+    // SeedOverlay reopens onto its banner from `?error=`, and "/admin" does
+    // not render the overlay at all.
+    redirect(`/admin/inbox?error=${encodeURIComponent(parsed.error)}`);
   }
   await createOrUpdateSeed(parsed.value);
-  redirect("/admin");
+  redirect("/admin/inbox");
 }
 
 export async function discardSeedAction(formData: FormData): Promise<void> {
   await requireSession();
   const seedId = String(formData.get("seedId") ?? "");
   await discardSeed(seedId);
-  redirect("/admin");
+  redirect("/admin/inbox");
 }
 
 export async function promoteSeedAction(formData: FormData): Promise<void> {
   await requireSession();
   const seedId = String(formData.get("seedId") ?? "");
   const seed = await getSeed(seedId);
-  if (!seed) redirect("/admin");
+  if (!seed) redirect("/admin/inbox");
 
   // Validate the version's own fields BEFORE any write, so an invalid version never
   // leaves orphan pod/bean docs behind.
@@ -228,7 +237,7 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
   if (slugError) {
     redirect(`/admin/triage/${seedId}?error=${encodeURIComponent(slugError)}`);
   }
-  redirect("/admin");
+  redirect("/admin/inbox");
 }
 
 export async function editVersionAction(formData: FormData): Promise<void> {
