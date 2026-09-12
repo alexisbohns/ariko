@@ -114,3 +114,42 @@ test("the meta form is rendered from the prop, never composed here", () => {
     );
   }
 });
+
+test("every fact popover is handed the message a rejection from it would carry", async () => {
+  // The whole point of routing `?form=` back to a surface. The page suppresses
+  // its own banner exactly when `?form=` names one, so a popover that reopens
+  // without rendering the message shows it NOWHERE — the author learns only
+  // that their click did nothing. That is the shape this head shipped with for
+  // one commit.
+  //
+  // Read from SOURCE, not from a render, for `lib/exhibition-panel-source.test.ts`'s
+  // reason: Base UI portals both the popover and the sheet, so an OPEN one
+  // still contributes zero bytes to renderToStaticMarkup — there is nothing
+  // for a rendered assertion to look at. Whether each trigger is WIRED to the
+  // message is a property of the file as written, and that is the property
+  // that was missing.
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync("app/admin/_components/sprout-hero.tsx", "utf8");
+
+  // Each trigger's OPENING TAG — from `<FactPopover` up to the line that closes
+  // it. Lazy, and anchored on a line that is only whitespace and `>`, because a
+  // prop value here contains `>` itself (`onOpenChange={(next) => …}`) and
+  // splitting on the first one lands in the middle of an arrow function.
+  const openingTags = [...source.matchAll(/<FactPopover\b([\s\S]*?)^\s*>/gm)].map((m) => m[1]);
+  assert.equal(openingTags.length, 3, "the head draws three fact triggers");
+
+  for (const [i, props] of openingTags.entries()) {
+    assert.match(
+      props,
+      /\berror=/,
+      `fact popover ${i + 1} must be handed an error prop, or a rejection from it reopens onto silence`,
+    );
+  }
+
+  // And the component must actually draw what it is handed.
+  assert.match(
+    source,
+    /error \? \(\s*<Alert/,
+    "FactPopover must render the error it receives",
+  );
+});

@@ -158,7 +158,8 @@ export function SproutHero({
                 a formality. */}
             <FactPopover
               open={open === "state"}
-              onOpenChange={(next) => setOpen(next ? "state" : null)}
+              onOpenChange={(next) => surface(next ? "state" : null)}
+              error={errorForm === "state" ? error : undefined}
               label={`State: ${sproutStateLabel(state)}`}
               icon={SPROUT_STATE_ICONS[state]}
               tone={
@@ -179,7 +180,8 @@ export function SproutHero({
                 Save is a plain submit. */}
             <FactPopover
               open={open === "date"}
-              onOpenChange={(next) => setOpen(next ? "date" : null)}
+              onOpenChange={(next) => surface(next ? "date" : null)}
+              error={errorForm === "date" ? error : undefined}
               label={`Date: ${date}`}
               icon={Calendar}
             >
@@ -196,7 +198,8 @@ export function SproutHero({
 
             <FactPopover
               open={open === "type"}
-              onOpenChange={(next) => setOpen(next ? "type" : null)}
+              onOpenChange={(next) => surface(next ? "type" : null)}
+              error={errorForm === "type" ? error : undefined}
               label={`Type: ${type}`}
               icon={Tag}
             >
@@ -253,6 +256,7 @@ function FactPopover({
   label,
   icon: Icon,
   tone,
+  error,
   children,
 }: {
   open: boolean;
@@ -260,6 +264,17 @@ function FactPopover({
   label: string;
   icon: ComponentType<{ className?: string }>;
   tone?: string;
+  /**
+   * A rejected save's message, when this is the surface it came from.
+   *
+   * It has to render HERE, beside the field, and that is the entire point of
+   * routing `?form=` back to a surface: reopening a popover onto silence tells
+   * the author only that their click did nothing. The page-level banner cannot
+   * cover for it either — the page suppresses that banner precisely when
+   * `?form=` names a surface, so without this line the message is not shown
+   * anywhere at all.
+   */
+  error?: string;
   children: ReactNode;
 }) {
   return (
@@ -279,6 +294,11 @@ function FactPopover({
         <TooltipContent side="bottom">{label}</TooltipContent>
       </Tooltip>
       <PopoverContent side="bottom" align="center" className="w-72 text-left">
+        {error ? (
+          <Alert variant="destructive" role="alert" className="mb-3">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
         {children}
       </PopoverContent>
     </Popover>
