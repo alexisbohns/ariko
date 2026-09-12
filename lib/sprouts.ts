@@ -9,10 +9,17 @@ export interface SproutFilters {
   tag?: string;
 }
 
-/** The section's dimensions, named for `filterHref` — the list that decides
- *  which keys a filter URL may carry. It lived in the page while the page was
- *  the only caller; the scope control is the second. */
-export const SPROUT_KEYS = ["state", "plant", "tag"] as const;
+/**
+ * The section's dimensions, named for `filterHref` — the list that decides
+ * which keys a filter URL may carry.
+ *
+ * Re-exported rather than declared: it lived in the page while the page was
+ * the only caller, then here when the scope rule became the second, and it now
+ * lives in `lib/section-keys.ts` because the scope CONTROL is a client
+ * component and this file imports `lib/data.ts`. Kept exported from here so
+ * the page that reads it still finds it where it has always looked.
+ */
+export { SPROUT_KEYS } from "./section-keys";
 
 // Pure. Applies the active filters to timeline entries. An unrecognized state
 // is ignored (falls back to "all"); plant and tag filter like membership — a

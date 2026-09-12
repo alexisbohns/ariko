@@ -1,8 +1,7 @@
 import { filterHref, filterValue, type FilterValues } from "./admin-filters";
 import { NAV_ITEMS, type ScopedId } from "./admin-nav";
 import { hubHref, normalizePath, plantSlugFromPath, ROOT_PATH } from "./plant-path";
-import { SCREEN_FILTER_KEYS } from "./screens";
-import { SPROUT_KEYS } from "./sprouts";
+import { SECTION_KEYS } from "./section-keys";
 
 /**
  * The admin's SUBJECT, and the one place that knows how to change it.
@@ -20,33 +19,21 @@ import { SPROUT_KEYS } from "./sprouts";
  * the scope cannot spell that address two different ways.
  *
  * Pure and JSX-free, so `npm test` reaches the rule rather than the chrome
- * that renders it.
+ * that renders it — and CLIENT-SAFE, which is a stronger property and a newer
+ * one. The plant switcher is an island and calls `scopeHref` directly, so
+ * nothing in this file's import graph may reach `lib/data.ts`. That is why the
+ * per-section key lists live in `lib/section-keys.ts` rather than in
+ * `lib/sprouts.ts` and `lib/screens.ts` where they started: importing them
+ * from there made this module import `node:fs` four hops down, and the chrome
+ * failed to build. See that file for the whole account.
  */
-
-/**
- * Each scopable section's filter dimensions, keyed by `NavId` rather than by
- * route string. `ScopedId` — `lib/admin-nav.ts`'s "every id but Overview and
- * Beanstalk" — is what makes this a `Record` TypeScript checks exhaustively:
- * a new `NavId` fails to compile here until it is either given a key list or
- * added to `lib/admin-nav.ts`'s `UNSCOPED_IDS`. Keyed by route string, as
- * this map used to be, a seventh section could compile while `navHref`
- * (which decides by excluding Overview and Beanstalk) and this map (which
- * decided by including a route) silently disagreed about it.
- */
-const SCOPE_KEYS: Readonly<Record<ScopedId, readonly string[]>> = {
-  inbox: ["plant"],
-  pods: ["plant"],
-  beans: ["plant", "pod"],
-  sprouts: SPROUT_KEYS,
-  screens: SCREEN_FILTER_KEYS,
-};
 
 /** Route href → filter dimensions, derived from `NAV_ITEMS` rather than
  *  re-typing paths — the move `resolveColumn` already makes in
  *  lib/admin-nav.ts, and the one the old route-keyed `scopeKeys` skipped. */
 const ROUTE_KEYS: ReadonlyMap<string, readonly string[]> = new Map(
   NAV_ITEMS.flatMap((item) =>
-    item.id in SCOPE_KEYS ? [[item.href, SCOPE_KEYS[item.id as ScopedId]] as const] : [],
+    item.id in SECTION_KEYS ? [[item.href, SECTION_KEYS[item.id as ScopedId]] as const] : [],
   ),
 );
 
