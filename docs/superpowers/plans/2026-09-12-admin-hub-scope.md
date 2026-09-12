@@ -1259,6 +1259,11 @@ export interface PlantRow {
 }
 ```
 
+> **Superseded in part — group first.** The code block below still maps every
+> plant to a row and filters the ROWS; the shipped page groups the PLANTS with
+> `visibilityOf` and maps each group, because `PlantRow` no longer carries the
+> key. Read `app/admin/page.tsx` as it stands.
+>
 > **No `visibility` field.** An earlier draft put one here so the page could
 > partition on it. Review killed it: the table draws no column for it, so it was
 > the page's grouping key leaking into the draw contract, obliging every future
@@ -1863,10 +1868,7 @@ export default async function AdminPage() {
       role: { kind: p.role.kind, label: roleLine(p.role) },
       status: statusOf(p),
       hasNarrative: textPart(p.content, "en").trim().length > 0,
-      visibility: visibilityOf(p),
     })).sort((a, b) => a.name.localeCompare(b.name));
-    published = plants.filter((p) => p.visibility === "public");
-    priv = plants.filter((p) => p.visibility !== "public");
   } catch {
     plants = null;
   }
