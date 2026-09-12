@@ -42,7 +42,7 @@ import { join, relative } from "node:path";
  * FOREIGN_WRITERS.
  *
  * `app/admin/actions.ts` IS SPECIAL-CASED throughout this file, by path, on
- * purpose: it carries 19 of the 22 `revalidateGarden()` call sites repo-wide
+ * purpose: it carries 25 of the 28 `revalidateGarden()` call sites repo-wide
  * (the other 3 are one each in the API routes), so a whole-file "does this
  * string appear anywhere" check would pass as long as ONE of its ~30 actions
  * remembers to invalidate — invisible to the file the next 26th action gets
