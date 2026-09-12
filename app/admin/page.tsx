@@ -1,6 +1,7 @@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { resolveText, textPart, type Plant } from "@/lib/data";
 import { greeting } from "@/lib/greeting";
+import { byResolvedName } from "@/lib/name-order";
 import { roleLine } from "@/lib/plant-role";
 import { statusOf } from "@/lib/plant-status";
 import { visibilityOf } from "@/lib/plant-visibility";
@@ -27,13 +28,11 @@ function toRow(plant: Plant): PlantRow {
   };
 }
 
-/** By name, with the slug as the tie-break — two plants can resolve to the same
- *  English name, and without a second key their order is the garden's, which is
- *  Mongo's, and would shuffle between visits. */
+/** In `byResolvedName`'s order, which is the switcher's order too — so the
+ *  first plant in the chrome and the first plant in this table are the same
+ *  plant. */
 function rowsFor(plants: Plant[]): PlantRow[] {
-  return plants
-    .map(toRow)
-    .sort((a, b) => a.name.localeCompare(b.name) || a.slug.localeCompare(b.slug));
+  return plants.map(toRow).sort(byResolvedName);
 }
 
 /**

@@ -1,5 +1,6 @@
 import { Suspense, type ReactNode } from "react";
 import { resolveText } from "@/lib/data";
+import { byResolvedName } from "@/lib/name-order";
 import { visibilityOf } from "@/lib/plant-visibility";
 import { loadRawGarden } from "@/lib/store";
 import { AdminChrome, AdminMain } from "./_components/admin-chrome";
@@ -77,9 +78,10 @@ import type { PlantMark } from "./_components/plant-switcher";
  */
 
 /**
- * The plants the switcher draws, name-sorted with the slug as the tie-break —
- * the welcome page's order, so the list in the chrome and the table on the root
- * agree about which plant comes first.
+ * The plants the switcher draws, in `byResolvedName`'s order — the welcome
+ * page's order, out of the same comparator, so the list in the chrome and the
+ * table on the root agree about which plant comes first by construction rather
+ * than because two sort calls happen to be spelled alike.
  *
  * The LIVE reader, never `loadCachedGarden`: CLAUDE.md's rule is that the admin
  * and every server action read live, and the chrome is the surface most likely
@@ -108,7 +110,7 @@ async function plantMarks(): Promise<PlantMark[]> {
         ...(plant.logo?.url ? { logoUrl: plant.logo.url } : {}),
         visibility: visibilityOf(plant),
       }))
-      .sort((a, b) => a.name.localeCompare(b.name) || a.slug.localeCompare(b.slug));
+      .sort(byResolvedName);
   } catch {
     return [];
   }
