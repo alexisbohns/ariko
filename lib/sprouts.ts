@@ -2,18 +2,23 @@ import { resolveText, type TimelineEntry, type SproutState } from "./data";
 
 const STATES: SproutState[] = ["draft", "private", "published"];
 
-export interface VaultFilters {
+export interface SproutFilters {
   state?: string;
   plant?: string;
   tag?: string;
 }
+
+/** The section's dimensions, named for `filterHref` — the list that decides
+ *  which keys a filter URL may carry. It lived in the page while the page was
+ *  the only caller; the scope control is the second. */
+export const SPROUT_KEYS = ["state", "plant", "tag"] as const;
 
 // Pure. Applies the active filters to timeline entries. An unrecognized state
 // is ignored (falls back to "all"); plant and tag filter like membership — a
 // blank value is ignored, a non-blank unknown value matches nothing (there is
 // no plant enum to validate against). Surviving rows carry their sprout name
 // resolved to a display string (B1).
-export function filterVaultEntries(entries: TimelineEntry[], filters: VaultFilters): TimelineEntry[] {
+export function filterSproutEntries(entries: TimelineEntry[], filters: SproutFilters): TimelineEntry[] {
   const state = STATES.includes(filters.state as SproutState) ? (filters.state as SproutState) : undefined;
   const plant = filters.plant && filters.plant.trim() ? filters.plant.trim() : undefined;
   const tag = filters.tag && filters.tag.trim() ? filters.tag.trim() : undefined;

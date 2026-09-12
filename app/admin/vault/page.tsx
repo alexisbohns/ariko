@@ -1,6 +1,6 @@
 import { getFullDataset } from "@/lib/store";
 import { resolveText, type TimelineEntry } from "@/lib/data";
-import { filterVaultEntries, distinctPlants, distinctTags } from "@/lib/vault";
+import { filterSproutEntries, distinctPlants, distinctTags } from "@/lib/sprouts";
 import { filterHref } from "@/lib/admin-filters";
 import { EntityAvatarGlyph } from "@/components/admin/glyphs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -48,13 +48,13 @@ export default async function VaultPage({
     );
   }
 
-  const entries = filterVaultEntries(all, active);
+  const entries = filterSproutEntries(all, active);
   const plantOptions = ["all", ...distinctPlants(all)];
   const tagOptions = ["all", ...distinctTags(all)];
 
   // The hrefs are still built here, now by the shared filterHref, so the
   // popovers stay a presentation of links this page already knew how to make —
-  // and stay server-side, which is what keeps `lib/vault.ts` out of the island.
+  // and stay server-side, which is what keeps `lib/sprouts.ts` out of the island.
   const groups: FilterGroup[] = (
     [
       ["state", STATE_OPTIONS],

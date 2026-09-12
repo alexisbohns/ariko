@@ -128,7 +128,7 @@ export function screenRows(screens: Screen[]): ScreenRow[] {
 }
 
 /** Pure. Membership on all three dimensions; a blank value is ignored, a
- *  non-blank unknown one matches nothing — `filterVaultEntries`' stance, and
+ *  non-blank unknown one matches nothing — `filterSproutEntries`' stance, and
  *  for its reason: there is no enum here to validate against. */
 export function filterScreens(rows: ScreenRow[], filters: ScreenFilters): ScreenRow[] {
   // `String(...)` for `filterQuery`'s reason: a repeated query key arrives as a

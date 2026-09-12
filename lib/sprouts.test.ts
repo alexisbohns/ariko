@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { filterVaultEntries, distinctPlants, distinctTags } from "./vault";
+import { filterSproutEntries, distinctPlants, distinctTags, SPROUT_KEYS } from "./sprouts";
 import type { TimelineEntry } from "./data";
 
 function entry(slug: string, state: string | undefined, plantSlug: string | null, tags?: string[]): TimelineEntry {
@@ -19,54 +19,54 @@ const ENTRIES: TimelineEntry[] = [
 ];
 
 test("no filters returns all entries", () => {
-  assert.equal(filterVaultEntries(ENTRIES, {}).length, 4);
+  assert.equal(filterSproutEntries(ENTRIES, {}).length, 4);
 });
 
 test("filters by state", () => {
-  const r = filterVaultEntries(ENTRIES, { state: "published" });
+  const r = filterSproutEntries(ENTRIES, { state: "published" });
   assert.deepEqual(r.map((e) => e.sprout.slug), ["v2", "v4"]);
 });
 
 test("filters by plant", () => {
-  const r = filterVaultEntries(ENTRIES, { plant: "music" });
+  const r = filterSproutEntries(ENTRIES, { plant: "music" });
   assert.deepEqual(r.map((e) => e.sprout.slug), ["v1", "v2"]);
 });
 
 test("filters by tag (membership)", () => {
-  const r = filterVaultEntries(ENTRIES, { tag: "release" });
+  const r = filterSproutEntries(ENTRIES, { tag: "release" });
   assert.deepEqual(r.map((e) => e.sprout.slug), ["v2", "v4"]);
 });
 
 test("combined filters intersect", () => {
-  const r = filterVaultEntries(ENTRIES, { state: "published", plant: "music" });
+  const r = filterSproutEntries(ENTRIES, { state: "published", plant: "music" });
   assert.deepEqual(r.map((e) => e.sprout.slug), ["v2"]);
 });
 
 test("an unknown state value falls back to all", () => {
-  assert.equal(filterVaultEntries(ENTRIES, { state: "bogus" }).length, 4);
+  assert.equal(filterSproutEntries(ENTRIES, { state: "bogus" }).length, 4);
 });
 
 test("a blank plant value falls back to all", () => {
-  assert.equal(filterVaultEntries(ENTRIES, { plant: "  " }).length, 4);
+  assert.equal(filterSproutEntries(ENTRIES, { plant: "  " }).length, 4);
 });
 
 test("a blank tag falls back to all; an unmatched tag yields none", () => {
-  assert.equal(filterVaultEntries(ENTRIES, { tag: "  " }).length, 4);
-  assert.equal(filterVaultEntries(ENTRIES, { tag: "ghost" }).length, 0);
+  assert.equal(filterSproutEntries(ENTRIES, { tag: "  " }).length, 4);
+  assert.equal(filterSproutEntries(ENTRIES, { tag: "ghost" }).length, 0);
 });
 
 test("empty input returns empty", () => {
-  assert.deepEqual(filterVaultEntries([], { state: "draft" }), []);
+  assert.deepEqual(filterSproutEntries([], { state: "draft" }), []);
 });
 
-test("filterVaultEntries filters by the resolved plant's slug; an unknown slug matches nothing", () => {
+test("filterSproutEntries filters by the resolved plant's slug; an unknown slug matches nothing", () => {
   const plant = { slug: "pbbls", name: "P", natures: ["work" as const], role: { kind: "owner" as const }, description: "" };
   const entries: TimelineEntry[] = [
     { sprout: { slug: "v1", name: "V1", type: "t", date: "2026-01-01", description: "", parents: [] }, bean: null, plant },
     { sprout: { slug: "v2", name: "V2", type: "t", date: "2026-01-02", description: "", parents: [] }, bean: null, plant: null },
   ];
-  assert.deepEqual(filterVaultEntries(entries, { plant: "pbbls" }).map((e) => e.sprout.slug), ["v1"]);
-  assert.deepEqual(filterVaultEntries(entries, { plant: "nope" }), []);
+  assert.deepEqual(filterSproutEntries(entries, { plant: "pbbls" }).map((e) => e.sprout.slug), ["v1"]);
+  assert.deepEqual(filterSproutEntries(entries, { plant: "nope" }), []);
 });
 
 test("distinctPlants returns sorted unique plant slugs", () => {
@@ -86,6 +86,10 @@ test("distinctTags returns sorted unique tags across entries", () => {
 test("localized sprout names resolve to display strings at build time (B1)", () => {
   const e = entry("v-fr", "draft", null);
   e.sprout.name = { en: "Name en", fr: "Nom fr" };
-  const r = filterVaultEntries([e], {});
+  const r = filterSproutEntries([e], {});
   assert.equal(r[0].sprout.name, "Name en");
+});
+
+test("the section's dimensions are state, plant and tag", () => {
+  assert.deepEqual([...SPROUT_KEYS], ["state", "plant", "tag"]);
 });
