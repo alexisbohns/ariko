@@ -1008,6 +1008,14 @@ Expected: module-not-found failures.
 
 `lib/greeting.ts`:
 
+> **Superseded — read the file.** The version below reads `now.getHours()`,
+> which is the timezone of the RUNTIME, not of the reader. This repo deploys to
+> Vercel (UTC) and its author reads in Paris, so it greets "Good evening" at
+> 01:30 and "Good morning" at 14:30 — about four wrong hours a day. The shipped
+> function takes a `timeZone` parameter defaulting to `"Europe/Paris"` and
+> resolves the hour through `Intl`, which stays pure and needs no island. The
+> "deliberate shrug" paragraph below argued a false dichotomy and is gone.
+
 ```ts
 /**
  * The welcome page's one line. Pure so the boundaries are testable — a
