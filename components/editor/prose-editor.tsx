@@ -45,15 +45,20 @@ export function ProseEditor({
   bare?: boolean;
   /**
    * The commit as a floating cluster at the bottom of the viewport, instead of
-   * a row under the writing surface — for the one page where the editor IS the
-   * page (`/admin/sprout/[slug]`).
+   * a row under the writing surface.
    *
-   * Separate from `bare` on purpose. They happen to be set together there, but
-   * they are two decisions: `bare` is about the frame around the writing
-   * surface, this is about where the commit lives. The pod and bean pages reach
-   * this component through `ContentCard`, where both stay off and the inline
-   * row — with its "No changes to save" and "Could not save" lines — is
-   * unchanged.
+   * Two shapes, deliberately not a list of pages — the pages move, and an
+   * enumeration in a comment goes quietly false when they do. OFF is the editor
+   * as one card among several, with the commit as an inline row and its "No
+   * changes to save" and "Could not save" lines beside a live button; that is
+   * every caller today, whether it arrives through `ContentCard` or renders
+   * this component directly. ON is a page whose whole body is the editor, where
+   * that row sits a screen-height below the caret and the author has to go
+   * looking for it.
+   *
+   * Separate from `bare` on purpose. They are set together wherever the second
+   * shape applies, but they are two decisions: `bare` is about the frame around
+   * the writing surface, this is about where the commit lives.
    *
    * ONLY THE COMMIT FLOATS. The `@` / `/` hint and the `/image` command's
    * progress and error lines stay in the document: they are about the caret's
@@ -65,19 +70,19 @@ export function ProseEditor({
 }) {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [pending, startTransition] = useTransition();
-  // What the button's resting state is a claim about.
+  // What the floating commit's resting state is a CLAIM about: does the
+  // document differ from what is stored, right now? `unchanged` on the next
+  // line answers a narrower and later question — did the last save ATTEMPT find
+  // no diff — which is all the inline row's "No changes to save" ever reported,
+  // and which is why nothing could honestly say "up to date" before this state
+  // existed. Two facts, two states.
   //
-  // `onUpdate` fires on every keystroke, and `editor.getMarkdown()` serializes
-  // the whole document — so the comparison is DEBOUNCED rather than run per
-  // key. 200ms is short enough that the button has settled before the author
-  // looks at it and long enough that a burst of typing costs one serialization.
-  //
-  // Compared against `baselineRef` (the editor's own first serialization), not
-  // the stored `initialMarkdown` prop: those differ by normalization on
-  // essentially every real document — a blank line between adjacent entity
-  // cards, table cell padding, `&` -> `&amp;` — which is why comparing against
-  // the stored string never detects "unchanged" (spec §2.5). Undo back to the
-  // original therefore lands on clean, correctly.
+  // DEBOUNCED, because `onUpdate` fires on every keystroke and
+  // `editor.getMarkdown()` serializes the whole document: 200ms buys one
+  // serialization per burst of typing, and is far inside the time it takes the
+  // author to look up from the caret. The comparison is against `baselineRef`
+  // — see its comment below for why the stored `initialMarkdown` prop is the
+  // wrong thing to compare to.
   const [dirty, setDirty] = useState(false);
   const [unchanged, setUnchanged] = useState(false);
   const dirtyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -188,6 +193,23 @@ export function ProseEditor({
     },
     onUpdate: ({ editor }) => {
       setUnchanged(false);
+      // A previous failure's red line must not outlive the attempt the author
+      // is making right now — the file's own rule, from the image input's
+      // onChange below. In the FLOAT shape it is also the only way out of a
+      // dead end: there the error REPLACES the state claim rather than sitting
+      // beside it, so an author who edits and then undoes back to clean would
+      // otherwise be left with a permanently red button whose every click takes
+      // the no-op branch. (setState with an unchanged value bails out, so this
+      // costs nothing on the 99% of keystrokes where `error` is already null.)
+      setError(null);
+      // Dirty goes true on the KEYSTROKE and false only from the debounced
+      // comparison below, and the asymmetry is deliberate. Waiting 200ms to
+      // turn it ON leaves the commit DISABLED and reading "Up to date" over a
+      // document the author has just edited — the same lie this state exists to
+      // remove, pointed the other way, and reachable by anyone who types and
+      // goes straight for the button. Turning it OFF has no such urgency: only
+      // the comparison can know that an undo landed back on the baseline.
+      setDirty(true);
       if (dirtyTimer.current) clearTimeout(dirtyTimer.current);
       dirtyTimer.current = setTimeout(() => {
         setDirty(baselineRef.current !== null && editor.getMarkdown() !== baselineRef.current);
@@ -195,9 +217,16 @@ export function ProseEditor({
     },
   });
 
-  // A pending comparison must not fire into an unmounted component: the author
-  // types and immediately navigates, and React would warn about a setState on
-  // a tree that is gone.
+  // The author types and then leaves — a rail link, the palette, browser back —
+  // and a timer armed by the last keystroke outlives the tree that armed it.
+  //
+  // Not for the reason that is usually given: React has not warned about a
+  // setState on an unmounted component since 18, and the `setDirty` this fires
+  // would be a silent no-op on a fiber nobody is rendering. That silence is the
+  // problem. The timer holds the destroyed `Editor` — and through it the whole
+  // ProseMirror document — reachable until it runs, it then serializes that
+  // corpse (which does not even throw: a destroyed editor still answers
+  // `getMarkdown()`), and nothing anywhere reports any of it.
   useEffect(
     () => () => {
       if (dirtyTimer.current) clearTimeout(dirtyTimer.current);
@@ -207,6 +236,11 @@ export function ProseEditor({
 
   const save = (): void => {
     if (!editor) return;
+    // This comparison supersedes any debounced one still in flight: a click
+    // within 200ms of a keystroke would otherwise leave an armed timer racing a
+    // write, recomputing `dirty` against a baseline the save is in the middle of
+    // replacing. Invisible today, and an unowned timer regardless.
+    if (dirtyTimer.current) clearTimeout(dirtyTimer.current);
     const markdown = editor.getMarkdown();
     if (baselineRef.current !== null && markdown === baselineRef.current) {
       // Nothing the author did changed the document (undo back to the
@@ -214,12 +248,35 @@ export function ProseEditor({
       // scheduled bee writes these digests, and reading one must never
       // rewrite it (spec §2.5).
       setUnchanged(true);
+      // Nothing redirects on this branch, so nothing remounts this tree and
+      // resets anything — this is where an optimistic `dirty` from a keystroke
+      // the debounce has not caught up with gets corrected.
       setDirty(false);
       return;
     }
     setUnchanged(false);
-    setDirty(false);
     setError(null);
+    // `dirty` is deliberately NOT cleared here, on either outcome.
+    //
+    // On SUCCESS this tree does not survive to read it. `redirect()` comes back
+    // from the action as a REJECTED promise (the long note below), and
+    // `unstable_rethrow` rethrows it inside the async transition scope — which
+    // React 19 chains into this component's own `useTransition` state and then
+    // THROWS out of this component's next render (ReactFiberHooks'
+    // `updateTransition` reads the chained thenable, `trackUsedThenable` sees
+    // `status: "rejected"` and throws the reason). Next's RedirectErrorBoundary
+    // is the nearest boundary above the page, and its render() swaps
+    // `this.props.children` for `<HandleRedirect>` and, once the navigation is
+    // done, swaps them back. That is a REMOUNT, not a re-render — Next's own
+    // source says so at the reject site — and since `useEditor` keeps its
+    // instance manager in `useState`, the remount builds a NEW Editor, runs
+    // `onCreate`, and re-seeds `baselineRef` from the just-saved content. (It
+    // is also why the editor loses its undo history on every save.)
+    //
+    // On FAILURE the tree does survive, and there `dirty` is simply TRUE: the
+    // document really does still differ from what is stored. Clearing it would
+    // be a lie that only hides because `error` outranks `dirty` in both the
+    // variant and the content chain.
     const formData = new FormData();
     for (const [key, value] of Object.entries(hidden)) formData.set(key, value);
     // The serialize step (spec §2.3): markdown is what the database stores, and
@@ -357,32 +414,51 @@ export function ProseEditor({
           document missing the image that is seconds from being inserted, and
           the author would have to notice and save again. */}
       {float ? (
-        <Chrome magnet="bottom-center" content>
-          <Button
-            type="button"
-            onClick={save}
-            disabled={pending || imageBusy || !editor || (!dirty && !error)}
-            variant={error ? "destructive" : dirty ? "default" : "ghost"}
-            size="sm"
-            className={error || dirty ? undefined : "text-muted-foreground"}
-          >
-            {pending ? (
-              <>
-                <LoaderCircle className="animate-spin" /> Saving…
-              </>
-            ) : error ? (
-              <>
-                <CloudAlert /> Couldn&rsquo;t save — {error}
-              </>
-            ) : dirty ? (
-              "Save"
-            ) : (
-              <>
-                <CloudCheck /> Up to date
-              </>
-            )}
-          </Button>
-        </Chrome>
+        // Nothing at all until the editor exists. `immediatelyRender: false`
+        // leaves `editor` null through SSR and the first client render, so
+        // without this gate the server HTML carries a pill claiming "Up to
+        // date" about a document that has not loaded yet — precisely the
+        // dishonest resting state the rest of this file is built to prevent.
+        // `components/toc-rail.tsx` renders nothing until it mounts for the
+        // same reason. It is also why `!editor` is absent from `disabled`
+        // below: inside this branch it cannot be true, and a guard that cannot
+        // fire reads as a live rule.
+        editor ? (
+          <Chrome magnet="bottom-center" content>
+            {/* In this shape the button's own text is the ONLY save signal —
+                the inline row has a separate span, this does not — and it
+                changes while the caret is somewhere in the prose. Without a
+                live region a screen-reader author is never told the save
+                failed; `role="alert"` on the image error above is the same
+                precedent. */}
+            <span aria-live="polite">
+              <Button
+                type="button"
+                onClick={save}
+                disabled={pending || imageBusy || (!dirty && !error)}
+                variant={error ? "destructive" : dirty ? "default" : "ghost"}
+                size="sm"
+                className={error || dirty ? undefined : "text-muted-foreground"}
+              >
+                {pending ? (
+                  <>
+                    <LoaderCircle className="animate-spin" /> Saving…
+                  </>
+                ) : error ? (
+                  <>
+                    <CloudAlert /> Couldn&rsquo;t save — {error}
+                  </>
+                ) : dirty ? (
+                  "Save"
+                ) : (
+                  <>
+                    <CloudCheck /> Up to date
+                  </>
+                )}
+              </Button>
+            </span>
+          </Chrome>
+        ) : null
       ) : (
         <div className="flex items-center gap-3">
           <Button type="button" onClick={save} disabled={pending || imageBusy || !editor}>
