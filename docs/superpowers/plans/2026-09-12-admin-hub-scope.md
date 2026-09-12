@@ -1990,6 +1990,19 @@ layout is a server component and the chrome is a client one, so this is the
 
 - [ ] **Step 2: `plant-switcher.tsx`**
 
+> **Read this before importing `lib/admin-scope.ts` from a client component.**
+> It was not client-safe as first written: it imported `SPROUT_KEYS` and
+> `SCREEN_FILTER_KEYS` as runtime values, and both host modules pull runtime
+> values out of `lib/data.ts`, which opens with `node:fs`. Importing it from the
+> chrome failed `npm run build` outright — the `lib/palette.ts` /
+> `lib/palette-items.ts` trap, second occurrence. The five per-section dimension
+> lists now live in a pure `lib/section-keys.ts`; `lib/sprouts.ts` and
+> `lib/screens.ts` re-export them for their existing readers.
+>
+> The switcher also takes `pathname` and `active` as PROPS from `AdminChrome`
+> rather than calling the hooks itself: one subscription instead of two, and it
+> makes the trigger's accessible name testable with `renderToStaticMarkup`.
+
 ```tsx
 "use client";
 
