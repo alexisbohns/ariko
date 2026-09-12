@@ -1080,8 +1080,9 @@ git commit -m "admin: a greeting, and an inbox that can be narrowed"
 - Delete: `app/admin/garden/page.tsx`, `app/admin/vault/page.tsx`
 - Modify: `app/admin/actions.ts`, `next.config.ts`
 
-`app/admin/page.tsx` is rewritten in Task 13; until then it keeps its current
-contents and is simply also reachable at `/admin/inbox`.
+`app/admin/page.tsx` is MOVED by Step 1, not copied, so `/admin` 404s until
+Task 13 writes the welcome page there. That intermediate state is expected and
+is why `npm run build` is not this task's bar.
 
 - [ ] **Step 1: Move the inbox**
 
@@ -1638,7 +1639,14 @@ plant slugs]` and whose hrefs come from `filterHref(PATH, active, KEYS, "plant",
 opt)`. Sort rows by name. Show the `showing n of m` line the sprouts page shows.
 Heading: `Pods`.
 
-- [ ] **Step 2: Verify by eye**
+- [ ] **Step 2: Point the pod detail page at its new index**
+
+`app/admin/pod/[slug]/page.tsx`'s back-link still reads `← garden` and points at
+`/admin/garden`. Task 8 left it deliberately, because its destination was a real
+question rather than a rename: a pod's parent list is the pod index, which did
+not exist until this task. Make it `← pods` → `/admin/pods`.
+
+- [ ] **Step 3: Verify by eye**
 
 ```bash
 npm run dev
@@ -1646,11 +1654,10 @@ npm run dev
 Visit `http://localhost:3333/admin/pods`, then `…/admin/pods?plant=<a real slug>`,
 then `…?plant=nope` (expect the empty state, not a crash). Stop the server.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add app/admin/pods/page.tsx
-git commit -m "admin: pods get an index"
+git commit app/admin/pods/page.tsx "app/admin/pod/[slug]/page.tsx" -m "admin: pods get an index"
 ```
 
 ---
@@ -1720,7 +1727,19 @@ a muted line: `n more under All`, linking to `/admin/inbox`.
 Add the plant filter bar the same way the other sections have one, so the
 narrowing is reachable without the switcher.
 
-- [ ] **Step 2: Screens**
+- [ ] **Step 2: Repoint the seed actions at the inbox**
+
+`app/admin/actions.ts` has five `redirect("/admin")` calls that mean "back to the
+inbox the author was working in": `createSeedAction` (twice, one the error path),
+`discardSeedAction`, and `promoteSeedAction` (twice). They were correct while
+`/admin` WAS the inbox. Once Task 13 puts the welcome page there, triaging a seed
+silently bounces the author to a greeting instead of the rest of their queue —
+a behaviour regression that passes `tsc`, `npm test` and `npm run build`.
+
+Point all five at `/admin/inbox`. Leave `loginAction`'s `/admin` alone: landing
+on the welcome page after signing in is correct.
+
+- [ ] **Step 3: Screens**
 
 `app/admin/screens/page.tsx` already filters on `plant` through
 `filterScreens` — it needs nothing except to keep working, because the switcher
@@ -1733,16 +1752,15 @@ grep -n "SCREEN_FILTER_KEYS\|filterScreens(" app/admin/screens/page.tsx lib/scre
 No edit if that holds. Do **not** add `?plant=` handling to the screen sheet
 routes: they carry the query through `screensHref` already.
 
-- [ ] **Step 3: Verify**
+- [ ] **Step 4: Verify**
 
 Run: `npx tsc --noEmit` → clean
 Run: `npm test 2>&1 | tail -5` → `# fail 0`
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add app/admin/inbox/page.tsx app/admin/screens/page.tsx
-git commit -m "admin: the inbox narrows to a plant"
+git commit app/admin/inbox/page.tsx app/admin/screens/page.tsx app/admin/actions.ts -m "admin: the inbox narrows to a plant"
 ```
 
 ---
