@@ -47,8 +47,9 @@ const SERVER_SAFE = [
   // The shared entity head. CLAUDE.md names it as one of the four shared
   // surfaces and its own docblock claims server-safety; until the sprout's
   // edition slice nothing checked either. It is rendered by
-  // app/(public)/_components/plant-head.tsx and by two admin islands at once,
-  // which is exactly the arrangement one "use client" would end.
+  // app/(public)/_components/plant-head.tsx — a server component — and by the
+  // admin's entity heads, which are client islands, at the same time. That
+  // simultaneity is the whole arrangement, and one "use client" here ends it.
   "components/plant-header.tsx",
   // The two brand marks. Generated (scripts/build-brand.ts), rendered by
   // app/(public)/page.tsx and _components/public-chrome.tsx, and never listed
