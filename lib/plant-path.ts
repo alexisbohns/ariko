@@ -33,6 +33,22 @@ export function hubHref(slug: string): string {
 }
 
 /**
+ * A plant's NARRATIVE address — the page that edits `plant.content`, and the
+ * admin's first hub child route.
+ *
+ * Spelled here rather than at its three call sites (the hub's `edit →`, the
+ * page's own back link, and `editContainerContentAction`'s redirect) for this
+ * module's founding reason: the action's redirect is what an author lands on
+ * after a save, and a builder that drifted from the one the hub links with
+ * would send them somewhere the link never goes.
+ *
+ * Built on `hubHref`, so the slug is encoded exactly once and in one place.
+ */
+export function narrativeHref(slug: string): string {
+  return `${hubHref(slug)}/narrative`;
+}
+
+/**
  * The plant a pathname names, decoded — or null when it names none. The
  * hub's own page and anything under it (`/admin/plant/ariko/anything`) both
  * resolve to `"ariko"`: truncating to the first segment is what lets a hub

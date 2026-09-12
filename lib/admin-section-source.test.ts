@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * Two facts about two section pages that nothing else can see.
+ * Facts about admin pages that nothing else can see.
  *
  * Both are the failure class CLAUDE.md's rules section names: a change that
  * reads as a tidy-up, passes `tsc`, `npm test` and `npm run build`, and leaves
@@ -33,6 +33,17 @@ import { join } from "node:path";
  *    today. Narrowing on the row's own `plant` mark instead — which the page
  *    already computes, for a column — looks simpler and is a hub that says 4
  *    over a section that shows 11.
+ *
+ *  - **The plant's narrative is read STRICTLY, in both places that read it.**
+ *    The editor lives on `plant/[slug]/narrative` and the hub draws an excerpt
+ *    of the same field. `resolveText` falls back to the other language when the
+ *    asked-for half is empty, and either side reaching for it is a quiet,
+ *    plausible-looking edit: on the hub it renders a French excerpt over a hub
+ *    that claims the English narrative is written, and in the EDITOR it loads
+ *    the French half into a field whose next save writes it back as English —
+ *    a data-loss bug one keystroke deep. `textPart(plant.content, "en")` is the
+ *    read both must make, and the excerpt must be derived from that same call
+ *    rather than from a second read of the field.
  */
 
 function source(path: string): string {
@@ -41,6 +52,8 @@ function source(path: string): string {
 
 const INBOX = "app/admin/(chrome)/inbox/page.tsx";
 const BEANS = "app/admin/(chrome)/beans/page.tsx";
+const HUB = "app/admin/(chrome)/plant/[slug]/page.tsx";
+const NARRATIVE = "app/admin/(chrome)/plant/[slug]/narrative/page.tsx";
 
 test(`${INBOX} hands SeedOverlay the unfiltered seed total`, () => {
   const text = source(INBOX);
@@ -72,5 +85,57 @@ test(`${BEANS} narrows the plant dimension through beansForPlantDeep`, () => {
     `${BEANS} must build its scoped set from beansForPlantDeep(dataset, scope) ` +
       `— the one function a plant hub's bean preview counts with, so the two ` +
       `cannot report different numbers for the same plant`,
+  );
+});
+
+test(`${NARRATIVE} loads the plant's own English narrative into the editor`, () => {
+  const text = source(NARRATIVE);
+  assert.match(
+    text,
+    /initialMarkdown=\{textPart\(plant\.content,\s*"en"\)\}/,
+    `${NARRATIVE} must load the editor with the STRICT en textPart: resolveText ` +
+      `falls back to the fr half, and the next save writes it back as en`,
+  );
+  assert.match(
+    text,
+    /hidden=\{\{\s*ref:\s*`plant:\$\{plant\.slug\}`\s*\}\}/,
+    `${NARRATIVE} must post the ref \`plant:<slug>\` — editContainerContentAction ` +
+      `reads the tier off the ref, and it is the only thing telling it which ` +
+      `collection to write`,
+  );
+});
+
+test(`${HUB} previews the same read the narrative editor loads`, () => {
+  const text = source(HUB);
+  assert.match(
+    text,
+    /const\s+excerpt\s*=\s*narrativeExcerpt\(textPart\(plant\.content,\s*"en"\)\)\s*;/,
+    `${HUB} must derive the excerpt from the STRICT en textPart — the same read ` +
+      `${NARRATIVE} loads into the editor`,
+  );
+  assert.match(
+    text,
+    /<NarrativePreview\s+excerpt=\{excerpt\}/,
+    `${HUB} must hand NarrativePreview that same \`excerpt\`, not a second read ` +
+      `of the field`,
+  );
+  assert.doesNotMatch(
+    text,
+    /\bProseEditor\b/,
+    `${HUB} must not render the prose editor: the narrative has a page of its ` +
+      `own (${NARRATIVE}), and two editors over one field is two answers to ` +
+      `"what is stored"`,
+  );
+});
+
+test("a plant's narrative save returns to the page that edits it", () => {
+  const text = source("app/admin/actions.ts");
+  assert.match(
+    text,
+    /const\s+back\s*=\s*isPlant\s*\?\s*narrativeHref\(slug\)\s*:/,
+    `editContainerContentAction must send a PLANT back to narrativeHref(slug): ` +
+      `the hub no longer holds the editor, so both the save and the error ` +
+      `redirect would land on a page with no field to show and no banner to ` +
+      `put the message in`,
   );
 });

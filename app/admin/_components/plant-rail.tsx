@@ -10,13 +10,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
  *
  * It carried two. The first was **Inside**: a plant's pods and beans, as a
  * list, floating, because the page was a header and a prose editor and had
- * nowhere in the document to put them. The hub has that place now — four
- * previews below the prose, three of them drawn by the very table their
- * section draws — so the list is in the page rather than one click behind an
- * icon, and it says more there (a pod's beans, a bean's sprouts, a visibility)
- * than a name and a ref ever did. A panel whose contents the page below it
- * already shows is a control that only ever repeats itself, so it went with
- * the reason for it.
+ * nowhere in the document to put them. The hub has that place now — five
+ * stacked sections, three of them drawn by the very table their section draws
+ * — so the list is in the page rather than one click behind an icon, and it
+ * says more there (a pod's beans, a bean's sprouts, a visibility) than a name
+ * and a ref ever did. A panel whose contents the page below it already shows
+ * is a control that only ever repeats itself, so it went with the reason for
+ * it. (The prose editor that shared the page with it has since left too, for
+ * `plant/[slug]/narrative`.)
  *
  * The rail is the mirror of the chrome's: same fixed pill, same borderless
  * icon button, on the right edge at the same height. The chrome moves you
@@ -84,8 +85,8 @@ export function PlantRail({
   return (
     <>
       {/* The page, nudged. `transition-transform` and nothing else: a transform
-          does not re-flow the document, so the prose editor keeps its measured
-          width and its caret keeps its place while the panel opens. */}
+          does not re-flow the document, so the tables below keep their measured
+          column widths and nothing re-wraps while the panel opens. */}
       <div
         className={
           "transition-transform duration-200 ease-out " + (showing ? "lg:-translate-x-28" : "")

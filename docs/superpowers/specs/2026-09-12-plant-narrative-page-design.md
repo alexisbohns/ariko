@@ -152,8 +152,10 @@ things. So `app/admin/_components/preview-panel.tsx` splits in two:
   existing call sites stay exactly as they are.**
 
 The new second wrapper, `NarrativePreview`
-(`app/admin/_components/narrative-preview.tsx`), decides `edit →` and *nothing
-written yet*, and draws the excerpt as two clamped lines of muted text. It takes
+(`app/admin/_components/narrative-preview.tsx`), decides the link's words
+(`edit →` over a written narrative, `write one →` over an empty one) and
+*nothing written yet*, and draws the excerpt as two clamped lines of muted
+text. It takes
 the excerpt as a prop — it derives nothing and reads no field name, the same
 posture `ExhibitionPanel` has.
 

@@ -8,10 +8,10 @@ import {
   parentsWithPrefix,
 } from "@/lib/data";
 import { loadRawGarden } from "@/lib/store";
-import { entityOptions } from "@/lib/entity-options";
 import { beansForPlantDeep, podsForPlantSorted } from "@/lib/plant-hub";
 import { filterSproutEntries } from "@/lib/sprouts";
-import { editContainerContentAction } from "../../../actions";
+import { narrativeExcerpt } from "@/lib/narrative-excerpt";
+import { narrativeHref } from "@/lib/plant-path";
 import { PlantHero } from "../../../_components/plant-hero";
 import { PlantRail } from "../../../_components/plant-rail";
 import { ExhibitionPanel, type ExhibitionPanelRow } from "../../../_components/exhibition-panel";
@@ -19,11 +19,11 @@ import { PlantMetaForm } from "../../../_components/plant-meta-form";
 import { PlantRoleForm } from "../../../_components/plant-role-form";
 import { PlantLogoForm } from "../../../_components/plant-logo-form";
 import { PreviewPanel } from "../../../_components/preview-panel";
+import { NarrativePreview } from "../../../_components/narrative-preview";
 import { PodTable, type PodRow } from "../../../_components/pod-table";
 import { BeanTable, type BeanRow } from "../../../_components/bean-table";
 import { SproutTable } from "../../../_components/sprout-table";
 import { ScreenThumbs, type ThumbItem } from "../../../_components/screen-thumbs";
-import { ProseEditor } from "@/components/editor/prose-editor";
 import { roleParts } from "@/lib/plant-role";
 import { statusOf } from "@/lib/plant-status";
 import { visibilityOf } from "@/lib/plant-visibility";
@@ -44,22 +44,35 @@ const PREVIEW_SCREENS = 4;
  * click behind the thing it edits (the logo behind the logo, meta behind the
  * title, the role behind the crown), and the two enum fields open their
  * vocabulary as radios and commit on a separate Save — never on the click that
- * opens them. Below that is the prose — unboxed, because it is the page's
- * actual content and a card around it was a frame around the only thing worth
- * looking at.
+ * opens them.
  *
- * Below THAT is what the plant contains: four previews — the three tiers under
- * a plant, then its screens. The three tiers are drawn by the very component
- * their section draws (`PodTable`, `BeanTable`, `SproutTable`) with a row
- * limit and no plant column, since this page is already inside a plant; the
- * screens are `ScreenThumbs`, which is NOT the library's tiles, for the reason
- * that file gives. Each heading carries the FULL count and links into
- * its section pre-filtered by `?plant=`, so the preview is an entry point and
- * never a second, shorter truth: the page shows five and says how many there
- * are, and the section it points at narrows by the same rule this page counted
- * with. For beans that rule is `beansForPlantDeep`, the one function both
- * sides call, which is why the hub's number and `/admin/beans?plant=`'s number
+ * Below that, the page is a DIRECTORY and nothing else: five sections, each
+ * the full width of the column, each a heading and a way out. Four of them are
+ * what the plant contains — the three tiers under a plant, then its screens —
+ * and the first is the plant's own narrative, as an excerpt.
+ *
+ * **The narrative is an excerpt here because the editor has a page now**
+ * (`narrative/page.tsx`). It used to sit between the header and the previews:
+ * a caret in the middle of a list, and the heaviest thing on a page whose
+ * other five-sixths are static tables — mounted on every visit, including the
+ * overwhelming majority spent looking for a sprout. What is left is two
+ * clamped lines and `edit →`.
+ *
+ * The three tiers are drawn by the very component their section draws
+ * (`PodTable`, `BeanTable`, `SproutTable`) with a row limit and no plant
+ * column, since this page is already inside a plant; the screens are
+ * `ScreenThumbs`, which is NOT the library's tiles, for the reason that file
+ * gives. Each heading carries the FULL count and links into its section
+ * pre-filtered by `?plant=`, so the preview is an entry point and never a
+ * second, shorter truth: the page shows five and says how many there are, and
+ * the section it points at narrows by the same rule this page counted with.
+ * For beans that rule is `beansForPlantDeep`, the one function both sides
+ * call, which is why the hub's number and `/admin/beans?plant=`'s number
  * cannot drift.
+ *
+ * The sections STACK. They were two columns on `lg` for one slice, which put a
+ * table of a name, a glyph and two counts into half of the reading measure —
+ * about 300px — to save vertical space on a page that had none to save.
  *
  * This replaced a floating "Inside" panel that listed the plant's pods and
  * beans one click behind an icon, because the page had nowhere in the document
@@ -141,6 +154,12 @@ export default async function AdminPlantPage({
   // chrome would have handed it.
   const scopeQuery = `?plant=${encodeURIComponent(slug)}`;
 
+  // The narrative, as one line. STRICT textPart, the same read the editor on
+  // `narrative/page.tsx` loads — `resolveText` would preview the fr half over
+  // an editor holding the empty en one, which is a hub that says the narrative
+  // is written when it is not.
+  const excerpt = narrativeExcerpt(textPart(plant.content, "en"));
+
   const { label, title } = roleParts(plant.role);
   // Which sheet a rejected save came from — narrowed here rather than trusted:
   // the value reaches the client as a union, and an unknown ?form= opens
@@ -148,10 +167,10 @@ export default async function AdminPlantPage({
   const errorForm = form === "meta" || form === "role" ? form : undefined;
 
   return (
-    // PlantRail wraps the WHOLE body, not just the editor: its panel floats
-    // over the page and the page slides out from under it, so what slides has
-    // to be everything — a header that stayed put while the prose moved would
-    // read as a glitch rather than as a nudge.
+    // PlantRail wraps the WHOLE body: its panel floats over the page and the
+    // page slides out from under it, so what slides has to be everything — a
+    // header that stayed put while the sections moved would read as a glitch
+    // rather than as a nudge.
     <PlantRail
       // One prop carrying both the trigger's count and the popover's
       // server-rendered contents, so the two cannot disagree. Absent when the
@@ -216,24 +235,13 @@ export default async function AdminPlantPage({
           </Alert>
         ) : null}
 
-        {/* Unboxed twice over: no ContentCard around it (that component IS the
-            card, and the pod and sprout pages still want it) and `bare`, so the
-            editor draws no frame of its own either. Same editor, same server
-            action, same STRICT textPart — resolveText's fallback would load the
-            fr half into the editor and save it back as en. */}
-        <ProseEditor
-          bare
-          initialMarkdown={textPart(plant.content, "en")}
-          entities={entityOptions(raw, `plant:${plant.slug}`)}
-          action={editContainerContentAction}
-          hidden={{ ref: `plant:${plant.slug}` }}
-        />
+        {/* Full width, stacked, in tier order — pods hold beans, beans hold
+            sprouts — with the narrative first (the plant's own words before it
+            is a container of anything) and screens last (the only one of the
+            five that is not a tier of the content model). */}
+        <div className="flex flex-col gap-10">
+          <NarrativePreview excerpt={excerpt} href={narrativeHref(plant.slug)} />
 
-        {/* Two columns where there is room for two, one where there is not.
-            The previews are in tier order — pods hold beans, beans hold
-            sprouts — and screens last, because they are the only ones that are
-            not a tier of the content model. */}
-        <div className="grid gap-8 lg:grid-cols-2">
           <PreviewPanel title="Pods" count={pods.length} allHref={`/admin/pods${scopeQuery}`}>
             <PodTable rows={podRows} limit={PREVIEW_ROWS} showPlant={false} />
           </PreviewPanel>
