@@ -1,19 +1,10 @@
 import { getFullDataset } from "@/lib/store";
-import { resolveText, type TimelineEntry } from "@/lib/data";
+import type { TimelineEntry } from "@/lib/data";
 import { filterSproutEntries, distinctPlants, distinctTags, SPROUT_KEYS } from "@/lib/sprouts";
 import { filterHref } from "@/lib/admin-filters";
-import { EntityAvatarGlyph } from "@/components/admin/glyphs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { AdminFilters, type FilterGroup } from "../_components/admin-filters";
+import { SproutTable } from "../_components/sprout-table";
 
 export const dynamic = "force-dynamic";
 
@@ -79,57 +70,7 @@ export default async function AdminSproutsPage({
         {entries.length === 0 ? (
           <p className="text-sm text-muted-foreground">No matching sprouts.</p>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>sprout</TableHead>
-                <TableHead>state</TableHead>
-                <TableHead>plant</TableHead>
-                <TableHead>bean</TableHead>
-                <TableHead>date</TableHead>
-                <TableHead>tags</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {entries.map((e) => (
-                <TableRow key={e.sprout.slug}>
-                  <TableCell>
-                    {e.bean ? (
-                      <a
-                        href={`/admin/bean/${e.bean.slug}`}
-                        className="underline-offset-4 transition-colors hover:underline"
-                      >
-                        {resolveText(e.sprout.name)}
-                      </a>
-                    ) : (
-                      resolveText(e.sprout.name)
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">{e.sprout.state ?? "—"}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    {e.plant ? (
-                      <EntityAvatarGlyph
-                        mark={{
-                          name: resolveText(e.plant.name),
-                          hint: e.plant.slug,
-                          ...(e.plant.logo ? { logoUrl: e.plant.logo.url } : {}),
-                        }}
-                      />
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{e.bean?.slug ?? "—"}</TableCell>
-                  <TableCell className="text-muted-foreground">{e.sprout.date}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {(e.sprout.tags ?? []).join(", ") || "—"}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <SproutTable entries={entries} />
         )}
       </div>
     </article>
