@@ -13,11 +13,13 @@ import {
   type Relation,
   type Screen,
   type Sprout,
+  type SproutState,
   type Text,
   type Visibility,
 } from "./data";
 import type { SproutInput } from "./promote";
 import type { SproutPatch } from "./sprout-edit";
+import type { SproutMetaPatch } from "./sprout-meta";
 import type { ContentPatch } from "./content-edit";
 import { plantMetaUpdate, type PlantMetaPatch } from "./plant-meta";
 import { screenMetaUpdate, type ScreenMetaPatch } from "./screen-edit";
@@ -389,7 +391,11 @@ export async function updateVersion(slug: string, patch: SproutPatch): Promise<v
 // sprout's bean parents and state BEFORE calling this; afterwards the sprout no
 // longer exists for unpublishCascade to find. Dangling refs to the deleted slug
 // (seed promotedTo, future relations[]) are tolerated on all read paths.
-export async function deleteVersion(slug: string): Promise<void> {
+//
+// Named `deleteSprout` since the sprout's edition slice: the botanical rename
+// (#88) never reached this file's write path, and "version" is a word the
+// content model stopped using three slices ago.
+export async function deleteSprout(slug: string): Promise<void> {
   const db = await getDb();
   await db.collection<Sprout>("sprouts").deleteOne({ slug });
 }
@@ -590,4 +596,55 @@ export async function updatePlantVisibility(slug: string, visibility: Visibility
 export async function updateSproutMedia(slug: string, media: Media[]): Promise<void> {
   const db = await getDb();
   await db.collection<Sprout>("sprouts").updateOne({ slug }, { $set: { media } });
+}
+
+/**
+ * A sprout's name and description — and nothing else.
+ *
+ * A SIBLING of `updateSproutMedia` and `updatePlantMeta`, not a widening of
+ * anything. The two fields are named explicitly rather than spread, which is
+ * the rule `writeContent`'s docblock states from the other side: a spread is
+ * what lets a later, widened caller reach `state` or `media` from a form that
+ * has no business touching them.
+ *
+ * No `$unset` half, unlike `updatePlantMeta`: `Sprout.description` is required
+ * in `lib/data.ts`, so a cleared description is `""`. See `lib/sprout-meta.ts`.
+ */
+export async function updateSproutMeta(slug: string, patch: SproutMetaPatch): Promise<void> {
+  const db = await getDb();
+  await db
+    .collection<Sprout>("sprouts")
+    .updateOne({ slug }, { $set: { name: patch.name, description: patch.description } });
+}
+
+/**
+ * A sprout's state — and nothing else.
+ *
+ * The narrowest writer in this file, and the most consequential: it is the
+ * field `filterPublic` reads to decide whether a sprout is on the public site
+ * at all, and the field whose transition `setSproutStateAction` runs the
+ * publish and unpublish cascades around. It writes one key so that the cascade
+ * in the action above it is reasoning about exactly one change.
+ */
+export async function updateSproutState(slug: string, state: SproutState): Promise<void> {
+  const db = await getDb();
+  await db.collection<Sprout>("sprouts").updateOne({ slug }, { $set: { state } });
+}
+
+/** A sprout's date — and nothing else. A sibling of `updateSproutState`. */
+export async function updateSproutDate(slug: string, date: string): Promise<void> {
+  const db = await getDb();
+  await db.collection<Sprout>("sprouts").updateOne({ slug }, { $set: { date } });
+}
+
+/**
+ * A sprout's type — and nothing else. A sibling of `updateSproutState`.
+ *
+ * `type` is free-form: nothing in the garden validates it against a vocabulary,
+ * because there isn't one (`lib/sprouts.ts` filters by state, plant and tag and
+ * never by type). The action's only guard is that it is non-empty.
+ */
+export async function updateSproutType(slug: string, type: string): Promise<void> {
+  const db = await getDb();
+  await db.collection<Sprout>("sprouts").updateOne({ slug }, { $set: { type } });
 }
