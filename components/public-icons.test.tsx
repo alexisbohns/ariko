@@ -3,9 +3,22 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ComponentType, SVGProps } from "react";
 
-import { Crown, Sprout, Waypoints, Zap, ZapOff } from "lucide-react";
 import {
+  ChessKnight,
+  ChessPawn,
+  Crown,
+  Sprout,
+  Waypoints,
+  Zap,
+  ZapOff,
+} from "lucide-react";
+import { PLANT_ROLE_ICONS as ADMIN_ROLE_ICONS } from "./admin/glyphs";
+import { PLANT_ROLE_KINDS } from "@/lib/plant-role";
+import {
+  ChessKnightIcon,
+  ChessPawnIcon,
   CrownIcon,
+  PLANT_ROLE_ICONS,
   SproutIcon,
   WaypointsIcon,
   ZapIcon,
@@ -86,6 +99,8 @@ const pairs: ReadonlyArray<
   ["waypoints", Waypoints, WaypointsIcon],
   ["zap", Zap, ZapIcon],
   ["zap-off", ZapOff, ZapOffIcon],
+  ["chess-knight", ChessKnight, ChessKnightIcon],
+  ["chess-pawn", ChessPawn, ChessPawnIcon],
 ];
 
 for (const [name, Upstream, Ours] of pairs) {
@@ -103,6 +118,43 @@ for (const [name, Upstream, Ours] of pairs) {
       render(Ours),
       upstream,
       `components/public-icons.tsx has drifted from lucide's ${name}: re-copy its path data`,
+    );
+  });
+}
+
+/**
+ * The other half of "the crown here is the crown there", and the half the loop
+ * above cannot see.
+ *
+ * A role kind picks its glyph twice — once in `components/public-icons.tsx` and
+ * once in `components/admin/glyphs.tsx` — because neither zone can import the
+ * other's icons: the public side may not touch lucide-react, and the admin side
+ * is a client island that may not reach `lib/data.ts`'s runtime half. Two
+ * `Record<PlantRoleKind, …>`s mean `tsc` catches a MISSING kind and nothing
+ * catches a WRONG one. Give the public map's contributor a crown and every
+ * existing test still passes: the crown is still lucide's crown, the map is
+ * still total, and a visitor is simply told that a contributor owns the project.
+ *
+ * So this compares per KIND rather than per icon name, which folds the two
+ * failures into one assertion — a lucide bump that redraws the knight and a
+ * mapping someone edited on one side only both land here.
+ */
+for (const kind of PLANT_ROLE_KINDS) {
+  test(`the public zone draws ${kind} with the admin's glyph`, () => {
+    const admin = render(
+      ADMIN_ROLE_ICONS[kind] as ComponentType<SVGProps<SVGSVGElement>>,
+    );
+
+    assert.ok(
+      admin.length > 0,
+      `no geometry parsed out of the admin's ${kind} glyph — the extractor is broken`,
+    );
+
+    assert.deepEqual(
+      render(PLANT_ROLE_ICONS[kind]),
+      admin,
+      `role "${kind}" is drawn differently in the two zones: components/public-icons.tsx ` +
+        `and components/admin/glyphs.tsx disagree about its glyph, or one is a stale copy`,
     );
   });
 }

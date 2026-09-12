@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import type { Plant } from "./data";
 
 /**
- * The plant header's five editors are icon triggers — a logo, a crown, a
- * status dot, a globe. An icon is not a label, so the only place a reader
+ * The plant header's five editors are icon triggers — a logo, a chess piece, a
+ * status bolt, a globe. An icon is not a label, so the only place a reader
  * (screen reader, or anyone hovering) learns what `status` and `visibility`
  * currently ARE is each trigger's accessible name.
  *
@@ -64,7 +64,7 @@ async function hero(overrides: Partial<Plant> = {}): Promise<unknown> {
     logoUrl: subject.logo?.url,
     status: statusOf(subject),
     visibility: visibilityOf(subject),
-    role: { label, title, detail: "" },
+    role: { kind: subject.role.kind, label, title, detail: "" },
     metaForm: React.createElement("input", { name: "nameFr" }),
     roleForm: React.createElement("input", { name: "kind" }),
     logoForm: React.createElement("input", { name: "logo" }),

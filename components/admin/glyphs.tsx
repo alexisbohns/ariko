@@ -2,7 +2,11 @@
 
 import {
   Bot,
+  Check,
+  ChessKnight,
+  ChessPawn,
   CircleDashed,
+  Crown,
   GitPullRequest,
   Globe,
   Lock,
@@ -12,18 +16,29 @@ import {
   Sprout,
   User,
   Webhook,
+  Zap,
+  ZapOff,
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { Visibility } from "@/lib/data";
+import type { PlantRoleKind, PlantStatus, Visibility } from "@/lib/data";
 import { cloudinaryThumb } from "@/lib/image-url";
-import { initialsOf, sourceLabel, tierLabel, visibilityLabel, type Tier } from "@/lib/glyphs";
+import {
+  initialsOf,
+  sourceLabel,
+  tierLabel,
+  visibilityLabel,
+  NARRATIVE_LABEL,
+  type Tier,
+} from "@/lib/glyphs";
+import { statusLabel } from "@/lib/plant-status";
 import { cn } from "@/lib/utils";
 
 /**
  * The glyphs the three admin tables draw instead of spelling values out: a
- * source's icon, an entity's avatar, a visibility, a tier.
+ * source's icon, an entity's avatar, a visibility, a tier, a plant's role and
+ * status, and whether it carries narrative.
  *
  * ONE client island for all three tables, and a small one — a lucide icon is
  * already a client module (`components/media.tsx` documents why the public zone
@@ -33,10 +48,21 @@ import { cn } from "@/lib/utils";
  * server-rendered links and cells they were, which is why this is not a fourth
  * entry in CLAUDE.md's list of exceptions.
  *
- * The words come from `lib/glyphs.ts` — every glyph names itself in a tooltip
- * AND in an `sr-only` span, so an icon is never the only carrier of a value for
- * a screen reader. The tooltip is what a sighted reader hovers; the sr-only
- * text is what makes the cell readable without hovering at all.
+ * The words come from `lib/glyphs.ts` — or, for the two plant enums, from
+ * `lib/plant-status.ts` and `lib/plant-role.ts`, which own their own
+ * vocabularies. Every glyph names itself in a tooltip AND in an `sr-only` span,
+ * so an icon is never the only carrier of a value for a screen reader. The
+ * tooltip is what a sighted reader hovers; the sr-only text is what makes the
+ * cell readable without hovering at all.
+ *
+ * The two ICON maps below are exported, and that is the point of them: the
+ * plant header (`app/admin/_components/plant-hero.tsx`) draws the same status
+ * and the same role, and it now reads them from here rather than declaring its
+ * own — so a plant's status reads the same on the garden table and on its own
+ * page because it is the same component, not because two files happen to agree.
+ * The public zone cannot join in (it may not touch lucide-react), so it keeps a
+ * third declaration in `components/public-icons.tsx`, which
+ * `components/public-icons.test.tsx` pins against this one.
  */
 
 /** Trigger delay. The chrome opens its tooltips instantly; a table is dense
@@ -239,4 +265,70 @@ const TIER_ICONS: Record<Tier, ComponentType<{ className?: string }>> = {
 
 export function TierGlyph({ tier }: { tier: Tier }) {
   return <IconGlyph icon={TIER_ICONS[tier]} label={tierLabel(tier)} />;
+}
+
+/**
+ * Status, drawn. A bolt still running and a bolt switched off — the same pair
+ * the public plant page draws in inlined path data.
+ *
+ * Active is the toned one, which is the opposite of `VisibilityGlyph`'s rule
+ * (there the EXCEPTIONAL value, private, takes the emphasis). It is not an
+ * inconsistency: the hero's status trigger already colours active `text-primary`
+ * because a bolt that is lit reads as current work, and a garden table that
+ * greyed it would disagree with the page one click away.
+ */
+export const PLANT_STATUS_ICONS: Record<PlantStatus, ComponentType<{ className?: string }>> = {
+  active: Zap,
+  inactive: ZapOff,
+};
+
+export function StatusGlyph({ status }: { status: PlantStatus }) {
+  return (
+    <IconGlyph
+      icon={PLANT_STATUS_ICONS[status]}
+      label={statusLabel(status)}
+      className={status === "active" ? "text-primary hover:text-primary" : undefined}
+    />
+  );
+}
+
+/**
+ * Role, drawn — four kinds, three pieces.
+ *
+ * Owner and co-owner share the crown: the difference between them is a fact
+ * about who else is there, not a rank, and two near-identical crowns would be a
+ * distinction nobody could see. Lead is the knight and contributor the pawn, so
+ * the three glyphs a reader can actually tell apart are the three degrees of
+ * involvement worth telling apart at a glance.
+ *
+ * A `Record`, not a lookup with a fallback: a fifth role kind must fail `tsc`
+ * here rather than quietly inherit a crown. `components/public-icons.tsx`
+ * declares the same mapping in the glyphs the public zone is allowed to use,
+ * and the test named in this file's header is what stops the two drifting.
+ */
+export const PLANT_ROLE_ICONS: Record<PlantRoleKind, ComponentType<{ className?: string }>> = {
+  owner: Crown,
+  "co-owner": Crown,
+  lead: ChessKnight,
+  contributor: ChessPawn,
+};
+
+/**
+ * The role AS a glyph. Takes the composed line rather than composing it:
+ * `lib/plant-role.ts` decides the words (and falls back across languages to do
+ * it), and it reaches `lib/data.ts`'s runtime half, which a client island may
+ * not import. So the garden page resolves `Lead · Head of Product` server-side
+ * and hands it down — which is also what keeps the custom title, the half of a
+ * role that no icon could ever carry, in the tooltip and the accessible name.
+ */
+export function RoleGlyph({ kind, label }: { kind: PlantRoleKind; label: string }) {
+  return <IconGlyph icon={PLANT_ROLE_ICONS[kind]} label={label} />;
+}
+
+/**
+ * A plant or pod has prose. Rendered only when it does — the absent case is the
+ * table's em dash, for the reason `NARRATIVE_LABEL` gives.
+ */
+export function NarrativeGlyph() {
+  return <IconGlyph icon={Check} label={NARRATIVE_LABEL} />;
 }

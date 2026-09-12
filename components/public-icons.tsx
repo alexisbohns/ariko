@@ -1,13 +1,14 @@
-import type { SVGProps } from "react";
+import type { ComponentType, SVGProps } from "react";
+import type { PlantRoleKind } from "@/lib/data";
 
 /**
- * The public zone's icon set — five glyphs, as SERVER components.
+ * The public zone's icon set — seven glyphs, as SERVER components.
  *
  * `components/media.tsx` states the rule these exist to obey: lucide-react@1.33
  * routes every icon through an Icon.mjs carrying "use client", so a single
  * <Crown /> imported from it would push a client boundary into a zone whose
- * whole rule is that it has none. Five glyphs would be five boundaries, to draw
- * five static shapes.
+ * whole rule is that it has none. Seven glyphs would be seven boundaries, to
+ * draw seven static shapes.
  *
  * So the path data is inlined instead. It IS lucide's — copied verbatim from
  * lucide-react@1.33 (ISC licence: "Permission to use, copy, modify, and/or
@@ -20,10 +21,10 @@ import type { SVGProps } from "react";
  * chrome puts the word in the anchor's aria-label, and the plant head renders
  * the word beside the icon. Nothing here is the accessible name for anything.
  *
- * Adding a sixth: copy `__iconNode` out of
+ * Adding an eighth: copy `__iconNode` out of
  * node_modules/lucide-react/dist/esm/icons/<name>.mjs. Do not eyeball it.
  *
- * Bumping lucide: RE-COPY ALL FIVE. package.json carries a caret on
+ * Bumping lucide: RE-COPY ALL SEVEN. package.json carries a caret on
  * lucide-react, and lucide redraws icons in minor releases — so an ordinary
  * install can move the admin's glyph and leave this copy behind, which no
  * compiler can see because the copy is a string.
@@ -87,7 +88,7 @@ export function WaypointsIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-/** lucide `crown` — a plant's role. The admin hero's role trigger. */
+/** lucide `crown` — a plant's role: owner and co-owner. */
 export function CrownIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <SvgFrame {...props}>
@@ -117,3 +118,58 @@ export function ZapOffIcon(props: SVGProps<SVGSVGElement>) {
     </SvgFrame>
   );
 }
+
+/** lucide `chess-knight` — a plant's role: lead. */
+export function ChessKnightIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <SvgFrame {...props}>
+      <path d="M5 20a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v1a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z" />
+      <path d="M16.5 18c1-2 2.5-5 2.5-9a7 7 0 0 0-7-7H6.635a1 1 0 0 0-.768 1.64L7 5l-2.32 5.802a2 2 0 0 0 .95 2.526l2.87 1.456" />
+      <path d="m15 5 1.425-1.425" />
+      <path d="m17 8 1.53-1.53" />
+      <path d="M9.713 12.185 7 18" />
+    </SvgFrame>
+  );
+}
+
+/** lucide `chess-pawn` — a plant's role: contributor. */
+export function ChessPawnIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <SvgFrame {...props}>
+      <path d="M5 20a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v1a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z" />
+      <path d="m14.5 10 1.5 8" />
+      <path d="M7 10h10" />
+      <path d="m8 18 1.5-8" />
+      <circle cx="12" cy="6" r="4" />
+    </SvgFrame>
+  );
+}
+
+/**
+ * Which glyph each role kind wears — the public zone's half of a mapping the
+ * admin declares again, in lucide components, in `components/admin/glyphs.tsx`.
+ *
+ * FOUR kinds, THREE glyphs: owner and co-owner share the crown, because the
+ * distinction between them is a fact about a team and not about a rank, and two
+ * near-identical crowns would be a difference a reader cannot see anyway. Lead
+ * and contributor each get their own piece.
+ *
+ * Declared twice on purpose. The two zones cannot share a map — this side may
+ * not touch lucide-react (see the header), and the admin side may not touch
+ * anything that reaches `lib/data.ts`'s runtime half — so what keeps them
+ * honest is a test rather than a module: `components/public-icons.test.tsx`
+ * renders both maps per kind and compares the geometry, which catches a lucide
+ * bump AND a mapping that drifted, in the same assertion.
+ *
+ * A `Record`, not a lookup with a fallback: a fifth role kind must fail `tsc`
+ * here rather than quietly inherit a crown.
+ */
+export const PLANT_ROLE_ICONS: Record<
+  PlantRoleKind,
+  ComponentType<SVGProps<SVGSVGElement>>
+> = {
+  owner: CrownIcon,
+  "co-owner": CrownIcon,
+  lead: ChessKnightIcon,
+  contributor: ChessPawnIcon,
+};

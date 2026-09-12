@@ -2,7 +2,8 @@
  * The vocabulary behind the admin tables' glyphs — the words, never the icons.
  *
  * The three tables (inbox, vault, garden) stopped spelling out `source.kind`,
- * `visibility` and `tier` and now draw them. A drawn value still has to say its
+ * `visibility`, `tier` and — since the garden went all-glyph — whether a plant
+ * carries narrative, and now draw them. A drawn value still has to say its
  * name somewhere: every glyph carries one of these labels in its tooltip and in
  * its accessible name, so this module is the single place a display form is
  * decided — the same rule `lib/plant-status.ts` and `lib/plant-role.ts` already
@@ -81,3 +82,14 @@ const TIER_LABELS: Record<Tier, string> = {
 export function tierLabel(tier: Tier): string {
   return TIER_LABELS[tier];
 }
+
+/**
+ * The garden table's narrative column, which is a yes and not an enum.
+ *
+ * ONE word, and only the affirmative one: a plant with no prose draws the
+ * table's em dash — the same nothing a pod's role and status cells already
+ * draw — rather than a second glyph, because "nothing written yet" is an
+ * absence and not a value the author chose. A crossed-out pen would read as a
+ * state someone set.
+ */
+export const NARRATIVE_LABEL = "Has narrative";

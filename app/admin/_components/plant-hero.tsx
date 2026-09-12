@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
-import { Crown, Globe, Lock, Pencil, Zap, ZapOff } from "lucide-react";
-import type { PlantStatus, Visibility } from "@/lib/data";
+import { Globe, Lock, Pencil } from "lucide-react";
+import type { PlantRoleKind, PlantStatus, Visibility } from "@/lib/data";
+import { PLANT_ROLE_ICONS, PLANT_STATUS_ICONS } from "@/components/admin/glyphs";
 import { visibilityLabel } from "@/lib/glyphs";
 import { PLANT_STATUSES, statusLabel } from "@/lib/plant-status";
 import { PLANT_VISIBILITIES } from "@/lib/plant-visibility";
@@ -48,8 +49,9 @@ export interface PlantHeroProps {
   logoUrl?: string;
   status: PlantStatus;
   visibility: Visibility;
-  /** The role, already resolved to words by lib/plant-role.ts. */
-  role: { label: string; title: string | null; detail: string };
+  /** The role: its kind (which picks the glyph) and its words, already
+   *  resolved by lib/plant-role.ts. */
+  role: { kind: PlantRoleKind; label: string; title: string | null; detail: string };
   /** A rejected save's message, and which sheet it came from. */
   error?: string;
   errorForm?: "meta" | "role";
@@ -93,6 +95,11 @@ export function PlantHero({
   // close the popover it lives in and open a sheet in the same click.
   const [open, setOpen] = useState<Surface>(null);
   const [seenSaved, setSeenSaved] = useState(saved);
+
+  // The role's piece — a crown for an owner, a knight for a lead, a pawn for a
+  // contributor. From the garden table's own map, so the icon on this header is
+  // the icon on the row that links to it.
+  const RoleIcon = PLANT_ROLE_ICONS[role.kind];
 
   // Controlled, so the primitive cannot infer where focus came from. Focus
   // returns to whatever opened the sheet, whichever route it took.
@@ -206,7 +213,7 @@ export function PlantHero({
                           variant="ghost"
                           aria-label={`Role: ${role.label}`}
                         >
-                          <Crown className="size-4" />
+                          <RoleIcon className="size-4" />
                         </Button>
                       }
                     />
@@ -336,23 +343,27 @@ interface EnumOption {
  * The words come from `lib/plant-status.ts` and `lib/glyphs.ts` rather than
  * from string literals here, and the icons are the ones the admin tables
  * already use for the same values — a visibility reads the same on the garden
- * table and on this header. The hints are the only new prose, and they exist
- * because both fields have an effect that is invisible from this page (the Meta
- * card used to carry the status one in its CardDescription).
+ * table and on this header. Status now says that by IMPORTING the table's map
+ * rather than by picking the same two lucide names again; the claim used to be
+ * a comment, and a comment is what a third `Zap` would have quietly falsified.
+ *
+ * The hints are the only new prose, and they exist because both fields have an
+ * effect that is invisible from this page (the Meta card used to carry the
+ * status one in its CardDescription).
  */
 const STATUS_OPTIONS: EnumOption[] = PLANT_STATUSES.map((status) =>
   status === "active"
     ? {
         value: status,
         label: statusLabel(status),
-        icon: Zap,
+        icon: PLANT_STATUS_ICONS[status],
         hint: "Still being worked on.",
         tone: "text-primary",
       }
     : {
         value: status,
         label: statusLabel(status),
-        icon: ZapOff,
+        icon: PLANT_STATUS_ICONS[status],
         hint: "Still shown publicly, under the landing gallery's Inactive heading.",
       },
 );
