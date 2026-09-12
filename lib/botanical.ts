@@ -646,9 +646,12 @@ export async function updateSproutDate(slug: string, date: string): Promise<void
 /**
  * A sprout's type — and nothing else. A sibling of `updateSproutState`.
  *
- * `type` is free-form: nothing in the garden validates it against a vocabulary,
- * because there isn't one (`lib/sprouts.ts` filters by state, plant and tag and
- * never by type). The action's only guard is that it is non-empty.
+ * The value is free-form but not shapeless: nothing validates it against a
+ * vocabulary, because there isn't one (`lib/sprouts.ts` filters by state, plant
+ * and tag and never by type), while `lib/sprout-type.ts` records what renders
+ * it and what three `===` comparisons do with a padded one, and
+ * `setSproutTypeAction` is the door that enforces it. Nothing checks it here —
+ * this writer is reached only through that action.
  */
 export async function updateSproutType(slug: string, type: string): Promise<void> {
   const db = await getDb();

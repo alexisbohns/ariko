@@ -22,11 +22,11 @@
  * the newest. Both are string comparisons; neither ever parses. So the
  * chronological order of the public site rests on stored dates all being the
  * same ten characters, and nothing else in the chain checks that:
- * `validateSproutInput` and the old `validateSproutPatch` both only ask whether
- * the string is non-empty, and `<input type="date">` is a client control a
- * server must not trust anyway. A `09/12/2026` reaches storage, sorts above
- * every `2…` line in the garden, and silently misfiles the sprout on the public
- * site with nothing failing anywhere.
+ * `validateSproutInput` only asks whether the string is non-empty, and
+ * `<input type="date">` is a client control a server must not trust anyway. A
+ * `09/12/2026` reaches storage, sorts above every `2…` line in the garden, and
+ * silently misfiles the sprout on the public site with nothing failing
+ * anywhere.
  *
  * DATE-ONLY, anchored at both ends, which is stricter than `mergeBeanstalk`
  * alone would need. Three things decide it together: `byDateDesc` does not

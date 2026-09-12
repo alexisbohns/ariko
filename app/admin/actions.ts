@@ -34,6 +34,7 @@ import { shouldCascadePublish } from "@/lib/sprout-edit";
 import { buildSproutMetaPatch, BlankSproutNameError, type SproutMetaPatch } from "@/lib/sprout-meta";
 import { isSproutState } from "@/lib/sprout-state";
 import { isTimelineDate } from "@/lib/sprout-date";
+import { isSproutType } from "@/lib/sprout-type";
 import { buildContentPatch } from "@/lib/content-edit";
 import { buildMediaPatch } from "@/lib/media-edit";
 import { buildPlantRolePatch, InvalidRoleKindError } from "@/lib/plant-role";
@@ -482,19 +483,26 @@ export async function setSproutDateAction(formData: FormData): Promise<void> {
 /**
  * A sprout's type — and nothing else.
  *
- * Non-empty is the ONLY guard, and deliberately so: `type` is free-form. There
- * is no vocabulary to validate a member of — `lib/sprouts.ts` filters sprouts
- * by state, plant and tag and never by type, and the seed-promotion path writes
- * whatever the source carried. If a vocabulary is ever wanted it arrives as
- * `lib/sprout-type.ts` beside `lib/sprout-state.ts` and this action validates
- * against it; inventing one here would make the UI the definition.
+ * `lib/sprout-type.ts` holds the rule and its reasons; this is only the door
+ * that applies it, exactly as `setSproutDateAction` is for the date. What that
+ * guard is NOT is a vocabulary: nothing in the garden validates a sprout's type
+ * against a list, because there isn't one — `lib/sprouts.ts` filters by state,
+ * plant and tag and never by type, and the seed-promotion path writes whatever
+ * the source carried. If a vocabulary is ever wanted it joins that module and
+ * this action validates against it; inventing one here would make the UI the
+ * definition.
  *
- * One consequence worth naming rather than hiding: this action can move a
- * published sprout off `digest`, and `shouldCascadePublish` — which
- * `setSproutStateAction` consults at publish time — is not re-run here. That is
- * `editVersionAction`'s existing behaviour (a form save carried both fields and
- * only `state === "published"` triggered the cascade), now visible as a gap
- * between two actions rather than hidden inside one.
+ * One consequence worth naming rather than hiding: `shouldCascadePublish` is
+ * consulted at publish time only, so moving a published sprout off `digest`
+ * HERE does not re-cascade — it stays published with its bean and plant still
+ * private, and the author's next act on the state control is what settles it.
+ * `setSproutStateAction` reads `existing.type`, so the gap lives between two
+ * actions rather than inside one, which is at least a gap that can be seen.
+ *
+ * It is a NEW gap, not an inherited one, and saying so is the honest version:
+ * the whole-form path this replaced evaluated the digest exemption against the
+ * type being SAVED, so one submit that changed the type and published at once
+ * cascaded on the new value. Splitting the fields is what split that.
  */
 export async function setSproutTypeAction(formData: FormData): Promise<void> {
   await requireSession();
@@ -504,7 +512,9 @@ export async function setSproutTypeAction(formData: FormData): Promise<void> {
   if (!existing) redirect("/admin/sprouts");
 
   const type = String(formData.get("type") ?? "").trim();
-  if (!type) redirect(sproutHref(slug, "could not save: a sprout needs a type", "type"));
+  if (!isSproutType(type)) {
+    redirect(sproutHref(slug, "could not save: a sprout needs a type", "type"));
+  }
 
   await updateSproutType(slug, type);
 
