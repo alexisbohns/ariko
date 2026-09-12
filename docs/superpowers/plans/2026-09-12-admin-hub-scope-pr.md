@@ -27,7 +27,7 @@ always says which one.**
 ## What changed
 
 **The front door.** `/admin` was the inbox. It is now a welcome page: a
-greeting, the ⌘K autocomplete inline and auto-focused, and every plant in two
+greeting, an auto-focused search field, and every plant in two
 tables — Published and Private, each with its count, each the same component
 rendered twice so they cannot drift. Name, role, status, narrative. No tier
 column, because only plants are listed; no visibility column, because the two
@@ -125,21 +125,47 @@ Anonymously, against a dev server: `/admin` 307s to `/admin/login`,
 `/admin/garden` 307s to `/admin`, `/admin/vault` 307s to `/admin/sprouts`, and
 the login page's bytes contain no plant slug, no logo URL and no visibility.
 
+**The search is a field, not an open index.** The first version rendered the
+⌘K palette inline, which put a permanently open, permanently scrolling list
+between the greeting and the plants. It is an ordinary field now: the results
+are a popup anchored under it, sized to its width, and it opens on the first
+character rather than on focus or on click. The index, the rows and the fetch
+are still one definition shared with the dialog — only the surface differs,
+because a popup inside a dialog would be a second floating layer over the
+first.
+
+**The chrome answers to the keyboard.** `⌥1`…`⌥6` walk the rail in the order it
+is drawn, `⌥0` toggles the plant switcher and `⌥Q` logs out. Holding the
+modifier lights every shortcut in the chrome at once, so the legend is the
+chrome itself rather than a page to go and read. The digit is a **position**,
+assigned by the same function that composes the rail — scoped, Overview takes
+the 1 and everything below it shifts down, and Beanstalk's digit leaves the
+rail with Beanstalk, because a shortcut that disagreed with the icon it is
+drawn beside would be worse than none. The chips are the registry's `kbd`, so
+real `<kbd>` elements; a vertical rail reveals label and chip together, a
+horizontal cluster reveals the chip alone, because six labels opening downward
+into one strip land on top of each other.
+
 ## What is **not** verified
 
 **Nothing behind the session gate has been seen in a browser at any point in
 this slice.** Every claim above about behaviour rests on tests, on types, on
 the build, and on reading the source. Specifically unconfirmed:
 
-- the welcome page's layout — the greeting, the inline autocomplete, and the
-  two plant tables side by side or stacked;
+- the welcome page's layout — the greeting, the search field and the two plant
+  tables (the author has seen this one and sent it back once: the search was an
+  always-open scrolling index and is now a popup, `b82ee2f`);
 - the plant switcher's popover — whether it opens where it should, whether the
   grouped list reads well, and how the trigger looks with and without a logo;
 - the hub's four previews — the two-column grid, the counts beside the
   headings, and the `all n →` links landing where they say;
 - the screens preview's thumbnail row;
 - the scoped rail in the flesh — Overview appearing, Beanstalk stepping aside;
-- every hover label on the new top-left cluster.
+- every hover label on the new top-left cluster;
+- the shortcut chips at rest and under a held modifier — the author has seen
+  and corrected these once (`8248ad3`: `⌘K` rendered as its own escape, and the
+  horizontal clusters' labels overlapped), but the corrected state is again
+  unseen from here.
 
 A walkthrough with a session is the remaining work: `/admin` → each section →
 pick a plant → each section again → the hub → `/admin/login`.
