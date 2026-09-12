@@ -2120,7 +2120,22 @@ Wrap the chrome in a `Suspense` boundary in the layout, because
 
 `AdminMain` also reads the pathname; it needs no scope and no Suspense.
 
-- [ ] **Step 4: Verify**
+- [ ] **Step 4: Teach the row filters what "all" means**
+
+The control that writes scopes must not be able to write one the readers
+misread. `"all"` is `filterQuery`'s sentinel for *no filter* and `resolveScope`
+reads it back as `null` — but `filterSproutEntries` (`lib/sprouts.ts`) and
+`filterScreens` (`lib/screens.ts`) both compare it raw, as though a plant were
+slugged `all`. So `/admin/sprouts?plant=all` and `/admin/screens?plant=all`
+render zero rows while the switcher above reads "All".
+
+`filterHref` never emits it, so today it is reachable only by hand or a stale
+bookmark — but a switcher that writes scopes into every URL makes hand-edited
+scopes ordinary. Make both filters treat `"all"` as absent, exactly as
+`filterQuery` does, and add a test to each pinning it. One sentinel, read the
+same way by everything that reads it.
+
+- [ ] **Step 5: Verify**
 
 Run: `npx tsc --noEmit` → clean
 Run: `npm run build` → clean (this is the step that catches a missing Suspense)
@@ -2129,11 +2144,13 @@ rail shows Overview and no Beanstalk; click Sprouts → `?plant=` is in the URL
 and the table is narrowed; click Screens → the plant is still there; pick All →
 the scope is gone and Beanstalk is back.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
+
+Two commits: the sentinel fix (`lib/sprouts.ts`, `lib/screens.ts` and their
+tests) separately from the chrome, since it stands on its own.
 
 ```bash
-git add app/admin/_components/plant-switcher.tsx app/admin/_components/admin-chrome.tsx app/admin/layout.tsx
-git commit -m "admin: the chrome carries a plant, and the rail changes shape around it"
+git commit app/admin/_components/plant-switcher.tsx app/admin/_components/admin-chrome.tsx app/admin/layout.tsx -m "admin: the chrome carries a plant, and the rail changes shape around it"
 ```
 
 ---
