@@ -1,3 +1,4 @@
+import { filterValue } from "./admin-filters";
 import { resolveText, type TimelineEntry, type SproutState } from "./data";
 
 const STATES: SproutState[] = ["draft", "private", "published"];
@@ -18,10 +19,15 @@ export const SPROUT_KEYS = ["state", "plant", "tag"] as const;
 // blank value is ignored, a non-blank unknown value matches nothing (there is
 // no plant enum to validate against). Surviving rows carry their sprout name
 // resolved to a display string (B1).
+//
+// `filterValue` rather than a local trim, so "all" — the sentinel every filter
+// control in the admin writes for "no filter" — is absence HERE too. This file
+// used to compare it raw, which made `?plant=all` an empty table under a
+// trigger reading "All"; see that function's docblock.
 export function filterSproutEntries(entries: TimelineEntry[], filters: SproutFilters): TimelineEntry[] {
   const state = STATES.includes(filters.state as SproutState) ? (filters.state as SproutState) : undefined;
-  const plant = filters.plant && filters.plant.trim() ? filters.plant.trim() : undefined;
-  const tag = filters.tag && filters.tag.trim() ? filters.tag.trim() : undefined;
+  const plant = filterValue(filters.plant);
+  const tag = filterValue(filters.tag);
 
   return entries
     .filter((e) => {

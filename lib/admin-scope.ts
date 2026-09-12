@@ -1,4 +1,4 @@
-import { filterHref, type FilterValues } from "./admin-filters";
+import { filterHref, filterValue, type FilterValues } from "./admin-filters";
 import { NAV_ITEMS, type ScopedId } from "./admin-nav";
 import { hubHref, normalizePath, plantSlugFromPath, ROOT_PATH } from "./plant-path";
 import { SCREEN_FILTER_KEYS } from "./screens";
@@ -75,15 +75,16 @@ export function scopeKeysFor(pathname: string): readonly string[] | undefined {
  * while the page under it is a plant, and a stray query on a hub URL cannot
  * make the chrome contradict the page.
  *
- * `"all"` is `filterQuery`'s own sentinel for "no value" (lib/admin-filters.ts
- * drops it rather than encoding it), read here rather than respelled: without
- * this check, a stale or hand-typed `?plant=all` would come back as a scope
- * literally named "all", while `filterSproutEntries` and every other consumer
- * drop that same value and return zero rows for it — the exact "chrome
- * contradicts the page" failure this function exists to prevent.
+ * `"all"` is the admin's sentinel for "no value", and it is read here through
+ * `filterValue` rather than respelled — the one function every reader of a
+ * filter URL now goes through, so a scope and a row filter cannot disagree
+ * about what `?plant=all` means. Without it, a stale or hand-typed `?plant=all`
+ * would come back as a scope literally named "all" while the rows below were
+ * unfiltered: the exact "chrome contradicts the page" failure this function
+ * exists to prevent.
  *
  * The `Array.isArray` guard returns before anything is stringified, which is
- * deliberately NOT `filterQuery`'s behaviour for the same input. `filterQuery`
+ * deliberately NOT `filterValue`'s behaviour for the same input. `filterValue`
  * keeps a repeated key's `String(...)` coercion — `"a,b"` — because that
  * still needs to match nothing rather than throw. This function has no such
  * constraint and returns `null` outright: a repeated `?plant=` cannot be a
@@ -94,8 +95,7 @@ export function resolveScope(pathname: string, active: FilterValues): string | n
   if (slug) return slug;
   const raw = active.plant;
   if (Array.isArray(raw)) return null;
-  const value = String(raw ?? "").trim();
-  return value && value !== "all" ? value : null;
+  return filterValue(raw) ?? null;
 }
 
 /**

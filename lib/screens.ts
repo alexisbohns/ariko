@@ -1,5 +1,5 @@
 import { BEAN_PREFIX, PLANT_PREFIX, parentsWithPrefix, resolveText, type Screen } from "./data";
-import { filterQuery, type FilterValues } from "./admin-filters";
+import { filterQuery, filterValue, type FilterValues } from "./admin-filters";
 
 /**
  * The library's arithmetic — everything `/admin/screens` decides that is not a
@@ -127,19 +127,17 @@ export function screenRows(screens: Screen[]): ScreenRow[] {
   );
 }
 
-/** Pure. Membership on all three dimensions; a blank value is ignored, a
- *  non-blank unknown one matches nothing — `filterSproutEntries`' stance, and
+/** Pure. Membership on all three dimensions; a blank or "all" value is ignored,
+ *  a non-blank unknown one matches nothing — `filterSproutEntries`' stance, and
  *  for its reason: there is no enum here to validate against. */
 export function filterScreens(rows: ScreenRow[], filters: ScreenFilters): ScreenRow[] {
-  // `String(...)` for `filterQuery`'s reason: a repeated query key arrives as a
-  // `string[]`, and reading `.trim()` off one would 500 the page.
-  const value = (raw?: string) => {
-    const trimmed = String(raw ?? "").trim();
-    return trimmed ? trimmed : undefined;
-  };
-  const plant = value(filters.plant);
-  const bean = value(filters.bean);
-  const tag = value(filters.tag);
+  // `filterValue` rather than a local trim: it drops "all" as well as blank,
+  // which is the sentinel every filter control writes for "no filter". This
+  // file kept its own copy that dropped only blank, so `?plant=all` rendered an
+  // empty library under a trigger reading "All" — see that function's docblock.
+  const plant = filterValue(filters.plant);
+  const bean = filterValue(filters.bean);
+  const tag = filterValue(filters.tag);
 
   return rows.filter((row) => {
     if (plant && row.plant !== plant) return false;

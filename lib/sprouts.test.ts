@@ -50,6 +50,14 @@ test("a blank plant value falls back to all", () => {
   assert.equal(filterSproutEntries(ENTRIES, { plant: "  " }).length, 4);
 });
 
+test('"all" is the sentinel for no filter, not a plant slug', () => {
+  // `filterHref` never emits ?plant=all — it drops the key — so this arrives
+  // only by hand or by a stale bookmark. It used to render zero rows under a
+  // filter trigger, and now a scope switcher, both reading "All".
+  assert.equal(filterSproutEntries(ENTRIES, { plant: "all" }).length, 4);
+  assert.equal(filterSproutEntries(ENTRIES, { tag: "all" }).length, 4);
+});
+
 test("a blank tag falls back to all; an unmatched tag yields none", () => {
   assert.equal(filterSproutEntries(ENTRIES, { tag: "  " }).length, 4);
   assert.equal(filterSproutEntries(ENTRIES, { tag: "ghost" }).length, 0);

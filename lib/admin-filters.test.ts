@@ -1,8 +1,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { filterQuery, filterHref, type FilterValues } from "./admin-filters";
+import { filterHref, filterQuery, filterValue, type FilterValues } from "./admin-filters";
 
 const KEYS = ["state", "plant", "tag"] as const;
+
+test("filterValue is the one reading of a filter value, sentinel included", () => {
+  assert.equal(filterValue("music"), "music");
+  assert.equal(filterValue("  music  "), "music");
+  assert.equal(filterValue("  "), undefined);
+  assert.equal(filterValue(""), undefined);
+  assert.equal(filterValue(undefined), undefined);
+  // The sentinel. Every reader of a filter URL goes through this function so
+  // that a row filter and the chrome above it cannot disagree about ?plant=all.
+  assert.equal(filterValue("all"), undefined);
+  // Coerced rather than thrown on, so a repeated key matches nothing.
+  assert.equal(filterValue(["a", "b"]), "a,b");
+});
 
 test("filterQuery keeps only the named keys, in the order given", () => {
   assert.equal(filterQuery({ tag: "release", plant: "music", rogue: "x" }, KEYS), "plant=music&tag=release");
