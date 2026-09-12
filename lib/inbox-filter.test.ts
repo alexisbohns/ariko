@@ -24,6 +24,10 @@ test("no scope is no filter", () => {
   assert.equal(filterSeedsByPlant(SEEDS, null).length, 4);
 });
 
+test("an empty string is no scope too, the same falsy check as null", () => {
+  assert.equal(filterSeedsByPlant(SEEDS, "").length, 4);
+});
+
 test("a scope keeps only the seeds that suggest it", () => {
   assert.deepEqual(
     filterSeedsByPlant(SEEDS, "ariko").map((s) => s.id),
