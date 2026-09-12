@@ -1,7 +1,6 @@
 import { filterValue } from "./admin-filters";
 import { resolveText, type TimelineEntry, type SproutState } from "./data";
-
-const STATES: SproutState[] = ["draft", "private", "published"];
+import { SPROUT_STATES } from "./sprout-state";
 
 export interface SproutFilters {
   state?: string;
@@ -32,7 +31,7 @@ export { SPROUT_KEYS } from "./section-keys";
 // used to compare it raw, which made `?plant=all` an empty table under a
 // trigger reading "All"; see that function's docblock.
 export function filterSproutEntries(entries: TimelineEntry[], filters: SproutFilters): TimelineEntry[] {
-  const state = STATES.includes(filters.state as SproutState) ? (filters.state as SproutState) : undefined;
+  const state = SPROUT_STATES.includes(filters.state as SproutState) ? (filters.state as SproutState) : undefined;
   const plant = filterValue(filters.plant);
   const tag = filterValue(filters.tag);
 
