@@ -1,8 +1,15 @@
 import { resolveText, textPart } from "@/lib/data";
 import { loadRawGarden } from "@/lib/store";
 import { roleLine } from "@/lib/plant-role";
-import { statusLabel, statusOf } from "@/lib/plant-status";
-import { EntityAvatar, TierGlyph, VisibilityGlyph } from "@/components/admin/glyphs";
+import { statusOf } from "@/lib/plant-status";
+import {
+  EntityAvatar,
+  NarrativeGlyph,
+  RoleGlyph,
+  StatusGlyph,
+  TierGlyph,
+  VisibilityGlyph,
+} from "@/components/admin/glyphs";
 import {
   Table,
   TableBody,
@@ -18,6 +25,21 @@ export const dynamic = "force-dynamic";
  * Plants and pods, the two tiers that hold narrative. Mechanical — the vault
  * stays sprout-centric, and this is the only way to reach a container page
  * without typing its URL.
+ *
+ * Every column but the name is a glyph. Role, status and narrative were the
+ * last three to spell themselves out, and they were the three that made the
+ * table unscannable: `Lead · Head of Product` in one row and `Owner` in the
+ * next set the column's width from its longest custom title, so the eye had to
+ * read a sentence to learn one bit. Drawn, the column is four pixels wide and
+ * the pieces differ by silhouette.
+ *
+ * NOTHING is lost in the accessibility tree, which is the condition on doing
+ * this at all: each glyph carries its word in an `sr-only` span, and the role's
+ * word is the full composed line — custom title included — so the one thing an
+ * icon genuinely cannot say is still said. `components/admin/glyphs.tsx`.
+ *
+ * The role and status glyphs are the plant page's own: the icon a plant wears
+ * here is the icon its header wears, from one map.
  */
 export default async function AdminGardenPage() {
   const raw = await loadRawGarden();
@@ -29,8 +51,10 @@ export default async function AdminGardenPage() {
       name: resolveText(p.name),
       visibility: p.visibility ?? "public",
       hasNarrative: textPart(p.content, "en").trim().length > 0,
-      role: roleLine(p.role),
-      status: statusLabel(statusOf(p)),
+      // The composed line, resolved here rather than in the glyph: the glyph is
+      // a client island and `lib/plant-role.ts` reaches lib/data's runtime half.
+      role: { kind: p.role.kind, label: roleLine(p.role) },
+      status: statusOf(p),
       // A plant has a mark; a pod never does (no `logo` field at that tier), so
       // its avatar is always the initials fallback — which is exactly why the
       // avatar primitive is the right thing here rather than a bare <img>.
@@ -87,13 +111,20 @@ export default async function AdminGardenPage() {
                 <TableCell>
                   <TierGlyph tier={row.tier} />
                 </TableCell>
-                <TableCell className="text-muted-foreground">{row.role ?? "—"}</TableCell>
-                <TableCell className="text-muted-foreground">{row.status ?? "—"}</TableCell>
+                {/* A pod has neither, by containment — see the row builder
+                    above. The em dash is the column's empty state, and the
+                    narrative cell borrows it for the same reason. */}
+                <TableCell className="text-muted-foreground">
+                  {row.role ? <RoleGlyph kind={row.role.kind} label={row.role.label} /> : "—"}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {row.status ? <StatusGlyph status={row.status} /> : "—"}
+                </TableCell>
                 <TableCell>
                   <VisibilityGlyph visibility={row.visibility} />
                 </TableCell>
                 <TableCell className="text-muted-foreground">
-                  {row.hasNarrative ? "yes" : "—"}
+                  {row.hasNarrative ? <NarrativeGlyph /> : "—"}
                 </TableCell>
               </TableRow>
             ))}

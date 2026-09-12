@@ -116,7 +116,12 @@ export default async function AdminPlantPage({
           logoUrl={plant.logo?.url}
           status={statusOf(plant)}
           visibility={visibilityOf(plant)}
-          role={{ label, title, detail: resolveText(plant.role.detail ?? "").trim() }}
+          role={{
+            kind: plant.role.kind,
+            label,
+            title,
+            detail: resolveText(plant.role.detail ?? "").trim(),
+          }}
           error={error}
           errorForm={errorForm}
           metaForm={<PlantMetaForm plant={plant} />}
