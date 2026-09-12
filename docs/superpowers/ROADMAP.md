@@ -1,6 +1,6 @@
 # Ariko — where we are
 
-**Last updated:** 2026-09-11
+**Last updated:** 2026-09-12
 
 One screen. This file does **not** aggregate the plans' deferred sections any
 more — that arrangement asked for a prune on every slice, got one on none, and
@@ -43,7 +43,9 @@ filters, table glyphs, ⌘K; the plant page as its own object, public and admin;
 the shared-surfaces slice; bean covers and the phone frame; the screen store,
 library and exhibition; the public TOC rail; the rulebook rewrite itself —
 `CLAUDE.md`'s three invariants, and `table.tsx` / `separator.tsx` dropping
-`"use client"` along with it.
+`"use client"` along with it; the garden cache — the public zone's read behind
+one `garden` tag, invalidated at four doors, with a 404 and an error boundary
+per zone and a bounded Mongo timeout behind them.
 
 Per-slice detail: [`specs/`](specs/), and the merged PRs they name.
 
@@ -65,11 +67,7 @@ never finished in the identifiers, the write path, or the strings the author
 reads (`ATOM_PREFIX = "bean:"`, an "Edit version" heading on the sprout page).
 
 1. ~~**Rewrite the guidelines.**~~ Shipped — [`specs/2026-09-10-guidelines-rewrite-design.md`](specs/2026-09-10-guidelines-rewrite-design.md).
-2. **Cache the garden.** `unstable_cache` + `revalidateTag("garden")`, replacing
-   29 `revalidatePath` calls that invalidate nothing because every page is
-   `force-dynamic`. Plus `serverSelectionTimeoutMS`, `app/(public)/error.tsx`
-   and `app/not-found.tsx`. The highest-leverage change in the repo: TTFB stops
-   depending on Mongo and an outage becomes stale rather than 500.
+2. ~~**Cache the garden.**~~ Shipped — [`specs/2026-09-11-cache-the-garden-design.md`](specs/2026-09-11-cache-the-garden-design.md).
 3. **Assets.** svgo the two brand SVGs (102 kB and 91 kB of rendered HTML);
    subset Inclusive Sans to woff2 (−180 kB per first visit); Profane fallback
    metrics; `preconnect` to Cloudinary; transform the gallery and markdown

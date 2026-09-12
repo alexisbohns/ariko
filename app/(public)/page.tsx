@@ -1,7 +1,7 @@
 import { resolveText } from "@/lib/data";
 import type { Bean, Plant, Pod } from "@/lib/data";
 import { currentLang } from "@/lib/locale-server";
-import { getPublicDataset } from "@/lib/store";
+import { getPublicDataset } from "@/lib/garden-cache";
 import { beanCoverFor, podCoverFrom, type BeanCover } from "@/lib/bean-cover";
 import { roleLine } from "@/lib/plant-role";
 import { splitPlantsByStatus } from "@/lib/plant-status";

@@ -1,5 +1,5 @@
 import { filterPublic } from "@/lib/data";
-import { loadRawGarden } from "@/lib/store";
+import { loadCachedGarden } from "@/lib/garden-cache";
 import { toGraph } from "@/lib/graph";
 
 // Data twin of the public pages: no auth, and it composes the same
@@ -9,5 +9,5 @@ import { toGraph } from "@/lib/graph";
 export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<Response> {
-  return Response.json(toGraph(filterPublic(await loadRawGarden())));
+  return Response.json(toGraph(filterPublic(await loadCachedGarden())));
 }

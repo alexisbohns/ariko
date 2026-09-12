@@ -2,6 +2,7 @@ import { hasValidToken, singleToken } from "../../../lib/auth";
 import { validateArticlesPayload, type ArticlesPayload } from "../../../lib/articles";
 import { writeArticles } from "../../../lib/articles-store";
 import { isDuplicateKeyError } from "../../../lib/seeds";
+import { revalidateGarden } from "../../../lib/garden-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -53,5 +54,6 @@ export async function POST(request: Request): Promise<Response> {
       { status: 409 },
     );
   }
+  revalidateGarden();
   return Response.json(result);
 }

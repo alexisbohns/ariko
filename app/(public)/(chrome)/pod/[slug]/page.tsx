@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { resolveText } from "@/lib/data";
 import { currentLang } from "@/lib/locale-server";
-import { getPublicDataset } from "@/lib/store";
+import { getPublicDataset } from "@/lib/garden-cache";
 import { resolveEntity } from "@/lib/entity-resolve";
 import { Prose } from "@/components/markdown";
 

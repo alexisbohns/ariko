@@ -1,7 +1,16 @@
 "use server";
 
+/**
+ * Several `revalidateGarden()` calls below sit OUTSIDE their action's
+ * `if (result.dirty)` guard, so a save that turned out to change nothing
+ * still invalidates. That is deliberate, not an oversight: the two mistakes
+ * are not symmetric. Invalidating after a no-op write costs one extra Mongo
+ * read on the next public request. Failing to invalidate after a real write
+ * costs a stale public site until GARDEN_TTL expires. Erring toward the
+ * cheap mistake is the whole point of putting the call outside the guard.
+ */
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { revalidateGarden } from "@/lib/garden-cache";
 import { verifyPassword } from "@/lib/session";
 import { buildSeedBody } from "@/lib/seed-form";
 import { validateInboxPayload } from "@/lib/inbox";
@@ -117,7 +126,6 @@ export async function createSeedAction(formData: FormData): Promise<void> {
     redirect(`/admin?error=${encodeURIComponent(parsed.error)}`);
   }
   await createOrUpdateSeed(parsed.value);
-  revalidatePath("/admin");
   redirect("/admin");
 }
 
@@ -125,7 +133,6 @@ export async function discardSeedAction(formData: FormData): Promise<void> {
   await requireSession();
   const seedId = String(formData.get("seedId") ?? "");
   await discardSeed(seedId);
-  revalidatePath("/admin");
   redirect("/admin");
 }
 
@@ -208,10 +215,19 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
     else throw err;
   }
 
+  // Above the slugError redirect, not below: createPod or createBean can
+  // each succeed before a LATER SlugExistsError throws (the bean's slug
+  // collides right after the pod was created; the sprout's collides right
+  // after both parents were), so a garden write can land here with the
+  // success path below never reached. revalidateGarden() is idempotent and
+  // cheap — the same argument the module docblock above makes for calling it
+  // outside the `if (result.dirty)` guards elsewhere in this file — so it
+  // runs unconditionally rather than only when nothing went wrong.
+  revalidateGarden();
+
   if (slugError) {
     redirect(`/admin/triage/${seedId}?error=${encodeURIComponent(slugError)}`);
   }
-  revalidatePath("/admin");
   redirect("/admin");
 }
 
@@ -249,7 +265,7 @@ export async function editVersionAction(formData: FormData): Promise<void> {
     await setPrivate(plantSlugs, podSlugs, beanSlugs);
   }
 
-  revalidatePath("/admin");
+  revalidateGarden();
   const beanSlug = (existing.parents ?? [])
     .filter((p) => p.startsWith("bean:"))
     .map((p) => p.slice("bean:".length))[0];
@@ -295,7 +311,7 @@ export async function deleteVersionAction(formData: FormData): Promise<void> {
     await setPrivate(plantSlugs, podSlugs, flipBeans);
   }
 
-  revalidatePath("/admin");
+  revalidateGarden();
   redirect(beanSlugs[0] ? `/admin/bean/${beanSlugs[0]}` : "/admin/vault");
 }
 
@@ -323,7 +339,7 @@ export async function editContentAction(formData: FormData): Promise<void> {
   // nothing at all, so reading can never normalize what a bee wrote.
   if (result.dirty) await updateSproutContent(slug, result.patch);
 
-  revalidatePath("/admin");
+  revalidateGarden();
   redirect(`/admin/sprout/${encodeURIComponent(slug)}`);
 }
 
@@ -342,7 +358,7 @@ export async function editSproutMediaAction(formData: FormData): Promise<void> {
   // it untouched writes nothing at all.
   if (result.dirty) await updateSproutMedia(slug, result.media);
 
-  revalidatePath("/admin");
+  revalidateGarden();
   redirect(`/admin/sprout/${encodeURIComponent(slug)}`);
 }
 
@@ -374,7 +390,7 @@ export async function editContainerContentAction(formData: FormData): Promise<vo
     else await updatePodContent(slug, result.patch);
   }
 
-  revalidatePath("/admin");
+  revalidateGarden();
   redirect(back);
 }
 
@@ -412,9 +428,7 @@ export async function editPlantRoleAction(formData: FormData): Promise<void> {
 
   await updatePlantRole(slug, role);
 
-  revalidatePath("/admin");
-  // The role renders on the landing gallery and the plant page, both
-  // force-dynamic — nothing to revalidate there, they re-read on next request.
+  revalidateGarden();
   redirect(back);
 }
 
@@ -450,11 +464,7 @@ export async function editPlantMetaAction(formData: FormData): Promise<void> {
 
   await updatePlantMeta(slug, patch);
 
-  revalidatePath("/admin");
-  // /admin/garden tabulates name and status, so it is stale after this write
-  // in a way /admin/plant/[slug] (force-dynamic) is not. The public landing and
-  // plant page are force-dynamic too — they re-read on the next request.
-  revalidatePath("/admin/garden");
+  revalidateGarden();
   redirect(back);
 }
 
@@ -478,8 +488,7 @@ export async function editPlantLogoAction(formData: FormData): Promise<void> {
   const result = buildPlantLogoPatch(existing, formData);
   if (result.dirty) await updatePlantLogo(slug, result.logo);
 
-  revalidatePath("/admin");
-  revalidatePath("/admin/garden");
+  revalidateGarden();
   redirect(`/admin/plant/${encodeURIComponent(slug)}`);
 }
 
@@ -526,11 +535,7 @@ async function flipPlantField(
 
   await write(slug, value);
 
-  revalidatePath("/admin");
-  // /admin/garden tabulates both fields, so it is stale after either write in
-  // a way /admin/plant/[slug] (force-dynamic) is not. The public landing and
-  // plant pages are force-dynamic too — they re-read on the next request.
-  revalidatePath("/admin/garden");
+  revalidateGarden();
   redirect(back);
 }
 
@@ -581,10 +586,7 @@ export async function editBeanCoverAction(formData: FormData): Promise<void> {
   const result = buildBeanCoverPatch(existing, formData);
   if (result.dirty) await updateBeanCover(slug, result.cover);
 
-  // The landing page is force-dynamic, so it re-reads on the next request; the
-  // admin surfaces that list beans are the ones that need telling.
-  revalidatePath("/admin");
-  revalidatePath("/admin/vault");
+  revalidateGarden();
   redirect(`/admin/bean/${encodeURIComponent(slug)}`);
 }
 
@@ -616,8 +618,7 @@ export async function editBeanKeywordAction(formData: FormData): Promise<void> {
 
   await updateBeanKeyword(slug, buildBeanKeywordPatch(formData));
 
-  revalidatePath("/admin");
-  revalidatePath("/admin/vault");
+  revalidateGarden();
   redirect(`/admin/bean/${encodeURIComponent(slug)}`);
 }
 
@@ -627,7 +628,7 @@ export async function editBeanKeywordAction(formData: FormData): Promise<void> {
 export async function syncNowAction(): Promise<void> {
   await requireSession();
   const results = await runSync();
-  revalidatePath("/admin/beanstalk");
+  revalidateGarden();
   const failed = results.filter((r) => r.status === "error");
   redirect(
     failed.length > 0
@@ -698,7 +699,7 @@ export async function createScreenAction(formData: FormData): Promise<void> {
   }
   if (taken) redirect(newScreenHref(query, `that slug is taken: ${result.input.slug}`));
 
-  revalidatePath("/admin/screens");
+  revalidateGarden();
   redirect(screensHref(result.input.slug, query));
 }
 
@@ -716,7 +717,7 @@ export async function editScreenMetaAction(formData: FormData): Promise<void> {
   if (!result.ok) redirect(screensHref(slug, query, result.error));
   if (result.dirty) await updateScreenMeta(slug, result.patch);
 
-  revalidatePath("/admin/screens");
+  revalidateGarden();
   redirect(screensHref(slug, query));
 }
 
@@ -738,7 +739,7 @@ export async function editScreenImageAction(formData: FormData): Promise<void> {
   const result = buildScreenImagePatch(existing, formData);
   if (result.dirty) await updateScreenImage(slug, result.image);
 
-  revalidatePath("/admin/screens");
+  revalidateGarden();
   redirect(screensHref(slug, query));
 }
 
@@ -761,7 +762,7 @@ export async function deleteScreenAction(formData: FormData): Promise<void> {
 
   await deleteScreen(slug);
 
-  revalidatePath("/admin/screens");
+  revalidateGarden();
   redirect(screensHref(null, query));
 }
 
@@ -923,8 +924,7 @@ export async function toggleScreenExhibitAction(formData: FormData): Promise<voi
 
   const outcome = await applyExhibition(slug, String(formData.get("op") ?? ""));
 
-  revalidatePath("/admin/screens");
-  if (outcome.kind === "settled") revalidatePath(`/admin/plant/${encodeURIComponent(outcome.plantSlug)}`);
+  revalidateGarden();
   redirect(outcome.kind === "gone" ? screensHref(null, query) : screensHref(slug, query));
 }
 
@@ -944,10 +944,11 @@ export async function toggleScreenExhibitAction(formData: FormData): Promise<voi
  * its Exhibition card says why (the no-plant sentence, or simply an unmoved
  * strip for a stale op) — `screensHref(slug, "")`.
  *
- * `settled`: the plant page, as before. `encodeURIComponent` on both the
- * revalidated path and the redirect — a screen's slug came from a filename
- * and a plant's is hand-authored, but neither is a reason to be the one place
- * in the slice that trusts one.
+ * `settled`: the plant page, as before, with `encodeURIComponent` on the
+ * redirect — a screen's slug came from a filename and a plant's is
+ * hand-authored, but neither is a reason to be the one place in the slice
+ * that trusts one. (It used to guard a revalidated path too; the garden
+ * cache slice replaced that with one `revalidateGarden()` above.)
  */
 export async function reorderExhibitionAction(formData: FormData): Promise<void> {
   await requireSession();
@@ -955,9 +956,8 @@ export async function reorderExhibitionAction(formData: FormData): Promise<void>
 
   const outcome = await applyExhibition(slug, String(formData.get("op") ?? ""));
 
-  revalidatePath("/admin/screens");
+  revalidateGarden();
   if (outcome.kind === "gone") redirect(screensHref(null, ""));
   if (outcome.kind === "refused") redirect(screensHref(slug, ""));
-  revalidatePath(`/admin/plant/${encodeURIComponent(outcome.plantSlug)}`);
   redirect(`/admin/plant/${encodeURIComponent(outcome.plantSlug)}`);
 }
