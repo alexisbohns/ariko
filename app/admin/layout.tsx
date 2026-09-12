@@ -1,16 +1,22 @@
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
+import { resolveText } from "@/lib/data";
+import { visibilityOf } from "@/lib/plant-visibility";
+import { loadRawGarden } from "@/lib/store";
 import { AdminChrome, AdminMain } from "./_components/admin-chrome";
+import type { PlantMark } from "./_components/plant-switcher";
 
 /**
  * The admin/tooling zone. It shares the design system with the public zone but
- * not its chrome: the floating rail and the top-right actions are rendered
- * here, once, and withdraw themselves on the login page.
+ * not its chrome: the three floating clusters — the mark and the plant switcher
+ * top-left, the section rail on the left edge, the account actions top-right —
+ * are rendered here, once, and withdraw themselves together on the login page.
  *
- * The column's padding clears those two fixed clusters — the rail on the left,
- * the account actions top-right — while keeping the centred max-width column.
+ * The column's padding clears them while keeping the centred max-width column.
  * It lives in AdminMain rather than here because it is route-dependent (the
  * login page has no chrome to clear) and a server component cannot read the
- * pathname.
+ * pathname. The top-left cluster needed no new clearance: `pt-24` clears
+ * anything pinned to the top edge, which is `RAIL_CLEARANCE`'s whole argument
+ * for being vertical rather than measured against a cluster's width.
  *
  * THE `sheet` SLOT is the screen library's side panel (a parallel route filled
  * by `@sheet/(.)screens/…`, and `@sheet/default.tsx` — null — everywhere else).
@@ -63,17 +69,68 @@ import { AdminChrome, AdminMain } from "./_components/admin-chrome";
  *
  * Below `lg` the panel covers instead — reserving 28rem of a narrow screen
  * would leave the column nothing to live in.
+ *
+ * THE GARDEN READ BELOW is the chrome's, and it is here because the chrome is
+ * a client island: the server composes the plant marks and the island receives
+ * a finished array, exactly as `app/admin/plant/[slug]/page.tsx` composes its
+ * Exhibition panel and hands it down.
  */
-export default function AdminLayout({
+
+/**
+ * The plants the switcher draws, name-sorted with the slug as the tie-break —
+ * the welcome page's order, so the list in the chrome and the table on the root
+ * agree about which plant comes first.
+ *
+ * The LIVE reader, never `loadCachedGarden`: CLAUDE.md's rule is that the admin
+ * and every server action read live, and the chrome is the surface most likely
+ * to be looked at immediately after a rename.
+ *
+ * THE LOGIN PAGE PAYS FOR A READ IT DISCARDS. `/admin/login` is the one route
+ * `middleware.ts` lets through unauthenticated, and `AdminChrome` withdraws on
+ * it — but a layout cannot read the pathname, so the read happens anyway and
+ * the result is thrown away. The clean fix is the public zone's pattern, a
+ * `(chrome)` route group with the login page outside it
+ * (`app/(public)/(chrome)/layout.tsx`); it was not taken because moving every
+ * admin route into a group costs more than one discarded read on a page nobody
+ * sits on. If it ever matters, that is the fix — not a second, narrower reader,
+ * which would split "the admin reads live" across two functions for no gain.
+ *
+ * The try/catch is not decoration: an unreachable garden must cost the
+ * switcher, never the page. Every admin page renders its own failure state,
+ * and a throw here would replace all of them with the error boundary.
+ */
+async function plantMarks(): Promise<PlantMark[]> {
+  try {
+    return ((await loadRawGarden()).plants ?? [])
+      .map((plant) => ({
+        slug: plant.slug,
+        name: resolveText(plant.name),
+        ...(plant.logo?.url ? { logoUrl: plant.logo.url } : {}),
+        visibility: visibilityOf(plant),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name) || a.slug.localeCompare(b.slug));
+  } catch {
+    return [];
+  }
+}
+
+export default async function AdminLayout({
   children,
   sheet,
 }: {
   children: ReactNode;
   sheet: ReactNode;
 }) {
+  const plants = await plantMarks();
+
   return (
     <>
-      <AdminChrome />
+      {/* `useSearchParams` in AdminChrome requires a boundary. `fallback={null}`
+          because the chrome has nothing meaningful to show half-resolved: a
+          skeleton rail would be a row of grey boxes nothing can be done with. */}
+      <Suspense fallback={null}>
+        <AdminChrome plants={plants} />
+      </Suspense>
       <div className="transition-[padding] duration-200 ease-out lg:[&:has(~[data-screen-sheet])]:pr-[28rem]">
         <AdminMain>{children}</AdminMain>
       </div>

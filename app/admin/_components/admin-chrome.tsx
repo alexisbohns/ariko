@@ -1,11 +1,14 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { ExternalLink, LogOut } from "lucide-react";
 import type { ReactNode } from "react";
-import { NAV_ITEMS, resolveColumn, resolveNavItem } from "@/lib/admin-nav";
+import { navHref, navItems, resolveColumn, resolveNavItem } from "@/lib/admin-nav";
+import { resolveScope } from "@/lib/admin-scope";
 import { logoutAction } from "../actions";
+import { ArikoIcon } from "@/components/brand/ariko-icon";
 import { CommandPalette } from "./command-palette";
+import { PlantSwitcher, type PlantMark } from "./plant-switcher";
 import { SECTION_ICONS } from "./section-icons";
 import { Chrome, ChromeItem, ChromeLink, chromeItemClass } from "@/components/chrome";
 import { READING_COLUMN, RAIL_CLEARANCE, WIDE_COLUMN } from "@/components/page-column";
@@ -28,33 +31,71 @@ import { READING_COLUMN, RAIL_CLEARANCE, WIDE_COLUMN } from "@/components/page-c
  * The spacing that clears the chrome lives here too, in AdminMain, because the
  * decision is the same decision: a page with no chrome must not be padded as
  * though it had some. One route constant, two consumers.
+ *
+ * THE CHROME NOW CARRIES THE ADMIN'S SUBJECT. The rail's shape depends on it —
+ * scoped it gains Overview and loses Beanstalk (lib/admin-nav.ts says why) —
+ * and the top-left cluster is where the subject is read and changed. Both read
+ * ONE scope, resolved here from the URL and passed down, so the rail and the
+ * switcher cannot disagree about what the page is showing.
+ *
+ * `useSearchParams` is why the layout wraps this in `<Suspense>`: Next requires
+ * a boundary around it, and the missing one fails `npm run build` rather than
+ * anything earlier. `AdminMain` reads only the pathname and needs neither.
+ *
+ * The `plants` prop is the ExhibitionPanel arrangement: the layout is a server
+ * component, it does the garden read, and this island receives a finished
+ * array. It must stay that way — this file is `"use client"`, so an import of
+ * `lib/store.ts` or `lib/data.ts` here would not bloat the bundle, it would
+ * fail the build (`lib/section-keys.ts` has the account of the last time that
+ * happened).
  */
 
 /** The one route the chrome withdraws from — and therefore the one route the
  *  content column is centred rather than offset on. */
 const BARE = "/admin/login";
 
-export function AdminChrome() {
+export function AdminChrome({ plants }: { plants: PlantMark[] }) {
   const pathname = usePathname();
+  const params = useSearchParams();
 
   // The login page lives under /admin but gets no chrome. Under the old bar
   // this was expressed by the page simply not calling it; the layout owns the
-  // chrome now, so it is expressed here.
+  // chrome now, so it is expressed here. Both hooks are read ABOVE it — a
+  // conditional hook is not a hook.
   if (pathname === BARE) return null;
 
-  const active = resolveNavItem(pathname);
+  // Read once, passed down twice. `Object.fromEntries` is the shape
+  // `lib/admin-filters.ts` works in, and it degrades a repeated `?plant=` to a
+  // single value, which `resolveScope` then refuses outright.
+  const active = Object.fromEntries(params.entries());
+  const scope = resolveScope(pathname, active);
+  const activeHref = resolveNavItem(pathname);
+  const items = navItems(scope);
 
   return (
     <>
+      {/* The mark and the subject. The mark goes home to the welcome page —
+          the all-plants overview — which is why the rail no longer carries a
+          root item of its own. */}
+      <Chrome magnet="top-left">
+        <ChromeLink href="/admin" label="Ariko">
+          <ArikoIcon className="size-4" />
+        </ChromeLink>
+        <PlantSwitcher plants={plants} scope={scope} pathname={pathname} active={active} />
+      </Chrome>
+
       <Chrome magnet="left" orientation="vertical" label="Admin sections">
-        {NAV_ITEMS.map((item) => {
+        {items.map((item) => {
           const Icon = SECTION_ICONS[item.id];
           return (
             <ChromeLink
-              key={item.href}
-              href={item.href}
+              key={item.id}
+              href={navHref(item, scope)}
               label={item.label}
-              current={item.href === active}
+              // The item's OWN href, not the scoped one: `resolveNavItem`
+              // answers with a path, and the scoped href carries a query the
+              // pathname never will.
+              current={item.href === activeHref}
             >
               <Icon className="size-4" />
             </ChromeLink>
