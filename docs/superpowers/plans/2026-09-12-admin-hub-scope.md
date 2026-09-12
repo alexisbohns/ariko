@@ -368,7 +368,7 @@ Replace `lib/section-icons.test.ts` with:
 ```ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { NAV_ITEMS, navItems } from "./admin-nav";
+import { NAV_ITEMS, navItems, type NavId } from "./admin-nav";
 import { SECTION_ICONS } from "@/app/admin/_components/section-icons";
 
 /**
@@ -392,7 +392,9 @@ test("every rail item has an icon", () => {
 });
 
 test("and no icon outlives its section", () => {
-  for (const id of Object.keys(SECTION_ICONS)) assert.ok(EVERY_ID.has(id), id);
+  // Narrowed rather than widening the map: `Object.keys` gives string[], and
+  // the assertion's meaning is about NavIds.
+  for (const id of Object.keys(SECTION_ICONS) as NavId[]) assert.ok(EVERY_ID.has(id), id);
 });
 
 test("no two sections draw the same icon", () => {
@@ -469,10 +471,22 @@ export function sectionItems(): PaletteItem[] {
 }
 ```
 
-`iconFor` in `command-palette.tsx` looks sections up by href today; Task 12
-changes it to `item.id.slice("section:".length)`. Leave it for now — `tsc` is
-not run between these two tasks and `npm test` renders the palette from
-fixtures.
+**Re-keying the map is a breaking change to its call sites, so they move in
+this same commit** — `tsc` does not tolerate the gap, and `lib/palette-render.test.ts`
+mounts the real `command-palette.tsx` rather than a stub. Three consumers:
+
+- `app/admin/_components/admin-chrome.tsx` — `SECTION_ICONS[item.href]` becomes
+  `SECTION_ICONS[item.id]`. Nothing else in that file moves here; the rail's
+  scope-awareness is Task 14.
+- `app/admin/_components/command-palette.tsx` — a section row's id is
+  `section:<NavId>` now, so `iconFor` strips the prefix instead of looking up an
+  href. Export `SECTION_ID_PREFIX = "section:"` from `lib/palette-items.ts` and
+  use it in both `sectionItems()` and `iconFor`, so the two halves of the id
+  grammar cannot drift.
+- `lib/palette-render.test.ts` — its fixture names the old groups and section
+  ids. Update the FIXTURE, not what the test proves: it exists to show rows
+  render grouped in `GROUPS` order with empty groups dropped, and must still
+  show that.
 
 - [ ] **Step 2: Update `lib/palette.ts` groups**
 
@@ -1726,8 +1740,8 @@ Two details that must survive the split:
 - the import stays `@/lib/palette-items`, **never** `@/lib/palette` — the latter
   reaches `lib/data.ts`, which opens with `node:fs`, and importing it from the
   browser fails the build rather than merely bloating it;
-- `iconFor` now looks a section up by id: `SECTION_ICONS[item.id.slice(8) as NavId]`
-  where `8` is `"section:".length`. Prefer a named constant over the literal.
+- `iconFor` already looks a section up by id (Task 3 moved it there) — leave it
+  alone; the split must not change what a row draws.
 
 - [ ] **Step 2: `palette-search.tsx`**
 
