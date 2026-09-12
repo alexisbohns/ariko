@@ -51,9 +51,14 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
     group, so `resolveColumn`'s only caller can no longer be asked about it,
     and a special case for a path that cannot arrive is dead code reading as a
     live rule. Chrome clearance goes **outside** the measure, never inside it.
-  - `components/plant-header.tsx` and `components/entity-card.tsx` — the plant
+  - `components/plant-header.tsx` and `components/entity-card.tsx` — the entity
     head and the entity card. Each takes slots or one extra prop where the admin
     genuinely shows more (`refText` on a card in the editor), and nothing else.
+    The head's `mark` is OPTIONAL, which is what lets a sprout — which has no
+    logo and wants no monogram — draw its name, description and facts from the
+    same file a plant does. Absent is a statement about the entity, never a mark
+    that failed to load. It is in `lib/server-safe-source.test.ts` now, which it
+    should have been from the day it was written.
 
   The rule these four share: **if the admin and the public site draw the same
   thing, they draw it from the same file, and what differs is a parameter.**
@@ -138,18 +143,30 @@ while quietly becoming false.
   write is filtered on `exhibited: true` for a related reason: a reorder
   computed against a stale strip would republish a screen someone had just
   withdrawn.
-- **Neither plant enum writes on the click that opens it.** The icon opens the
-  vocabulary as a list of native radios, the author picks a member, and a Save
-  button commits it — disabled until the pick differs from what is stored, so
-  the second click is a confirmation rather than a formality. A one-click flip
-  was the first shape tried and the wrong one: a stray click on the globe
+- **No enum writes on the click that opens it.** Three fields work this way now
+  — a plant's `status` and `visibility`, and a sprout's `state`. The icon opens
+  the vocabulary as a list of native radios, the author picks a member, and a
+  Save button commits it — disabled until the pick differs from what is stored,
+  so the second click is a confirmation rather than a formality. A one-click
+  flip was the first shape tried and the wrong one: a stray click on the globe
   unpublishes a project, and the undo is another stray click on the same pixel.
-  The two enums post **a named member of a vocabulary**
-  (`lib/plant-status.ts`, `lib/plant-visibility.ts`) which the action
-  re-validates rather than trusting. The Meta sheet still carries `status` as a
-  hidden input because `buildPlantMetaPatch` reads an absent status as
-  `active`, so dropping the field would silently reactivate an inactive plant
-  on every name edit.
+  The sprout's `state` earns the rule hardest — publishing cascades upward
+  through its bean, pod and plant. All three post **a named member of a
+  vocabulary** (`lib/plant-status.ts`, `lib/plant-visibility.ts`,
+  `lib/sprout-state.ts`) which the action re-validates rather than trusting.
+  The Meta sheet still carries `status` as a hidden input because
+  `buildPlantMetaPatch` reads an absent status as `active`, so dropping the
+  field would silently reactivate an inactive plant on every name edit. A
+  sprout's `date` and `type` open the same way but are **not** enums and do not
+  inherit the guard: there is no vocabulary to draw as radios, so each popover
+  holds one field and a plain Save — what the author typed is on screen, which
+  is the confirmation the radios otherwise have to manufacture. Their actions
+  guard accordingly, and unequally: `setSproutTypeAction` checks only non-empty,
+  because `type` is free-form (a vocabulary, if one is ever wanted, arrives as
+  `lib/sprout-type.ts` and gets validated the way `state` is), while
+  `setSproutDateAction` also checks the shape through `lib/sprout-date.ts` — a
+  date that is merely non-empty sorts the sprout to the bottom of every
+  timeline the garden builds.
 - **A screen's image cannot be cleared**, because `Screen.image` is required —
   the one rule `buildScreenImagePatch` has that its three siblings lack.
 - **The Exhibition panel composes no payload.** Its contents are
@@ -157,6 +174,47 @@ while quietly becoming false.
   as a prop, exactly as `metaForm` / `roleForm` / `logoForm` are, so
   `plant-rail.tsx` learns no field name.
   `lib/exhibition-panel-source.test.ts` pins it.
+- **An entity rail composes no payload, and its panels stay mounted.**
+  `app/admin/_components/entity-rail.tsx` takes ids, labels, icons and
+  `ReactNode`s; every panel is server-rendered by the page and handed down,
+  exactly as `metaForm` and the Exhibition panel are.
+  `lib/entity-rail-source.test.ts` pins the shell *and* each panel, and it
+  matters more than its sibling because one of these panels is a delete. The
+  panels do **not** unmount on close — they go `inert` and translate off-screen
+  — which is the one place the popovers' rule that an abandoned pick is not a
+  pending write is deliberately inverted: `MediaPicker` uploads to Cloudinary
+  before Save, so unmounting on a mis-click would strand assets
+  `npm run check:orphans` then has to sweep. Hand-rolling a dismissible surface
+  instead of taking `Dialog.Root` — correctly, since the page behind it stays
+  live — means re-supplying the two halves that are not about modality: Escape
+  dismisses, and closing puts focus back on the trigger, without which `inert`
+  swallows the Close button, focus falls to `document.body`, and the next Tab
+  restarts at the top of the document. The page makes room with a **relative
+  offset**, never a transform: `transform` makes the wrapper a containing block
+  for its `position: fixed` descendants, and the wrapper holds the whole page
+  body — so a panel opening dropped the editor's floating commit to the end of
+  the article and threw its `@` / `/` menu 224px from the caret — both gated on
+  a panel being open and on the viewport, so every check passed. `right-56` moves
+  the same 224px in the same direction, is applied after layout so nothing
+  re-flows under the caret, and establishes no containing block. Padding is not an option at all, since the page renders inside
+  `READING_COLUMN` and a right padding there squeezes the editor to ~320px. The
+  offset is gated at 1216px because below that width no offset both clears a
+  448px panel and keeps a 768px column on screen.
+- **An icon crossing from a server component to a client one needs a declared
+  boundary.** `RailItem.icon` is a `ComponentType` and an entity page is a
+  server component, so importing `FileCode2` straight from `lucide-react` there
+  puts a bare function in the flight payload, React refuses to serialize it, and
+  the page 500s on every request. No per-icon module in the package carries the
+  directive, so `app/admin/_components/rail-icons.ts` does: re-exporting from a
+  file that is a client boundary is what registers each icon as a client
+  reference. `RAIL_PAGES` in `lib/entity-rail-source.test.ts` is the only thing
+  in the repo that reports the mistake — every page using the rail is
+  `force-dynamic`, so `next build` never renders one and `tsc`, `eslint`,
+  `npm test` **and** `npm run build` all pass. This is not the public zone's
+  lucide rule turned around: there the client boundary is the thing to avoid
+  entirely, here it is wanted and merely has to be spelled where the icon is
+  named. `app/admin/_components/section-icons.ts` needs none of this only
+  because both of its importers are already client components.
 - **The screen sheet's slot imports the page's own module.**
   `app/admin/(chrome)/@sheet/(.)screens/[slug]` wraps
   `app/admin/(chrome)/screens/[slug]/page.tsx` rather than reimplementing it,
@@ -217,11 +275,12 @@ while quietly becoming false.
   inbox, the screen library's tiles, the palette's plant rows and the plant
   switcher's.
 - **An icon trigger names its stored value.** The plant header's five editors
-  are icons; the only place a reader learns what `status` and `visibility`
-  currently ARE is each trigger's accessible name, set on the control rather
-  than on a visible span (the hover label is CSS). Replace `Status: Active`
-  with a bare `Status` and the page looks identical and stops saying what it
-  is. `lib/plant-hero-a11y.test.ts` pins it.
+  and the sprout header's four are icons; the only place a reader learns what
+  `status`, `visibility`, `state`, `date` and `type` currently ARE is each
+  trigger's accessible name, set on the control rather than on a visible span
+  (the hover label is CSS). Replace `Status: Active` or `State: Draft` with a
+  bare word and the page looks identical and stops saying what it is.
+  `lib/plant-hero-a11y.test.ts` and `lib/sprout-hero-a11y.test.ts` pin it.
 - **The admin's subject lives in the URL, and picking one is a navigation.**
   `lib/admin-scope.ts` is the only reader of the scope — the slug on
   `/admin/plant/[slug]` first, `?plant=` second — and the only builder of the
@@ -257,7 +316,7 @@ while quietly becoming false.
   decision.** `loadRawGarden` (`lib/store.ts`) is live; `loadCachedGarden`
   (`lib/garden-cache.ts`) is behind Next's Data Cache under the `garden` tag.
   The public zone reads the cached one, the admin and **every server action**
-  read the live one — because `editVersionAction` and `promoteSeedAction`
+  read the live one — because `setSproutStateAction` and `promoteSeedAction`
   re-read *after* writing so `publishCascade` sees the just-saved state, and a
   cached read there computes the cascade against the pre-write garden: a
   published sprout whose bean silently stays private, or an unpublish that

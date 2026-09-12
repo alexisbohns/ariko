@@ -64,7 +64,10 @@ Two findings the audit records but never sequenced, so they have no turn here:
 [#87](https://github.com/alexisbohns/ariko/issues/87) above, and
 [#88](https://github.com/alexisbohns/ariko/issues/88) — the botanical rename
 never finished in the identifiers, the write path, or the strings the author
-reads (`ATOM_PREFIX = "bean:"`, an "Edit version" heading on the sprout page).
+reads. The sprout's share is done (the edition slice): `ATOM_PREFIX`,
+`editVersionAction`, `deleteVersionAction`, `updateVersion`, `deleteVersion`
+and the "Edit version" heading are all gone. What is left is the bean, pod and
+screen paths.
 
 1. ~~**Rewrite the guidelines.**~~ Shipped — [`specs/2026-09-10-guidelines-rewrite-design.md`](specs/2026-09-10-guidelines-rewrite-design.md).
 2. ~~**Cache the garden.**~~ Shipped — [`specs/2026-09-11-cache-the-garden-design.md`](specs/2026-09-11-cache-the-garden-design.md).
