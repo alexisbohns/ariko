@@ -7,7 +7,7 @@ import {
   createScreen,
   createSprout,
   deleteScreen,
-  deleteVersion,
+  deleteSprout,
   getScreen,
   listScreensForPlant,
   setPublic,
@@ -104,7 +104,7 @@ test("setPrivate is a no-op on empty arrays", { skip: !hasDb }, async () => {
   await setPrivate([], [], []); // must not throw
 });
 
-test("deleteVersion removes only the targeted sprout doc", { skip: !hasDb }, async (t) => {
+test("deleteSprout removes only the targeted sprout doc", { skip: !hasDb }, async (t) => {
   t.after(cleanup);
   const base = {
     name: "Del",
@@ -118,15 +118,15 @@ test("deleteVersion removes only the targeted sprout doc", { skip: !hasDb }, asy
   };
   await createSprout({ slug: "__test__del", ...base });
   await createSprout({ slug: "__test__keep", ...base });
-  await deleteVersion("__test__del");
+  await deleteSprout("__test__del");
   const db = await getDb();
   assert.equal(await db.collection("sprouts").findOne({ slug: "__test__del" }), null);
   // The delete must be slug-scoped — a sibling doc survives.
   assert.notEqual(await db.collection("sprouts").findOne({ slug: "__test__keep" }), null);
 });
 
-test("deleteVersion on a missing slug does not throw", { skip: !hasDb }, async () => {
-  await deleteVersion("__test__never-existed"); // deleteOne matches 0 → no-op
+test("deleteSprout on a missing slug does not throw", { skip: !hasDb }, async () => {
+  await deleteSprout("__test__never-existed"); // deleteOne matches 0 → no-op
 });
 
 test("a duplicate slug throws SlugExistsError", { skip: !hasDb }, async (t) => {

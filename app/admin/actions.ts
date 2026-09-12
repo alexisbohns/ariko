@@ -48,7 +48,7 @@ import {
   createPod,
   createBean,
   createSprout,
-  deleteVersion,
+  deleteSprout,
   setPublic,
   SlugExistsError,
   getSprout,
@@ -311,7 +311,7 @@ export async function deleteVersionAction(formData: FormData): Promise<void> {
     .map((p) => p.slice("bean:".length));
   const wasPublished = existing.state === "published";
 
-  await deleteVersion(slug);
+  await deleteSprout(slug);
 
   if (wasPublished) {
     const { plantSlugs, podSlugs, beanSlugs: flipBeans } = unpublishCascadeForBeans(
