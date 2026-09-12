@@ -36,20 +36,22 @@ export interface PaletteItem {
 }
 
 /** The group headings, in the order the palette renders them. */
-export const GROUPS = ["Go to", "Garden", "Vault", "Inbox"] as const;
+export const GROUPS = ["Go to", "Plants", "Pods", "Beans", "Sprouts", "Inbox"] as const;
+
+/** A section row's id is this prefix plus its `NavId` — the one place that
+ *  grammar is spelled, so `sectionItems()` and the palette's `iconFor` (which
+ *  strips the prefix back off to look the icon up) cannot drift apart. */
+export const SECTION_ID_PREFIX = "section:";
 
 /**
  * The "Go to" rows — the sections, built from the rail's own model rather
- * than re-typed, so a fifth section appears in both places or in neither.
- *
- * Called by `buildPaletteIndex` on the server AND used directly by the palette
- * as its starting index, which is the same function in both places by design:
- * it is what makes the palette impossible to open onto nothing. It touches no
- * garden and no network, so it cannot fail.
+ * than re-typed, so a new section appears in both places or in neither. The
+ * UNSCOPED rail: the palette is a navigator, and Overview is a destination
+ * that only means something relative to a scope the palette does not have.
  */
 export function sectionItems(): PaletteItem[] {
   return NAV_ITEMS.map((nav) => ({
-    id: `section:${nav.href}`,
+    id: `${SECTION_ID_PREFIX}${nav.id}`,
     kind: "section" as const,
     label: nav.label,
     href: nav.href,

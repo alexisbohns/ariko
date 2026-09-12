@@ -132,9 +132,16 @@ test("the Go to group is sourced from NAV_ITEMS, never re-typed", () => {
 });
 
 test("an empty garden yields the sections and nothing else", () => {
-  const items = buildPaletteIndex({ garden: {}, seeds: [] });
-  assert.equal(items.length, NAV_ITEMS.length);
-  assert.ok(items.every((i) => i.kind === "section"));
+  const results = buildPaletteIndex({ garden: {}, seeds: [] });
+  assert.equal(results.length, NAV_ITEMS.length);
+  assert.ok(results.every((i) => i.kind === "section"));
+  const items = NAV_ITEMS.map((nav) => ({
+    id: `section:${nav.id}`,
+    kind: "section" as const,
+    label: nav.label,
+    href: nav.href,
+    group: "Go to",
+  }));
   assert.deepEqual(sectionItems(), items);
 });
 
@@ -174,16 +181,24 @@ test("groups render in GROUPS order and empty ones are dropped", () => {
   const grouped = groupPaletteItems(buildPaletteIndex({ garden: GARDEN, seeds: [seed()] }));
   assert.deepEqual(
     grouped.map((g) => g.value),
-    ["Go to", "Garden", "Vault", "Inbox"],
+    ["Go to", "Plants", "Pods", "Beans", "Sprouts", "Inbox"],
   );
-  // Garden is plants then pods; Vault is beans then sprouts.
+  // Each group now holds exactly one kind.
   assert.deepEqual(
     grouped[1].items.map((i) => i.kind),
-    ["plant", "pod"],
+    ["plant"],
   );
   assert.deepEqual(
     grouped[2].items.map((i) => i.kind),
-    ["bean", "sprout"],
+    ["pod"],
+  );
+  assert.deepEqual(
+    grouped[3].items.map((i) => i.kind),
+    ["bean"],
+  );
+  assert.deepEqual(
+    grouped[4].items.map((i) => i.kind),
+    ["sprout"],
   );
 
   const bare = groupPaletteItems(buildPaletteIndex({ garden: {}, seeds: [] }));

@@ -48,7 +48,7 @@ export function AdminChrome() {
     <>
       <Chrome magnet="left" orientation="vertical" label="Admin sections">
         {NAV_ITEMS.map((item) => {
-          const Icon = SECTION_ICONS[item.href];
+          const Icon = SECTION_ICONS[item.id];
           return (
             <ChromeLink
               key={item.href}

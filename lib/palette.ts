@@ -83,7 +83,7 @@ export function buildPaletteIndex(input: { garden: RawGarden; seeds: Seed[] }): 
       // would put alt text and dimensions in every palette row for nothing.
       ...(plant.logo?.url ? { logoUrl: plant.logo.url } : {}),
       href: `/admin/plant/${encodeURIComponent(plant.slug)}`,
-      group: "Garden",
+      group: "Plants",
     });
   }
 
@@ -95,7 +95,7 @@ export function buildPaletteIndex(input: { garden: RawGarden; seeds: Seed[] }): 
       label: resolveText(pod.name),
       ...(sublabel ? { sublabel } : {}),
       href: `/admin/pod/${encodeURIComponent(pod.slug)}`,
-      group: "Garden",
+      group: "Pods",
     });
   }
 
@@ -109,7 +109,7 @@ export function buildPaletteIndex(input: { garden: RawGarden; seeds: Seed[] }): 
       // The route's param is spelled [id] but carries a slug — this is the
       // href app/admin/vault/page.tsx already links to.
       href: `/admin/bean/${encodeURIComponent(bean.slug)}`,
-      group: "Vault",
+      group: "Beans",
     });
   }
 
@@ -121,7 +121,7 @@ export function buildPaletteIndex(input: { garden: RawGarden; seeds: Seed[] }): 
       label: resolveText(sprout.name),
       ...(sublabel ? { sublabel } : {}),
       href: `/admin/sprout/${encodeURIComponent(sprout.slug)}`,
-      group: "Vault",
+      group: "Sprouts",
     });
   }
 

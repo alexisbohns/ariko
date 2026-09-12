@@ -11,9 +11,11 @@ import type { ComponentType } from "react";
 import {
   groupPaletteItems,
   sectionItems,
+  SECTION_ID_PREFIX,
   type PaletteItem,
   type PaletteKind,
 } from "@/lib/palette-items";
+import type { NavId } from "@/lib/admin-nav";
 // The rail's own map, imported rather than repeated — see section-icons.ts for
 // what the second copy cost.
 import { SECTION_ICONS } from "./section-icons";
@@ -66,7 +68,10 @@ const ICONS: Record<PaletteKind, ComponentType<{ className?: string }>> = {
 };
 
 function iconFor(item: PaletteItem): ComponentType<{ className?: string }> {
-  if (item.kind === "section") return SECTION_ICONS[item.href] ?? ICONS.section;
+  if (item.kind === "section") {
+    const id = item.id.slice(SECTION_ID_PREFIX.length) as NavId;
+    return SECTION_ICONS[id] ?? ICONS.section;
+  }
   return ICONS[item.kind];
 }
 
