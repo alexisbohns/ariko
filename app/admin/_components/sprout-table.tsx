@@ -1,4 +1,3 @@
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -8,6 +7,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { resolveText, type TimelineEntry } from "@/lib/data";
+import { SproutStateGlyph } from "@/components/admin/glyphs";
+import { stateOf } from "@/lib/sprout-state";
 import { MarkCell } from "./table-cells";
 
 /**
@@ -70,7 +71,13 @@ export function SproutTable({
               )}
             </TableCell>
             <TableCell>
-              <Badge variant="secondary">{e.sprout.state ?? "—"}</Badge>
+              {/* The glyph, not a word — and the same map the sprout's own head
+                  draws from, so the row and the page it links to cannot show
+                  one state as two things. `stateOf` is what turns an absent
+                  state into the value every other surface already reads it as,
+                  rather than an em dash that says "no state" about a sprout
+                  that has one by default. */}
+              <SproutStateGlyph state={stateOf(e.sprout)} />
             </TableCell>
             {showPlant ? (
               <MarkCell

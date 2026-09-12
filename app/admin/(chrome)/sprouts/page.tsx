@@ -2,13 +2,19 @@ import { getFullDataset } from "@/lib/store";
 import type { TimelineEntry } from "@/lib/data";
 import { filterSproutEntries, distinctPlants, distinctTags, SPROUT_KEYS } from "@/lib/sprouts";
 import { filterHref } from "@/lib/admin-filters";
+import { SPROUT_STATES } from "@/lib/sprout-state";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AdminFilters, type FilterGroup } from "../../_components/admin-filters";
 import { SproutTable } from "../../_components/sprout-table";
 
 export const dynamic = "force-dynamic";
 
-const STATE_OPTIONS = ["all", "draft", "private", "published"];
+// "all" is not a member of the vocabulary — it is the filter bar's sentinel
+// for "no filter" (lib/admin-filters.ts's convention) — so it stays spelled
+// here. The three states themselves come from SPROUT_STATES rather than a
+// third hand-typed copy, so a state that vocabulary ever grows or renames
+// cannot leave this filter bar naming a stage that no longer exists.
+const STATE_OPTIONS = ["all", ...SPROUT_STATES];
 
 export default async function AdminSproutsPage({
   searchParams,
