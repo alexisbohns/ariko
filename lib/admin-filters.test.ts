@@ -31,15 +31,15 @@ test("filterQuery degrades a repeated key rather than throwing", () => {
 });
 
 test("filterHref sets one dimension and preserves the others", () => {
-  const href = filterHref("/admin/vault", { state: "draft", tag: "wip" }, KEYS, "plant", "music");
-  assert.equal(href, "/admin/vault?state=draft&plant=music&tag=wip");
+  const href = filterHref("/admin/sprouts", { state: "draft", tag: "wip" }, KEYS, "plant", "music");
+  assert.equal(href, "/admin/sprouts?state=draft&plant=music&tag=wip");
 });
 
 test("filterHref clears a dimension when the value is 'all'", () => {
-  const href = filterHref("/admin/vault", { state: "draft", plant: "music" }, KEYS, "plant", "all");
-  assert.equal(href, "/admin/vault?state=draft");
+  const href = filterHref("/admin/sprouts", { state: "draft", plant: "music" }, KEYS, "plant", "all");
+  assert.equal(href, "/admin/sprouts?state=draft");
 });
 
 test("filterHref returns the bare base when nothing is active", () => {
-  assert.equal(filterHref("/admin/vault", { state: "draft" }, KEYS, "state", "all"), "/admin/vault");
+  assert.equal(filterHref("/admin/sprouts", { state: "draft" }, KEYS, "state", "all"), "/admin/sprouts");
 });

@@ -1,7 +1,7 @@
 import { type Plant, type Seed, resolveText } from "@/lib/data";
 import { listSeeds } from "@/lib/seeds";
 import { loadRawGarden } from "@/lib/store";
-import { SeedOverlay } from "./_components/seed-overlay";
+import { SeedOverlay } from "../_components/seed-overlay";
 import { SeedSourceGlyph, type EntityMark } from "@/components/admin/glyphs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -56,7 +56,7 @@ function ageLabel(createdAt: string, now: number): string {
   return `${Math.round(hrs / 24)}d`;
 }
 
-export default async function AdminPage({
+export default async function AdminInboxPage({
   searchParams,
 }: {
   searchParams: Promise<{ error?: string }>;

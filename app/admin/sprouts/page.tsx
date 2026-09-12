@@ -1,6 +1,6 @@
 import { getFullDataset } from "@/lib/store";
 import { resolveText, type TimelineEntry } from "@/lib/data";
-import { filterSproutEntries, distinctPlants, distinctTags } from "@/lib/sprouts";
+import { filterSproutEntries, distinctPlants, distinctTags, SPROUT_KEYS } from "@/lib/sprouts";
 import { filterHref } from "@/lib/admin-filters";
 import { EntityAvatarGlyph } from "@/components/admin/glyphs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -19,11 +19,7 @@ export const dynamic = "force-dynamic";
 
 const STATE_OPTIONS = ["all", "draft", "private", "published"];
 
-/** The vault's dimensions, named for `filterHref` — the list that decides which
- *  keys a filter URL may carry. */
-const VAULT_KEYS = ["state", "plant", "tag"] as const;
-
-export default async function VaultPage({
+export default async function AdminSproutsPage({
   searchParams,
 }: {
   searchParams: Promise<{ state?: string; plant?: string; tag?: string }>;
@@ -40,9 +36,9 @@ export default async function VaultPage({
   if (all === null) {
     return (
       <article>
-        <h1 className="mb-4 font-heading text-2xl font-medium tracking-tight">Vault</h1>
+        <h1 className="mb-4 font-heading text-2xl font-medium tracking-tight">Sprouts</h1>
         <Alert variant="destructive" role="alert">
-          <AlertDescription>Couldn&apos;t load the vault.</AlertDescription>
+          <AlertDescription>Couldn&apos;t load the sprouts.</AlertDescription>
         </Alert>
       </article>
     );
@@ -65,14 +61,14 @@ export default async function VaultPage({
     key,
     options,
     current: active[key] ?? "all",
-    hrefs: options.map((opt) => filterHref("/admin/vault", active, VAULT_KEYS, key, opt)),
+    hrefs: options.map((opt) => filterHref("/admin/sprouts", active, SPROUT_KEYS, key, opt)),
   }));
 
   return (
     <article>
 
       <div className="flex flex-col gap-6">
-        <h1 className="font-heading text-2xl font-medium tracking-tight">Vault</h1>
+        <h1 className="font-heading text-2xl font-medium tracking-tight">Sprouts</h1>
 
         <AdminFilters groups={groups} />
 

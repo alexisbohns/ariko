@@ -235,7 +235,7 @@ export async function editVersionAction(formData: FormData): Promise<void> {
   await requireSession();
   const slug = String(formData.get("slug") ?? "");
   const existing = await getSprout(slug);
-  if (!existing) redirect("/admin/vault");
+  if (!existing) redirect("/admin/sprouts");
 
   const patch = buildSproutPatch(formData);
   const check = validateSproutPatch(patch);
@@ -269,7 +269,7 @@ export async function editVersionAction(formData: FormData): Promise<void> {
   const beanSlug = (existing.parents ?? [])
     .filter((p) => p.startsWith("bean:"))
     .map((p) => p.slice("bean:".length))[0];
-  redirect(beanSlug ? `/admin/bean/${beanSlug}` : "/admin/vault");
+  redirect(beanSlug ? `/admin/bean/${beanSlug}` : "/admin/sprouts");
 }
 
 // Hard delete (roadmap A2). The bean parents and published state are captured BEFORE
@@ -285,7 +285,7 @@ export async function deleteVersionAction(formData: FormData): Promise<void> {
   // Existence first, so the confirm-fail redirect below only ever targets a real
   // edit page (and the slug it interpolates is a known-good stored slug).
   const existing = await getSprout(slug);
-  if (!existing) redirect("/admin/vault");
+  if (!existing) redirect("/admin/sprouts");
 
   // Server-side re-check of the confirm checkbox; the browser `required` is only UX.
   if (String(formData.get("confirm") ?? "") !== "on") {
@@ -312,7 +312,7 @@ export async function deleteVersionAction(formData: FormData): Promise<void> {
   }
 
   revalidateGarden();
-  redirect(beanSlugs[0] ? `/admin/bean/${beanSlugs[0]}` : "/admin/vault");
+  redirect(beanSlugs[0] ? `/admin/bean/${beanSlugs[0]}` : "/admin/sprouts");
 }
 
 // Prose only. Deliberately separate from editVersionAction: content touches
@@ -325,7 +325,7 @@ export async function editContentAction(formData: FormData): Promise<void> {
   const markdown = String(formData.get("content") ?? "");
 
   const existing = await getSprout(slug);
-  if (!existing) redirect("/admin/vault");
+  if (!existing) redirect("/admin/sprouts");
 
   const result = buildContentPatch(existing, markdown);
   if (!result.ok) {
@@ -351,7 +351,7 @@ export async function editSproutMediaAction(formData: FormData): Promise<void> {
   const slug = String(formData.get("slug") ?? "");
 
   const existing = await getSprout(slug);
-  if (!existing) redirect("/admin/vault");
+  if (!existing) redirect("/admin/sprouts");
 
   const result = buildMediaPatch(existing, formData);
   // Dirty-gated, same rule as editContentAction: opening a sprout and saving
@@ -371,14 +371,14 @@ export async function editContainerContentAction(formData: FormData): Promise<vo
 
   const isPlant = ref.startsWith(PLANT_PREFIX);
   const isPod = ref.startsWith(POD_PREFIX);
-  if (!isPlant && !isPod) redirect("/admin/garden");
+  if (!isPlant && !isPod) redirect("/admin");
 
   const slug = ref.slice(ref.indexOf(":") + 1);
   const raw = await loadRawGarden();
   const existing = isPlant
     ? raw.plants?.find((p) => p.slug === slug)
     : raw.pods?.find((p) => p.slug === slug);
-  if (!existing) redirect("/admin/garden");
+  if (!existing) redirect("/admin");
 
   const back = `/admin/${isPlant ? "plant" : "pod"}/${encodeURIComponent(slug)}`;
   const result = buildContentPatch(existing, markdown);
@@ -413,7 +413,7 @@ export async function editPlantRoleAction(formData: FormData): Promise<void> {
   // page and can only interpolate a known-good stored slug.
   const raw = await loadRawGarden();
   const existing = raw.plants?.find((p) => p.slug === slug);
-  if (!existing) redirect("/admin/garden");
+  if (!existing) redirect("/admin");
 
   const back = `/admin/plant/${encodeURIComponent(slug)}`;
   let role: PlantRole;
@@ -451,7 +451,7 @@ export async function editPlantMetaAction(formData: FormData): Promise<void> {
   // page and can only interpolate a known-good stored slug.
   const raw = await loadRawGarden();
   const existing = raw.plants?.find((p) => p.slug === slug);
-  if (!existing) redirect("/admin/garden");
+  if (!existing) redirect("/admin");
 
   const back = `/admin/plant/${encodeURIComponent(slug)}`;
   let patch: PlantMetaPatch;
@@ -483,7 +483,7 @@ export async function editPlantLogoAction(formData: FormData): Promise<void> {
 
   const raw = await loadRawGarden();
   const existing = raw.plants?.find((p) => p.slug === slug);
-  if (!existing) redirect("/admin/garden");
+  if (!existing) redirect("/admin");
 
   const result = buildPlantLogoPatch(existing, formData);
   if (result.dirty) await updatePlantLogo(slug, result.logo);
@@ -525,7 +525,7 @@ async function flipPlantField(
   // page and can only interpolate a known-good stored slug.
   const raw = await loadRawGarden();
   const existing = raw.plants?.find((p) => p.slug === slug);
-  if (!existing) redirect("/admin/garden");
+  if (!existing) redirect("/admin");
 
   const back = `/admin/plant/${encodeURIComponent(slug)}`;
   const value = String(formData.get(field) ?? "").trim();
@@ -574,7 +574,7 @@ export async function editBeanCoverAction(formData: FormData): Promise<void> {
 
   const raw = await loadRawGarden();
   const existing = raw.beans?.find((b) => b.slug === slug);
-  if (!existing) redirect("/admin/vault");
+  if (!existing) redirect("/admin/sprouts");
   // Projected beans are source-owned and read-only: the page hides both cards
   // under the same condition, and lib/pollen-store.ts's deleteFeedData
   // ($deleteMany on projected.feedId) would take an authored cover or keyword
@@ -607,7 +607,7 @@ export async function editBeanKeywordAction(formData: FormData): Promise<void> {
 
   const raw = await loadRawGarden();
   const existing = raw.beans?.find((b) => b.slug === slug);
-  if (!existing) redirect("/admin/vault");
+  if (!existing) redirect("/admin/sprouts");
   // Projected beans are source-owned and read-only: the page hides both cards
   // under the same condition, and lib/pollen-store.ts's deleteFeedData
   // ($deleteMany on projected.feedId) would take an authored cover or keyword

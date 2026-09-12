@@ -1,16 +1,17 @@
 /**
  * The filter bar's arithmetic — one copy, two pages.
  *
- * `/admin/vault` has filtered sprouts by state, plant and tag since it existed,
- * with the href builder living inside the page. `/admin/screens` needs exactly
- * the same thing over different dimensions, so the builder moved here rather
- * than being copied: two pages that draw the same control draw it from one
- * file, and what differs is a parameter.
+ * `/admin/sprouts` (the vault, before the rename) has filtered sprouts by
+ * state, plant and tag since it existed, with the href builder living inside
+ * the page. `/admin/screens` needs exactly the same thing over different
+ * dimensions, so the builder moved here rather than being copied: two pages
+ * that draw the same control draw it from one file, and what differs is a
+ * parameter.
  *
- * `filterQuery` carries a second job the vault never needed. The library's
- * write forms round-trip the author's active filters through a hidden field so
- * a save does not drop them out of the set they were working through — and a
- * hidden field is client-controlled. Rebuilding the query from a NAMED key list
+ * `filterQuery` carries a second job the sprouts section never needed. The
+ * library's write forms round-trip the author's active filters through a
+ * hidden field so a save does not drop them out of the set they were working
+ * through — and a hidden field is client-controlled. Rebuilding the query from a NAMED key list
  * is what makes that safe: whatever arrives, only these keys survive, so the
  * string handed to `redirect()` can never carry anything but the dimensions
  * this page knows about.

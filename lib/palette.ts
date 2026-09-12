@@ -107,7 +107,7 @@ export function buildPaletteIndex(input: { garden: RawGarden; seeds: Seed[] }): 
       label: resolveText(bean.name),
       ...(sublabel ? { sublabel } : {}),
       // The route's param is spelled [id] but carries a slug — this is the
-      // href app/admin/vault/page.tsx already links to.
+      // href app/admin/sprouts/page.tsx already links to.
       href: `/admin/bean/${encodeURIComponent(bean.slug)}`,
       group: "Beans",
     });

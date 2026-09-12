@@ -35,7 +35,7 @@ export default async function EditVersionPage({
   const beanSlug = (version.parents ?? [])
     .filter((p) => p.startsWith(ATOM_PREFIX))
     .map((p) => p.slice(ATOM_PREFIX.length))[0];
-  const backHref = beanSlug ? `/admin/bean/${beanSlug}` : "/admin/vault";
+  const backHref = beanSlug ? `/admin/bean/${beanSlug}` : "/admin/sprouts";
   const content = resolveText(version.content);
   // The FULL dataset: in the authoring zone a ref to a draft or private entity
   // should resolve and be visible, not vanish the way it does in public. Load
