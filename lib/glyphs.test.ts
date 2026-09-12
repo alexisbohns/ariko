@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { initialsOf, sourceLabel, tierLabel, visibilityLabel } from "./glyphs";
+import {
+  initialsOf,
+  sourceLabel,
+  sproutStateLabel,
+  tierLabel,
+  visibilityLabel,
+} from "./glyphs";
 
 test("initialsOf takes the first letter of the first two words", () => {
   assert.equal(initialsOf("Wait For The Sun"), "WF");
@@ -50,4 +56,17 @@ test("visibility and tier each have exactly one display form", () => {
   assert.equal(visibilityLabel("private"), "Private");
   assert.equal(tierLabel("plant"), "Plant");
   assert.equal(tierLabel("pod"), "Pod");
+});
+
+test("sproutStateLabel gives one display form per member", () => {
+  assert.equal(sproutStateLabel("draft"), "Draft");
+  assert.equal(sproutStateLabel("private"), "Private");
+  assert.equal(sproutStateLabel("published"), "Published");
+});
+
+test("sproutStateLabel and visibilityLabel agree on the word they share", () => {
+  // A sprout's `private` means what a plant's `private` means. Two display
+  // forms for one concept is a drift nobody sees, because each surface reads
+  // correctly on its own.
+  assert.equal(sproutStateLabel("private"), visibilityLabel("private"));
 });
