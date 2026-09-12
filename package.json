@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start -p 3333",
     "lint": "eslint .",
+    "brand:build": "node --import tsx scripts/build-brand.ts",
     "test": "TSX_TSCONFIG_PATH=tsconfig.test.json node --import tsx --test \"lib/**/*.test.ts\" \"lib/**/*.test.tsx\" \"components/**/*.test.ts\" \"components/**/*.test.tsx\" \"scripts/lab-note/*.test.mjs\"",
     "test:db": "MONGODB_DB=${MONGODB_DB:-beanstalk_scratch} TSX_TSCONFIG_PATH=tsconfig.test.json node --env-file=.env.local --import tsx --test --test-concurrency=1 lib/articles-route.test.ts lib/articles-store.test.ts lib/botanical.test.ts lib/content-store.test.ts lib/inbox-route.test.ts lib/palette-route.test.ts lib/seeds.test.ts lib/store.test.ts",
     "migrate": "node --env-file=.env.local --import tsx scripts/migrate-garden.ts",
@@ -67,6 +68,8 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "jsdom": "^30.0.1",
     "postcss": "^8.5.26",
+    "sharp": "^0.34.5",
+    "svgo": "^3.3.5",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
