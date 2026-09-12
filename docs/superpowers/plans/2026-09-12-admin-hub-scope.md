@@ -626,6 +626,17 @@ Expected: FAIL — module not found.
 
 - [ ] **Step 3: Write `lib/admin-scope.ts`**
 
+> **Superseded — read the file, not this block.** The code below is the version
+> as first planned. Code review found four real defects in it and they are fixed
+> in the shipped module: `"all"` now reads as no scope (it was written by
+> `scopeHref` and never read back); the plant URL grammar moved to
+> `lib/plant-path.ts` and is shared with `resolveNavItem`, which parsed it by a
+> different rule; the key map is keyed by `NavId` so it cannot drift from
+> `NAV_ITEMS`; a malformed escape returns `null` rather than a raw slug; and two
+> docblock paragraphs that described mechanisms the code does not use are gone.
+> Any later task touching this module must read `lib/admin-scope.ts` and
+> `lib/plant-path.ts` as they stand.
+
 ```ts
 import { filterHref, type FilterValues } from "./admin-filters";
 import { SCREEN_FILTER_KEYS } from "./screens";
@@ -1087,6 +1098,11 @@ In the moved file: rename `VaultPage` → `AdminSproutsPage`; import
 `VAULT_KEYS` const; change every `/admin/vault` string to `/admin/sprouts`; and
 change the two headings and the failure copy from "Vault" to "Sprouts"
 ("Couldn't load the sprouts.").
+
+**Do not skip the `VAULT_KEYS` deletion.** The page still declares its own copy
+of that list under a near-verbatim copy of `SPROUT_KEYS`' docblock — two
+definitions of one list, which the rename commit left transitional on the
+explicit promise that this step ends it.
 
 - [ ] **Step 3: Delete the garden**
 
@@ -1583,7 +1599,7 @@ failure, build rows, render `AdminFilters` then the table.
 import { buildDataset, resolveText, textPart, PLANT_PREFIX, parentsWithPrefix } from "@/lib/data";
 import { loadRawGarden } from "@/lib/store";
 import { filterHref } from "@/lib/admin-filters";
-import { resolveScope, scopeKeys } from "@/lib/admin-scope";
+import { resolveScope, scopeKeysFor } from "@/lib/admin-scope";
 import { PodTable, type PodRow } from "../_components/pod-table";
 import { AdminFilters, type FilterGroup } from "../_components/admin-filters";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -1591,7 +1607,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 export const dynamic = "force-dynamic";
 
 const PATH = "/admin/pods";
-const KEYS = scopeKeys[PATH];
+// The accessor, not a bare index: `tsconfig.json` has `strict` without
+// `noUncheckedIndexedAccess`, so a bare `scopeKeys[PATH]` is typed as always
+// present and a renamed path would reach `filterQuery` as undefined — "keys is
+// not iterable" at runtime, clean through `tsc`, `npm test` and `npm run build`.
+const KEYS = scopeKeysFor(PATH) ?? [];
 ```
 
 Rows: for each pod, `plantSlug` is `parentsWithPrefix(pod.parents, PLANT_PREFIX)[0]`;
@@ -1635,7 +1655,7 @@ git commit -m "admin: pods get an index"
 - [ ] **Step 1: Write the page**
 
 The same shape as Task 10 with two dimensions, `plant` and `pod`
-(`scopeKeys["/admin/beans"]`). Rows carry `sproutCount` from
+(`scopeKeysFor("/admin/beans")`). Rows carry `sproutCount` from
 `dataset.sproutsForBean(bean.slug).length`, `pod` from
 `parentsWithPrefix(bean.parents, POD_PREFIX)[0]`, and `plant` from
 `dataset.plantForBean(bean.slug)` — the accessor that already resolves a bean's
