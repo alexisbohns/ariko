@@ -14,6 +14,13 @@ import { composeText, type Text } from "./data";
  *    there is no `$unset` here to compose with, so adding the missing half for
  *    symmetry would be adding the bug's cure to a body that cannot catch it.
  *
+ *    The TYPE is not the whole of that argument, because a stored document's
+ *    real shape is not enforced by an interface — a sprout written before the
+ *    field existed could lack the key. The write path is what closes it: every
+ *    writer, `createSprout` and `updateSproutMeta` alike, always sets a
+ *    definite string, so the key is backfilled the first time anything touches
+ *    such a document, and `resolveText` reads an absent one as empty until then.
+ *
  *  - There is no `status` field riding along. The plant's meta form carries one
  *    as a hidden input because `buildPlantMetaPatch` reads an absent status as
  *    `active` and dropping it would reactivate an inactive plant on every name
