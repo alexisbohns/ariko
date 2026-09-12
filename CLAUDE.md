@@ -38,16 +38,6 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
   - `components/plant-header.tsx` and `components/entity-card.tsx` — the plant
     head and the entity card. Each takes slots or one extra prop where the admin
     genuinely shows more (`refText` on a card in the editor), and nothing else.
-  - `components/brand/ariko-icon.tsx` and `ariko-logo.tsx` are **generated**,
-    not hand-drawn: `npm run brand:build` derives both, in one batch, from
-    `assets/brand/*.svg`. Edit the source SVGs and re-run — never hand-patch
-    a component, since the next regeneration overwrites the patch without
-    warning. `lib/brand-source.test.ts` pins that both paint their
-    letterforms from `currentColor` and their leaves from
-    `--ariko-leaf-dark` / `--ariko-leaf-light` rather than the artwork's
-    literal colours, and that each keeps its `viewBox` — svgo's
-    `preset-default` deletes `viewBox` outright once width/height are
-    present, so the test guards a deletion, not a degradation.
 
   The rule these four share: **if the admin and the public site draw the same
   thing, they draw it from the same file, and what differs is a parameter.**
@@ -186,6 +176,21 @@ while quietly becoming false.
   page's inlined mark against `app/icon.svg`, since an `<img>` there cannot
   read the Cache API and would fail offline, the one situation the page
   exists for.
+- `components/brand/ariko-icon.tsx` and `ariko-logo.tsx` are **generated**,
+  not hand-drawn: `npm run brand:build` derives both, in one batch, from
+  `assets/brand/*.svg`. Edit the source SVGs and re-run — never hand-patch
+  a component, since the next regeneration overwrites the patch without
+  warning, and nothing else would catch the drift: hand-patch a component,
+  or paste a fresh export's paths in by hand, and `tsc`, `npm test` and
+  `npm run build` all pass while the marks silently lose their tokens
+  (rendering black on a ground `.dark` will one day make black too) or lose
+  their `viewBox` (sizing from a `className` they no longer have — svgo's
+  `preset-default` deletes it outright once width/height are present).
+  `lib/brand-source.test.ts` pins that both paint their letterforms from
+  `currentColor` and their leaves from `--ariko-leaf-dark` /
+  `--ariko-leaf-light` rather than the artwork's literal colours, and that
+  each keeps its `viewBox` — which is what turns both silent losses into a
+  failure.
 - **Every glyph carries its word.** `components/admin/glyphs.tsx` draws the
   admin tables' values as icons, and each also renders its word in an
   `sr-only` span from `lib/glyphs.ts` — the one place a display form is
