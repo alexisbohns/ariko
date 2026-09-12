@@ -82,7 +82,8 @@ export function Chrome({
    */
   hotkeysVisible?: boolean;
   /**
-   * A cluster of TEXT rather than icons — the language switch is the only one.
+   * A cluster of TEXT rather than icons: the public zone's language switch, and
+   * the prose editor's floating commit (`components/editor/prose-editor.tsx`).
    * Its own radius and padding, as a named variant rather than a `className`
    * override: `p-1.5` and `px-3 py-2` are not a conflict tailwind-merge can
    * resolve (a shorthand plus both axes), so an override would leave the
