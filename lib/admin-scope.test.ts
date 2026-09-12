@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { NAV_ITEMS, navItems, resolveNavItem, type NavId } from "./admin-nav";
-import { resolveScope, scopeHref, scopeKeysFor } from "./admin-scope";
+import { plantFilterGroup, resolveScope, scopeHref, scopeKeysFor } from "./admin-scope";
 import type { FilterValues } from "./admin-filters";
 
 function parseHref(href: string): { pathname: string; active: FilterValues } {
@@ -118,4 +118,46 @@ test("every NavId the rail can render is either scopable with a key list, or exp
     assert.ok(item, id);
     assert.ok(scopeKeysFor(item!.href)?.includes("plant"), id);
   }
+});
+
+test("plantFilterGroup puts All first, then the slugs deduped and sorted", () => {
+  const group = plantFilterGroup("/admin/pods", {}, ["pbbls", "ariko", "pbbls"], null);
+  assert.deepEqual(group.options, ["all", "ariko", "pbbls"]);
+  assert.equal(group.key, "plant");
+  assert.equal(group.current, "all");
+  assert.deepEqual(group.hrefs, ["/admin/pods", "/admin/pods?plant=ariko", "/admin/pods?plant=pbbls"]);
+});
+
+test("plantFilterGroup's current is the resolved scope, never the raw query", () => {
+  // `?plant=all` and a repeated `?plant=` are both "no filter" to resolveScope,
+  // and a trigger reading either back as a filter is the chrome contradicting
+  // the page — so the page hands the SCOPE down and this only spells it.
+  for (const raw of ["all", "", undefined]) {
+    const active = { plant: raw };
+    const scope = resolveScope("/admin/pods", active);
+    assert.equal(plantFilterGroup("/admin/pods", active, ["ariko"], scope).current, "all", String(raw));
+  }
+  assert.equal(
+    plantFilterGroup("/admin/pods", { plant: "ariko" }, ["ariko"], resolveScope("/admin/pods", { plant: "ariko" })).current,
+    "ariko",
+  );
+});
+
+test("plantFilterGroup preserves the route's other dimensions and drops the ones it does not own", () => {
+  // /admin/beans declares ["plant", "pod"]; ?error= belongs to no dimension.
+  const group = plantFilterGroup(
+    "/admin/beans",
+    { pod: "tooling", error: "boom" },
+    ["ariko"],
+    null,
+  );
+  assert.deepEqual(group.hrefs, ["/admin/beans?pod=tooling", "/admin/beans?plant=ariko&pod=tooling"]);
+});
+
+test("plantFilterGroup on a route with no dimensions builds bare hrefs rather than throwing", () => {
+  // scopeKeysFor returns undefined for a hub or an unrecognised path; the `?? []`
+  // lives in one place now, so a renamed section degrades to unfiltered links
+  // instead of "keys is not iterable" inside filterQuery.
+  const group = plantFilterGroup("/admin/podz", { plant: "ariko" }, ["ariko"], "ariko");
+  assert.deepEqual(group.hrefs, ["/admin/podz", "/admin/podz"]);
 });

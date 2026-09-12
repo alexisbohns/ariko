@@ -19,10 +19,18 @@
 
 export type FilterValues = Record<string, string | undefined>;
 
-/** How every filter control in the admin spells "no filter". A word rather
- *  than an empty value because these reach a URL through a plain `<a href>`,
- *  and `?plant=` is a key a reader cannot see the meaning of. */
-const NO_FILTER = "all";
+/**
+ * How every filter control in the admin spells "no filter". A word rather than
+ * an empty value because these reach a URL through a plain `<a href>`, and
+ * `?plant=` is a key a reader cannot see the meaning of.
+ *
+ * Exported for the same reason `filterValue` is: everything that spells the
+ * sentinel must spell it from here. The readers that compare a value go
+ * through `filterValue`; the ones that WRITE it — `scopeHref`'s "All" row and
+ * `plantFilterGroup`'s first option — need the word itself, and a second
+ * literal "all" somewhere would be a second place deciding.
+ */
+export const NO_FILTER = "all";
 
 /**
  * One filter value, as every reader of one must read it: trimmed, with blank

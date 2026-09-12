@@ -1,4 +1,4 @@
-import { filterHref, filterValue, type FilterValues } from "./admin-filters";
+import { filterHref, filterValue, NO_FILTER, type FilterValues } from "./admin-filters";
 import { NAV_ITEMS, type ScopedId } from "./admin-nav";
 import { hubHref, normalizePath, plantSlugFromPath, ROOT_PATH } from "./plant-path";
 import { SECTION_KEYS } from "./section-keys";
@@ -97,6 +97,56 @@ export function scopeHref(
 ): string {
   const path = normalizePath(pathname);
   const keys = scopeKeysFor(path);
-  if (keys) return filterHref(path, active, keys, "plant", slug ?? "all");
+  if (keys) return filterHref(path, active, keys, "plant", slug ?? NO_FILTER);
   return slug ? hubHref(slug) : ROOT_PATH;
+}
+
+/**
+ * A section's plant popover, as every section that has one builds it.
+ *
+ * Structural rather than an import of `FilterGroup`: that type is declared by
+ * `app/admin/_components/admin-filters.tsx`, which carries `"use client"`, and
+ * this module is client-safe by the account above — reaching into `app/` for a
+ * type is a dependency this file should not have even when it erases. The
+ * pages annotate their array as `FilterGroup[]`, so the shape is still checked
+ * at three call sites; what is NOT checked is spelled here instead of three
+ * times.
+ *
+ * What it takes and what it decides:
+ *
+ *  - `slugs` is whatever the page found — rows' plant refs, the plants the
+ *    dataset can answer for, the slugs a queue suggests. Deduped and sorted
+ *    HERE, so a page hands over what it knows and not an arrangement of it.
+ *  - The `NO_FILTER` option comes first and is spelled from
+ *    `lib/admin-filters.ts` rather than as a fourth literal "all".
+ *  - `current` is the resolved SCOPE, never the raw `?plant=`: `?plant=all`
+ *    and a repeated `?plant=` are both "no filter" to `resolveScope`, and a
+ *    trigger reading either back as a filter would be the chrome contradicting
+ *    the page.
+ *  - The key list is looked up here, through `scopeKeysFor`'s `?? []`, which
+ *    is why no page carries that fallback any more. A renamed path now reaches
+ *    ONE guard instead of three that had drifted into three copies of the same
+ *    paragraph.
+ */
+export interface PlantFilterGroup {
+  key: "plant";
+  options: string[];
+  current: string;
+  hrefs: string[];
+}
+
+export function plantFilterGroup(
+  pathname: string,
+  active: FilterValues,
+  slugs: Iterable<string>,
+  scope: string | null,
+): PlantFilterGroup {
+  const keys = scopeKeysFor(pathname) ?? [];
+  const options = [NO_FILTER, ...[...new Set(slugs)].sort()];
+  return {
+    key: "plant",
+    options,
+    current: scope ?? NO_FILTER,
+    hrefs: options.map((opt) => filterHref(pathname, active, keys, "plant", opt)),
+  };
 }

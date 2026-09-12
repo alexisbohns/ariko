@@ -1,8 +1,7 @@
 import { type Plant, type Seed, resolveText } from "@/lib/data";
 import { listSeeds } from "@/lib/seeds";
 import { loadRawGarden } from "@/lib/store";
-import { filterHref } from "@/lib/admin-filters";
-import { resolveScope, scopeKeysFor } from "@/lib/admin-scope";
+import { plantFilterGroup, resolveScope } from "@/lib/admin-scope";
 import { filterSeedsByPlant } from "@/lib/inbox-filter";
 import { SeedOverlay } from "../_components/seed-overlay";
 import { AdminFilters, type FilterGroup } from "../_components/admin-filters";
@@ -20,12 +19,6 @@ import {
 export const dynamic = "force-dynamic";
 
 const PATH = "/admin/inbox";
-
-// The accessor, not a bare index: `tsconfig.json` has `strict` without
-// `noUncheckedIndexedAccess`, so a bare `scopeKeys[PATH]` is typed as always
-// present and a renamed path would reach `filterQuery` as undefined — "keys is
-// not iterable" at runtime, clean through `tsc`, `npm test` and `npm run build`.
-const KEYS = scopeKeysFor(PATH) ?? [];
 
 function noteSnippet(body: Seed["body"]): string {
   const text = body?.en || body?.fr || "";
@@ -122,40 +115,26 @@ export default async function AdminInboxPage({
   const visible = filterSeedsByPlant(seeds ?? [], scope);
   const hidden = total - visible.length;
 
-  // The options are the slugs the queue actually suggests, not the garden's
+  // The options are the slugs the queue actually SUGGESTS, not the garden's
   // plants: an option that matches nothing is a click that empties the table
   // for no reason, and a suggestion naming a plant the garden no longer holds
-  // still needs a way to be found.
+  // still needs a way to be found. `plantFilterGroup` dedupes and sorts them,
+  // and spells the "All" option and the trigger's current value from the one
+  // place that decides what the sentinel is.
   //
-  // Named rather than spelled inline: `as const` on an inline array makes a
-  // READONLY tuple, which `FilterGroup["options"]` does not admit — the same
-  // move the pods, sprouts and screens pages make.
-  const plantOptions = [
-    "all",
-    ...[
-      ...new Set(
-        (seeds ?? []).flatMap((seed) =>
-          seed.suggested?.plantSlug ? [seed.suggested.plantSlug] : [],
-        ),
-      ),
-    ].sort(),
-  ];
-
-  // `scope` rather than `active.plant` for `current`, so the trigger reads what
-  // the rows were actually narrowed by: `?plant=all` and a repeated `?plant=`
-  // are both "no filter" to `resolveScope`, and a trigger reading either back
-  // as a filter would be the chrome contradicting the page.
-  //
-  // `KEYS` is `["plant"]`, so `filterHref` drops `?error=` on the way out —
-  // which is the behaviour wanted: a filter click is not a re-run of the save
-  // that failed, and the overlay should not reopen onto a stale banner.
+  // This route's dimension list is `["plant"]`, so the hrefs it builds drop
+  // `?error=` on the way out — the behaviour wanted: a filter click is not a
+  // re-run of the save that failed, and the overlay should not reopen onto a
+  // stale banner.
   const groups: FilterGroup[] = [
-    {
-      key: "plant",
-      options: plantOptions,
-      current: scope ?? "all",
-      hrefs: plantOptions.map((opt) => filterHref(PATH, active, KEYS, "plant", opt)),
-    },
+    plantFilterGroup(
+      PATH,
+      active,
+      (seeds ?? []).flatMap((seed) =>
+        seed.suggested?.plantSlug ? [seed.suggested.plantSlug] : [],
+      ),
+      scope,
+    ),
   ];
 
   return (
