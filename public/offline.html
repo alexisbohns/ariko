@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Offline — Ariko</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #fff;
+        --fg: #252525;
+        --muted: #8e8e8e;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #252525;
+          --fg: #fafafa;
+          --muted: #8e8e8e;
+        }
+      }
+      body {
+        margin: 0;
+        min-height: 100svh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: system-ui, -apple-system, sans-serif;
+        line-height: 1.6;
+      }
+      main {
+        max-width: 28rem;
+        padding: 2rem 1.5rem;
+        text-align: center;
+      }
+      img {
+        width: 72px;
+        height: 72px;
+      }
+      h1 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin: 1.5rem 0 0.5rem;
+      }
+      p {
+        margin: 0.25rem 0;
+        color: var(--muted);
+      }
+      p + p {
+        margin-top: 0.75rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/icons/icon-192.png" alt="Ariko" />
+      <h1>No connection</h1>
+      <p>Ariko is out of reach. This page will come back on its own.</p>
+      <p lang="fr">Ariko est hors de portée. Cette page reviendra d’elle-même.</p>
+    </main>
+  </body>
+</html>
