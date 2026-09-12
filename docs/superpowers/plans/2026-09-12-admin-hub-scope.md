@@ -2261,7 +2261,15 @@ build theirs, minus the plant mark (the hub is already inside a plant).
 `plantScreens` already exists in this file — keep it, and keep the whole
 `exhibition` prop and its `exhibitionRows`, unchanged.
 
-- [ ] **Step 4: Verify**
+- [ ] **Step 4: Make `lib/plant-hub.ts`'s docblock true**
+
+It says its two callers are "the hub's preview and `/admin/beans` scoped to a
+plant, neither built yet". `/admin/beans` was built two tasks ago and this task
+builds the other one, so the sentence is false in both halves by the time you
+finish. Rewrite it to describe the invariant rather than the schedule: the two
+callers report the same count because they call the same function.
+
+- [ ] **Step 5: Verify**
 
 Run: `npx tsc --noEmit` → clean
 Run: `npm test 2>&1 | tail -5` → `# fail 0`, and confirm
@@ -2271,11 +2279,12 @@ among the passes:
 Run: `npm run dev` and open a plant with pods, beans, sprouts and screens; then
 one with none of them (every preview should say `nothing yet`, with no `all →`).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
+
+Explicit pathspecs — never `git add -A`, other agents may have work staged.
 
 ```bash
-git add -A
-git commit -m "admin: the plant page becomes a hub"
+git commit "app/admin/plant/[slug]/page.tsx" app/admin/_components/plant-rail.tsx app/admin/_components/screen-strip.tsx lib/plant-hub.ts -m "admin: the plant page becomes a hub"
 ```
 
 ---
