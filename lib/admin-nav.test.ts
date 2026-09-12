@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { NAV_ITEMS, navHref, navItems, resolveColumn, resolveNavItem } from "./admin-nav";
+import { hubHref, narrativeHref } from "./plant-path";
 
 test("the six sections are the nav, in order", () => {
   assert.deepEqual(
@@ -58,6 +59,22 @@ test("a plant page belongs to Overview, which only exists when scoped", () => {
 test("a plant route tolerates depth — a hub child still lights Overview", () => {
   assert.equal(resolveNavItem("/admin/plant/ariko/screens"), "/admin/plant/ariko");
   assert.equal(resolveNavItem("/admin/plant/ariko/screens/karma-top"), "/admin/plant/ariko");
+});
+
+// The narrative page is the FIRST hub child route that actually exists. Until
+// it shipped, "a hub child still lights Overview" was a claim about a
+// hypothetical — `lib/plant-path.ts`'s docblock describes the bug the day one
+// arrives: `resolveNavItem` truncating the path while `resolveScope` refuses a
+// slug containing "/", so the rail lights Overview for a plant the switcher has
+// already stopped naming. Both are asserted here against the real path, through
+// the builders the page and the rail actually call, so a change to the URL
+// grammar cannot leave this test passing against a route nobody visits.
+test("the narrative page lights Overview and keeps the reading column", () => {
+  assert.equal(resolveNavItem(narrativeHref("ariko")), hubHref("ariko"));
+  assert.equal(resolveColumn(narrativeHref("ariko")), "reading");
+  // A slug that needs encoding round-trips: `narrativeHref` encodes it, and
+  // `resolveNavItem` has to decode and re-encode to the same address.
+  assert.equal(resolveNavItem(narrativeHref("a b")), hubHref("a b"));
 });
 
 test("login belongs to no section", () => {

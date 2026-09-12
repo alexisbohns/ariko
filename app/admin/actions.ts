@@ -41,6 +41,7 @@ import {
 } from "@/lib/plant-meta";
 import { buildPlantLogoPatch } from "@/lib/plant-logo";
 import { isPlantStatus } from "@/lib/plant-status";
+import { narrativeHref } from "@/lib/plant-path";
 import { isVisibility } from "@/lib/plant-visibility";
 import { runSync } from "@/lib/pollen-run";
 import {
@@ -373,6 +374,21 @@ export async function editSproutMediaAction(formData: FormData): Promise<void> {
 
 // Plant and pod narrative. One action for both tiers: the ref carries the tier,
 // and the two collections differ only in which writer runs.
+//
+// The redirect goes to WHEREVER THAT REF'S EDITOR ACTUALLY IS, which is no
+// longer the same page for both tiers: a pod's narrative is still edited on the
+// pod's own page, while a plant's has a page of its own
+// (`narrativeHref`, app/admin/(chrome)/plant/[slug]/narrative). Sending a plant
+// back to the hub would land the author on a page where the thing they just
+// saved is two clamped lines and the caret is gone. The error redirect goes to
+// the same place for the stronger version of the reason — the banner has to
+// appear where the editor is, or it describes an edit on a page the author has
+// already left.
+//
+// Both branches interpolate a STORED slug through the one builder that spells
+// the plant address (lib/plant-path.ts), after the existence check below: the
+// ref arrives from a form, and a redirect target is not a thing to take on
+// trust from a payload.
 export async function editContainerContentAction(formData: FormData): Promise<void> {
   await requireSession();
   const ref = String(formData.get("ref") ?? "");
@@ -389,7 +405,7 @@ export async function editContainerContentAction(formData: FormData): Promise<vo
     : raw.pods?.find((p) => p.slug === slug);
   if (!existing) redirect("/admin");
 
-  const back = `/admin/${isPlant ? "plant" : "pod"}/${encodeURIComponent(slug)}`;
+  const back = isPlant ? narrativeHref(slug) : `/admin/pod/${encodeURIComponent(slug)}`;
   const result = buildContentPatch(existing, markdown);
   if (!result.ok) {
     redirect(`${back}?error=${encodeURIComponent(`could not save content: ${result.error}`)}`);
@@ -406,9 +422,11 @@ export async function editContainerContentAction(formData: FormData): Promise<vo
 /**
  * The plant's role — and nothing else.
  *
- * A separate form and a separate action from the narrative one on the same
- * page, which is what keeps each write narrow: this one can only ever reach
- * `role`, and editContainerContentAction can only ever reach `content`.
+ * A separate form and a separate action from the narrative one, which is what
+ * keeps each write narrow: this one can only ever reach `role`, and
+ * editContainerContentAction can only ever reach `content`. (They no longer
+ * share a page either — the narrative editor moved to
+ * `plant/[slug]/narrative` — but the separation was never about the page.)
  *
  * An unknown `kind` redirects with an error instead of defaulting. A role is a
  * public claim about Alexis's relationship to someone else's project, so a
@@ -444,7 +462,7 @@ export async function editPlantRoleAction(formData: FormData): Promise<void> {
 /**
  * The plant's name, description and status — and nothing else.
  *
- * A third narrow write on the plant page, beside the role and the narrative.
+ * A third narrow write on the plant, beside the role and the narrative.
  * Zero-client-JS, so this is reachable from a browser with script disabled and
  * must behave correctly there.
  *
