@@ -14,7 +14,7 @@
  * `components/admin/glyphs.tsx`. Keeping the strings here is what lets them be
  * tested without rendering anything.
  */
-import type { Visibility } from "./data";
+import type { SproutState, Visibility } from "./data";
 
 /**
  * Two letters for an entity with no image — the avatar fallback everywhere a
@@ -70,6 +70,25 @@ const VISIBILITY_LABELS: Record<Visibility, string> = {
 
 export function visibilityLabel(visibility: Visibility): string {
   return VISIBILITY_LABELS[visibility];
+}
+
+/**
+ * A sprout's three states, in words.
+ *
+ * `Private` is deliberately the SAME word `visibilityLabel` gives — a sprout's
+ * `private` means exactly what a plant's does, and spelling it "Hidden" here
+ * would assert a distinction that does not exist. `Draft` is the one member
+ * with no counterpart in the visibility vocabulary, which is the honest reading
+ * of it: not a privacy setting, a stage before one.
+ */
+const SPROUT_STATE_LABELS: Record<SproutState, string> = {
+  draft: "Draft",
+  private: "Private",
+  published: "Published",
+};
+
+export function sproutStateLabel(state: SproutState): string {
+  return SPROUT_STATE_LABELS[state];
 }
 
 export type Tier = "plant" | "pod";
