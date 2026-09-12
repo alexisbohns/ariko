@@ -90,8 +90,23 @@ export function PlantHeader({
   facts,
   children,
 }: {
-  /** The squircle — a plain `<div>` on the public page, a popover trigger in the admin. */
-  mark: ReactNode;
+  /**
+   * The squircle — a plain `<div>` on the public page, a popover trigger in the
+   * admin, and ABSENT for an entity that has no mark.
+   *
+   * Optional since the sprout's edition slice. The docblock above argues the
+   * mark's FALLBACK is not optional, and that still holds: a centred stack whose
+   * first element renders empty reads as broken, which is why
+   * `PlantMarkContent` draws initials rather than nothing. But a sprout has no
+   * logo and no monogram — a two-letter mark for a piece of writing is a
+   * decoration standing where a fact belongs — so it has no first element to
+   * miss, and the stack simply starts at the title.
+   *
+   * The distinction to keep: a caller that HAS a mark must always render one.
+   * Passing `undefined` is a statement about the entity, never a shortcut for a
+   * mark that failed to load.
+   */
+  mark?: ReactNode;
   /** The name, or a control wrapping it. Rendered INSIDE the h1 either way. */
   title: ReactNode;
   /** Already resolved to the reading language, and already trimmed. */
