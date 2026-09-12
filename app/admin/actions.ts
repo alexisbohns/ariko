@@ -380,10 +380,10 @@ export async function editSproutMediaAction(formData: FormData): Promise<void> {
  * Where a sprout's four head writes go back to, and where a rejected one puts
  * its message.
  *
- * `form` is the surface the author had open — `app/admin/_components/sprout-hero.tsx`
- * reads it back and reopens onto it, because the field that was rejected is
- * behind a closed overlay or popover and the banner would otherwise have
- * nowhere to live. An unknown value opens nothing and falls through to the
+ * `form` is the surface the author had open. The sprout head
+ * (`sprout-hero.tsx`, the slice this helper was written for) reads it back and
+ * reopens onto it, because the field that was rejected is behind a closed
+ * overlay or popover and the banner would otherwise have nowhere to live. An unknown value opens nothing and falls through to the
  * page-level alert, which is why nothing here has to trust it.
  */
 function sproutHref(slug: string, error?: string, form?: string): string {
@@ -464,7 +464,13 @@ export async function setSproutStateAction(formData: FormData): Promise<void> {
     redirect(sproutHref(slug, `unknown state: ${state || "(blank)"}`, "state"));
   }
 
-  await updateSproutState(slug, state as SproutState);
+  // No `as SproutState`: `isSproutState` is a type predicate and `redirect`
+  // returns `never`, so the narrowing is real. A cast here would keep this line
+  // compiling if someone later widened that guard's signature to plain
+  // `boolean` — the guard would silently stop narrowing and nothing would say
+  // so. (`flipPlantField`'s callers DO cast, because it takes its validator as
+  // a plain `(raw: string) => boolean` and there is no predicate to inherit.)
+  await updateSproutState(slug, state);
 
   if (state === "published" && shouldCascadePublish(existing.type)) {
     const { plantSlugs, podSlugs, beanSlugs } = publishCascade(await loadRawGarden(), slug);
@@ -486,17 +492,9 @@ export async function setSproutStateAction(formData: FormData): Promise<void> {
  * an empty cell on four admin tables, which is a worse outcome than a rejected
  * save.
  *
- * Non-empty is not enough, though, and `isTimelineDate` is the half nothing in
- * the old whole-form path ever had. `mergeBeanstalk` (`lib/beanstalk.ts`)
- * builds the public timeline from `entry.sprout.date.slice(0, 10)` and SORTS
- * those ten characters as a string, so the chronological order of the whole
- * public Beanstalk rests on a stored date reading `YYYY-MM-DD` — and neither
- * `validateSproutInput`, nor the old `validateSproutPatch`, nor
- * `<input type="date">` (a client control, which a server must not trust in any
- * case) ever checks it. A `09/12/2026` posted from anywhere therefore stores
- * cleanly, slices to `09/12/2026`, sorts above every real line in the garden,
- * and misfiles the sprout on the public site with nothing failing anywhere.
- * This is the only place that noticing can happen before the write.
+ * Non-empty is not enough, and `isTimelineDate` is the half nothing in the old
+ * whole-form path ever had. `lib/sprout-date.ts` is where that rule and its
+ * reasons live; this is only the door that applies it.
  */
 export async function setSproutDateAction(formData: FormData): Promise<void> {
   await requireSession();
@@ -513,7 +511,7 @@ export async function setSproutDateAction(formData: FormData): Promise<void> {
     redirect(
       sproutHref(
         slug,
-        `could not save: a sprout's date must start YYYY-MM-DD (got "${date}")`,
+        `could not save: a sprout's date must read YYYY-MM-DD (got "${date}")`,
         "date",
       ),
     );

@@ -634,15 +634,10 @@ export async function updateSproutState(slug: string, state: SproutState): Promi
 /**
  * A sprout's date — and nothing else. A sibling of `updateSproutState`.
  *
- * The string written here is what orders the public Beanstalk:
- * `mergeBeanstalk` (`lib/beanstalk.ts`) takes `date.slice(0, 10)` from every
- * sprout and sorts those ten characters against the feed's timestamps as
- * strings. So a date that does not read `YYYY-MM-DD` is not rejected by
- * anything downstream — it is stored, sliced and sorted as nonsense, and the
- * sprout simply appears in the wrong place on the public timeline. There is no
- * shape this writer can enforce for a `$set` of one string; the guard is
- * `isTimelineDate` (`lib/sprout-date.ts`), which `setSproutDateAction` runs
- * before calling here.
+ * The value is a SHAPE the public timeline depends on, not free text:
+ * `lib/sprout-date.ts` records what reads it and what a malformed one silently
+ * does, and `setSproutDateAction` is the door that enforces it. Nothing checks
+ * it here — this writer is reached only through that action.
  */
 export async function updateSproutDate(slug: string, date: string): Promise<void> {
   const db = await getDb();

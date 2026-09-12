@@ -6,13 +6,19 @@ test("isTimelineDate accepts a plain day", () => {
   assert.equal(isTimelineDate("2026-09-12"), true);
 });
 
-test("isTimelineDate accepts a day carrying a time", () => {
-  // lib/beanstalk.ts slices every line to 10 characters precisely so a
-  // timestamp and a date-only string can be compared, so a stored timestamp
-  // sorts correctly and must not be rejected here.
-  assert.equal(isTimelineDate("2026-09-12T10:30:00Z"), true);
-  assert.equal(isTimelineDate("2026-09-12T10:30:00.000Z"), true);
-  assert.equal(isTimelineDate("2026-09-12 10:30"), true);
+test("isTimelineDate rejects a day carrying a time", () => {
+  // Date-only is the convention lib/beanstalk.ts and lib/synthesis.ts both
+  // record, and the pattern lib/articles.ts and lib/synthesis.ts both already
+  // enforce at their own write doors. It is also the only thing `<input
+  // type="date">` can round-trip. mergeBeanstalk would tolerate a timestamp
+  // (it slices to 10), but byDateDesc compares raw and would sort it as a
+  // later day than the same date written plainly — so the two sorters would
+  // disagree about one sprout.
+  assert.equal(isTimelineDate("2026-09-12T10:30:00Z"), false);
+  assert.equal(isTimelineDate("2026-09-12T10:30:00.000Z"), false);
+  assert.equal(isTimelineDate("2026-09-12 10:30"), false);
+  assert.equal(isTimelineDate("2026-09-12T"), false);
+  assert.equal(isTimelineDate("2026-09-12 "), false);
 });
 
 test("isTimelineDate rejects everything the timeline would misfile", () => {
@@ -24,9 +30,10 @@ test("isTimelineDate rejects everything the timeline would misfile", () => {
   assert.equal(isTimelineDate("2026-9-1"), false);
   assert.equal(isTimelineDate("26-09-12"), false);
   assert.equal(isTimelineDate("  2026-09-12"), false);
-  // Ten digits that are not a day: without the separator rule this would slice
-  // down to 2026-09-12 and claim to be a date it never was.
+  // Ten digits that are not a day: unanchored, this would slice down to
+  // 2026-09-12 and claim to be a date it never was.
   assert.equal(isTimelineDate("2026-09-1234"), false);
+  assert.equal(isTimelineDate("2026-09-12\n"), false);
 });
 
 test("isTimelineDate is shape, not calendar", () => {
