@@ -44,6 +44,13 @@ const SERVER_SAFE = [
   "components/bean-cover.tsx",
   "components/phone-frame.tsx",
   "components/screen-strip.tsx",
+  // The two brand marks. Generated (scripts/build-brand.ts), rendered by
+  // app/(public)/page.tsx and _components/public-chrome.tsx, and never listed
+  // here until the PWA slice — which is exactly the omission this list's
+  // docblock warns about. A generated file is not exempt: the generator's
+  // template is as editable as any other source.
+  "components/brand/ariko-icon.tsx",
+  "components/brand/ariko-logo.tsx",
   // The registry primitives the public zone renders — all of them, which is
   // the whole point. This list used to stop at components/, so shadcn's stock
   // "use client" on table.tsx cost every prose page 8.5 kB of
