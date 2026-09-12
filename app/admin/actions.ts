@@ -26,10 +26,14 @@ import {
   type MediaImage,
   type PlantRole,
   type PlantStatus,
+  type SproutState,
   type Visibility,
 } from "@/lib/data";
 import { resolveParentChoice, buildSproutInput, buildNewBean, validateSproutInput } from "@/lib/promote";
 import { buildSproutPatch, validateSproutPatch, shouldCascadePublish } from "@/lib/sprout-edit";
+import { buildSproutMetaPatch, BlankSproutNameError, type SproutMetaPatch } from "@/lib/sprout-meta";
+import { isSproutState } from "@/lib/sprout-state";
+import { isTimelineDate } from "@/lib/sprout-date";
 import { buildContentPatch } from "@/lib/content-edit";
 import { buildMediaPatch } from "@/lib/media-edit";
 import { buildPlantRolePatch, InvalidRoleKindError } from "@/lib/plant-role";
@@ -58,6 +62,10 @@ import {
   updatePlantContent,
   updatePodContent,
   updateSproutMedia,
+  updateSproutMeta,
+  updateSproutState,
+  updateSproutDate,
+  updateSproutType,
   updatePlantRole,
   updatePlantMeta,
   updatePlantLogo,
@@ -288,7 +296,7 @@ export async function editVersionAction(formData: FormData): Promise<void> {
 // WAS published; a draft/private delete cannot change the public projection) runs the
 // bean-keyed core against the dataset loaded AFTER the delete, so the deleted version
 // cannot shelter anything.
-export async function deleteVersionAction(formData: FormData): Promise<void> {
+export async function deleteSproutAction(formData: FormData): Promise<void> {
   await requireSession();
   const slug = String(formData.get("slug") ?? "");
 
@@ -299,11 +307,7 @@ export async function deleteVersionAction(formData: FormData): Promise<void> {
 
   // Server-side re-check of the confirm checkbox; the browser `required` is only UX.
   if (String(formData.get("confirm") ?? "") !== "on") {
-    redirect(
-      `/admin/sprout/${encodeURIComponent(slug)}?error=${encodeURIComponent(
-        "could not delete: confirm the permanent deletion first",
-      )}`,
-    );
+    redirect(sproutHref(slug, "could not delete: confirm the permanent deletion first", "delete"));
   }
 
   const beanSlugs = (existing.parents ?? [])
@@ -370,6 +374,188 @@ export async function editSproutMediaAction(formData: FormData): Promise<void> {
 
   revalidateGarden();
   redirect(`/admin/sprout/${encodeURIComponent(slug)}`);
+}
+
+/**
+ * Where a sprout's four head writes go back to, and where a rejected one puts
+ * its message.
+ *
+ * `form` is the surface the author had open — `app/admin/_components/sprout-hero.tsx`
+ * reads it back and reopens onto it, because the field that was rejected is
+ * behind a closed overlay or popover and the banner would otherwise have
+ * nowhere to live. An unknown value opens nothing and falls through to the
+ * page-level alert, which is why nothing here has to trust it.
+ */
+function sproutHref(slug: string, error?: string, form?: string): string {
+  const base = `/admin/sprout/${encodeURIComponent(slug)}`;
+  if (!error) return base;
+  return `${base}?error=${encodeURIComponent(error)}&form=${encodeURIComponent(form ?? "")}`;
+}
+
+/**
+ * A sprout's name and description — and nothing else.
+ *
+ * The overlay behind the page title. Split out of `editVersionAction`, which
+ * wrote seven fields from one form: that shape was only safe while every field
+ * WAS on one form, and the head puts each of them behind its own surface.
+ *
+ * `buildSproutMetaPatch` throws on a name blank in both languages rather than
+ * falling back, so the only rejection here is the one the author can fix.
+ */
+export async function editSproutMetaAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+
+  // Existence first, so the redirects below can only ever target a real page
+  // and can only interpolate a known-good stored slug.
+  const existing = await getSprout(slug);
+  if (!existing) redirect("/admin/sprouts");
+
+  // Typed `let` + try/catch, exactly as editPlantMetaAction does it: `redirect`
+  // is typed `never`, so TypeScript accepts that `patch` is assigned by the
+  // time it is used, and a throw that is NOT the one we expect is re-thrown
+  // rather than swallowed into a misleading error message.
+  let patch: SproutMetaPatch;
+  try {
+    patch = buildSproutMetaPatch(formData);
+  } catch (err) {
+    if (!(err instanceof BlankSproutNameError)) throw err;
+    redirect(sproutHref(slug, `could not save: ${err.message}`, "meta"));
+  }
+
+  await updateSproutMeta(slug, patch);
+
+  revalidateGarden();
+  redirect(sproutHref(slug));
+}
+
+/**
+ * A sprout's state — and the two cascades around it.
+ *
+ * This is `editVersionAction`'s publish logic, moved verbatim to the one action
+ * that can own it, and it is why state is a write of its own rather than a
+ * field on the meta overlay: the transition, not the value, is what decides
+ * whether the sprout's bean, pod and plant are flipped public or recomputed
+ * private. `existing` is read BEFORE the write so `existing.state` is the
+ * pre-save state the transition is measured against.
+ *
+ * Both cascade branches re-read with `loadRawGarden` AFTER `updateSproutState`,
+ * never `loadCachedGarden`: the cascade has to see the just-saved state, and a
+ * cached read here publishes the wrong parents — a published sprout whose bean
+ * silently stays private, or an unpublish that leaves a parent public.
+ *
+ * The digest gate (`shouldCascadePublish`) is unchanged: publishing a digest
+ * marks review sign-off, not public exhibition, and flipping its curated
+ * private containers public stays a separate human act.
+ *
+ * The posted value is a NAMED MEMBER of a vocabulary, re-validated here rather
+ * than trusted — the rule `flipPlantField` states for the plant's two enums. A
+ * stale page can then only ever name a value this vocabulary already has.
+ */
+export async function setSproutStateAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+
+  const existing = await getSprout(slug);
+  if (!existing) redirect("/admin/sprouts");
+
+  const state = String(formData.get("state") ?? "").trim();
+  if (!isSproutState(state)) {
+    redirect(sproutHref(slug, `unknown state: ${state || "(blank)"}`, "state"));
+  }
+
+  await updateSproutState(slug, state as SproutState);
+
+  if (state === "published" && shouldCascadePublish(existing.type)) {
+    const { plantSlugs, podSlugs, beanSlugs } = publishCascade(await loadRawGarden(), slug);
+    await setPublic(plantSlugs, podSlugs, beanSlugs);
+  } else if (existing.state === "published") {
+    const { plantSlugs, podSlugs, beanSlugs } = unpublishCascade(await loadRawGarden(), slug);
+    await setPrivate(plantSlugs, podSlugs, beanSlugs);
+  }
+
+  revalidateGarden();
+  redirect(sproutHref(slug));
+}
+
+/**
+ * A sprout's date — and nothing else.
+ *
+ * `required` on the input is UX; this is the guard. A blank date would sort the
+ * sprout to the bottom of every timeline the garden builds and would render as
+ * an empty cell on four admin tables, which is a worse outcome than a rejected
+ * save.
+ *
+ * Non-empty is not enough, though, and `isTimelineDate` is the half nothing in
+ * the old whole-form path ever had. `mergeBeanstalk` (`lib/beanstalk.ts`)
+ * builds the public timeline from `entry.sprout.date.slice(0, 10)` and SORTS
+ * those ten characters as a string, so the chronological order of the whole
+ * public Beanstalk rests on a stored date reading `YYYY-MM-DD` — and neither
+ * `validateSproutInput`, nor the old `validateSproutPatch`, nor
+ * `<input type="date">` (a client control, which a server must not trust in any
+ * case) ever checks it. A `09/12/2026` posted from anywhere therefore stores
+ * cleanly, slices to `09/12/2026`, sorts above every real line in the garden,
+ * and misfiles the sprout on the public site with nothing failing anywhere.
+ * This is the only place that noticing can happen before the write.
+ */
+export async function setSproutDateAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+
+  const existing = await getSprout(slug);
+  if (!existing) redirect("/admin/sprouts");
+
+  const date = String(formData.get("date") ?? "").trim();
+  if (!date) redirect(sproutHref(slug, "could not save: a sprout needs a date", "date"));
+  if (!isTimelineDate(date)) {
+    // The shape, not just the verdict: the author cannot fix "invalid" without
+    // being told which of the several dates they might have typed is wanted.
+    redirect(
+      sproutHref(
+        slug,
+        `could not save: a sprout's date must start YYYY-MM-DD (got "${date}")`,
+        "date",
+      ),
+    );
+  }
+
+  await updateSproutDate(slug, date);
+
+  revalidateGarden();
+  redirect(sproutHref(slug));
+}
+
+/**
+ * A sprout's type — and nothing else.
+ *
+ * Non-empty is the ONLY guard, and deliberately so: `type` is free-form. There
+ * is no vocabulary to validate a member of — `lib/sprouts.ts` filters sprouts
+ * by state, plant and tag and never by type, and the seed-promotion path writes
+ * whatever the source carried. If a vocabulary is ever wanted it arrives as
+ * `lib/sprout-type.ts` beside `lib/sprout-state.ts` and this action validates
+ * against it; inventing one here would make the UI the definition.
+ *
+ * One consequence worth naming rather than hiding: this action can move a
+ * published sprout off `digest`, and `shouldCascadePublish` — which
+ * `setSproutStateAction` consults at publish time — is not re-run here. That is
+ * `editVersionAction`'s existing behaviour (a form save carried both fields and
+ * only `state === "published"` triggered the cascade), now visible as a gap
+ * between two actions rather than hidden inside one.
+ */
+export async function setSproutTypeAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+
+  const existing = await getSprout(slug);
+  if (!existing) redirect("/admin/sprouts");
+
+  const type = String(formData.get("type") ?? "").trim();
+  if (!type) redirect(sproutHref(slug, "could not save: a sprout needs a type", "type"));
+
+  await updateSproutType(slug, type);
+
+  revalidateGarden();
+  redirect(sproutHref(slug));
 }
 
 // Plant and pod narrative. One action for both tiers: the ref carries the tier,
@@ -771,7 +957,7 @@ export async function editScreenImageAction(formData: FormData): Promise<void> {
 }
 
 /**
- * Hard delete, behind a confirm checkbox re-checked here — `deleteVersionAction`'s
+ * Hard delete, behind a confirm checkbox re-checked here — `deleteSproutAction`'s
  * shape, because the browser's `required` is only UX and this is the one
  * irreversible act in the library.
  */

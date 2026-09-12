@@ -5,7 +5,7 @@ import { ChoiceLabel, NativeCheckbox } from "@/components/ui/native-controls";
 import { FilterFields } from "./filter-fields";
 
 /**
- * The one irreversible act in the library — `deleteVersionAction`'s shape, down
+ * The one irreversible act in the library — `deleteSproutAction`'s shape, down
  * to the confirm checkbox the action re-checks server-side because the
  * browser's `required` is only UX.
  *

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { buildDataset, resolveText, textPart } from "@/lib/data";
 import { getSprout } from "@/lib/botanical";
-import { editVersionAction, deleteVersionAction, editContentAction, editSproutMediaAction } from "../../../actions";
+import { editVersionAction, deleteSproutAction, editContentAction, editSproutMediaAction } from "../../../actions";
 import { ContentCard } from "../../../_components/content-card";
 import { MediaPicker } from "@/components/admin/media-picker";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -256,7 +256,7 @@ export default async function EditVersionPage({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <form action={deleteVersionAction} className="flex flex-col gap-4">
+            <form action={deleteSproutAction} className="flex flex-col gap-4">
               <input type="hidden" name="slug" value={version.slug} />
               <ChoiceLabel className="items-start leading-normal">
                 <NativeCheckbox name="confirm" required className="mt-0.5" />
