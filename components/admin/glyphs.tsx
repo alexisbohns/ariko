@@ -11,6 +11,7 @@ import {
   Globe,
   Lock,
   Package,
+  PencilLine,
   Rss,
   ScrollText,
   Sprout,
@@ -22,11 +23,12 @@ import {
 import type { ComponentType } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { PlantRoleKind, PlantStatus, Visibility } from "@/lib/data";
+import type { PlantRoleKind, PlantStatus, SproutState, Visibility } from "@/lib/data";
 import { cloudinaryThumb } from "@/lib/image-url";
 import {
   initialsOf,
   sourceLabel,
+  sproutStateLabel,
   tierLabel,
   visibilityLabel,
   NARRATIVE_LABEL,
@@ -288,6 +290,51 @@ export function StatusGlyph({ status }: { status: PlantStatus }) {
       icon={PLANT_STATUS_ICONS[status]}
       label={statusLabel(status)}
       className={status === "active" ? "text-primary hover:text-primary" : undefined}
+    />
+  );
+}
+
+/**
+ * A sprout's state, drawn — and two thirds of it are `VisibilityGlyph`'s own
+ * icons, taken deliberately rather than by coincidence.
+ *
+ * A sprout's state IS its visibility plus a stage before it: `private` on a
+ * sprout means what `private` on a plant means, and `published` is what puts it
+ * on the public site. Drawing either differently would assert a distinction
+ * that does not exist. `PencilLine` is the only new mark, and it is the only
+ * member with no counterpart in the visibility vocabulary — which is the
+ * honest reading of draft.
+ *
+ * EXPORTED, and that is the point of it, exactly as `PLANT_STATUS_ICONS` is:
+ * `sprout-hero.tsx`'s state trigger imports this map rather than picking the
+ * same three lucide names again, so the icon on the head is the icon on the row
+ * that links to it. `plant-hero.tsx` records what happens when that is a
+ * comment instead of an import.
+ */
+export const SPROUT_STATE_ICONS: Record<SproutState, ComponentType<{ className?: string }>> = {
+  draft: PencilLine,
+  private: Lock,
+  published: Globe,
+};
+
+/**
+ * Tone follows `StatusGlyph`'s rule — a lit glyph reads as live — rather than
+ * `VisibilityGlyph`'s emphasis-on-the-exception: for a sprout, `published` is
+ * the consequential state rather than the unusual one, and `draft` is the
+ * at-rest default that should not compete for attention.
+ */
+export function SproutStateGlyph({ state }: { state: SproutState }) {
+  return (
+    <IconGlyph
+      icon={SPROUT_STATE_ICONS[state]}
+      label={sproutStateLabel(state)}
+      className={
+        state === "published"
+          ? "text-primary hover:text-primary"
+          : state === "private"
+            ? "text-foreground"
+            : undefined
+      }
     />
   );
 }

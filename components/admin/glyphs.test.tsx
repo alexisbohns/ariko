@@ -5,10 +5,13 @@ import type { ReactElement } from "react";
 
 import { PLANT_ROLE_KINDS } from "@/lib/plant-role";
 import { PLANT_STATUSES, statusLabel } from "@/lib/plant-status";
-import { NARRATIVE_LABEL } from "@/lib/glyphs";
+import { SPROUT_STATES } from "@/lib/sprout-state";
+import { NARRATIVE_LABEL, sproutStateLabel } from "@/lib/glyphs";
 import {
   NarrativeGlyph,
   RoleGlyph,
+  SPROUT_STATE_ICONS,
+  SproutStateGlyph,
   StatusGlyph,
   TierGlyph,
   VisibilityGlyph,
@@ -77,6 +80,16 @@ test("the narrative glyph names itself", () => {
 test("the glyphs that predate this file still name themselves", () => {
   assertNames(<VisibilityGlyph visibility="private" />, "Private");
   assertNames(<TierGlyph tier="pod" />, "Pod");
+});
+
+for (const state of SPROUT_STATES) {
+  test(`the ${state} glyph names the state`, () => {
+    assertNames(<SproutStateGlyph state={state} />, sproutStateLabel(state));
+  });
+}
+
+test("SPROUT_STATE_ICONS covers the vocabulary and nothing else", () => {
+  assert.deepEqual(Object.keys(SPROUT_STATE_ICONS).sort(), [...SPROUT_STATES].sort());
 });
 
 test("a role glyph is not the same drawing for every kind", () => {
