@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { useRouter } from "next/navigation";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { Bean, Flower2, Leaf, Package, Search, Sprout, Waypoints } from "lucide-react";
@@ -53,6 +53,14 @@ import {
  *
  * A navigator, not a command runner. Nothing here publishes, deletes, promotes
  * or syncs — which is what keeps it small enough to trust.
+ *
+ * ONE INDEX, ONE ROW DEFINITION, TWO SHELLS. `PaletteAutocomplete` is the
+ * palette — the input, the fetch, the groups, the rows and their marks. The
+ * shells are what differ: the `Dialog` below, opened by ⌘K from the chrome, and
+ * the bare one on the welcome page (`palette-search.tsx`), which is inline and
+ * focused on arrival. A second implementation of the rows would be a second
+ * answer to "what does a pod look like in a list", and the first one is
+ * already shared with the rail.
  */
 
 const ICONS: Record<PaletteKind, ComponentType<{ className?: string }>> = {
@@ -77,7 +85,7 @@ function iconFor(item: PaletteItem): ComponentType<{ className?: string }> {
 /**
  * A row's left gutter: an avatar for a plant, a lucide icon for everything else.
  *
- * Plants get the mark the garden and vault tables already draw — the same
+ * Plants get the mark the admin's tables already draw — the same
  * `EntityAvatar` from components/admin/glyphs.tsx, imported rather than
  * reproduced, so a plant looks the same everywhere it is listed and there is
  * one place the squircle radius and the initials rule are decided.
@@ -115,40 +123,62 @@ const KIND_LABEL: Record<PaletteKind, string> = {
 type LoadState = "idle" | "loading" | "error";
 
 /**
- * The island's edge, and the reason it is a separate component rather than a
- * flag inside the one below: the server render IS the script-off render, so
- * `mounted` stays false there and this returns null — no dead search button
- * that looks pressable and does nothing, and no `useRouter()` call on a path
- * that has no router.
+ * The index, kept beyond the life of any one mount.
  *
- * Same shape as MediaPicker's gate, for the same reason.
+ * The dialog's popup is unmounted while it is closed, so every ⌘K would
+ * otherwise open onto the sections alone and then flash the full list in when
+ * the fetch landed — and a REFRESH that failed would have nothing to fall back
+ * on, which is the one case the palette is careful about. A module-scoped cache
+ * is what lets the fetch live in the shared component rather than in each
+ * shell: the two shells then warm the same index, so opening ⌘K on the welcome
+ * page draws the list the inline search already loaded.
+ *
+ * Never stale for long: every mount refetches, and the cache is only ever what
+ * the last successful fetch returned.
  */
-export function CommandPalette() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  if (!mounted) return null;
-  return <Palette />;
-}
+let cachedItems: PaletteItem[] | null = null;
 
-function Palette() {
+/**
+ * The palette proper: the input, the index, the groups and the rows.
+ *
+ * Fetches on mount and not before — which is what keeps the dialog's promise
+ * that nothing happens until it is opened, since the popup mounts this on open.
+ * `onNavigate` is the shell's chance to get out of the way before the router
+ * moves (the dialog closes itself); the inline shell has nothing to close and
+ * passes nothing.
+ *
+ * `inputRef` is likewise the shell's: the dialog hands it to `initialFocus` so
+ * the caret starts in the field rather than on the popup. The inline shell uses
+ * `autoFocus` instead, because there is no popup to take focus from it.
+ *
+ * It lays out as the flex COLUMN its shell provides — an input that does not
+ * shrink, then a list that takes the rest — rather than wrapping itself in a
+ * box, so each shell decides how tall the palette is.
+ */
+export function PaletteAutocomplete({
+  autoFocus = false,
+  inputRef,
+  onNavigate,
+}: {
+  autoFocus?: boolean;
+  inputRef?: RefObject<HTMLInputElement | null>;
+  onNavigate?: () => void;
+}) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   // The sections are the starting index, built locally from NAV_ITEMS —
   // never fetched. That one line is what makes the palette impossible to open
   // onto nothing, whatever the network does.
-  const [items, setItems] = useState<PaletteItem[]>(() => sectionItems());
+  const [items, setItems] = useState<PaletteItem[]>(() => cachedItems ?? sectionItems());
   const [load, setLoad] = useState<LoadState>("idle");
 
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   // Only the newest request may write to state: two quick opens must not let a
   // slow first response overwrite a fresh second one.
   const requestId = useRef(0);
   // Whether a full index has ever landed. Governs the Status line only: before
   // the first load "Loading…" is worth saying, after it a background refresh
   // is not.
-  const loaded = useRef(false);
+  const loaded = useRef(cachedItems !== null);
 
   const refresh = useCallback(async (): Promise<void> => {
     const id = ++requestId.current;
@@ -167,7 +197,10 @@ function Palette() {
       if (!res.ok) throw new Error(String(res.status));
       const body = (await res.json()) as { items?: PaletteItem[] };
       if (!Array.isArray(body.items)) throw new Error("malformed");
+      // After the staleness check, not before: the cache is what the NEXT mount
+      // opens onto, and a late response that lost the race must not become it.
       if (id !== requestId.current) return;
+      cachedItems = body.items;
       setItems(body.items);
       loaded.current = true;
       setLoad("idle");
@@ -180,12 +213,128 @@ function Palette() {
     }
   }, []);
 
-  // Refetched on every open, not once: an author who has just created a sprout
+  // Refetched on every mount, not once: an author who has just created a sprout
   // finds it on the next press, with no reload. The cache renders immediately
   // meanwhile, so the refresh is never something to wait through.
   useEffect(() => {
-    if (open) void refresh();
-  }, [open, refresh]);
+    void refresh();
+  }, [refresh]);
+
+  const go = (item: PaletteItem): void => {
+    onNavigate?.();
+    router.push(item.href);
+  };
+
+  const groups = groupPaletteItems(items);
+
+  return (
+    // `inline` renders the list without the primitive's own popup — the shell
+    // IS the surface — and it requires `open` stated unconditionally so the
+    // list counts as visible.
+    <Autocomplete
+      inline
+      open
+      items={groups}
+      value={query}
+      onValueChange={setQuery}
+      itemToStringValue={(item: PaletteItem) => item.label}
+      autoHighlight="always"
+      limit={20}
+    >
+      <AutocompleteInput
+        ref={inputRef}
+        autoFocus={autoFocus}
+        aria-label="Search"
+        placeholder="Go to…"
+        className="w-full shrink-0 border-0 bg-transparent text-center font-heading text-3xl tracking-tight outline-none placeholder:text-muted-foreground/40 focus:outline-none"
+      />
+
+      {/* `border-t` and nothing else. Any padding here is padding the list
+          cannot use, and it shows as a band between the divider and the first
+          row. */}
+      <div className="flex min-h-0 flex-1 flex-col border-t">
+        {/* Must stay mounted for screen readers to announce it, so the
+            CHILDREN are conditional, never the component. */}
+        <AutocompleteStatus>
+          {load === "error"
+            ? "Could not load the index."
+            : load === "loading" && !loaded.current
+              ? "Loading…"
+              : null}
+        </AutocompleteStatus>
+
+        <AutocompleteEmpty>Nothing matches.</AutocompleteEmpty>
+
+        {/* No height cap: the list takes every pixel the input and the shell's
+            padding leave, and scrolls inside that. `min-h-0` is what lets it. */}
+        <AutocompleteList className="min-h-0 flex-1">
+          {(group: { value: string; items: PaletteItem[] }) => (
+            <AutocompleteGroup key={group.value} items={group.items}>
+              <AutocompleteLabel>{group.value}</AutocompleteLabel>
+              <AutocompleteCollection>
+                {(item: PaletteItem) => (
+                  <AutocompleteItem
+                    key={item.id}
+                    value={item}
+                    // A row is a destination, so it is a real link: ⌘-click and
+                    // "open in new tab" work, and the status bar shows where
+                    // Enter goes. The click handler is what keeps it a soft
+                    // navigation.
+                    render={<a href={item.href} />}
+                    onClick={(e) => {
+                      // Let the browser have the modified clicks.
+                      if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+                      e.preventDefault();
+                      go(item);
+                    }}
+                  >
+                    <RowMark item={item} />
+                    <span className="truncate">{item.label}</span>
+                    {item.sublabel ? (
+                      <span className="truncate text-xs text-muted-foreground">
+                        {item.sublabel}
+                      </span>
+                    ) : null}
+                    {KIND_LABEL[item.kind] ? (
+                      <span className="ml-auto shrink-0 font-heading text-[10px] uppercase tracking-wider text-muted-foreground/60">
+                        {KIND_LABEL[item.kind]}
+                      </span>
+                    ) : null}
+                  </AutocompleteItem>
+                )}
+              </AutocompleteCollection>
+            </AutocompleteGroup>
+          )}
+        </AutocompleteList>
+      </div>
+    </Autocomplete>
+  );
+}
+
+/**
+ * The island's edge, and the reason it is a separate component rather than a
+ * flag inside the one below: the server render IS the script-off render, so
+ * `mounted` stays false there and this returns null — no dead search button
+ * that looks pressable and does nothing, and no `useRouter()` call on a path
+ * that has no router.
+ *
+ * Same shape as MediaPicker's gate, for the same reason.
+ */
+export function CommandPalette() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+  return <Palette />;
+}
+
+/** The dialog shell: the hotkey, the trigger, and the sheet the palette sits
+ *  in. It knows no field name and composes no row — only when the palette is
+ *  on screen and how big it is. */
+function Palette() {
+  const [open, setOpen] = useState(false);
+
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // "Mod+K" — ⌘K on macOS, Ctrl+K elsewhere. Two library defaults are relied on
   // here and must not be overridden:
@@ -199,21 +348,6 @@ function Palette() {
   // The seed overlay's bare `k` cannot fire from this input, because single-key
   // hotkeys default to ignoreInputs: true. The two never fight.
   useHotkey("Mod+K", () => setOpen(true), { enabled: !open });
-
-  const handleOpenChange = (next: boolean): void => {
-    setOpen(next);
-    // The query is this component's own state and the popup unmounting does not
-    // clear it. Reset on close so the next ⌘K opens on the sections rather
-    // than on whatever was last searched for.
-    if (!next) setQuery("");
-  };
-
-  const go = (item: PaletteItem): void => {
-    handleOpenChange(false);
-    router.push(item.href);
-  };
-
-  const groups = groupPaletteItems(items);
 
   return (
     <>
@@ -234,7 +368,7 @@ function Palette() {
         </button>
       </ChromeItem>
 
-      <Dialog open={open} onOpenChange={handleOpenChange}>
+      <Dialog open={open} onOpenChange={setOpen}>
         <DialogPortal>
           {/* The seed overlay's treatment exactly: the blurred surface is the
               backdrop, and the popup above it is transparent and full-bleed, so
@@ -257,7 +391,7 @@ function Palette() {
             // press that both starts and ends on the empty surround dismisses —
             // a drag that began on a row and released outside is a selection.
             onMouseDown={(e) => {
-              if (e.target === e.currentTarget) handleOpenChange(false);
+              if (e.target === e.currentTarget) setOpen(false);
             }}
           >
             <DialogTitle className="sr-only">Search the admin</DialogTitle>
@@ -265,88 +399,12 @@ function Palette() {
             {/* `min-h-0` at every level of this column: a flex child's default
                 `min-height: auto` refuses to shrink below its content, which is
                 what makes an overflowing list push past the bottom of the
-                viewport and get clipped by it instead of scrolling inside it. */}
+                viewport and get clipped by it instead of scrolling inside it.
+                The popup unmounts with the dialog, so the query resets itself
+                on close and the next ⌘K opens on the sections rather than on
+                whatever was last searched for. */}
             <div className="flex min-h-0 w-full max-w-xl flex-col gap-4">
-              {/* `inline` renders the list without the primitive's own popup —
-                  this sheet IS the popup — and it requires `open` stated
-                  unconditionally so the list counts as visible. */}
-              <Autocomplete
-                inline
-                open
-                items={groups}
-                value={query}
-                onValueChange={setQuery}
-                itemToStringValue={(item: PaletteItem) => item.label}
-                autoHighlight="always"
-                limit={20}
-              >
-                <AutocompleteInput
-                  ref={inputRef}
-                  aria-label="Search"
-                  placeholder="Go to…"
-                  className="w-full shrink-0 border-0 bg-transparent text-center font-heading text-3xl tracking-tight outline-none placeholder:text-muted-foreground/40 focus:outline-none"
-                />
-
-                {/* `border-t` and nothing else. Any padding here is padding
-                    the list cannot use, and it shows as a band between the
-                    divider and the first row. */}
-                <div className="flex min-h-0 flex-1 flex-col border-t">
-                  {/* Must stay mounted for screen readers to announce it, so
-                      the CHILDREN are conditional, never the component. */}
-                  <AutocompleteStatus>
-                    {load === "error"
-                      ? "Could not load the index."
-                      : load === "loading" && !loaded.current
-                        ? "Loading…"
-                        : null}
-                  </AutocompleteStatus>
-
-                  <AutocompleteEmpty>Nothing matches.</AutocompleteEmpty>
-
-                  {/* No height cap: the list takes every pixel the input and
-                      the sheet's padding leave, down to the bottom edge, and
-                      scrolls inside that. `min-h-0` is what lets it. */}
-                  <AutocompleteList className="min-h-0 flex-1">
-                    {(group: { value: string; items: PaletteItem[] }) => (
-                      <AutocompleteGroup key={group.value} items={group.items}>
-                        <AutocompleteLabel>{group.value}</AutocompleteLabel>
-                        <AutocompleteCollection>
-                          {(item: PaletteItem) => (
-                            <AutocompleteItem
-                              key={item.id}
-                              value={item}
-                              // A row is a destination, so it is a real link:
-                              // ⌘-click and "open in new tab" work, and the
-                              // status bar shows where Enter goes. The click
-                              // handler is what keeps it a soft navigation.
-                              render={<a href={item.href} />}
-                              onClick={(e) => {
-                                // Let the browser have the modified clicks.
-                                if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
-                                e.preventDefault();
-                                go(item);
-                              }}
-                            >
-                              <RowMark item={item} />
-                              <span className="truncate">{item.label}</span>
-                              {item.sublabel ? (
-                                <span className="truncate text-xs text-muted-foreground">
-                                  {item.sublabel}
-                                </span>
-                              ) : null}
-                              {KIND_LABEL[item.kind] ? (
-                                <span className="ml-auto shrink-0 font-heading text-[10px] uppercase tracking-wider text-muted-foreground/60">
-                                  {KIND_LABEL[item.kind]}
-                                </span>
-                              ) : null}
-                            </AutocompleteItem>
-                          )}
-                        </AutocompleteCollection>
-                      </AutocompleteGroup>
-                    )}
-                  </AutocompleteList>
-                </div>
-              </Autocomplete>
+              <PaletteAutocomplete inputRef={inputRef} onNavigate={() => setOpen(false)} />
             </div>
           </DialogPopup>
         </DialogPortal>

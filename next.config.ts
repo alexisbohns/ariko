@@ -13,7 +13,9 @@ const nextConfig: NextConfig = {
     // pair above, these are conveniences for the author's own bookmarks and
     // history, not promises to the web, and a 308 is cached by a browser
     // forever. The garden is now the welcome page, which lists the plants the
-    // garden page listed; the vault is the sprouts section under its own name.
+    // garden page listed — its pods are at /admin/pods, the section they were
+    // sharing that table with; the vault is the sprouts section under its own
+    // name.
     { source: "/admin/garden", destination: "/admin", permanent: false },
     { source: "/admin/vault", destination: "/admin/sprouts", permanent: false },
   ],
