@@ -27,11 +27,28 @@ import { join } from "node:path";
  * into an RPC a client module holds a reference to. `RAIL_PANELS` is a list
  * rather than a constant because the bean, pod and plant deletes are the same
  * component with a different noun and join it as they land.
+ *
+ * RAIL_PAGES pins the other direction, and it is the one failure in this file
+ * that NOTHING else reports. `RailItem.icon` is a `ComponentType` handed to a
+ * client component, and an entity page is a server one, so an icon imported
+ * straight from `lucide-react` goes into the flight payload as a bare function
+ * and React refuses to serialize it. Every page that uses the rail is
+ * `force-dynamic`, so `next build` never renders one — `tsc`, `eslint`,
+ * `npm test` AND `npm run build` all pass on a page that 500s on every single
+ * request. `app/admin/_components/rail-icons.ts` is the boundary that makes the
+ * icons client references; this test is what keeps a page from reaching past
+ * it, including the three entity pages queued behind the sprout, whose authors
+ * will copy a shape rather than a stack trace.
  */
 
 const ENTITY_RAIL = "app/admin/_components/entity-rail.tsx";
 
-const RAIL_PANELS = ["app/admin/_components/sprout-delete-form.tsx"];
+const RAIL_PANELS = [
+  "app/admin/_components/sprout-media-form.tsx",
+  "app/admin/_components/sprout-delete-form.tsx",
+];
+
+const RAIL_PAGES = ["app/admin/(chrome)/sprout/[slug]/page.tsx"];
 
 function source(path: string): string {
   return readFileSync(join(process.cwd(), path), "utf8");
@@ -72,3 +89,32 @@ for (const panel of RAIL_PANELS) {
     );
   });
 }
+
+for (const page of RAIL_PAGES) {
+  test(`${page} imports its rail icons across a client boundary`, () => {
+    // The same regex lib/server-safe-source.test.ts uses, pointed at a
+    // different rule: there it is about bundle weight in the public zone, here
+    // it is about a payload that cannot be serialized at all.
+    const text = source(page);
+    assert.ok(
+      !/from\s+["']lucide-react["']/.test(text),
+      `${page} must not import lucide-react directly — it is a server ` +
+        `component handing icons to the client EntityRail, and a bare icon ` +
+        `function cannot cross that boundary. Import from ` +
+        `app/admin/_components/rail-icons.ts, which carries "use client".`,
+    );
+  });
+}
+
+test("app/admin/_components/rail-icons.ts is the client boundary it claims to be", () => {
+  // Without the directive the re-export is transparent and every page above
+  // goes back to passing bare functions — the same 500, reached by a one-line
+  // deletion in a file whose whole purpose is that line.
+  const text = source("app/admin/_components/rail-icons.ts");
+  assert.ok(
+    /^\s*["']use client["']/m.test(text),
+    `rail-icons.ts must carry "use client" — it exists only to register ` +
+      `lucide's icons as client references, and nothing else in the repo ` +
+      `would report its absence before a request does`,
+  );
+});

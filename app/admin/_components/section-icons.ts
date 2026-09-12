@@ -15,9 +15,13 @@ import type { NavId } from "@/lib/admin-nav";
  * section indexes again, one file over.
  *
  * JSX-free, and nothing in its graph reaches lib/data.ts: both importers are
- * client components and lucide-react is itself "use client", so this only ever
- * lands in a client bundle. lib/section-icons.test.ts holds it to NavId, so
- * the sixth section cannot repeat the fifth's mistake.
+ * client components, so this only ever lands in a client bundle and its icons
+ * never cross a server/client boundary. (It is worth being exact about the
+ * second half, because the tempting shorthand — "lucide-react is itself 'use
+ * client'" — is false and costs a 500 the moment someone leans on it from a
+ * server component. rail-icons.ts is that story.) lib/section-icons.test.ts
+ * holds this map to NavId, so the sixth section cannot repeat the fifth's
+ * mistake.
  */
 export const SECTION_ICONS: Record<NavId, ComponentType<{ className?: string }>> = {
   overview: Flower2,

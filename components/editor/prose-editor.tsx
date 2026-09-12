@@ -32,15 +32,21 @@ export function ProseEditor({
   /** Identifying fields the action needs, e.g. { slug } or { ref }. */
   hidden: Record<string, string>;
   /**
-   * No frame, and a bigger type — for the ONE page where the editor is not a
-   * card's content but the page's own body (`/admin/plant/[slug]`).
+   * No frame, and a bigger type — for a page where the editor is not a card's
+   * content but the page's own body.
    *
-   * A prop rather than a global change, because the pod and sprout pages still
-   * reach this component through `ContentCard`: there the box is one border
-   * inside another, but it is also what separates the writing surface from the
-   * card's header and its neighbours. Here there is nothing to separate it
-   * from — the surface IS the page, and a rectangle drawn around the page's
-   * only content is a rectangle drawn around nothing.
+   * A prop rather than a global change, because the other shape is still real:
+   * `ContentCard` puts this component inside a card, where the box is one
+   * border inside another but is also what separates the writing surface from
+   * the card's header and its neighbours. On a page whose body IS the editor
+   * there is nothing to separate it from, and a rectangle drawn around the
+   * page's only content is a rectangle drawn around nothing.
+   *
+   * Which pages are which is deliberately not listed here — `float`'s comment
+   * below says why an enumeration goes quietly false, and this one had already
+   * done it twice: it named a path that had since moved, and it named the
+   * sprout page as a `ContentCard` caller after the sprout page stopped being
+   * one.
    */
   bare?: boolean;
   /**
@@ -49,12 +55,11 @@ export function ProseEditor({
    *
    * Two shapes, deliberately not a list of pages — the pages move, and an
    * enumeration in a comment goes quietly false when they do. OFF is the editor
-   * as one card among several, with the commit as an inline row and its "No
-   * changes to save" and "Could not save" lines beside a live button; that is
-   * every caller today, whether it arrives through `ContentCard` or renders
-   * this component directly. ON is a page whose whole body is the editor, where
-   * that row sits a screen-height below the caret and the author has to go
-   * looking for it.
+   * as one item among several, with the commit as an inline row and its "No
+   * changes to save" and "Could not save" lines beside a live button, whether
+   * it arrives through `ContentCard` or renders this component directly. ON is
+   * a page whose whole body is the editor, where that row sits a screen-height
+   * below the caret and the author has to go looking for it.
    *
    * Separate from `bare` on purpose. They are set together wherever the second
    * shape applies, but they are two decisions: `bare` is about the frame around
