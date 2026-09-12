@@ -160,13 +160,20 @@ while quietly becoming false.
   sprout's `date` and `type` open the same way but are **not** enums and do not
   inherit the guard: there is no vocabulary to draw as radios, so each popover
   holds one field and a plain Save — what the author typed is on screen, which
-  is the confirmation the radios otherwise have to manufacture. Their actions
-  guard accordingly, and unequally: `setSproutTypeAction` checks only non-empty,
-  because `type` is free-form (a vocabulary, if one is ever wanted, arrives as
-  `lib/sprout-type.ts` and gets validated the way `state` is), while
-  `setSproutDateAction` also checks the shape through `lib/sprout-date.ts` — a
-  date that is merely non-empty sorts the sprout to the bottom of every
-  timeline the garden builds.
+  is the confirmation the radios otherwise have to manufacture. Each still
+  posts through a **shape** module the action applies rather than a vocabulary
+  it picks from: `lib/sprout-date.ts` rejects a date that is not `YYYY-MM-DD`,
+  because one that is merely non-empty sorts the sprout to the bottom of every
+  timeline the garden builds; `lib/sprout-type.ts` rejects surrounding
+  whitespace as well as blankness, because three places compare `type` with
+  `===` against a literal and none of them trims — `lib/sprout-edit.ts`'s
+  digest exemption, `lib/synthesis.ts`'s digest skip and
+  `lib/pbbls-legacy.ts`'s milestone match. A stored `"digest "` draws
+  identically to `"digest"` everywhere and is exempt from none of the three, so
+  publishing it flips the curated private bean and plant public — the exact act
+  the exemption exists to prevent, with nothing looking wrong anywhere. That is
+  the argument for a module for a field with no vocabulary: the shape is
+  load-bearing even when the value is free-form.
 - **A screen's image cannot be cleared**, because `Screen.image` is required —
   the one rule `buildScreenImagePatch` has that its three siblings lack.
 - **The Exhibition panel composes no payload.** Its contents are
@@ -330,7 +337,7 @@ while quietly becoming false.
   `app/admin/actions.ts` plus `/api/articles`, `/api/synthesis` and
   `/api/pollen/sync`. `lib/garden-cache-source.test.ts` pins all of it,
   per-function for `actions.ts` because a whole-file check there would pass on
-  one call out of nineteen.
+  one call out of twenty-five.
 
 The slice histories that used to be narrated here — the prose editor, the media
 picker, the seed overlay, the ⌘K palette, the plant hero, the TOC rail, the
