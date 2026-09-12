@@ -4,16 +4,16 @@ import { getSprout } from "@/lib/botanical";
 import { loadRawGarden } from "@/lib/store";
 import { entityOptions } from "@/lib/entity-options";
 import { stateOf } from "@/lib/sprout-state";
-import { editContentAction, editSproutMediaAction } from "../../../actions";
+import { editContentAction } from "../../../actions";
 import { SproutHero, type Surface } from "../../../_components/sprout-hero";
 import { SproutMetaForm } from "../../../_components/sprout-meta-form";
+import { SproutMediaForm } from "../../../_components/sprout-media-form";
 import { SproutDeleteForm } from "../../../_components/sprout-delete-form";
 import { EntityRail, type RailItem } from "../../../_components/entity-rail";
 // Not from lucide-react. `RailItem.icon` crosses into a client component and
 // this file is a server one, so the icons have to arrive as client references —
 // see _components/rail-icons.ts, which is the whole of that boundary.
 import { FileCode2, Images, Trash2 } from "../../../_components/rail-icons";
-import { MediaPicker } from "@/components/admin/media-picker";
 import { ProseEditor } from "@/components/editor/prose-editor";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -67,15 +67,23 @@ export default async function AdminSproutPage({
   const backHref = beanSlug ? `/admin/bean/${encodeURIComponent(beanSlug)}` : "/admin/sprouts";
   const backLabel = bean ? resolveText(bean.name) || beanSlug : beanSlug ? beanSlug : "sprouts";
 
-  // The stored source, for the rail's diagnostic panel.
-  const source = resolveText(sprout.content).trim();
+  // The stored source, for the rail's diagnostic panel. STRICT textPart, the
+  // same reader the editor loads from twenty lines down: with resolveText an
+  // fr-only sprout would show its fr bytes here while the editor sat empty —
+  // the diagnostic disagreeing with the surface it exists to diagnose.
+  const source = textPart(sprout.content, "en").trim();
 
   // Which surface a rejected save came from — narrowed here rather than
-  // trusted. The value reaches two islands, and an unknown ?form= opens neither
-  // and falls through to the page-level banner below.
+  // trusted. Both halves require the ERROR as well as the name: `?form=` alone
+  // is a bare URL anyone can type or a stale link someone kept, and honouring
+  // it would open the Danger zone with nothing to explain why. An unknown
+  // `?form=` claims neither surface, and its message falls through to the
+  // page-level banner below.
   const heroForm: Surface | undefined =
-    form === "meta" || form === "state" || form === "date" || form === "type" ? form : undefined;
-  const railForm = form === "delete" ? "delete" : undefined;
+    error && (form === "meta" || form === "state" || form === "date" || form === "type")
+      ? form
+      : undefined;
+  const railForm = error && form === "delete" ? "delete" : undefined;
 
   const railItems: RailItem[] = [
     {
@@ -99,47 +107,15 @@ export default async function AdminSproutPage({
       label: "Media",
       heading: "Media",
       icon: Images,
-      panel: (
-        // Its own form — not the content form, not the meta form — which is what
-        // keeps each surface's blast radius to its own fields.
-        <form action={editSproutMediaAction} className="flex flex-col gap-4">
-          <input type="hidden" name="slug" value={sprout.slug} />
-          {/* Order is load-bearing and its consequence is invisible from here:
-              the first image becomes the bean's public cover. Saying so on
-              screen, not only in a comment, is the difference between an
-              authoring act and an accident. */}
-          <p className="text-xs text-muted-foreground">
-            The first image becomes this bean&apos;s cover.
-          </p>
-          {/* The key re-seeds the island after a save: MediaPicker reads
-              `initial` ONCE, in its useState initializer, so without this React
-              reconciles the same instance after the action redirects and the
-              picker keeps showing its own local state — including a just-added
-              link still carrying provider:"" where the server has since derived
-              the real one.
-
-              submitLabel, so the button is rendered BY the island: this form's
-              entire meaningful content is the picker, and a server-rendered
-              button would let a browser post a form carrying nothing — an empty
-              media list is indistinguishable from a deliberate clear-all and
-              would delete every stored image. lib/media-picker-mount.test.ts
-              pins it. */}
-          <MediaPicker
-            key={JSON.stringify(sprout.media ?? [])}
-            name="media"
-            initial={sprout.media ?? []}
-            links
-            submitLabel="Save media"
-          />
-        </form>
-      ),
+      panel: <SproutMediaForm sprout={sprout} />,
     },
     {
       id: "delete",
       label: "Delete",
       heading: "Danger zone",
       icon: Trash2,
-      panel: <SproutDeleteForm sprout={sprout} {...(railForm && error ? { error } : {})} />,
+      // `railForm` already implies the error, exactly as `heroForm` does.
+      panel: <SproutDeleteForm sprout={sprout} {...(railForm ? { error } : {})} />,
     },
   ];
 
@@ -163,8 +139,12 @@ export default async function AdminSproutPage({
           state={stateOf(sprout)}
           date={sprout.date}
           type={sprout.type}
-          {...(error ? { error } : {})}
-          {...(heroForm ? { errorForm: heroForm } : {})}
+          // Both or neither, and only when a head surface owns the message.
+          // Every consumer inside the head also checks `errorForm`, so handing
+          // it a delete's message would be inert — but it would still be the
+          // page telling an island about a message that island must not render,
+          // which is the opposite of the split this page just made.
+          {...(heroForm ? { error, errorForm: heroForm } : {})}
           metaForm={<SproutMetaForm sprout={sprout} />}
           // Everything the head can write, as stored. STRICT textPart on both
           // halves of each pair, so an fr-only edit still moves the fingerprint
@@ -198,6 +178,11 @@ export default async function AdminSproutPage({
           bare
           float
           initialMarkdown={textPart(sprout.content, "en")}
+          // No self-exclusion to do: entityOptions never emits `sprout:` rows
+          // at all, because a sprout has no public URL to mint a reference to.
+          // Passed anyway, so every content surface reads alike — the sentence
+          // ContentCard's `selfRef` docblock carries for the call sites where
+          // the argument does filter something.
           entities={entityOptions(raw, `sprout:${sprout.slug}`)}
           action={editContentAction}
           hidden={{ slug: sprout.slug }}

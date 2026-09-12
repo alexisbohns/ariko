@@ -33,9 +33,13 @@ test("the sprout media form server-renders no way to submit it", async () => {
   const React = await import("react");
   const { MediaPicker } = await import("@/components/admin/media-picker");
 
-  // The real shape from app/admin/(chrome)/sprout/[slug]/page.tsx — now the
-  // Media panel on that page's rail: a hidden slug, and the picker carrying
-  // the form's only submit button.
+  // The shape of app/admin/_components/sprout-media-form.tsx, the Media panel
+  // on the sprout page's rail: a hidden slug, and the picker carrying the
+  // form's only submit button. Reconstructed rather than imported because this
+  // test pins MEDIAPICKER — that the island renders nothing, so a form whose
+  // only content is the island is inert script-off. The two tests at the foot
+  // of this file pin the real module's wiring, in the render-and-element-tree
+  // idiom the block below explains.
   const html = await renderScriptOff(
     React.createElement(
       "form",
@@ -207,4 +211,60 @@ test("the bean keyword form emits both language fields, unconditionally", async 
   // each field's OWN value rather than "value=... appears somewhere".
   assert.equal(html.includes('name="keyword" value=""'), true, "the en box must be blank, not fr's value");
   assert.equal(html.includes('name="keywordFr" value="Karma"'), true, "the fr box must still carry the fr value");
+});
+
+/**
+ * The sprout's media form, against the REAL module — the idiom the long block
+ * above argues for, applied to the panel that needs it most.
+ *
+ * It lived inline in `app/admin/(chrome)/sprout/[slug]/page.tsx` until the
+ * rail arrived, which is why it is the last of the four picker forms to get
+ * these: a form composed inside a page cannot be imported, so its wiring was
+ * pinned by nothing at all. `editSproutMediaAction` REPLACES the whole list, so
+ * a mutation here does not corrupt one field — it clears every stored image.
+ */
+test("the sprout media form server-renders no submit button and no other field", async () => {
+  const React = await import("react");
+  const { SproutMediaForm } = await import("@/app/admin/_components/sprout-media-form");
+  const sprout = { slug: "s", name: "Sprout" } as unknown as import("@/lib/data").Sprout;
+
+  const html = await renderScriptOff(React.createElement(SproutMediaForm, { sprout }));
+
+  assert.equal(/<button/i.test(html), false, "a script-off browser must see no submit button");
+  assert.equal(html.includes("Save media"), false, "the submit label belongs to the island, not the form");
+  assert.equal(html.includes('name="slug"'), true, "the hidden slug must still be there");
+  // Nothing non-hidden survives, so there is no field for an implicit Enter to
+  // submit — the difference between a form that is merely button-less and one
+  // that is inert.
+  assert.equal(/<input(?![^>]*type="hidden")/i.test(html), false, "no non-hidden field must render");
+});
+
+test("the Media panel hands the picker the exact contract the builder reads", async () => {
+  const { SproutMediaForm } = await import("@/app/admin/_components/sprout-media-form");
+  const { MediaPicker } = await import("@/components/admin/media-picker");
+  const media: import("@/lib/data").MediaImage = {
+    kind: "image",
+    storageKey: "k1",
+    url: "https://example.com/k1.jpg",
+    width: 400,
+    height: 300,
+  };
+  const sprout = { slug: "s", name: "Sprout", media: [media] } as unknown as import("@/lib/data").Sprout;
+
+  const element = SproutMediaForm({ sprout }) as unknown;
+  const picker = findPicker(element, MediaPicker);
+
+  assert.ok(picker, "the media form must render a MediaPicker");
+  // buildMediaPatch reads `media` and `media__ready`. A rename here is silent
+  // at runtime for the bean cover's reason, with a worse ending: no marker
+  // means the builder skips the field, so every save looks like a success and
+  // changes nothing — until the day something else supplies the marker.
+  assert.equal(picker!.props.name, "media");
+  // No `max`: a sprout carries a LIST, and its first image is the bean's cover.
+  assert.equal(picker!.props.max, undefined);
+  // Links on — a sprout's media may be an embed, unlike a cover or a logo.
+  assert.equal(picker!.props.links, true);
+  // The form's only submit lives inside the island. Drop it and the panel is
+  // unsavable even WITH script.
+  assert.equal(picker!.props.submitLabel, "Save media");
 });
