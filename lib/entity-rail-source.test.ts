@@ -19,9 +19,19 @@ import { join } from "node:path";
  * list is indistinguishable from a deliberate clear-all.
  *
  * This one matters more than its sibling, because this rail carries a DELETE.
+ * Which is why the PANELS are pinned here too, and not only the shell: the
+ * sentence above is about a specific panel, and that panel being server-rendered
+ * is half of what it claims. `"use client"` on one of them — for a typed
+ * confirmation, a `useFormStatus` spinner — passes `tsc`, `eslint`, `npm test`
+ * and `npm run build`, keeps submitting, and quietly turns `deleteSproutAction`
+ * into an RPC a client module holds a reference to. `RAIL_PANELS` is a list
+ * rather than a constant because the bean, pod and plant deletes are the same
+ * component with a different noun and join it as they land.
  */
 
 const ENTITY_RAIL = "app/admin/_components/entity-rail.tsx";
+
+const RAIL_PANELS = ["app/admin/_components/sprout-delete-form.tsx"];
 
 function source(path: string): string {
   return readFileSync(join(process.cwd(), path), "utf8");
@@ -50,3 +60,15 @@ test(`${ENTITY_RAIL} names no form field`, () => {
     );
   }
 });
+
+for (const panel of RAIL_PANELS) {
+  test(`${panel} is not a client component`, () => {
+    const text = source(panel);
+    assert.ok(
+      !/^\s*["']use client["']/m.test(text),
+      `${panel} must not be a client component — it is handed to EntityRail as ` +
+        `a ReactNode so the payload is composed server-side, which is the whole ` +
+        `arrangement for the one write on that rail that cannot be undone`,
+    );
+  });
+}
