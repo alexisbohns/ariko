@@ -5,7 +5,8 @@ import sharp from "sharp";
 
 /**
  * The only writer of derived brand artifacts. Two sources in
- * (`assets/brand/*.svg`), seven files out.
+ * (`assets/brand/*.svg`); this pass derives every file below in memory and
+ * only then writes them, in one batch, sized by the `files` array in `main`.
  *
  * It exists because the alternative is that the next person to change the logo
  * re-derives the colour mapping, the precision setting, the maskable safe zone
@@ -24,10 +25,12 @@ const LEAF_DARK = "#006400";
 const LEAF_LIGHT = "#90ee90";
 
 /**
- * `removeViewBox: false` is not a preference. svgo's preset-default DELETES
- * viewBox when width/height are present, and `removeDimensions` then deletes
- * width/height — leaving a mark with no coordinate system at all. The two
- * plugins are only safe together in this order.
+ * `removeViewBox: false` is defence in depth, not a preference. preset-default
+ * ALONE deletes viewBox when width/height are present, leaving a mark that
+ * sizes itself from a `className` it no longer has. `removeDimensions`
+ * happens to rebuild the viewBox from width/height afterwards, so today the
+ * override changes nothing — which is exactly why it stays: it makes the
+ * viewBox independent of that coincidence, and of plugin order.
  */
 function tidy(source: string): string {
   const { data } = optimize(source, {
@@ -65,6 +68,20 @@ function toToken(value: string): string {
 function pathsToJsx(svg: string): string {
   const tags = svg.match(/<path\b[^>]*\/?>/g) ?? [];
   if (tags.length === 0) throw new Error("no <path> elements — did the export change shape?");
+
+  /**
+   * Everything in the tidied SVG other than the root tag and the <path>s we
+   * just matched. A `<circle>`, a `<rect>`, a stray `<g>` — anything else
+   * survives svgo's preset and would otherwise be dropped here silently,
+   * exit 0, with the artwork missing a piece in all seven derived files.
+   */
+  const leftover = svg
+    .replace(/<\/?svg\b[^>]*>/g, "")
+    .replace(/<path\b[^>]*\/?>/g, "")
+    .trim();
+  if (leftover) {
+    throw new Error(`unhandled SVG content: ${leftover.slice(0, 80)}`);
+  }
 
   return tags
     .map((tag) => {
@@ -108,8 +125,49 @@ ${pathsToJsx(svg)}
 `;
 }
 
-const CLEAR = { r: 0, g: 0, b: 0, alpha: 0 };
-const WHITE = { r: 255, g: 255, b: 255, alpha: 1 };
+/**
+ * The favicon is the one derivative that CANNOT use currentColor — it renders
+ * outside the document. An embedded <style> gives it the same two-tone
+ * behaviour the two `media`-switched PNGs had, in one file instead of 386 kB.
+ *
+ * `#111` / `#fafafa` are hand-conversions of `--foreground` under `:root` and
+ * `.dark` (`app/globals.css:34` and `:73` — `oklch(0.145 0 0)` /
+ * `oklch(0.985 0 0)`). A future edit to either token desyncs the tab icon
+ * with nothing to notice, which is what the two throws below guard against:
+ * `.replaceAll`/`.replace` return their input unchanged on a non-match, so a
+ * shape change upstream (the exported root tag loses its `fill="#000"`, say)
+ * would otherwise ship an untinted, invisible favicon on a green build.
+ */
+function buildFavicon(icon: string): string {
+  const inked = icon.replaceAll(`fill="${INK}"`, 'class="ink"');
+  if (inked === icon) {
+    throw new Error(`no fill="${INK}" to theme — the favicon would ship untinted`);
+  }
+
+  const favicon = inked.replace(
+    /(<svg[^>]*>)/,
+    "$1<style>.ink{fill:#111}@media(prefers-color-scheme:dark){.ink{fill:#fafafa}}</style>",
+  );
+  if (favicon === inked) {
+    throw new Error("no <svg> open tag found — the favicon lost its <style>");
+  }
+
+  return favicon;
+}
+
+type Rgba = { r: number; g: number; b: number; alpha: number };
+
+const CLEAR: Rgba = { r: 0, g: 0, b: 0, alpha: 0 };
+const WHITE: Rgba = { r: 255, g: 255, b: 255, alpha: 1 };
+
+/**
+ * ≈4× the CSS-pixel default of 96dpi. `removeDimensions` leaves the source
+ * SVG with a viewBox but no width/height, so librsvg falls back to a small
+ * intrinsic size unless told otherwise; at 384dpi a 320-unit viewBox
+ * rasterises to ~1280px, comfortably above the largest output below (512),
+ * so every icon downsamples cleanly instead of upsampling a blurry one.
+ */
+const RASTER_DENSITY = 384;
 
 /**
  * `inset` is the fraction of the canvas the artwork occupies.
@@ -121,59 +179,73 @@ const WHITE = { r: 255, g: 255, b: 255, alpha: 1 };
  *
  * White rather than transparent wherever a mask or an OS composites: iOS puts
  * transparency on BLACK, and the letterforms are black.
+ *
+ * Returns a buffer rather than writing to disk, so every derivation — this
+ * included — runs, and can throw, before `main` writes a single byte.
  */
-async function raster(
-  svg: Buffer,
-  size: number,
-  inset: number,
-  background: typeof CLEAR,
-  out: string,
-) {
+async function raster(svg: Buffer, size: number, inset: number, background: Rgba): Promise<Buffer> {
   const inner = Math.round(size * inset);
-  const art = await sharp(svg, { density: 384 })
+  const art = await sharp(svg, { density: RASTER_DENSITY })
     .resize(inner, inner, { fit: "contain", background: CLEAR })
     .png()
     .toBuffer();
   const offset = Math.round((size - inner) / 2);
 
-  await sharp({ create: { width: size, height: size, channels: 4, background } })
+  return sharp({ create: { width: size, height: size, channels: 4, background } })
     .composite([{ input: art, top: offset, left: offset }])
     .png({ compressionLevel: 9 })
-    .toFile(join(ROOT, out));
+    .toBuffer();
 }
 
-const icon = tidy(readFileSync(join(ROOT, "assets/brand/ariko-icon.svg"), "utf8"));
-const logo = tidy(readFileSync(join(ROOT, "assets/brand/ariko-logo.svg"), "utf8"));
+async function main() {
+  const icon = tidy(readFileSync(join(ROOT, "assets/brand/ariko-icon.svg"), "utf8"));
+  const logo = tidy(readFileSync(join(ROOT, "assets/brand/ariko-logo.svg"), "utf8"));
 
-writeFileSync(join(ROOT, "components/brand/ariko-icon.tsx"), component("ArikoIcon", icon));
-writeFileSync(join(ROOT, "components/brand/ariko-logo.tsx"), component("ArikoLogo", logo));
+  const iconComponent = component("ArikoIcon", icon);
+  const logoComponent = component("ArikoLogo", logo);
+  const favicon = buildFavicon(icon);
+
+  /**
+   * The rasters are built from `iconSvg` — the tidied SVG with its literal
+   * hex colours, not `iconComponent`'s JSX — because no rasteriser resolves
+   * `currentColor` or `var(--ariko-leaf-*)`; sharp needs concrete colour
+   * values on the page to paint anything at all.
+   */
+  const iconSvg = Buffer.from(icon);
+  const icon192 = await raster(iconSvg, 192, 1, CLEAR);
+  const icon512 = await raster(iconSvg, 512, 1, CLEAR);
+  const iconMaskable512 = await raster(iconSvg, 512, 0.6, WHITE);
+  const appleIcon = await raster(iconSvg, 180, 0.8, WHITE);
+
+  // Every value above is fully derived — and every derivation step able to
+  // throw already has — before anything touches disk. A palette change that
+  // breaks the logo but not the icon fails here with a clean tree, rather
+  // than leaving a half-updated set of seven committed artifacts.
+  const files: Array<[string, string | Buffer]> = [
+    ["components/brand/ariko-icon.tsx", iconComponent],
+    ["components/brand/ariko-logo.tsx", logoComponent],
+    ["app/icon.svg", favicon],
+    ["public/icons/icon-192.png", icon192],
+    ["public/icons/icon-512.png", icon512],
+    ["public/icons/icon-maskable-512.png", iconMaskable512],
+    ["app/apple-icon.png", appleIcon],
+  ];
+
+  mkdirSync(join(ROOT, "public/icons"), { recursive: true });
+  for (const [path, data] of files) {
+    writeFileSync(join(ROOT, path), data);
+  }
+
+  console.log(`brand: ${files.length} files written`);
+}
 
 /**
- * The favicon is the one derivative that CANNOT use currentColor — it renders
- * outside the document. An embedded <style> gives it the same two-tone
- * behaviour the two `media`-switched PNGs had, in one file instead of 386 kB.
- */
-const favicon = icon
-  .replace(new RegExp(`fill="${INK}"`, "g"), 'class="ink"')
-  .replace(
-    /(<svg[^>]*>)/,
-    "$1<style>.ink{fill:#111}@media(prefers-color-scheme:dark){.ink{fill:#fafafa}}</style>",
-  );
-writeFileSync(join(ROOT, "app/icon.svg"), favicon);
-
-mkdirSync(join(ROOT, "public/icons"), { recursive: true });
-
-/**
- * Wrapped in an IIFE rather than top-level await: this repo's package.json
+ * `main().catch(...)` rather than top-level await: this repo's package.json
  * carries no `"type": "module"`, so tsx transpiles a bare `.ts` script to
- * CommonJS, where top-level await is a syntax error.
+ * CommonJS, where top-level await is a syntax error. Mirrors the exit-on-error
+ * shape of `scripts/migrate-retier.ts` and `scripts/check-orphan-assets.ts`.
  */
-(async () => {
-  const flat = Buffer.from(icon);
-  await raster(flat, 192, 1, CLEAR, "public/icons/icon-192.png");
-  await raster(flat, 512, 1, CLEAR, "public/icons/icon-512.png");
-  await raster(flat, 512, 0.6, WHITE, "public/icons/icon-maskable-512.png");
-  await raster(flat, 180, 0.8, WHITE, "app/apple-icon.png");
-
-  console.log("brand: 7 files written");
-})();
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
