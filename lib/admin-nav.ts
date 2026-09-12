@@ -1,4 +1,5 @@
 import { filterHref } from "./admin-filters";
+import { hubHref, normalizePath, plantSlugFromPath, ROOT_PATH } from "./plant-path";
 
 /**
  * The admin rail's model. Pure and JSX-free so `npm test` can reach it: the
@@ -45,15 +46,25 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { id: "beanstalk", href: "/admin/beanstalk", label: "Beanstalk" },
 ];
 
+/** The two ids a scope never touches — Overview already IS the scope, and
+ *  Beanstalk never admits one (see the docblock above). `ScopedId` and
+ *  `navHref`'s runtime exemption both derive from this one array, which is
+ *  what keeps them from being two hand-maintained copies that could drift in
+ *  OPPOSITE directions on a seventh section — `navHref` deciding by
+ *  exclusion, a per-section key map (lib/admin-scope.ts) deciding by
+ *  inclusion. `lib/admin-scope.ts` imports `ScopedId` to key that map by id
+ *  rather than by route string, so a new `NavId` fails `tsc` there until it
+ *  is listed or excluded. */
+const UNSCOPED_IDS = ["overview", "beanstalk"] as const;
+
+/** Every id that CAN carry a plant scope. */
+export type ScopedId = Exclude<NavId, (typeof UNSCOPED_IDS)[number]>;
+
 /** The rail for a given scope. See the docblock for why it is a function. */
 export function navItems(scope: string | null): readonly NavItem[] {
   if (!scope) return NAV_ITEMS;
   return [
-    {
-      id: "overview",
-      href: `/admin/plant/${encodeURIComponent(scope)}`,
-      label: "Overview",
-    },
+    { id: "overview", href: hubHref(scope), label: "Overview" },
     ...NAV_ITEMS.filter((item) => item.id !== "beanstalk"),
   ];
 }
@@ -68,16 +79,12 @@ export function navItems(scope: string | null): readonly NavItem[] {
  * of its own would gain `plant` correctly instead of a bare `?plant=` suffix
  * producing `?a=b?plant=s`.
  *
- * Two ids are left alone regardless of scope, for the same reason stated
- * twice rather than once: Overview already IS the scope — appending `?plant=`
- * to a plant's own page would be a second spelling of the same fact, and
- * `resolveScope` would then have two sources to disagree about — and
- * Beanstalk never admits one at all (see the docblock above): `navItems`
- * never emits a scoped rail that still contains Beanstalk, and this function
- * keeps that true even if it is ever called with a stale or hand-built item.
+ * The exemption reads `UNSCOPED_IDS` rather than naming Overview and
+ * Beanstalk again — see that array's docblock for why a second list here
+ * would be the exact drift this function used to risk.
  */
 export function navHref(item: NavItem, scope: string | null): string {
-  if (!scope || item.id === "overview" || item.id === "beanstalk") return item.href;
+  if (!scope || (UNSCOPED_IDS as readonly NavId[]).includes(item.id)) return item.href;
   return filterHref(item.href, {}, ["plant"], "plant", scope);
 }
 
@@ -109,27 +116,21 @@ const SECTIONS: ReadonlyArray<readonly [string, string]> = [
  * unknown route lights nothing rather than guessing).
  *
  * A plant page resolves to its own two-segment address
- * (`/admin/plant/<slug>`), truncated from whatever follows — which is how
- * Overview lights: the rail's Overview href for scope `s` is
- * `/admin/plant/s`, and truncation is what makes that still true once the hub
- * grows children of its own, the way every other section already tolerates a
- * detail route underneath it.
+ * (`/admin/plant/<slug>`), read through `lib/plant-path.ts` rather than
+ * truncated here — which is how Overview lights: the rail's Overview href
+ * for scope `s` is `/admin/plant/s`, and reading the grammar from the shared
+ * module (rather than re-truncating the path locally) is what keeps this
+ * agreeing with `resolveScope` on a hub child route.
  */
 export function resolveNavItem(pathname: string): string | null {
-  const path = normalize(pathname);
-  if (path.startsWith(PLANT_PREFIX_PATH)) {
-    const slug = path.slice(PLANT_PREFIX_PATH.length).split("/")[0];
-    return slug ? `${PLANT_PREFIX_PATH}${slug}` : null;
-  }
+  const path = normalizePath(pathname);
+  const slug = plantSlugFromPath(path);
+  if (slug) return hubHref(slug);
   for (const [prefix, href] of SECTIONS) {
     // The boundary check is what keeps "/admin/podsy" out of Pods.
     if (path === prefix || path.startsWith(`${prefix}/`)) return href;
   }
   return null;
-}
-
-function normalize(pathname: string): string {
-  return pathname.length > 1 && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
 }
 
 /** Which measure a route reads in — see `components/page-column.tsx`. */
@@ -149,12 +150,10 @@ export type Column = "bare" | "wide" | "reading";
  * 80px too narrow is a smaller wrong than one that renders 280px too wide.
  */
 export function resolveColumn(pathname: string): Column {
-  const path = normalize(pathname);
+  const path = normalizePath(pathname);
   if (path === LOGIN_PATH) return "bare";
   if (path === ROOT_PATH) return "wide";
   return NAV_ITEMS.some((item) => item.href === path) ? "wide" : "reading";
 }
 
 const LOGIN_PATH = "/admin/login";
-const ROOT_PATH = "/admin";
-const PLANT_PREFIX_PATH = "/admin/plant/";

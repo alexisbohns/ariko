@@ -1,4 +1,6 @@
 import { filterHref, type FilterValues } from "./admin-filters";
+import { NAV_ITEMS, type ScopedId } from "./admin-nav";
+import { hubHref, normalizePath, plantSlugFromPath, ROOT_PATH } from "./plant-path";
 import { SCREEN_FILTER_KEYS } from "./screens";
 import { SPROUT_KEYS } from "./sprouts";
 
@@ -12,30 +14,58 @@ import { SPROUT_KEYS } from "./sprouts";
  * path prefix: that is truer to Vercel and costs a duplicate page module per
  * section for the scoped and unscoped forms, to reach the same behaviour.
  *
+ * The plant URL grammar itself — what `/admin/plant/<slug>` means, and how a
+ * hub child route still names its plant — lives in `lib/plant-path.ts`, which
+ * `lib/admin-nav.ts`'s `resolveNavItem` reads the same way, so the rail and
+ * the scope cannot spell that address two different ways.
+ *
  * Pure and JSX-free, so `npm test` reaches the rule rather than the chrome
  * that renders it.
  */
 
-/** Filtering sections, and the dimensions each one admits. `filterHref` needs
- *  a NAMED key list — it is what keeps a hand-typed query key from surviving a
- *  click — so the scope control needs to know, per route, what that list is. */
-export const scopeKeys: Record<string, readonly string[]> = {
-  "/admin/inbox": ["plant"],
-  "/admin/pods": ["plant"],
-  "/admin/beans": ["plant", "pod"],
-  "/admin/sprouts": SPROUT_KEYS,
-  "/admin/screens": SCREEN_FILTER_KEYS,
+/**
+ * Each scopable section's filter dimensions, keyed by `NavId` rather than by
+ * route string. `ScopedId` — `lib/admin-nav.ts`'s "every id but Overview and
+ * Beanstalk" — is what makes this a `Record` TypeScript checks exhaustively:
+ * a new `NavId` fails to compile here until it is either given a key list or
+ * added to `lib/admin-nav.ts`'s `UNSCOPED_IDS`. Keyed by route string, as
+ * this map used to be, a seventh section could compile while `navHref`
+ * (which decides by excluding Overview and Beanstalk) and this map (which
+ * decided by including a route) silently disagreed about it.
+ */
+const SCOPE_KEYS: Readonly<Record<ScopedId, readonly string[]>> = {
+  inbox: ["plant"],
+  pods: ["plant"],
+  beans: ["plant", "pod"],
+  sprouts: SPROUT_KEYS,
+  screens: SCREEN_FILTER_KEYS,
 };
 
-const HUB_PREFIX = "/admin/plant/";
-const ROOT = "/admin";
+/** Route href → filter dimensions, derived from `NAV_ITEMS` rather than
+ *  re-typing paths — the move `resolveColumn` already makes in
+ *  lib/admin-nav.ts, and the one the old route-keyed `scopeKeys` skipped. */
+const ROUTE_KEYS: ReadonlyMap<string, readonly string[]> = new Map(
+  NAV_ITEMS.flatMap((item) =>
+    item.id in SCOPE_KEYS ? [[item.href, SCOPE_KEYS[item.id as ScopedId]] as const] : [],
+  ),
+);
 
-function normalize(pathname: string): string {
-  return pathname.length > 1 && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
-}
-
-function hubHref(slug: string): string {
-  return `${HUB_PREFIX}${encodeURIComponent(slug)}`;
+/**
+ * The filter dimensions a route admits, or `undefined` when it does not — a
+ * hub page, or a route with no section of its own.
+ *
+ * Returns `undefined` on a miss rather than an empty array, and callers must
+ * say so in their own type, because `tsconfig.json` sets `strict` but not
+ * `noUncheckedIndexedAccess`: a bare `ROUTE_KEYS.get(...)` already types as
+ * `readonly string[] | undefined`, but a plain object index signature would
+ * not have, and `if (keys)` reads as a guard against something `tsc` would
+ * silently believe never happens. A renamed path reaching that guard would
+ * throw "keys is not iterable" inside `filterQuery` instead — the failure
+ * class CLAUDE.md's rules section exists to catch, because it passes `tsc`,
+ * `npm test` and `npm run build` right up until someone hits it live.
+ */
+export function scopeKeysFor(pathname: string): readonly string[] | undefined {
+  return ROUTE_KEYS.get(pathname);
 }
 
 /**
@@ -45,33 +75,27 @@ function hubHref(slug: string): string {
  * while the page under it is a plant, and a stray query on a hub URL cannot
  * make the chrome contradict the page.
  *
- * `String(...)` rather than a plain read for the reason `filterQuery` gives: a
- * REPEATED query key reaches a Next page as `string[]`, which this type does
- * not admit but a URL can always produce. An array stringifies to "a,b", which
- * is a slug no plant has — so the guard below turns it into no scope at all
- * rather than into a phantom one.
+ * `"all"` is `filterQuery`'s own sentinel for "no value" (lib/admin-filters.ts
+ * drops it rather than encoding it), read here rather than respelled: without
+ * this check, a stale or hand-typed `?plant=all` would come back as a scope
+ * literally named "all", while `filterSproutEntries` and every other consumer
+ * drop that same value and return zero rows for it — the exact "chrome
+ * contradicts the page" failure this function exists to prevent.
+ *
+ * The `Array.isArray` guard returns before anything is stringified, which is
+ * deliberately NOT `filterQuery`'s behaviour for the same input. `filterQuery`
+ * keeps a repeated key's `String(...)` coercion — `"a,b"` — because that
+ * still needs to match nothing rather than throw. This function has no such
+ * constraint and returns `null` outright: a repeated `?plant=` cannot be a
+ * scope in the first place, so there is no reason to manufacture one to reject.
  */
 export function resolveScope(pathname: string, active: FilterValues): string | null {
-  const path = normalize(pathname);
-  if (path.startsWith(HUB_PREFIX)) {
-    const slug = path.slice(HUB_PREFIX.length);
-    if (slug && !slug.includes("/")) return safeDecode(slug);
-  }
+  const slug = plantSlugFromPath(pathname);
+  if (slug) return slug;
   const raw = active.plant;
   if (Array.isArray(raw)) return null;
   const value = String(raw ?? "").trim();
-  return value ? value : null;
-}
-
-function safeDecode(slug: string): string {
-  try {
-    return decodeURIComponent(slug);
-  } catch {
-    // A malformed escape is not a slug. Returning it raw keeps the chrome
-    // showing something the garden will simply fail to resolve, which renders
-    // as "All" — the same place every other unresolvable scope lands.
-    return slug;
-  }
+  return value && value !== "all" ? value : null;
 }
 
 /**
@@ -84,8 +108,8 @@ export function scopeHref(
   active: FilterValues,
   slug: string | null,
 ): string {
-  const path = normalize(pathname);
-  const keys = scopeKeys[path];
+  const path = normalizePath(pathname);
+  const keys = scopeKeysFor(path);
   if (keys) return filterHref(path, active, keys, "plant", slug ?? "all");
-  return slug ? hubHref(slug) : ROOT;
+  return slug ? hubHref(slug) : ROOT_PATH;
 }
