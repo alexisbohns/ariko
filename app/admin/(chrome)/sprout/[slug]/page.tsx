@@ -1,279 +1,208 @@
 import { notFound } from "next/navigation";
-import { buildDataset, resolveText, textPart } from "@/lib/data";
+import { resolveText, textPart, BEAN_PREFIX, parentsWithPrefix } from "@/lib/data";
 import { getSprout } from "@/lib/botanical";
-import { editVersionAction, deleteSproutAction, editContentAction, editSproutMediaAction } from "../../../actions";
-import { ContentCard } from "../../../_components/content-card";
-import { MediaPicker } from "@/components/admin/media-picker";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { ChoiceLabel, NativeCheckbox, NativeRadio } from "@/components/ui/native-controls";
-import { Prose } from "@/components/markdown";
 import { loadRawGarden } from "@/lib/store";
-import { resolveEntity } from "@/lib/entity-resolve";
+import { entityOptions } from "@/lib/entity-options";
+import { stateOf } from "@/lib/sprout-state";
+import { editContentAction, editSproutMediaAction } from "../../../actions";
+import { SproutHero, type Surface } from "../../../_components/sprout-hero";
+import { SproutMetaForm } from "../../../_components/sprout-meta-form";
+import { SproutDeleteForm } from "../../../_components/sprout-delete-form";
+import { EntityRail, type RailItem } from "../../../_components/entity-rail";
+// Not from lucide-react. `RailItem.icon` crosses into a client component and
+// this file is a server one, so the icons have to arrive as client references —
+// see _components/rail-icons.ts, which is the whole of that boundary.
+import { FileCode2, Images, Trash2 } from "../../../_components/rail-icons";
+import { MediaPicker } from "@/components/admin/media-picker";
+import { ProseEditor } from "@/components/editor/prose-editor";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export const dynamic = "force-dynamic";
 
-const ATOM_PREFIX = "bean:";
-
-export default async function EditVersionPage({
+/**
+ * One sprout, as a place you come to in order to WRITE.
+ *
+ * The sibling of `plant/[slug]/narrative/page.tsx` — a head, a bare editor, one
+ * link back — with the difference that a sprout has no hub above it to carry
+ * its fields, so its head carries them: the name in the h1 with the meta
+ * overlay behind it, and state, date and type as three icons under it.
+ *
+ * WHAT LEFT THIS PAGE, and why each one left:
+ *
+ *  - The **Preview card**. The editor is a WYSIWYG over the same markdown
+ *    `<Prose>` renders, so a preview beside it was a second rendering of the
+ *    same bytes. The one place the two can genuinely disagree is the stored
+ *    source, which is still here, on the rail.
+ *  - The **metadata card** — seven fields in one form, at the bottom of a page
+ *    whose subject is prose. Each field is now behind the thing it edits.
+ *  - The **Source collapse**, the **Media card** and the **Danger zone**, all
+ *    onto the rail: the first because it is a diagnostic and not a body, the
+ *    second because a cover decision is not part of writing, the third because
+ *    a delete does not belong in the flow of a document.
+ *
+ * `loadRawGarden`, never the cached reader — this page loads stored markdown
+ * into an editor and posts it back, so a cached read is not a slow page, it is
+ * an author saving a stale body over a newer one. It is also the UNFILTERED
+ * garden on purpose: `entityOptions` offers every plant, pod and bean it holds,
+ * because in the authoring zone a reference to a draft or private entity should
+ * resolve and be visible, not vanish the way it does in public.
+ */
+export default async function AdminSproutPage({
   params,
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; form?: string }>;
 }) {
   const { slug } = await params;
-  const { error } = await searchParams;
+  const { error, form } = await searchParams;
 
-  const version = await getSprout(slug);
-  if (!version) notFound();
+  const sprout = await getSprout(slug);
+  if (!sprout) notFound();
 
-  const beanSlug = (version.parents ?? [])
-    .filter((p) => p.startsWith(ATOM_PREFIX))
-    .map((p) => p.slice(ATOM_PREFIX.length))[0];
-  const backHref = beanSlug ? `/admin/bean/${beanSlug}` : "/admin/sprouts";
-  const content = resolveText(version.content);
-  // The FULL dataset: in the authoring zone a ref to a draft or private entity
-  // should resolve and be visible, not vanish the way it does in public. Load
-  // the raw garden once and derive the dataset from it — getFullDataset() is
-  // literally buildDataset(await loadRawGarden()), so this is the same single
-  // database read; it just keeps the raw garden the entity picker needs.
   const raw = await loadRawGarden();
-  const dataset = buildDataset(raw);
+
+  const beanSlug = parentsWithPrefix(sprout.parents, BEAN_PREFIX)[0];
+  const bean = beanSlug ? (raw.beans ?? []).find((b) => b.slug === beanSlug) : undefined;
+  const backHref = beanSlug ? `/admin/bean/${encodeURIComponent(beanSlug)}` : "/admin/sprouts";
+  const backLabel = bean ? resolveText(bean.name) || beanSlug : beanSlug ? beanSlug : "sprouts";
+
+  // The stored source, for the rail's diagnostic panel.
+  const source = resolveText(sprout.content).trim();
+
+  // Which surface a rejected save came from — narrowed here rather than
+  // trusted. The value reaches two islands, and an unknown ?form= opens neither
+  // and falls through to the page-level banner below.
+  const heroForm: Surface | undefined =
+    form === "meta" || form === "state" || form === "date" || form === "type" ? form : undefined;
+  const railForm = form === "delete" ? "delete" : undefined;
+
+  const railItems: RailItem[] = [
+    {
+      id: "source",
+      label: "Source",
+      heading: "Source",
+      icon: FileCode2,
+      panel: source ? (
+        // Read-only, zero JS. It is not a second rendering of the document — it
+        // is the stored bytes, and the diagnostic for when the editor's
+        // serializer and <Prose>'s parser disagree.
+        <pre className="overflow-x-auto rounded-lg bg-muted p-3 font-heading text-xs whitespace-pre-wrap">
+          {source}
+        </pre>
+      ) : (
+        <p className="text-sm text-muted-foreground">—</p>
+      ),
+    },
+    {
+      id: "media",
+      label: "Media",
+      heading: "Media",
+      icon: Images,
+      panel: (
+        // Its own form — not the content form, not the meta form — which is what
+        // keeps each surface's blast radius to its own fields.
+        <form action={editSproutMediaAction} className="flex flex-col gap-4">
+          <input type="hidden" name="slug" value={sprout.slug} />
+          {/* Order is load-bearing and its consequence is invisible from here:
+              the first image becomes the bean's public cover. Saying so on
+              screen, not only in a comment, is the difference between an
+              authoring act and an accident. */}
+          <p className="text-xs text-muted-foreground">
+            The first image becomes this bean&apos;s cover.
+          </p>
+          {/* The key re-seeds the island after a save: MediaPicker reads
+              `initial` ONCE, in its useState initializer, so without this React
+              reconciles the same instance after the action redirects and the
+              picker keeps showing its own local state — including a just-added
+              link still carrying provider:"" where the server has since derived
+              the real one.
+
+              submitLabel, so the button is rendered BY the island: this form's
+              entire meaningful content is the picker, and a server-rendered
+              button would let a browser post a form carrying nothing — an empty
+              media list is indistinguishable from a deliberate clear-all and
+              would delete every stored image. lib/media-picker-mount.test.ts
+              pins it. */}
+          <MediaPicker
+            key={JSON.stringify(sprout.media ?? [])}
+            name="media"
+            initial={sprout.media ?? []}
+            links
+            submitLabel="Save media"
+          />
+        </form>
+      ),
+    },
+    {
+      id: "delete",
+      label: "Delete",
+      heading: "Danger zone",
+      icon: Trash2,
+      panel: <SproutDeleteForm sprout={sprout} {...(railForm && error ? { error } : {})} />,
+    },
+  ];
 
   return (
-    <article>
+    // EntityRail wraps the WHOLE body: the panel is fixed and the page moves out
+    // from under it, so what moves has to be everything — a head that stayed put
+    // while the editor slid would read as a glitch rather than as a push.
+    <EntityRail label="Sprout panels" items={railItems} openOnError={railForm}>
+      <article className="flex flex-col gap-8">
+        <a
+          href={backHref}
+          className="self-start text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+        >
+          ← {backLabel}
+        </a>
 
-      <div className="flex flex-col gap-8">
-        <div className="flex flex-col gap-3">
-          <a
-            href={backHref}
-            className="text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-          >
-            ← back
-          </a>
-          <h1 className="font-heading text-2xl font-medium tracking-tight">Edit version</h1>
-          <ul className="flex flex-col gap-1 font-heading text-xs">
-            <li className="flex gap-2">
-              <span className="w-16 shrink-0 text-muted-foreground">slug</span>
-              <span>{version.slug}</span>
-            </li>
-            <li className="flex gap-2">
-              <span className="w-16 shrink-0 text-muted-foreground">bean</span>
-              <span>{beanSlug ?? "—"}</span>
-            </li>
-          </ul>
-        </div>
+        <SproutHero
+          slug={sprout.slug}
+          name={resolveText(sprout.name)}
+          description={resolveText(sprout.description).trim()}
+          state={stateOf(sprout)}
+          date={sprout.date}
+          type={sprout.type}
+          {...(error ? { error } : {})}
+          {...(heroForm ? { errorForm: heroForm } : {})}
+          metaForm={<SproutMetaForm sprout={sprout} />}
+          // Everything the head can write, as stored. STRICT textPart on both
+          // halves of each pair, so an fr-only edit still moves the fingerprint
+          // — resolveText would fall back and hide it.
+          saved={JSON.stringify([
+            textPart(sprout.name, "en"),
+            textPart(sprout.name, "fr"),
+            textPart(sprout.description, "en"),
+            textPart(sprout.description, "fr"),
+            sprout.date,
+            sprout.type,
+            stateOf(sprout),
+          ])}
+        />
 
-        {error ? (
+        {/* Only an error no surface will show: the head reopens onto a rejected
+            meta/state/date/type save and the rail onto a rejected delete, each
+            rendering the message inside, so repeating it here would say it
+            twice. */}
+        {error && !heroForm && !railForm ? (
           <Alert variant="destructive" role="alert">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         ) : null}
 
-        {content ? (
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-heading text-base tracking-tight">Preview</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Prose
-                content={version.content}
-                resolve={(ref) => resolveEntity(dataset, ref)}
-                showUnresolved
-              />
-            </CardContent>
-          </Card>
-        ) : null}
-
-        <ContentCard
-          raw={raw}
-          content={version.content}
-          selfRef={`sprout:${version.slug}`}
+        {/* No ContentCard: a card's header above an editor that is the page's
+            only content is a frame around the page. STRICT textPart on the load
+            — resolveText's fallback would put the fr half into the editor and
+            save it back as en. */}
+        <ProseEditor
+          bare
+          float
+          initialMarkdown={textPart(sprout.content, "en")}
+          entities={entityOptions(raw, `sprout:${sprout.slug}`)}
           action={editContentAction}
-          hidden={{ slug: version.slug }}
+          hidden={{ slug: sprout.slug }}
         />
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-heading text-base tracking-tight">Media</CardTitle>
-            {/* Order is load-bearing and its consequence is invisible from here:
-                the first image becomes the bean's public cover. Saying so on
-                screen, not only in a comment, is the difference between an
-                authoring act and an accident. */}
-            <CardDescription className="text-xs">
-              The first image becomes this bean&apos;s cover.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {/* Its own form — not part of the metadata form below, and not part
-                of the content form above. A bean's cover is the FIRST image in
-                this list (spec §5.5), so the order here is an authoring act. */}
-            <form action={editSproutMediaAction} className="flex flex-col gap-4">
-              <input type="hidden" name="slug" value={version.slug} />
-              {/* The key re-seeds the island after a save. MediaPicker reads
-                  `initial` ONCE, in its useState initializer, so without this
-                  React reconciles the same instance after the action redirects
-                  and the picker keeps showing its own local state — including a
-                  just-added link still carrying provider:"" where the server has
-                  since derived the real one. Re-saving is idempotent
-                  (parseMediaField re-derives), so this is not a correctness bug;
-                  the picker should simply show what the database actually holds. */}
-              {/* submitLabel, so the button is rendered BY the island rather
-                  than around it: this form's entire meaningful content is the
-                  picker, and a server-rendered button would let a script-off
-                  browser submit a form carrying nothing. Now script-off sees no
-                  button at all and the form is simply not operable — which is
-                  what CLAUDE.md's "no capture or edit ever depends on it"
-                  actually asserts. */}
-              <MediaPicker
-                key={JSON.stringify(version.media ?? [])}
-                name="media"
-                initial={version.media ?? []}
-                links
-                submitLabel="Save media"
-              />
-            </form>
-          </CardContent>
-        </Card>
-
-        {content ? (
-          <Card>
-            <CardContent>
-              {/* Read-only, zero JS, collapsed. The editor is the authoring surface;
-                  this stays as the diagnostic for when the two markdown parsers
-                  disagree (spec §5). */}
-              <details>
-                <summary className="cursor-pointer font-heading text-sm text-muted-foreground">
-                  Source
-                </summary>
-                <pre className="mt-3 overflow-x-auto rounded-lg bg-muted p-3 font-heading text-xs whitespace-pre-wrap">
-                  {content}
-                </pre>
-              </details>
-            </CardContent>
-          </Card>
-        ) : null}
-
-        <Card>
-          <CardContent>
-            <form action={editVersionAction} className="flex flex-col gap-4">
-              <input type="hidden" name="slug" value={version.slug} />
-              {/* Prefills use the STRICT textPart — resolveText's fallback would copy en
-                  into the fr box and corrupt the data on save. The name inputs carry no
-                  `required`: the name is required as a whole (either language), enforced
-                  server-side, and an fr-only name is valid. */}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="name">Name</Label>
-                  <Input
-                    id="name"
-                    type="text"
-                    name="name"
-                    defaultValue={textPart(version.name, "en")}
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="nameFr">Name (fr)</Label>
-                  <Input
-                    id="nameFr"
-                    type="text"
-                    name="nameFr"
-                    defaultValue={textPart(version.name, "fr")}
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="type">Type</Label>
-                  <Input id="type" type="text" name="type" defaultValue={version.type} required />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="date">Date</Label>
-                  <Input id="date" type="date" name="date" defaultValue={version.date} required />
-                </div>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    name="description"
-                    defaultValue={textPart(version.description, "en")}
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="descriptionFr">Description (fr)</Label>
-                  <Textarea
-                    id="descriptionFr"
-                    name="descriptionFr"
-                    defaultValue={textPart(version.description, "fr")}
-                  />
-                </div>
-              </div>
-              <fieldset className="flex flex-col gap-2">
-                <legend className="text-sm font-medium">State</legend>
-                <div className="flex flex-wrap items-center gap-4 pt-1">
-                  <ChoiceLabel>
-                    <NativeRadio
-                      name="state"
-                      value="draft"
-                      defaultChecked={version.state === "draft" || version.state == null}
-                    />{" "}
-                    draft
-                  </ChoiceLabel>
-                  <ChoiceLabel>
-                    <NativeRadio
-                      name="state"
-                      value="private"
-                      defaultChecked={version.state === "private"}
-                    />{" "}
-                    private
-                  </ChoiceLabel>
-                  <ChoiceLabel>
-                    <NativeRadio
-                      name="state"
-                      value="published"
-                      defaultChecked={version.state === "published"}
-                    />{" "}
-                    published
-                  </ChoiceLabel>
-                </div>
-              </fieldset>
-              <div>
-                <Button type="submit">Save</Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-
-        <Card className="ring-destructive/30">
-          <CardHeader>
-            <CardTitle className="font-heading text-base tracking-tight text-destructive">
-              Danger zone
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form action={deleteSproutAction} className="flex flex-col gap-4">
-              <input type="hidden" name="slug" value={version.slug} />
-              <ChoiceLabel className="items-start leading-normal">
-                <NativeCheckbox name="confirm" required className="mt-0.5" />
-                <span>
-                  Yes, permanently delete the version “{resolveText(version.name)}” — this cannot
-                  be undone.
-                </span>
-              </ChoiceLabel>
-              <div>
-                <Button type="submit" variant="destructive">
-                  Delete version
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
-    </article>
+      </article>
+    </EntityRail>
   );
 }
