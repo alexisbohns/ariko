@@ -1905,7 +1905,16 @@ export default async function AdminPage() {
 }
 ```
 
-- [ ] **Step 4: Verify**
+- [ ] **Step 4: Make `next.config.ts`'s comment true**
+
+The redirect comment added with the route move says "the garden is now the
+welcome page, which lists the plants the garden page listed". That was false
+when it was written — `/admin` 404'd until this task — and it becomes true on
+this commit. Read it and confirm it now describes what the page actually does;
+a comment that was aspirational when written is exactly the kind that nobody
+goes back to check.
+
+- [ ] **Step 5: Verify**
 
 Run: `npx tsc --noEmit` → clean
 Run: `npm test 2>&1 | tail -5` → `# fail 0` (`lib/palette-render.test.ts` renders
@@ -1914,11 +1923,10 @@ not the test.)
 Run: `npm run dev`, visit `/admin` — the input is focused on load, ⌘K still
 opens the dialog, and both tables list plants. Stop the server.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add app/admin/page.tsx app/admin/_components/palette-search.tsx app/admin/_components/command-palette.tsx app/admin/_components/plant-table.tsx
-git commit -m "admin: a front door that knows whose garden it is"
+git commit app/admin/page.tsx app/admin/_components/palette-search.tsx app/admin/_components/command-palette.tsx app/admin/_components/plant-table.tsx next.config.ts -m "admin: a front door that knows whose garden it is"
 ```
 
 ---
