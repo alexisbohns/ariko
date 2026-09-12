@@ -103,9 +103,10 @@ async function main() {
         `Do NOT add them to SPROUT_MAP: the suite pins it at exactly twelve entries and requires every ` +
         `key to exist in data/garden.yml, and seeding a Mongo-only sprout would let migrate-garden ` +
         `overwrite its authored fields — the trap AUTHORED_BEANS exists to avoid.\n` +
-        `The admin cannot re-parent a sprout either (updateVersion never touches parents, and the bean ` +
-        `is read-only on the sprout page). Two real options: $set the sprout's parents[] directly in ` +
-        `Mongo, or delete it and re-promote it from the inbox onto the right bean. Then re-run.`,
+        `The admin cannot re-parent a sprout either (every sprout edit writes one named field and none ` +
+        `of them is parents, and the bean is read-only on the sprout page). Two real options: $set the ` +
+        `sprout's parents[] directly in Mongo, or delete it and re-promote it from the inbox onto the ` +
+        `right bean. Then re-run.`,
     );
   }
 

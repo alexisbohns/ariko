@@ -11,7 +11,7 @@ import { loadRawGarden } from "./store";
  * away from being undone. `lib/store.ts`'s `loadRawGarden` stays live and is
  * what the admin and every server action read. This module's
  * `loadCachedGarden` is what the public zone reads. They are different names
- * rather than a flag because `editVersionAction` and `promoteSeedAction`
+ * rather than a flag because `setSproutStateAction` and `promoteSeedAction`
  * re-read AFTER writing, on purpose, so `publishCascade` evaluates the
  * just-saved state (there is a comment in actions.ts saying so). Hand those a
  * cached read and the cascade computes against the pre-write garden: an author
