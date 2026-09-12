@@ -1,4 +1,4 @@
-import { NAV_ITEMS } from "./admin-nav";
+import { NAV_ITEMS, type NavId } from "./admin-nav";
 
 /**
  * The half of the palette model the BROWSER is allowed to have.
@@ -36,11 +36,18 @@ export interface PaletteItem {
 }
 
 /** The group headings, in the order the palette renders them. */
-export const GROUPS = ["Go to", "Garden", "Vault", "Inbox"] as const;
+export const GROUPS = ["Go to", "Plants", "Pods", "Beans", "Sprouts", "Inbox"] as const;
+
+/** A section row's id is this prefix plus its `NavId` — the one place that
+ *  grammar is spelled, so `sectionItems()` and the palette's `iconFor` (which
+ *  strips the prefix back off to look the icon up) cannot drift apart. */
+export const SECTION_ID_PREFIX = "section:";
 
 /**
  * The "Go to" rows — the sections, built from the rail's own model rather
- * than re-typed, so a fifth section appears in both places or in neither.
+ * than re-typed, so a new section appears in both places or in neither. The
+ * UNSCOPED rail: the palette is a navigator, and Overview is a destination
+ * that only means something relative to a scope the palette does not have.
  *
  * Called by `buildPaletteIndex` on the server AND used directly by the palette
  * as its starting index, which is the same function in both places by design:
@@ -49,12 +56,27 @@ export const GROUPS = ["Go to", "Garden", "Vault", "Inbox"] as const;
  */
 export function sectionItems(): PaletteItem[] {
   return NAV_ITEMS.map((nav) => ({
-    id: `section:${nav.href}`,
+    id: `${SECTION_ID_PREFIX}${nav.id}`,
     kind: "section" as const,
     label: nav.label,
     href: nav.href,
     group: "Go to",
   }));
+}
+
+/**
+ * The other half of the id grammar `sectionItems()` writes: the `NavId` a
+ * section row's id names, or null when the id was never one of these in the
+ * first place. `iconFor` (command-palette.tsx) needs this rather than its own
+ * `slice` + cast — an unchecked cast over a plain `string` is exactly the kind
+ * of thing that slices garbage out of a malformed id and silently falls
+ * through to the generic icon, which is the same "two sections draw the same
+ * picture" bug `lib/section-icons.test.ts` exists to catch, arriving by the
+ * one path that test cannot see.
+ */
+export function sectionNavId(item: PaletteItem): NavId | null {
+  if (item.kind !== "section" || !item.id.startsWith(SECTION_ID_PREFIX)) return null;
+  return item.id.slice(SECTION_ID_PREFIX.length) as NavId;
 }
 
 /** Group a flat index for rendering, dropping empty groups and preserving

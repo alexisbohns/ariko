@@ -7,6 +7,21 @@ import { Label } from "@/components/ui/label";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * The one admin route `middleware.ts` lets through unauthenticated — and
+ * therefore the one that must sit OUTSIDE `app/admin/(chrome)/`, whose layout
+ * reads the garden to compose the plant switcher's marks.
+ *
+ * That is why this page draws its own `<main>` instead of receiving one from
+ * `AdminMain`. There is deliberately no layout between `app/layout.tsx` and
+ * this file: a layout here would be an empty-looking place to add a read, and
+ * the read is the thing that leaks. `AdminChrome` is a client island, so a prop
+ * handed to it crosses into the flight payload — inlined in the HTML — before
+ * the component gets the chance to decline to render, which is how the old
+ * arrangement published every plant, logo URL and visibility to anonymous
+ * visitors while showing them nothing but this card.
+ * `lib/admin-login-layout-source.test.ts` keeps it that way.
+ */
 export default async function LoginPage({
   searchParams,
 }: {
@@ -14,7 +29,7 @@ export default async function LoginPage({
 }) {
   const { error } = await searchParams;
   return (
-    <article className="mx-auto max-w-sm py-12">
+    <main className="mx-auto max-w-sm px-6 py-12">
       <Card>
         <CardHeader>
           <CardTitle className="font-heading text-lg tracking-tight">Ariko admin</CardTitle>
@@ -34,6 +49,6 @@ export default async function LoginPage({
           </form>
         </CardContent>
       </Card>
-    </article>
+    </main>
   );
 }

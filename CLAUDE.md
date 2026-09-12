@@ -12,10 +12,23 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
 - Primitives live in `components/ui/`. Add more with
   `npx shadcn@latest add <name>` — never hand-roll one the registry already has.
 - Chrome belongs to the zones, not the root layout: `app/(public)/(chrome)/layout.tsx`
-  and `app/admin/layout.tsx` + `app/admin/_components/admin-chrome.tsx` (a
-  floating icon rail on the left edge, plus the public-site and log-out icon
-  buttons top-right, which withdraws itself on the login page). The root layout
-  owns only the document shell and the fonts.
+  and `app/admin/(chrome)/layout.tsx` + `app/admin/_components/admin-chrome.tsx`
+  (three clusters: the Ariko mark and the plant switcher top-left, a floating
+  icon rail on the left edge, and the public-site and log-out icon buttons
+  top-right — and the rail changes shape with the scope, per the scope rule
+  below). The root layout owns only the document shell and the fonts.
+  **Both zones spell "this page has no chrome" as a route group, and in
+  the admin that is a privacy boundary rather than a tidiness one**: the chrome
+  layout reads the garden to compose the plant switcher's marks, and it hands
+  them to a client island — so they are serialized into the flight payload and
+  inlined in the HTML *before* the island can decline to render. The admin
+  chrome used to withdraw on `/admin/login` with an early `return null` while
+  the layout above it read anyway, which published every plant, logo URL and
+  visibility to an anonymous `curl` of the one route `middleware.ts` lets
+  through. `login/` is now the one routeable thing left outside
+  `app/admin/(chrome)/`; `lib/admin-login-layout-source.test.ts` pins it.
+  A route group's name is invisible to the URL, so no admin URL and no
+  middleware matcher changed.
 - **Four things the two zones now DRAW FROM ONE FILE** (the shared-surfaces
   slice, [`specs/2026-09-06-shared-surfaces-design.md`](docs/superpowers/specs/2026-09-06-shared-surfaces-design.md)).
   All four are **server-safe** — no `"use client"`, no `lucide-react` — which is
@@ -33,8 +46,11 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
   - `components/page-column.tsx` — `READING_COLUMN` is the same string in both
     zones, which is what makes the author's column the visitor's column.
     `resolveColumn()` in `lib/admin-nav.ts` picks it: a section index is
-    `WIDE_COLUMN`, everything else reads, login is bare. Chrome clearance goes
-    **outside** the measure, never inside it.
+    `WIDE_COLUMN`, the welcome page is too — it holds two tables — and
+    everything else reads. There is no `bare` any more: login left the chrome
+    group, so `resolveColumn`'s only caller can no longer be asked about it,
+    and a special case for a path that cannot arrive is dead code reading as a
+    live rule. Chrome clearance goes **outside** the measure, never inside it.
   - `components/plant-header.tsx` and `components/entity-card.tsx` — the plant
     head and the entity card. Each takes slots or one extra prop where the admin
     genuinely shows more (`refText` on a card in the editor), and nothing else.
@@ -137,15 +153,16 @@ while quietly becoming false.
 - **A screen's image cannot be cleared**, because `Screen.image` is required —
   the one rule `buildScreenImagePatch` has that its three siblings lack.
 - **The Exhibition panel composes no payload.** Its contents are
-  server-rendered by `app/admin/plant/[slug]/page.tsx` and handed down as a
-  prop, exactly as `metaForm` / `roleForm` / `logoForm` are, so
-  `plant-inside.tsx` learns no field name.
+  server-rendered by `app/admin/(chrome)/plant/[slug]/page.tsx` and handed down
+  as a prop, exactly as `metaForm` / `roleForm` / `logoForm` are, so
+  `plant-rail.tsx` learns no field name.
   `lib/exhibition-panel-source.test.ts` pins it.
 - **The screen sheet's slot imports the page's own module.**
-  `app/admin/@sheet/(.)screens/[slug]` wraps
-  `app/admin/screens/[slug]/page.tsx` rather than reimplementing it, and every
-  tile, prev, next and close is a real `href` — never `router.back()` — so the
-  same click is an ordinary navigation when interception does not happen.
+  `app/admin/(chrome)/@sheet/(.)screens/[slug]` wraps
+  `app/admin/(chrome)/screens/[slug]/page.tsx` rather than reimplementing it,
+  and every tile, prev, next and close is a real `href` — never
+  `router.back()` — so the same click is an ordinary navigation when
+  interception does not happen.
   `lib/screen-sheet-source.test.ts` pins both halves. The library is this
   repo's only use of `next/link`, and it stays confined to that slice's four
   files: interception needs a client-side navigation.
@@ -195,22 +212,47 @@ while quietly becoming false.
   admin tables' values as icons, and each also renders its word in an
   `sr-only` span from `lib/glyphs.ts` — the one place a display form is
   decided, exactly as `lib/plant-status.ts` is for its enum. No value is ever
-  icon-only in the accessibility tree. Five consumers share that one island:
-  the three tables, the palette's plant rows, and the screen library's tiles.
+  icon-only in the accessibility tree. Everything that draws an admin row
+  shares that one island: the four tier tables and their shared cells, the
+  inbox, the screen library's tiles, the palette's plant rows and the plant
+  switcher's.
 - **An icon trigger names its stored value.** The plant header's five editors
   are icons; the only place a reader learns what `status` and `visibility`
   currently ARE is each trigger's accessible name, set on the control rather
   than on a visible span (the hover label is CSS). Replace `Status: Active`
   with a bare `Status` and the page looks identical and stops saying what it
   is. `lib/plant-hero-a11y.test.ts` pins it.
+- **The admin's subject lives in the URL, and picking one is a navigation.**
+  `lib/admin-scope.ts` is the only reader of the scope — the slug on
+  `/admin/plant/[slug]` first, `?plant=` second — and the only builder of the
+  hrefs that change it; `lib/plant-path.ts` spells the plant address once, so
+  `resolveNavItem` and `resolveScope` cannot disagree about which plant
+  `/admin/plant/ariko/anything` names. Every row of the switcher is a plain
+  `<a href>`: no cookie, no server action, nothing written — which is what
+  keeps the URL a description of the view, and makes the island inert rather
+  than destructive script-off, since every plant it offers is a row in a table
+  on the root. Scoped, the rail gains **Overview** — the one item that cannot
+  aggregate, because the all-plants overview IS the root — and loses
+  **Beanstalk**, which merges sprouts with pollen envelopes that have no plant
+  and would answer half its own question narrowed. A cookie, a `router.push`,
+  or a second page re-reading `?plant=` its own way would each pass `tsc`,
+  `npm test` and `npm run build` while leaving the chrome naming one plant and
+  the rows beneath it showing another. `lib/admin-scope.test.ts`,
+  `lib/admin-nav.test.ts` and `lib/plant-switcher-a11y.test.ts` pin the rule,
+  the rail's two shapes, and a closed trigger that names its plant and posts
+  nothing. (`lib/admin-scope.ts` is imported by that island, so it must stay
+  client-safe — which is why the per-section filter keys live in
+  `lib/section-keys.ts` rather than in `lib/sprouts.ts` and `lib/screens.ts`,
+  four hops from `node:fs`.)
 - **Images upload through `uploadImageAction`, never from the browser to a
   third party**, and a pasted link's `provider` is derived server-side rather
   than read from the payload. The credential never leaves the server, and a
   stored provider cannot be set by whoever posted the form.
 - **A new admin data route goes under `/admin`, not `/api`.** `middleware.ts`
-  matches `/admin/:path*`, so `app/admin/palette/route.ts` inherits the session
-  gate with zero new auth code. A sibling under `/api/admin/…` falls outside
-  that matcher and is public unless it writes its own check.
+  matches `/admin/:path*`, so `app/admin/(chrome)/palette/route.ts` inherits
+  the session gate with zero new auth code — a route group's name never reaches the
+  URL, so the matcher does not know it exists. A sibling under `/api/admin/…`
+  falls outside that matcher and is public unless it writes its own check.
 - **The garden has two readers, and which one you import is a privacy
   decision.** `loadRawGarden` (`lib/store.ts`) is live; `loadCachedGarden`
   (`lib/garden-cache.ts`) is behind Next's Data Cache under the `garden` tag.
@@ -221,7 +263,10 @@ while quietly becoming false.
   published sprout whose bean silently stays private, or an unpublish that
   leaves a parent public. In the other direction, a public page that imports
   anything from `lib/store.ts` bypasses the cache — and `getFullDataset` skips
-  `filterPublic` on the way, which is a leak rather than a slow page. Writes
+  `filterPublic` on the way, which is a leak rather than a slow page.
+  `app/admin/(chrome)/layout.tsx` is a reader too, on every admin page: it
+  composes the plant switcher's marks, and it reads live because the chrome is
+  the surface most likely to be looked at immediately after a rename. Writes
   invalidate at four doors, three of which are not actions:
   `app/admin/actions.ts` plus `/api/articles`, `/api/synthesis` and
   `/api/pollen/sync`. `lib/garden-cache-source.test.ts` pins all of it,

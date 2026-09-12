@@ -22,10 +22,15 @@ import { cn } from "@/lib/utils"
  * Item, Group, GroupLabel, Empty and Status types, so the two share one part
  * vocabulary. Same tokens, same look, no new dependency.
  *
- * Dropped from that file, because nothing here is anchored to a field: the
- * Portal, Positioner, Popup, Trigger, Icon, Clear, Chips and Value parts. The
- * consumer renders the list inline (`<Autocomplete inline open>`) inside its
- * own surface.
+ * Dropped from that file, because no consumer needs them: the Trigger, Icon,
+ * Clear, Chips and Value parts.
+ *
+ * KEPT, because there are now two consumers wanting two different surfaces:
+ * the Portal / Positioner / Popup trio, as `AutocompleteContent`. The ⌘K
+ * palette renders its list inline (`<Autocomplete inline open>`) because the
+ * dialog IS the surface; the welcome page's search is an ordinary field, so its
+ * list has to be a popup anchored under it. One primitive, two shells — which
+ * is only possible because the parts below are shared by both.
  */
 
 const Autocomplete = AutocompletePrimitive.Root
@@ -47,6 +52,52 @@ function AutocompleteList({
       )}
       {...props}
     />
+  )
+}
+
+/**
+ * The popup surface, for the consumer whose list is NOT inline. Portal,
+ * Positioner and Popup in one part, exactly as `popover.tsx` folds the same
+ * three together — same tokens, same entry animation, so a list under a field
+ * and a panel under a button read as one system.
+ *
+ * Two measurements come from the positioner rather than from a guess.
+ * `--anchor-width` makes the popup exactly as wide as the input it belongs to,
+ * which is what stops it reading as a floating object that happens to be
+ * nearby. `--available-height` caps it at the room actually left below the
+ * field, so a long index scrolls instead of running off the viewport — the cap
+ * is a minimum against a fixed ceiling, because on a tall screen a popup the
+ * height of the window is worse than one you scroll.
+ */
+function AutocompleteContent({
+  className,
+  align = "start",
+  side = "bottom",
+  sideOffset = 6,
+  ...props
+}: AutocompletePrimitive.Popup.Props &
+  Pick<
+    AutocompletePrimitive.Positioner.Props,
+    "align" | "alignOffset" | "side" | "sideOffset"
+  >) {
+  return (
+    <AutocompletePrimitive.Portal>
+      <AutocompletePrimitive.Positioner
+        align={align}
+        side={side}
+        sideOffset={sideOffset}
+        className="isolate z-50 w-(--anchor-width)"
+      >
+        <AutocompletePrimitive.Popup
+          data-slot="autocomplete-content"
+          className={cn(
+            "z-50 flex max-h-[min(24rem,var(--available-height))] w-full origin-(--transform-origin) flex-col overflow-hidden rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-hidden duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+            className
+          )}
+          {...props}
+        />
+      </AutocompletePrimitive.Positioner>
+    </AutocompletePrimitive.Portal>
   )
 }
 
@@ -146,6 +197,7 @@ function AutocompleteStatus({
 export {
   Autocomplete,
   AutocompleteCollection,
+  AutocompleteContent,
   AutocompleteEmpty,
   AutocompleteGroup,
   AutocompleteInput,

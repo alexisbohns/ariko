@@ -55,7 +55,11 @@ const REGISTER_SW =
  * one piece of behaviour that is genuinely app-wide — the service-worker
  * registration above, which reaches both zones because it is here. Chrome
  * belongs to the zones: `app/(public)/layout.tsx` for the exhibition,
- * `app/admin/layout.tsx` for the tooling.
+ * `app/admin/(chrome)/layout.tsx` for the tooling. Both zones keep one page
+ * outside their chrome group — the public home page, and the admin's login
+ * page — so THIS layout is the only one either of those two enters. In the
+ * admin's case that is load-bearing rather than cosmetic: see
+ * `lib/admin-login-layout-source.test.ts`.
  *
  * The favicon, the Apple touch icon and the manifest link are NOT written here
  * any more. `app/icon.svg`, `app/apple-icon.png` and `app/manifest.ts` are Next

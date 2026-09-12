@@ -4,11 +4,20 @@ import { EMBED_FRAME_HOSTS } from "./lib/embed-src";
 
 const nextConfig: NextConfig = {
   // Botanical rename (slice 1 PR1): /atom/* was the only public renamed path;
-  // shared links keep working. Admin paths get no redirects (private).
+  // shared links keep working.
   redirects: async () => [
     { source: "/atom/:id", destination: "/bean/:id", permanent: true },
     // Slice 4: the timeline is the beanstalk — the cosmology reaches the URL.
     { source: "/timeline", destination: "/beanstalk", permanent: true },
+    // The admin's two moved sections. `permanent: false` — unlike the public
+    // pair above, these are conveniences for the author's own bookmarks and
+    // history, not promises to the web, and a 308 is cached by a browser
+    // forever. The garden is now the welcome page, which lists the plants the
+    // garden page listed — its pods are at /admin/pods, the section they were
+    // sharing that table with; the vault is the sprouts section under its own
+    // name.
+    { source: "/admin/garden", destination: "/admin", permanent: false },
+    { source: "/admin/vault", destination: "/admin/sprouts", permanent: false },
   ],
   // Server actions default to a 1MB request body; uploadImageAction carries an
   // image. This is deliberately ABOVE lib/upload-input.ts's MAX_UPLOAD_BYTES

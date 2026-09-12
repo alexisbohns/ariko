@@ -82,12 +82,12 @@ const {
 const { CommandPalette } = require("../app/admin/_components/command-palette");
 
 const INDEX: PaletteItem[] = [
-  { id: "section:/admin", kind: "section", label: "Inbox", href: "/admin", group: "Go to" },
+  { id: "section:inbox", kind: "section", label: "Inbox", href: "/admin/inbox", group: "Go to" },
   {
-    id: "section:/admin/vault",
+    id: "section:sprouts",
     kind: "section",
-    label: "Vault",
-    href: "/admin/vault",
+    label: "Sprouts",
+    href: "/admin/sprouts",
     group: "Go to",
   },
   {
@@ -96,14 +96,14 @@ const INDEX: PaletteItem[] = [
     label: "Pebbles",
     logoUrl: "https://res.cloudinary.com/demo/image/upload/v1/pebbles.png",
     href: "/admin/plant/pebbles",
-    group: "Garden",
+    group: "Plants",
   },
   {
     id: "plant:new-wave",
     kind: "plant",
     label: "New Wave",
     href: "/admin/plant/new-wave",
-    group: "Garden",
+    group: "Plants",
   },
   {
     id: "pod:case-study",
@@ -111,7 +111,7 @@ const INDEX: PaletteItem[] = [
     label: "Pebbles case study",
     sublabel: "Pebbles",
     href: "/admin/pod/case-study",
-    group: "Garden",
+    group: "Pods",
   },
   {
     id: "sprout:digest-4",
@@ -119,7 +119,7 @@ const INDEX: PaletteItem[] = [
     label: "Weekly digest",
     sublabel: "Digest",
     href: "/admin/sprout/digest-4",
-    group: "Vault",
+    group: "Sprouts",
   },
 ];
 
@@ -255,16 +255,16 @@ test("opening fetches the index and renders it grouped, in GROUPS order", async 
   // Every row is present, and the group headings are in GROUPS order.
   assert.deepEqual(labels(), [
     "Inbox",
-    "Vault",
+    "Sprouts",
     "Pebbles plant",
     "New Wave plant",
     "Pebbles case study Pebbles pod",
     "Weekly digest Digest sprout",
   ]);
 
-  // Read the headings themselves, not the page text: "Vault" is also a row
+  // Read the headings themselves, not the page text: "Sprouts" is also a row
   // label in the Go to group, so a substring search finds the wrong one.
-  assert.deepEqual(groupLabels(), ["Go to", "Garden", "Vault"]);
+  assert.deepEqual(groupLabels(), ["Go to", "Plants", "Pods", "Sprouts"]);
 });
 
 test("the always-mounted announcement boxes collapse when they have nothing to say", () => {
@@ -318,7 +318,7 @@ test("typing filters across every kind at once", async () => {
 
 test("a group with no surviving row disappears rather than showing an empty heading", async () => {
   await type("pebb");
-  assert.deepEqual(groupLabels(), ["Garden"], "an emptied group left its heading behind");
+  assert.deepEqual(groupLabels(), ["Plants", "Pods"], "an emptied group left its heading behind");
 });
 
 test("a query matching nothing says so", async () => {

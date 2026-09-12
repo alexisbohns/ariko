@@ -14,7 +14,7 @@ export interface ExhibitionPanelRow {
  * rail.
  *
  * A SERVER component, rendered by `app/admin/plant/[slug]/page.tsx` and handed
- * to `plant-inside.tsx` as a prop — the arrangement `plant-hero.tsx` uses for
+ * to `plant-rail.tsx` as a prop — the arrangement `plant-hero.tsx` uses for
  * `metaForm`, `roleForm` and `logoForm`, and for the same reason: the client
  * island owns the open state and nothing else, so it never composes a payload
  * and never learns a field name.
@@ -36,7 +36,7 @@ export interface ExhibitionPanelRow {
  *
  * The empty state below is reachable BECAUSE the two gates that decide whether
  * this component renders at all differ from the one it checks itself: the page
- * hands `plant-inside.tsx` an `exhibition` prop when the plant has ANY
+ * hands `plant-rail.tsx` an `exhibition` prop when the plant has ANY
  * screens, and this component falls to the empty branch when none of THOSE are
  * EXHIBITED — a plant can have screens in the library and nothing on its page.
  */

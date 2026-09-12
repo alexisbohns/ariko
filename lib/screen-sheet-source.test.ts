@@ -36,7 +36,7 @@ import { join } from "node:path";
  *
  * (Tailwind v4 has the same hazard from the other side: it scans source as
  * text, so a utility named inside a comment is minted into the stylesheet.
- * `app/admin/layout.tsx` carries that note.)
+ * `app/admin/(chrome)/layout.tsx` carries that note.)
  *
  * Block comments go entirely. Line comments go only when the `//` starts the
  * line, so an `https://` inside an href is never mistaken for one.
@@ -47,14 +47,14 @@ function source(path: string): string {
     .replace(/^[ \t]*\/\/.*$/gm, "");
 }
 
-const SHEET_SLOT_DIR = "app/admin/@sheet";
-const SLOT = "app/admin/@sheet/(.)screens/[slug]/page.tsx";
-const NEW_SLOT = "app/admin/@sheet/(.)screens/new/page.tsx";
+const SHEET_SLOT_DIR = "app/admin/(chrome)/@sheet";
+const SLOT = "app/admin/(chrome)/@sheet/(.)screens/[slug]/page.tsx";
+const NEW_SLOT = "app/admin/(chrome)/@sheet/(.)screens/new/page.tsx";
 /** The slot's route AT the library — what closes the panel. See its own test. */
-const CLEAR_SLOT = "app/admin/@sheet/screens/page.tsx";
+const CLEAR_SLOT = "app/admin/(chrome)/@sheet/screens/page.tsx";
 /** Where the panel itself is drawn, so the arrows never remount it. */
-const SHEET_LAYOUT = "app/admin/@sheet/(.)screens/layout.tsx";
-const INDEX = "app/admin/screens/page.tsx";
+const SHEET_LAYOUT = "app/admin/(chrome)/@sheet/(.)screens/layout.tsx";
+const INDEX = "app/admin/(chrome)/screens/page.tsx";
 
 /**
  * Every `.tsx` under the slot, found rather than listed.
@@ -76,13 +76,13 @@ function slotFiles(dir = SHEET_SLOT_DIR): string[] {
 
 test("the sheet renders the screen page's own module", () => {
   const text = source(SLOT);
-  assert.match(text, /from "@\/app\/admin\/screens\/\[slug\]\/page"/);
+  assert.match(text, /from "@\/app\/admin\/\(chrome\)\/screens\/\[slug\]\/page"/);
   assert.match(text, /<ScreenPage /);
 });
 
 test("the sheet renders the create page's own module", () => {
   const text = source(NEW_SLOT);
-  assert.match(text, /from "@\/app\/admin\/screens\/new\/page"/);
+  assert.match(text, /from "@\/app\/admin\/\(chrome\)\/screens\/new\/page"/);
   assert.match(text, /<NewScreenPage /);
 });
 
@@ -128,7 +128,7 @@ test("no slot file rebuilds a form of its own", () => {
     // — an empty shell or a "temporary" placeholder, which passes every
     // negative check above while showing nothing the route would have shown.
     if (path.endsWith("/page.tsx")) {
-      const wrapsAPage = /from "@\/app\/admin\/screens\//.test(text);
+      const wrapsAPage = /from "@\/app\/admin\/\(chrome\)\/screens\//.test(text);
       const rendersNothing = /return null;/.test(text) && !text.includes("<SideSheet");
       assert.ok(
         wrapsAPage || rendersNothing,

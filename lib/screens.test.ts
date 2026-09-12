@@ -99,6 +99,17 @@ test("filters by plant, bean and tag; blanks are ignored", () => {
   assert.equal(filterScreens(rows, { plant: "  " }).length, 4);
 });
 
+test('"all" is the sentinel for no filter, not a slug', () => {
+  // `screensQuery` and `filterHref` both drop the key rather than emit it, so
+  // this URL arrives only by hand — which a scope control that writes ?plant=
+  // into every admin URL makes ordinary. Read raw, it emptied the library
+  // while the chrome above it read "All".
+  const rows = screenRows(SCREENS);
+  assert.equal(filterScreens(rows, { plant: "all" }).length, 4);
+  assert.equal(filterScreens(rows, { bean: "all" }).length, 4);
+  assert.equal(filterScreens(rows, { tag: "all" }).length, 4);
+});
+
 test("a non-blank unknown value matches nothing", () => {
   const rows = screenRows(SCREENS);
   assert.deepEqual(filterScreens(rows, { plant: "ghost" }), []);

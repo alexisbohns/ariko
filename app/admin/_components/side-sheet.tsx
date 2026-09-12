@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
  * The admin's right-hand side sheet: a fixed panel that the page slides out
  * from under, rather than an overlay that covers it.
  *
- * `PlantInside`'s move, promoted from a popover to a real panel, and the reason
+ * `PlantRail`'s move, promoted from a popover to a real panel, and the reason
  * for the shape is the whole design of the screen library: the contact sheet
  * stays VISIBLE and stays CLICKABLE while a screen is open, so the author edits
  * one, sees the next one they meant, clicks it, and the panel swaps. An overlay

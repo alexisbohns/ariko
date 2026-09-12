@@ -56,22 +56,23 @@ export function SeedOverlay({ error, inboxCount }: { error?: string; inboxCount:
   const plusRef = useRef<HTMLButtonElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
 
-  // A rejected save redirects to /admin?error=… — and the form it came from is
-  // no longer on the page, so the banner would have nowhere to live. Reopen
-  // onto it rather than bounce the author to a page that says nothing went
-  // wrong. (Their text is gone either way; the message is what is salvageable.)
+  // A rejected save redirects to /admin/inbox?error=… — and the form it came
+  // from is no longer on the page, so the banner would have nowhere to live.
+  // Reopen onto it rather than bounce the author to a page that says nothing
+  // went wrong. (Their text is gone either way; the message is what is
+  // salvageable.)
   useEffect(() => {
     if (error) setOpen(true);
   }, [error]);
 
-  // createSeedAction redirects to /admin, which from /admin is a SOFT
-  // navigation — this component keeps its place in the tree, so nothing here
-  // resets itself. A save is therefore detected the only way the client
-  // honestly can: the server re-rendered the page with one more seed in the
-  // inbox. Closing unmounts the popup, and with it the MediaPicker, which is
-  // what clears its rows; `firstLink` is this component's own state and has to
-  // be cleared by hand. Without this the next capture inherits the previous
-  // one's link and images.
+  // createSeedAction redirects to /admin/inbox, which is the page this overlay
+  // is rendered on — so that redirect is a SOFT navigation: this component
+  // keeps its place in the tree, and nothing here resets itself. A save is
+  // therefore detected the only way the client honestly can: the server
+  // re-rendered the page with one more seed in the inbox. Closing unmounts the
+  // popup, and with it the MediaPicker, which is what clears its rows;
+  // `firstLink` is this component's own state and has to be cleared by hand.
+  // Without this the next capture inherits the previous one's link and images.
   //
   // It composes with the error effect above rather than fighting it: a rejected
   // save leaves the inbox exactly as big as it was, so this does not fire and
@@ -98,10 +99,10 @@ export function SeedOverlay({ error, inboxCount }: { error?: string; inboxCount:
   // race it.
   useHotkey("K", () => setOpen(true), { enabled: !open });
 
-  // A rejected save leaves the author on /admin?error=…, and the param outlives
-  // the overlay: close it, reload, and the banner comes back about a seed that
-  // no longer exists in any field. Dropped on close with replaceState rather
-  // than a router push — this is tidying the URL, not a navigation, and a
+  // A rejected save leaves the author on /admin/inbox?error=…, and the param
+  // outlives the overlay: close it, reload, and the banner comes back about a
+  // seed that no longer exists in any field. Dropped on close with replaceState
+  // rather than a router push — this is tidying the URL, not a navigation, and a
   // navigation here would re-render the page under the closing dialog.
   const handleOpenChange = (next: boolean): void => {
     setOpen(next);

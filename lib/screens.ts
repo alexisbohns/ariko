@@ -1,5 +1,6 @@
 import { BEAN_PREFIX, PLANT_PREFIX, parentsWithPrefix, resolveText, type Screen } from "./data";
-import { filterQuery, type FilterValues } from "./admin-filters";
+import { filterQuery, filterValue, type FilterValues } from "./admin-filters";
+import { SCREEN_FILTER_KEYS } from "./section-keys";
 
 /**
  * The library's arithmetic — everything `/admin/screens` decides that is not a
@@ -12,16 +13,33 @@ import { filterQuery, type FilterValues } from "./admin-filters";
  * path that can see them at all.
  */
 
-/** The three dimensions the library filters on, in the order they reach a URL.
+/**
+ * The three dimensions the library filters on, in the order they reach a URL.
  *
- *  Both readers are SERVER side, which is why the constant can live in this
- *  file at all: this module imports `lib/data.ts`, which opens with `node:fs`.
- *  The page builds the filter hrefs and hands the popovers finished strings,
- *  and the page renders the hidden field the write forms round-trip — neither
- *  the `"use client"` filter bar nor any other island imports this. Doing so
- *  would not merely bloat the bundle, it would fail the build, which is the
- *  `lib/palette.ts` / `lib/palette-items.ts` trap CLAUDE.md documents. */
-export const SCREEN_FILTER_KEYS = ["plant", "bean", "tag"] as const;
+ * **Declared in `lib/section-keys.ts` now, and re-exported here.** What stood
+ * in this place was an argument for keeping it in this file: every reader was
+ * server side, the page built the hrefs and the hidden fields, and no island
+ * imported it — so the fact that this module imports `lib/data.ts`, which
+ * opens with `node:fs`, cost nothing.
+ *
+ * That was true, and then it wasn't. The admin's scope control is a client
+ * component; it calls `scopeHref`; `lib/admin-scope.ts` needs this list to
+ * know what `/admin/screens` filters by — and so the chrome's first build died
+ * with `UnhandledSchemeError: Reading from "node:path"`, four modules down from
+ * three strings. The list moved because a client now needs it, which is
+ * precisely the `lib/palette.ts` / `lib/palette-items.ts` trap CLAUDE.md
+ * documents, arriving a second time by a door nobody was watching.
+ *
+ * Worth leaving written down rather than quietly deleting: the old paragraph
+ * was not wrong, it was load-bearing on a fact about the CALLERS, and a
+ * docblock resting on who imports a file has a shelf life. The lesson is the
+ * split, not the vigilance — hence a separate module, which cannot be
+ * invalidated by a new caller.
+ *
+ * Re-exported so the page, the action and `filter-fields.tsx` still find it
+ * where they already look.
+ */
+export { SCREEN_FILTER_KEYS };
 
 /**
  * The hidden field one dimension round-trips through, on a write.
@@ -127,19 +145,17 @@ export function screenRows(screens: Screen[]): ScreenRow[] {
   );
 }
 
-/** Pure. Membership on all three dimensions; a blank value is ignored, a
- *  non-blank unknown one matches nothing — `filterVaultEntries`' stance, and
+/** Pure. Membership on all three dimensions; a blank or "all" value is ignored,
+ *  a non-blank unknown one matches nothing — `filterSproutEntries`' stance, and
  *  for its reason: there is no enum here to validate against. */
 export function filterScreens(rows: ScreenRow[], filters: ScreenFilters): ScreenRow[] {
-  // `String(...)` for `filterQuery`'s reason: a repeated query key arrives as a
-  // `string[]`, and reading `.trim()` off one would 500 the page.
-  const value = (raw?: string) => {
-    const trimmed = String(raw ?? "").trim();
-    return trimmed ? trimmed : undefined;
-  };
-  const plant = value(filters.plant);
-  const bean = value(filters.bean);
-  const tag = value(filters.tag);
+  // `filterValue` rather than a local trim: it drops "all" as well as blank,
+  // which is the sentinel every filter control writes for "no filter". This
+  // file kept its own copy that dropped only blank, so `?plant=all` rendered an
+  // empty library under a trigger reading "All" — see that function's docblock.
+  const plant = filterValue(filters.plant);
+  const bean = filterValue(filters.bean);
+  const tag = filterValue(filters.tag);
 
   return rows.filter((row) => {
     if (plant && row.plant !== plant) return false;

@@ -1,8 +1,9 @@
-import { Archive, Images, Inbox, Sprout, Waypoints } from "lucide-react";
+import { Bean, Flower2, Images, Inbox, Package, Sprout, Waypoints } from "lucide-react";
 import type { ComponentType } from "react";
+import type { NavId } from "@/lib/admin-nav";
 
 /**
- * One href → icon map for the admin's sections, drawn by both the rail
+ * One id → icon map for the admin's sections, drawn by both the rail
  * (admin-chrome.tsx) and the palette's "Go to" rows (command-palette.tsx), so
  * the same destination looks the same in both places.
  *
@@ -15,13 +16,15 @@ import type { ComponentType } from "react";
  *
  * JSX-free, and nothing in its graph reaches lib/data.ts: both importers are
  * client components and lucide-react is itself "use client", so this only ever
- * lands in a client bundle. lib/section-icons.test.ts holds it to NAV_ITEMS, so
+ * lands in a client bundle. lib/section-icons.test.ts holds it to NavId, so
  * the sixth section cannot repeat the fifth's mistake.
  */
-export const SECTION_ICONS: Record<string, ComponentType<{ className?: string }>> = {
-  "/admin": Inbox,
-  "/admin/vault": Archive,
-  "/admin/garden": Sprout,
-  "/admin/beanstalk": Waypoints,
-  "/admin/screens": Images,
+export const SECTION_ICONS: Record<NavId, ComponentType<{ className?: string }>> = {
+  overview: Flower2,
+  inbox: Inbox,
+  pods: Package,
+  beans: Bean,
+  sprouts: Sprout,
+  screens: Images,
+  beanstalk: Waypoints,
 };

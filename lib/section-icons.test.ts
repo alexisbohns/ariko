@@ -1,33 +1,33 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { NAV_ITEMS } from "./admin-nav";
+import { NAV_ITEMS, navItems, type NavId } from "./admin-nav";
 import { SECTION_ICONS } from "@/app/admin/_components/section-icons";
 
 /**
- * The rail and the palette draw the sections from ONE map now, and this is what
- * keeps it honest: an href in NAV_ITEMS with no icon beside it is the defect
- * that shipped when Screens was added — the palette fell through to its generic
- * section icon and two sections became the same picture, silently, past `tsc`
- * and past every other test in this suite.
+ * The rail and the palette draw the sections from ONE map, and this is what
+ * keeps it honest: an item with no icon beside it is the defect that shipped
+ * when Screens was added — the palette fell through to its generic section icon
+ * and two sections became the same picture, silently, past `tsc` and past every
+ * other test in this suite.
  *
- * A `Record<string, …>` cannot express "keyed by exactly the NAV_ITEMS hrefs"
- * in the type system, so it is expressed here instead.
+ * Keyed by `id` since the scope slice: Overview's href is per-plant, so an
+ * href-keyed map could not hold an icon for it and this test would have had to
+ * be weakened to let it through.
  */
 
-test("every section has an icon", () => {
-  for (const item of NAV_ITEMS) assert.ok(item.href in SECTION_ICONS, item.href);
+// Every id the rail can ever render — Overview included, which NAV_ITEMS alone
+// does not contain.
+const EVERY_ID = new Set([...NAV_ITEMS, ...navItems("any-plant")].map((i) => i.id));
+
+test("every rail item has an icon", () => {
+  for (const id of EVERY_ID) assert.ok(id in SECTION_ICONS, id);
 });
 
 test("and no icon outlives its section", () => {
-  // The other direction, which is the one that rots quietly: a section removed
-  // from the rail leaves an orphan here that nothing renders and nothing flags.
-  const hrefs = new Set(NAV_ITEMS.map((item) => item.href));
-  for (const href of Object.keys(SECTION_ICONS)) assert.ok(hrefs.has(href), href);
+  for (const id of Object.keys(SECTION_ICONS) as NavId[]) assert.ok(EVERY_ID.has(id), id);
 });
 
 test("no two sections draw the same icon", () => {
-  // The failure this file exists for was not a missing entry per se — it was two
-  // rows looking identical. Sameness is the thing to assert.
   const icons = Object.values(SECTION_ICONS);
   assert.equal(new Set(icons).size, icons.length);
 });
