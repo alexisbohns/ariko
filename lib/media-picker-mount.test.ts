@@ -33,8 +33,9 @@ test("the sprout media form server-renders no way to submit it", async () => {
   const React = await import("react");
   const { MediaPicker } = await import("@/components/admin/media-picker");
 
-  // The real shape from app/admin/sprout/[slug]/page.tsx: a hidden slug, and
-  // the picker carrying the form's only submit button.
+  // The real shape from app/admin/(chrome)/sprout/[slug]/page.tsx — now the
+  // Media panel on that page's rail: a hidden slug, and the picker carrying
+  // the form's only submit button.
   const html = await renderScriptOff(
     React.createElement(
       "form",
