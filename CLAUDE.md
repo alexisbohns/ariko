@@ -165,8 +165,8 @@ while quietly becoming false.
   it picks from: `lib/sprout-date.ts` rejects a date that is not `YYYY-MM-DD`,
   because one that is merely non-empty sorts the sprout to the bottom of every
   timeline the garden builds; `lib/sprout-type.ts` rejects surrounding
-  whitespace as well as blankness, because three places compare `type` with
-  `===` against a literal and none of them trims — `lib/sprout-edit.ts`'s
+  whitespace as well as blankness, because three places compare `type` against
+  a bare literal and none of them trims — `lib/sprout-edit.ts`'s
   digest exemption, `lib/synthesis.ts`'s digest skip and
   `lib/pbbls-legacy.ts`'s milestone match. A stored `"digest "` draws
   identically to `"digest"` everywhere and is exempt from none of the three, so
