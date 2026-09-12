@@ -30,6 +30,7 @@ import {
 import {
   Autocomplete,
   AutocompleteCollection,
+  AutocompleteContent,
   AutocompleteEmpty,
   AutocompleteGroup,
   AutocompleteInput,
@@ -159,13 +160,23 @@ export function PaletteAutocomplete({
   autoFocus = false,
   inputRef,
   onNavigate,
+  surface = "inline",
 }: {
   autoFocus?: boolean;
   inputRef?: RefObject<HTMLInputElement | null>;
   onNavigate?: () => void;
+  /** Which shell holds the list. `inline` is the ⌘K dialog, whose sheet is the
+   *  surface; `popover` is an ordinary field with the list in a popup under it.
+   *  The index, the rows and the fetch are the same in both — see the two
+   *  returns at the bottom of this component for the only difference. */
+  surface?: "inline" | "popover";
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  // Popover surface only: the inline one is open by definition. Held here
+  // rather than derived from `query` so Escape can close the list without
+  // clearing what was typed.
+  const [open, setOpen] = useState(false);
   // The sections are the starting index, built locally from NAV_ITEMS —
   // never fetched. That one line is what makes the palette impossible to open
   // onto nothing, whatever the network does.
@@ -227,48 +238,27 @@ export function PaletteAutocomplete({
 
   const groups = groupPaletteItems(items);
 
-  return (
-    // `inline` renders the list without the primitive's own popup — the shell
-    // IS the surface — and it requires `open` stated unconditionally so the
-    // list counts as visible.
-    <Autocomplete
-      inline
-      open
-      items={groups}
-      value={query}
-      onValueChange={setQuery}
-      itemToStringValue={(item: PaletteItem) => item.label}
-      autoHighlight="always"
-      limit={20}
-    >
-      <AutocompleteInput
-        ref={inputRef}
-        autoFocus={autoFocus}
-        aria-label="Search"
-        placeholder="Go to…"
-        className="w-full shrink-0 border-0 bg-transparent text-center font-heading text-3xl tracking-tight outline-none placeholder:text-muted-foreground/40 focus:outline-none"
-      />
+  // The list and everything that speaks for it. Identical in both surfaces —
+  // only what WRAPS it differs, which is the whole point of the split.
+  const body = (
+    <>
+      {/* Must stay mounted for screen readers to announce it, so the
+          CHILDREN are conditional, never the component. */}
+      <AutocompleteStatus>
+        {load === "error"
+          ? "Could not load the index."
+          : load === "loading" && !loaded.current
+            ? "Loading…"
+            : null}
+      </AutocompleteStatus>
 
-      {/* `border-t` and nothing else. Any padding here is padding the list
-          cannot use, and it shows as a band between the divider and the first
-          row. */}
-      <div className="flex min-h-0 flex-1 flex-col border-t">
-        {/* Must stay mounted for screen readers to announce it, so the
-            CHILDREN are conditional, never the component. */}
-        <AutocompleteStatus>
-          {load === "error"
-            ? "Could not load the index."
-            : load === "loading" && !loaded.current
-              ? "Loading…"
-              : null}
-        </AutocompleteStatus>
+      <AutocompleteEmpty>Nothing matches.</AutocompleteEmpty>
 
-        <AutocompleteEmpty>Nothing matches.</AutocompleteEmpty>
-
-        {/* No height cap: the list takes every pixel the input and the shell's
-            padding leave, and scrolls inside that. `min-h-0` is what lets it. */}
-        <AutocompleteList className="min-h-0 flex-1">
-          {(group: { value: string; items: PaletteItem[] }) => (
+      {/* No height cap here: the list takes every pixel its surface leaves and
+          scrolls inside that. `min-h-0` is what lets it. The dialog's surface
+          is the sheet; the popup's is `--available-height`. */}
+      <AutocompleteList className="min-h-0 flex-1">
+        {(group: { value: string; items: PaletteItem[] }) => (
             <AutocompleteGroup key={group.value} items={group.items}>
               <AutocompleteLabel>{group.value}</AutocompleteLabel>
               <AutocompleteCollection>
@@ -305,8 +295,77 @@ export function PaletteAutocomplete({
               </AutocompleteCollection>
             </AutocompleteGroup>
           )}
-        </AutocompleteList>
-      </div>
+      </AutocompleteList>
+    </>
+  );
+
+  // THE POPOVER SURFACE — the welcome page's. An ordinary field that stays an
+  // ordinary field until it has something to say: the list is a popup anchored
+  // under the input, and it opens on the first character rather than on focus
+  // or on click.
+  //
+  // That last part is the whole difference, and it is why `openOnInputClick` is
+  // off. An index that is already open when you arrive is not a search field,
+  // it is a menu that happens to have a text box on top — it reserves a screen
+  // of space for rows nobody asked for, and every keystroke re-lays it out
+  // under the caret.
+  if (surface === "popover") {
+    return (
+      <Autocomplete
+        items={groups}
+        value={query}
+        onValueChange={(next: string) => {
+          setQuery(next);
+          // Typing opens it; clearing the field closes it again, so a
+          // backspaced-to-empty search leaves the page as it found it.
+          setOpen(next.trim().length > 0);
+        }}
+        open={open}
+        onOpenChange={setOpen}
+        openOnInputClick={false}
+        itemToStringValue={(item: PaletteItem) => item.label}
+        autoHighlight="always"
+        limit={20}
+      >
+        <AutocompleteInput
+          ref={inputRef}
+          autoFocus={autoFocus}
+          aria-label="Search"
+          placeholder="Search the garden…"
+          className="h-12 w-full rounded-lg border bg-background px-4 text-base outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-ring focus:ring-[3px] focus:ring-ring/20"
+        />
+        <AutocompleteContent>{body}</AutocompleteContent>
+      </Autocomplete>
+    );
+  }
+
+  // THE INLINE SURFACE — the ⌘K dialog's. `inline` renders the list without the
+  // primitive's own popup, because the sheet IS the surface, and it requires
+  // `open` stated unconditionally so the list counts as visible. A popup inside
+  // a dialog would be a second floating layer over the first.
+  return (
+    <Autocomplete
+      inline
+      open
+      items={groups}
+      value={query}
+      onValueChange={setQuery}
+      itemToStringValue={(item: PaletteItem) => item.label}
+      autoHighlight="always"
+      limit={20}
+    >
+      <AutocompleteInput
+        ref={inputRef}
+        autoFocus={autoFocus}
+        aria-label="Search"
+        placeholder="Go to…"
+        className="w-full shrink-0 border-0 bg-transparent text-center font-heading text-3xl tracking-tight outline-none placeholder:text-muted-foreground/40 focus:outline-none"
+      />
+
+      {/* `border-t` and nothing else. Any padding here is padding the list
+          cannot use, and it shows as a band between the divider and the first
+          row. */}
+      <div className="flex min-h-0 flex-1 flex-col border-t">{body}</div>
     </Autocomplete>
   );
 }
