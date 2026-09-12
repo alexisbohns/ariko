@@ -1256,10 +1256,17 @@ export interface PlantRow {
   role: { kind: PlantRoleKind; label: string };
   status: PlantStatus;
   hasNarrative: boolean;
-  /** Which of the two tables the row belongs to. The table draws no column for
-   *  it — the heading above it is the column. */
-  visibility: Visibility;
 }
+```
+
+> **No `visibility` field.** An earlier draft put one here so the page could
+> partition on it. Review killed it: the table draws no column for it, so it was
+> the page's grouping key leaking into the draw contract, obliging every future
+> caller to supply a field the component ignores. **The welcome page groups the
+> plants BEFORE building rows** — `visibilityOf(plant)` decides which list a
+> plant joins, and each list is then mapped to `PlantRow`.
+
+```tsx
 
 /**
  * The root's plant table — rendered twice, once per visibility, which is why
