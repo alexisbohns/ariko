@@ -1,16 +1,21 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { unstable_rethrow } from "next/navigation";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
+import { CloudAlert, CloudCheck, LoaderCircle } from "lucide-react";
 import { normalizeEmptyListMarkers } from "@/lib/entity-markdown";
 import type { EntityOption } from "@/lib/entity-options";
 import { buildEditorExtensions, type MenuState } from "./editor-extensions";
 import { SuggestionMenu } from "./suggestion-menu";
 import { Button } from "@/components/ui/button";
+import { Chrome } from "@/components/chrome";
 import { uploadImageAction } from "@/app/admin/actions";
 import { checkUploadFile, ALLOWED_TYPES } from "@/lib/upload-input";
+
+/** See `onUpdate` — one serialization per burst of typing, not one per key. */
+const DIRTY_DEBOUNCE_MS = 200;
 
 export function ProseEditor({
   initialMarkdown,
@@ -18,6 +23,7 @@ export function ProseEditor({
   action,
   hidden,
   bare = false,
+  float = false,
 }: {
   initialMarkdown: string;
   entities: EntityOption[];
@@ -37,10 +43,44 @@ export function ProseEditor({
    * only content is a rectangle drawn around nothing.
    */
   bare?: boolean;
+  /**
+   * The commit as a floating cluster at the bottom of the viewport, instead of
+   * a row under the writing surface — for the one page where the editor IS the
+   * page (`/admin/sprout/[slug]`).
+   *
+   * Separate from `bare` on purpose. They happen to be set together there, but
+   * they are two decisions: `bare` is about the frame around the writing
+   * surface, this is about where the commit lives. The pod and bean pages reach
+   * this component through `ContentCard`, where both stay off and the inline
+   * row — with its "No changes to save" and "Could not save" lines — is
+   * unchanged.
+   *
+   * ONLY THE COMMIT FLOATS. The `@` / `/` hint and the `/image` command's
+   * progress and error lines stay in the document: they are about the caret's
+   * neighbourhood rather than about the document's state, and a fixed cluster
+   * at the bottom of the viewport is the wrong distance from the thing they
+   * describe.
+   */
+  float?: boolean;
 }) {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [pending, startTransition] = useTransition();
+  // What the button's resting state is a claim about.
+  //
+  // `onUpdate` fires on every keystroke, and `editor.getMarkdown()` serializes
+  // the whole document — so the comparison is DEBOUNCED rather than run per
+  // key. 200ms is short enough that the button has settled before the author
+  // looks at it and long enough that a burst of typing costs one serialization.
+  //
+  // Compared against `baselineRef` (the editor's own first serialization), not
+  // the stored `initialMarkdown` prop: those differ by normalization on
+  // essentially every real document — a blank line between adjacent entity
+  // cards, table cell padding, `&` -> `&amp;` — which is why comparing against
+  // the stored string never detects "unchanged" (spec §2.5). Undo back to the
+  // original therefore lands on clean, correctly.
+  const [dirty, setDirty] = useState(false);
   const [unchanged, setUnchanged] = useState(false);
+  const dirtyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Mirrors `menu` for the keydown handler, which runs outside React's render
   // and would otherwise close over a stale index.
@@ -146,8 +186,24 @@ export function ProseEditor({
     onCreate: ({ editor }) => {
       baselineRef.current = editor.getMarkdown();
     },
-    onUpdate: () => setUnchanged(false),
+    onUpdate: ({ editor }) => {
+      setUnchanged(false);
+      if (dirtyTimer.current) clearTimeout(dirtyTimer.current);
+      dirtyTimer.current = setTimeout(() => {
+        setDirty(baselineRef.current !== null && editor.getMarkdown() !== baselineRef.current);
+      }, DIRTY_DEBOUNCE_MS);
+    },
   });
+
+  // A pending comparison must not fire into an unmounted component: the author
+  // types and immediately navigates, and React would warn about a setState on
+  // a tree that is gone.
+  useEffect(
+    () => () => {
+      if (dirtyTimer.current) clearTimeout(dirtyTimer.current);
+    },
+    [],
+  );
 
   const save = (): void => {
     if (!editor) return;
@@ -158,9 +214,11 @@ export function ProseEditor({
       // scheduled bee writes these digests, and reading one must never
       // rewrite it (spec §2.5).
       setUnchanged(true);
+      setDirty(false);
       return;
     }
     setUnchanged(false);
+    setDirty(false);
     setError(null);
     const formData = new FormData();
     for (const [key, value] of Object.entries(hidden)) formData.set(key, value);
@@ -295,20 +353,49 @@ export function ProseEditor({
         for headings, lists, tables, images and reference cards. Select text to format it.
       </p>
 
-      <div className="flex items-center gap-3">
-        {/* Also disabled mid-upload: saving now would persist a document
-            missing the image that is seconds from being inserted, and the
-            author would have to notice and save again. */}
-        <Button type="button" onClick={save} disabled={pending || imageBusy || !editor}>
-          {pending ? "Saving…" : "Save content"}
-        </Button>
-        {unchanged ? (
-          <span className="self-center text-xs text-muted-foreground">No changes to save</span>
-        ) : null}
-        {error ? (
-          <span className="self-center text-xs text-destructive">Could not save: {error}</span>
-        ) : null}
-      </div>
+      {/* Disabled mid-upload in both shapes: saving now would persist a
+          document missing the image that is seconds from being inserted, and
+          the author would have to notice and save again. */}
+      {float ? (
+        <Chrome magnet="bottom-center" content>
+          <Button
+            type="button"
+            onClick={save}
+            disabled={pending || imageBusy || !editor || (!dirty && !error)}
+            variant={error ? "destructive" : dirty ? "default" : "ghost"}
+            size="sm"
+            className={error || dirty ? undefined : "text-muted-foreground"}
+          >
+            {pending ? (
+              <>
+                <LoaderCircle className="animate-spin" /> Saving…
+              </>
+            ) : error ? (
+              <>
+                <CloudAlert /> Couldn&rsquo;t save — {error}
+              </>
+            ) : dirty ? (
+              "Save"
+            ) : (
+              <>
+                <CloudCheck /> Up to date
+              </>
+            )}
+          </Button>
+        </Chrome>
+      ) : (
+        <div className="flex items-center gap-3">
+          <Button type="button" onClick={save} disabled={pending || imageBusy || !editor}>
+            {pending ? "Saving…" : "Save content"}
+          </Button>
+          {unchanged ? (
+            <span className="self-center text-xs text-muted-foreground">No changes to save</span>
+          ) : null}
+          {error ? (
+            <span className="self-center text-xs text-destructive">Could not save: {error}</span>
+          ) : null}
+        </div>
+      )}
 
       <SuggestionMenu
         items={menu?.items ?? []}
