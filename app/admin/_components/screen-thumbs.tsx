@@ -1,6 +1,6 @@
 import { cloudinaryFit } from "@/lib/image-url";
 
-export interface StripItem {
+export interface ThumbItem {
   slug: string;
   name: string;
   url: string;
@@ -18,14 +18,18 @@ export interface StripItem {
  * an ordinary navigation into the library — which is right, because the hub is
  * not a place to edit screens.
  *
- * **There is a second `ScreenStrip`, and it is not this one.**
+ * **Thumbs, not a strip, and the name is the whole point.**
  * `components/screen-strip.tsx` is the PUBLIC plant page's exhibition — a
  * full-bleed rank of phone frames, one per EXHIBITED screen, each anchored to
- * the full Cloudinary image. This one is a fixed grid of four, over EVERY
- * screen the plant has, each anchored into the admin library. Different set,
- * different destination, different shape: the shared-surfaces rule asks that
- * two surfaces drawing the same thing draw it from one file, and these two
- * draw different things. Import by path, not by memory of the name.
+ * the full Cloudinary image, which is what a visitor scrolls sideways through
+ * and is what "strip" describes. This is a fixed grid of four thumbnails over
+ * EVERY screen the plant has, each anchored into the admin library. Different
+ * set, different destination, different shape — the shared-surfaces rule asks
+ * that two surfaces drawing the same THING draw it from one file, and these
+ * two draw different things. They were briefly both called `ScreenStrip`, in
+ * two files both called `screen-strip.tsx`, which is the state this name
+ * exists to end: in a repo whose organising rule is one definition per thing,
+ * one name for two things is the same mistake read backwards.
  *
  * `alt` arrives from the caller rather than being derived here, and an empty
  * string is a legitimate value: the anchor around the image carries the
@@ -33,7 +37,7 @@ export interface StripItem {
  * still reaches a screen reader as a link that says what it opens, without
  * this component inventing a description of a picture it cannot see.
  */
-export function ScreenStrip({ items }: { items: StripItem[] }) {
+export function ScreenThumbs({ items }: { items: ThumbItem[] }) {
   return (
     <ul className="grid grid-cols-4 gap-3">
       {items.map((item) => (

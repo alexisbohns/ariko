@@ -22,7 +22,7 @@ import { PreviewPanel } from "../../_components/preview-panel";
 import { PodTable, type PodRow } from "../../_components/pod-table";
 import { BeanTable, type BeanRow } from "../../_components/bean-table";
 import { SproutTable } from "../../_components/sprout-table";
-import { ScreenStrip, type StripItem } from "../../_components/screen-strip";
+import { ScreenThumbs, type ThumbItem } from "../../_components/screen-thumbs";
 import { ProseEditor } from "@/components/editor/prose-editor";
 import { roleParts } from "@/lib/plant-role";
 import { statusOf } from "@/lib/plant-status";
@@ -52,7 +52,7 @@ const PREVIEW_SCREENS = 4;
  * a plant, then its screens. The three tiers are drawn by the very component
  * their section draws (`PodTable`, `BeanTable`, `SproutTable`) with a row
  * limit and no plant column, since this page is already inside a plant; the
- * screens are `ScreenStrip`, which is NOT the library's tiles, for the reason
+ * screens are `ScreenThumbs`, which is NOT the library's tiles, for the reason
  * that file gives. Each heading carries the FULL count and links into
  * its section pre-filtered by `?plant=`, so the preview is an entry point and
  * never a second, shorter truth: the page shows five and says how many there
@@ -128,7 +128,7 @@ export default async function AdminPlantPage({
     url: s.image.url,
     alt: s.image.alt ?? "",
   }));
-  const stripItems: StripItem[] = plantScreens.slice(0, PREVIEW_SCREENS).map((s) => ({
+  const thumbItems: ThumbItem[] = plantScreens.slice(0, PREVIEW_SCREENS).map((s) => ({
     slug: s.slug,
     name: resolveText(s.name),
     url: s.image.url,
@@ -250,12 +250,21 @@ export default async function AdminPlantPage({
             <SproutTable entries={sprouts} limit={PREVIEW_ROWS} showPlant={false} />
           </PreviewPanel>
 
+          {/* The one preview whose count and whose section can disagree:
+              `plantScreens` above matches ANY plant parent, while
+              `/admin/screens?plant=` narrows on the FIRST one (`screenRows` in
+              lib/screens.ts). So a screen parented to two plants is counted on
+              both hubs and listed under only one, and `all n →` would land on
+              fewer rows than the heading promised. No screen in the garden has
+              two plant parents today, and the create form cannot make one — if
+              that ever changes, the two sides have to be made to agree here
+              and there, not papered over on one side. */}
           <PreviewPanel
             title="Screens"
             count={plantScreens.length}
             allHref={`/admin/screens${scopeQuery}`}
           >
-            <ScreenStrip items={stripItems} />
+            <ScreenThumbs items={thumbItems} />
           </PreviewPanel>
         </div>
       </article>
