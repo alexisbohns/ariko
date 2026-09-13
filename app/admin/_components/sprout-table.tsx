@@ -59,16 +59,19 @@ export function SproutTable({
         {shown.map((e) => (
           <TableRow key={e.sprout.slug}>
             <TableCell>
-              {e.bean ? (
-                <a
-                  href={`/admin/bean/${encodeURIComponent(e.bean.slug)}`}
-                  className="underline-offset-4 transition-colors hover:underline"
-                >
-                  {resolveText(e.sprout.name)}
-                </a>
-              ) : (
-                resolveText(e.sprout.name)
-              )}
+              {/* The sprout's name goes to the sprout, not to its bean. A row
+                  whose name linked to the parent was a fossil from before
+                  `/admin/sprout/[slug]` existed, and it left the sprout page
+                  reachable only from the palette and the bean's version list.
+                  A sprout always has its own slug, so there is no case here
+                  where the name is not a link — the bean column is still the
+                  way to the bean. */}
+              <a
+                href={`/admin/sprout/${encodeURIComponent(e.sprout.slug)}`}
+                className="underline-offset-4 transition-colors hover:underline"
+              >
+                {resolveText(e.sprout.name)}
+              </a>
             </TableCell>
             <TableCell>
               {/* The glyph, not a word — and the same map the sprout's own head
