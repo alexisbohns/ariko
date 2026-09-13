@@ -208,11 +208,20 @@ export function BeanHero({
               {/* Keyword and tags. NOT enums — there is no vocabulary to draw as
                   radios — so each is one field and a plain Save. What the author
                   typed is on screen, which is the confirmation the radios
-                  otherwise have to manufacture. */}
+                  otherwise have to manufacture.
+
+                  Neither is handed an `error`, unlike the visibility trigger
+                  above, and that is the absence of a rejection rather than an
+                  unhandled one: a blank keyword is a cover with no word on it
+                  and a blank tag list is an untagged bean, so both actions
+                  CLEAR rather than throw and neither can redirect with
+                  `?form=`. Wiring a message into a surface no message can reach
+                  would read as a live rule while being unreachable. If either
+                  field ever grows a validation, this is the line to change and
+                  `Surface` already has the member for it. */}
               <FactPopover
                 open={open === "keyword"}
                 onOpenChange={(next) => surface(next ? "keyword" : null)}
-                error={errorForm === "keyword" ? error : undefined}
                 label={labels.keyword}
                 icon={MessageSquareQuote}
               >
@@ -222,7 +231,6 @@ export function BeanHero({
               <FactPopover
                 open={open === "tags"}
                 onOpenChange={(next) => surface(next ? "tags" : null)}
-                error={errorForm === "tags" ? error : undefined}
                 label={labels.tags}
                 icon={Tags}
               >
