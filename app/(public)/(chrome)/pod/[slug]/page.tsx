@@ -4,6 +4,8 @@ import { currentLang } from "@/lib/locale-server";
 import { getPublicDataset } from "@/lib/garden-cache";
 import { resolveEntity } from "@/lib/entity-resolve";
 import { Prose } from "@/components/markdown";
+import { resolveLineage, PUBLIC_HREFS } from "@/lib/lineage";
+import { LineageChrome } from "@/components/lineage-chrome";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +19,19 @@ export default async function PodPage({ params }: { params: Promise<{ slug: stri
 
   const beans = data.beansForPod(slug);
 
+  // From the FILTERED dataset, so a private plant is simply absent from the
+  // trail — resolveLineage drops a ref it cannot resolve, which is the privacy
+  // projection doing the work rather than a second check here.
+  const lineage = resolveLineage(
+    pod.parents,
+    { plants: data.getPlants() },
+    { lang, hrefs: PUBLIC_HREFS },
+  );
+
   return (
-    <article className="flex flex-col gap-8">
+    <>
+      <LineageChrome lineage={lineage} />
+      <article className="flex flex-col gap-8">
       <header className="flex flex-col gap-2">
         <h1 className="font-heading text-2xl font-medium tracking-tight">{resolveText(pod.name, lang)}</h1>
         {resolveText(pod.description ?? "", lang).trim() ? (
@@ -51,6 +64,7 @@ export default async function PodPage({ params }: { params: Promise<{ slug: stri
           </ul>
         </nav>
       ) : null}
-    </article>
+      </article>
+    </>
   );
 }
