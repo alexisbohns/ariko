@@ -23,6 +23,7 @@ import type { ContentPatch } from "./content-edit";
 import { plantMetaUpdate, type PlantMetaPatch } from "./plant-meta";
 import { screenMetaUpdate, type ScreenMetaPatch } from "./screen-edit";
 import type { ExhibitionWrites } from "./exhibition";
+import type { BeanMetaPatch } from "./bean-meta";
 
 // Thrown when a create hits the unique slug index. Lets the server action turn a
 // collision into a friendly message instead of a 500.
@@ -511,10 +512,14 @@ export async function updatePlantLogo(slug: string, logo: MediaImage | null): Pr
  * same five-line `$set`/`$unset` shape rather than sharing a helper, because a
  * helper generic over both document type and field key would land back at a
  * cast to escape it — and each copy naming its one field
- * literally is what makes a typo visible on sight. If a FOURTH copy of this
- * shape appears, the move is `lib/plant-meta.ts`'s: extract a pure, tested
- * update-doc builder, which is what that file did after a duplicate-`$set` bug
- * shipped silently (see `plantMetaUpdate`'s comment).
+ * literally is what makes a typo visible on sight. A fourth copy DID appear —
+ * `updateBeanTags`, in the bean-edition slice — and it stayed a copy. The
+ * extraction this paragraph used to prescribe is the one the paragraph above
+ * argues against for exactly this shape: generic over document type and field
+ * key means a cast, and the cast silences the value-type checking that is the
+ * whole reason these five lines are written out. The rule that survives is the
+ * narrower one: extract when a builder can be typed WITHOUT a cast, as
+ * `plantMetaUpdate` and `beanMetaUpdate` are.
  *
  * No `as UpdateFilter<Bean>` cast here, unlike `updatePlantLogo` above:
  * `plantMetaUpdate`'s cast earns its keep because that function returns
@@ -545,6 +550,79 @@ export async function updateBeanKeyword(slug: string, keyword: Text | null): Pro
     .updateOne({ slug }, keyword === null
       ? { $unset: { keyword: "" } }
       : { $set: { keyword } });
+}
+
+/**
+ * Pure. A bean's meta patch to the update document.
+ *
+ * Extracted rather than composed inline for `plantMetaUpdate`'s reason, which is
+ * a bug that actually shipped: a spread over a conditional produced TWO `$set`
+ * keys, the second silently winning, and two of three fields never reached the
+ * database. A second two-field writer must not re-earn that.
+ *
+ * A null description is an `$unset`, not a stored `""`: the meta sheet must be
+ * able to REMOVE a description, and an empty string renders as a dangling line
+ * wherever the bean is listed.
+ */
+export function beanMetaUpdate(patch: BeanMetaPatch): Record<string, unknown> {
+  return patch.description === null
+    ? { $set: { name: patch.name }, $unset: { description: "" } }
+    : { $set: { name: patch.name, description: patch.description } };
+}
+
+/**
+ * A bean's name and description — and nothing else.
+ *
+ * A SIBLING of `updatePlantMeta`. The fields are named explicitly rather than
+ * spread, so a later, widened caller cannot reach `visibility`, `cover`,
+ * `keyword`, `tags` or `parents` from a form that has no business touching them.
+ * `slug` is not among them either — it is what every sprout's `parents[]` points
+ * at.
+ */
+export async function updateBeanMeta(slug: string, patch: BeanMetaPatch): Promise<void> {
+  const db = await getDb();
+  await db
+    .collection<Bean>("beans")
+    .updateOne({ slug }, beanMetaUpdate(patch) as UpdateFilter<Bean>);
+}
+
+/**
+ * Writes a bean's visibility — and nothing else.
+ *
+ * NO CASCADE, in either direction, and that is `updatePlantVisibility`'s
+ * argument one tier down. Downward privacy is a READ-time projection —
+ * `filterPublic` drops a private bean's sprouts with it — so going private needs
+ * no write beneath. And going public must not silently republish sprouts that
+ * were held back on their own terms: a sprout's `state` is the thing that
+ * cascades UPWARD, and this flip must not be able to run that machinery
+ * backwards.
+ */
+export async function updateBeanVisibility(slug: string, visibility: Visibility): Promise<void> {
+  const db = await getDb();
+  await db.collection<Bean>("beans").updateOne({ slug }, { $set: { visibility } });
+}
+
+/**
+ * Writes a bean's tags — and nothing else. An empty list CLEARS.
+ *
+ * The FOURTH copy of the one-field `$set`/`$unset` shape (`updatePlantLogo`,
+ * `updateBeanCover`, `updateBeanKeyword`), and `updateBeanCover`'s docblock said
+ * a fourth should trigger an extraction. It stays a copy, and that docblock now
+ * records why: the same paragraph already argues that a helper generic over both
+ * document type and field key lands back at an `as UpdateFilter<T>` cast, and
+ * that cast silences `$set`'s value-type checking. `plantMetaUpdate`'s
+ * extraction was worth its cast because it fixed a bug that had shipped;
+ * extracting THIS one would introduce the class of bug five literal lines
+ * currently make impossible.
+ *
+ * `$unset` rather than a stored `[]`, so an absent tag list has ONE
+ * representation and every reader only has to handle `tags === undefined`.
+ */
+export async function updateBeanTags(slug: string, tags: string[]): Promise<void> {
+  const db = await getDb();
+  await db
+    .collection<Bean>("beans")
+    .updateOne({ slug }, tags.length === 0 ? { $unset: { tags: "" } } : { $set: { tags } });
 }
 
 /**
