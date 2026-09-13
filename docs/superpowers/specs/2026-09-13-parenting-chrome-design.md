@@ -38,13 +38,17 @@ export interface LineageTier {
 }
 export type Lineage = LineageTier[]; // outermost first
 
-export function resolveLineage(raw: RawGarden, ref: string): Lineage;
+export function resolveLineage(parents, garden, { lang, hrefs }): Lineage;
 ```
 
-`ref` is the prefixed-ref grammar the rest of the repo already speaks
-(`sprout:x`, `bean:x`, `pod:x`, `screen:x`). The climb uses
-`parentsWithPrefix`, exactly as `publishCascade` does, and **drops dangling
-refs** exactly as `publishCascade` and `filterPublic` drop them.
+It takes the entity's own `parents` array rather than a ref, because every page
+already holds the entity, and a lookup-by-ref would need a
+`getScreen`/`getSprout` the public `Dataset` does not offer. `hrefs` is a
+parameter because the two zones spell the same entity's address differently.
+
+The climb uses `parentsWithPrefix`, exactly as `publishCascade` does, and
+**drops dangling refs** exactly as `publishCascade` and `filterPublic` drop
+them.
 
 A tier with zero entries is **omitted from the array**, never rendered empty. A
 bean that hangs directly off a plant has no pod tier, and an absent item is a
