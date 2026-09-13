@@ -20,10 +20,50 @@ import { MAX_CONTENT_BYTES } from "./content-edit";
  */
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-/** `slug` at `where`, checked for kebab-case; "" is reported as missing. */
-function checkSlug(slug: string, where: string): string | null {
-  if (!slug) return `${where}.slug is required`;
-  if (!SLUG.test(slug)) return `${where}.slug must be kebab-case (got "${slug}")`;
+/**
+ * `slug` at `where`, checked for kebab-case; a genuinely absent value is
+ * reported as missing, and a present-but-wrong-typed one (an unquoted YAML
+ * number, say) is reported with what was actually there — an author staring
+ * at `slug: 123` and reading "is required" would not believe the message.
+ */
+function checkSlug(raw: unknown, where: string): string | null {
+  if (raw === undefined || raw === "") return `${where}.slug is required`;
+  if (typeof raw !== "string") {
+    return `${where}.slug must be a string (got ${JSON.stringify(raw)})`;
+  }
+  if (!SLUG.test(raw)) return `${where}.slug must be kebab-case (got "${raw}")`;
+  return null;
+}
+
+/**
+ * Keys the PLANTING flow may never write, because each one belongs to a
+ * decision the manifest cannot make on the author's behalf.
+ *
+ * `visibility`, `state`, `exhibited` and `order` are the PUBLISHING decision,
+ * which the Ariko admin deliberately gates behind picking a named member of a
+ * vocabulary and a Save button (see CLAUDE.md's "no enum writes on the click
+ * that opens it"). A manifest key that appeared to publish and silently did
+ * not would be worse than a refusal: the author believes the thing is live,
+ * and nothing anywhere looks wrong.
+ *
+ * `relations` is DERIVED, never authored — `lib/articles-store.ts` mirrors it
+ * from the body's entity refs (`mergeMirrored(undefined, extractRefs(...))`),
+ * and planting will do the same; a manifest value here would just be
+ * overwritten or drift from what the body actually references.
+ *
+ * `parents` is containment, and re-homing an entity across pods/plants is a
+ * privacy-cascade decision that belongs to the admin, not a text file. The
+ * only parentage a manifest states is `pod.plant`, at creation.
+ */
+const FORBIDDEN_KEYS = ["visibility", "state", "exhibited", "order", "relations", "parents"] as const;
+
+/** The first forbidden key present on `raw`, as a full "`${where}.key`" error, or null. */
+function checkForbiddenKeys(raw: Record<string, unknown>, where: string): string | null {
+  for (const key of FORBIDDEN_KEYS) {
+    if (raw[key] !== undefined) {
+      return `${where}.${key} is not allowed in a manifest`;
+    }
+  }
   return null;
 }
 
@@ -115,8 +155,11 @@ function buildPod(raw: Record<string, unknown>): PodResult {
   const description = readText(raw.description, "pod.description");
   if (!description.ok) return { ok: false, error: description.error };
 
-  const slugError = checkSlug(str(raw.slug), "pod");
+  const slugError = checkSlug(raw.slug, "pod");
   if (slugError) return { ok: false, error: slugError };
+
+  const forbiddenError = checkForbiddenKeys(raw, "pod");
+  if (forbiddenError) return { ok: false, error: forbiddenError };
 
   const pod: ManifestPod = {
     slug: str(raw.slug),
@@ -142,8 +185,11 @@ function buildSprout(raw: Record<string, unknown>, where: string): SproutResult 
   const description = readText(raw.description, `${where}.description`);
   if (!description.ok) return { ok: false, error: description.error };
 
-  const slugError = checkSlug(str(raw.slug), where);
+  const slugError = checkSlug(raw.slug, where);
   if (slugError) return { ok: false, error: slugError };
+
+  const forbiddenError = checkForbiddenKeys(raw, where);
+  if (forbiddenError) return { ok: false, error: forbiddenError };
 
   const type = str(raw.type);
   if (!isSproutType(type)) {
@@ -181,8 +227,23 @@ function buildBean(raw: Record<string, unknown>, where: string): BeanResult {
   const description = readText(raw.description, `${where}.description`);
   if (!description.ok) return { ok: false, error: description.error };
 
-  const slugError = checkSlug(str(raw.slug), where);
+  const slugError = checkSlug(raw.slug, where);
   if (slugError) return { ok: false, error: slugError };
+
+  const forbiddenError = checkForbiddenKeys(raw, where);
+  if (forbiddenError) return { ok: false, error: forbiddenError };
+
+  // A `Bean` has no `content` field at all — only `Pod` and `Plant` carry
+  // narrative markdown (see the `Bean` and `Pod` interfaces in lib/data.ts).
+  // A bean's prose belongs in a SPROUT hanging from it. Without this check
+  // the key would parse, write nothing, and lose the author's prose in
+  // silence — the mistake this message exists to head off.
+  if (raw.content !== undefined) {
+    return {
+      ok: false,
+      error: `${where}.content: a bean has no content field — put this in one of its sprouts instead`,
+    };
+  }
 
   const sproutsRaw = raw.sprouts ?? [];
   if (!Array.isArray(sproutsRaw)) return { ok: false, error: `${where}.sprouts must be a list` };

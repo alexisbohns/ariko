@@ -199,3 +199,189 @@ beans: []
   assert.match(result.error, /pod\.content\.en/);
   assert.match(result.error, /64 KiB/);
 });
+
+test("rejects an oversized fr content, not just en", () => {
+  const big = "a".repeat(64 * 1024 + 1);
+  const result = parseManifest(`
+pod:
+  slug: krabs
+  name: { en: Krabs }
+  plant: null
+  description: { en: A small ledger. }
+  content: { en: "Fine.", fr: "${big}" }
+beans: []
+`);
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /pod\.content\.fr/);
+  assert.match(result.error, /64 KiB/);
+});
+
+test("rejects a missing slug distinctly from checkSlug's empty branch", () => {
+  const result = parseManifest(`
+pod:
+  slug: ""
+  name: { en: Krabs }
+  plant: null
+  description: { en: A small ledger. }
+beans: []
+`);
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /pod\.slug is required/);
+});
+
+test("a non-string slug reports what was actually there, not 'required'", () => {
+  const result = parseManifest(`
+pod:
+  slug: 123
+  name: { en: Krabs }
+  plant: null
+  description: { en: A small ledger. }
+beans: []
+`);
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.doesNotMatch(result.error, /is required/);
+  assert.match(result.error, /pod\.slug/);
+  assert.match(result.error, /123/);
+});
+
+test("rejects a duplicate slug between two beans", () => {
+  const result = parseManifest(`
+pod:
+  slug: krabs
+  name: { en: Krabs }
+  plant: null
+  description: { en: A small ledger. }
+beans:
+  - slug: same-slug
+    name: { en: First }
+    description: { en: A bean. }
+    sprouts: []
+  - slug: same-slug
+    name: { en: Second }
+    description: { en: Another bean. }
+    sprouts: []
+`);
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /duplicate slug "same-slug"/);
+  assert.match(result.error, /beans\[1\]/);
+});
+
+test("rejects a duplicate slug between two sprouts in different beans", () => {
+  const result = parseManifest(`
+pod:
+  slug: krabs
+  name: { en: Krabs }
+  plant: null
+  description: { en: A small ledger. }
+beans:
+  - slug: bean-one
+    name: { en: First }
+    description: { en: A bean. }
+    sprouts:
+      - slug: same-sprout
+        type: note
+        date: 2026-09-13
+        name: { en: One }
+        description: { en: First sprout. }
+  - slug: bean-two
+    name: { en: Second }
+    description: { en: Another bean. }
+    sprouts:
+      - slug: same-sprout
+        type: note
+        date: 2026-09-13
+        name: { en: Two }
+        description: { en: Second sprout. }
+`);
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /duplicate slug "same-sprout"/);
+  assert.match(result.error, /beans\[1\]\.sprouts\[0\]/);
+});
+
+const FORBIDDEN_KEYS = ["visibility", "state", "exhibited", "order", "relations", "parents"];
+
+for (const key of FORBIDDEN_KEYS) {
+  test(`rejects "${key}" on a pod`, () => {
+    const result = parseManifest(`
+pod:
+  slug: krabs
+  name: { en: Krabs }
+  plant: null
+  description: { en: A small ledger. }
+  ${key}: true
+beans: []
+`);
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, new RegExp(`pod\\.${key}`));
+  });
+
+  test(`rejects "${key}" on a bean`, () => {
+    const result = parseManifest(`
+pod:
+  slug: krabs
+  name: { en: Krabs }
+  plant: null
+  description: { en: A small ledger. }
+beans:
+  - slug: ledger
+    name: { en: Ledger }
+    description: { en: The ledger bean. }
+    sprouts: []
+    ${key}: true
+`);
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, new RegExp(`beans\\[0\\]\\.${key}`));
+  });
+
+  test(`rejects "${key}" on a sprout`, () => {
+    const result = parseManifest(`
+pod:
+  slug: krabs
+  name: { en: Krabs }
+  plant: null
+  description: { en: A small ledger. }
+beans:
+  - slug: ledger
+    name: { en: Ledger }
+    description: { en: The ledger bean. }
+    sprouts:
+      - slug: first-entry
+        type: note
+        date: 2026-09-13
+        name: { en: First entry }
+        description: { en: The first entry. }
+        ${key}: true
+`);
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, new RegExp(`beans\\[0\\]\\.sprouts\\[0\\]\\.${key}`));
+  });
+}
+
+test("rejects content on a bean, naming the field and pointing at a sprout", () => {
+  const result = parseManifest(`
+pod:
+  slug: krabs
+  name: { en: Krabs }
+  plant: null
+  description: { en: A small ledger. }
+beans:
+  - slug: ledger
+    name: { en: Ledger }
+    description: { en: The ledger bean. }
+    sprouts: []
+    content: { en: This should not be here. }
+`);
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /beans\[0\]\.content/);
+  assert.match(result.error, /has no content/i);
+  assert.match(result.error, /sprout/i);
+});
