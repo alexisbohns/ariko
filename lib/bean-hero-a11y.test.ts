@@ -133,3 +133,41 @@ test("the meta form is rendered from the prop, never composed here", () => {
     );
   }
 });
+
+const PAGE = "app/admin/(chrome)/bean/[id]/page.tsx";
+
+test("the keyword survives as two fields, prefilled STRICTLY", () => {
+  // The replacement for a test that lived in lib/media-picker-mount.test.ts
+  // until `bean-keyword-form.tsx` was deleted and the keyword moved into this
+  // head. The property it pinned has not moved: an fr-only bean must leave the
+  // EN box empty, because resolveText's fallback would copy "Karma" into it and
+  // save it back as the en value — the exact corruption plant-meta-form.tsx
+  // warns against and textPart avoids.
+  //
+  // A SOURCE check rather than a render, and not by preference: the keyword
+  // fields live inside a Base UI popover, which is PORTALLED, so they
+  // contribute zero bytes to renderToStaticMarkup in either state. The wiring
+  // is a fact about the two files as written, which is what a render cannot
+  // see — lib/exhibition-panel-source.test.ts makes the same move for the same
+  // reason.
+  const hero = readFileSync(join(process.cwd(), HERO), "utf8");
+  assert.match(hero, /name="keyword"/, "the en keyword field must be present");
+  assert.match(hero, /name="keywordFr"/, "the fr keyword field must be present");
+
+  // And the page must fill them from textPart, never resolveText.
+  const page = readFileSync(join(process.cwd(), PAGE), "utf8");
+  assert.match(
+    page,
+    /keywordEn=\{textPart\(bean\.keyword, "en"\)\}/,
+    "the en half must be prefilled with STRICT textPart",
+  );
+  assert.match(
+    page,
+    /keywordFr=\{textPart\(bean\.keyword, "fr"\)\}/,
+    "the fr half must be prefilled with STRICT textPart",
+  );
+  assert.ok(
+    !/keyword(En|Fr)=\{resolveText\(/.test(page),
+    "resolveText on a keyword half would copy fr into the en box and save it back as en",
+  );
+});
