@@ -385,3 +385,37 @@ beans:
   assert.match(result.error, /has no content/i);
   assert.match(result.error, /sprout/i);
 });
+
+// Every other `content` test here asserts a REJECTION, which left the two
+// success branches (`pod.content = content.text` and the sprout's equivalent)
+// unexercised: deleting either assignment would drop every narrative the
+// manifest carries and keep all 34 tests green, while planting printed the same
+// plan and wrote a pod and a sprout with no prose in them.
+test("a valid bilingual content lands on both the pod and the sprout", () => {
+  const result = parseManifest(`
+pod:
+  slug: krabs
+  name: { en: Krabs, fr: Krabs }
+  plant: null
+  description: { en: A small ledger., fr: Un petit registre. }
+  content: { en: "# Pod body", fr: "# Corps du pod" }
+beans:
+  - slug: ledger
+    name: { en: Ledger, fr: Registre }
+    description: { en: The ledger bean., fr: Le haricot registre. }
+    sprouts:
+      - slug: first-entry
+        type: note
+        date: "2026-01-01"
+        name: { en: First entry, fr: Première entrée }
+        description: { en: The first entry., fr: La première entrée. }
+        content: { en: "Sprout body", fr: "Corps du sprout" }
+`);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(result.manifest.pod.content, { en: "# Pod body", fr: "# Corps du pod" });
+  assert.deepEqual(result.manifest.beans[0].sprouts[0].content, {
+    en: "Sprout body",
+    fr: "Corps du sprout",
+  });
+});

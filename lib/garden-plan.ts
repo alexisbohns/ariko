@@ -29,15 +29,25 @@ import type { GardenManifest, ManifestPod, ManifestBean, ManifestSprout } from "
 export type Tier = "pod" | "bean" | "sprout";
 export type Verb = "create" | "skip" | "update";
 
-export interface PlanAction {
-  action: Verb;
-  tier: Tier;
-  slug: string;
-  /** The manifest entry this action is for; the applier reads it. */
-  entry: ManifestPod | ManifestBean | ManifestSprout;
-  /** The bean a sprout hangs from / the pod a bean hangs from. Absent on the pod. */
-  parentSlug?: string;
-}
+/**
+ * A DISCRIMINATED UNION, not one flat interface with a `tier` beside a widened
+ * `entry`. The flat shape typechecked and told the compiler nothing: `tier` and
+ * `entry` were independent, so `switch (action.tier)` narrowed neither, and the
+ * applier had to reach for `action.entry as ManifestBean` — an assertion `tsc`
+ * cannot check, which would keep compiling on the day a builder emitted
+ * `tier: "bean"` beside a sprout entry and would hand `createBean` a sprout's
+ * fields at the write.
+ *
+ * `parentSlug` gets the same treatment: REQUIRED on a bean and a sprout,
+ * ABSENT on the pod. Optional-everywhere is what forced `parentSlug ?? null`
+ * into `createBean`'s call, and that fallback is a nullable parentage written
+ * into the database — a bean silently hanging from no pod, which the read path
+ * tolerates by simply never listing it (see this file's ORDER note).
+ */
+export type PlanAction =
+  | { action: Verb; tier: "pod"; slug: string; entry: ManifestPod }
+  | { action: Verb; tier: "bean"; slug: string; entry: ManifestBean; parentSlug: string }
+  | { action: Verb; tier: "sprout"; slug: string; entry: ManifestSprout; parentSlug: string };
 
 export interface GardenSlugs {
   pods: Pod[];
@@ -93,7 +103,13 @@ export function planGarden(manifest: GardenManifest, garden: GardenSlugs, opts: 
 const INDENT: Record<Tier, string> = { pod: "", bean: "  ", sprout: "    " };
 
 export function renderPlan(actions: PlanAction[]): string {
-  const lines = actions.map((a) => `${INDENT[a.tier]}${a.action} ${a.tier} ${a.slug}`);
+  // The verb is padded to a fixed width so the tier and slug form COLUMNS. A
+  // human reads this output to decide whether to authorise a write to the real
+  // garden, and `create`/`skip`/`update` differ in width — unpadded, every
+  // line's tier starts at a different offset and a stray `update` in a wall of
+  // `skip`s has nothing to stand out against. Legibility is the safety property
+  // a plan exists for.
+  const lines = actions.map((a) => `${INDENT[a.tier]}${a.action.padEnd(6)} ${a.tier} ${a.slug}`);
 
   const creates = actions.filter((a) => a.action === "create").length;
   const updates = actions.filter((a) => a.action === "update").length;

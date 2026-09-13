@@ -306,9 +306,23 @@ function buildManifest(doc: unknown): ParseResult {
 }
 
 /**
- * Pod, beans and sprouts share ONE slug namespace here: each becomes a unique
- * slug in Mongo, so a pod and a bean sharing a slug is not a naming quirk
- * but a collision at the write.
+ * Pod, beans and sprouts share ONE slug namespace here — an AUTHORING guard,
+ * not a database constraint. Mongo would accept it: `ensureBotanicalIndexes`
+ * (`lib/botanical.ts`) creates a SEPARATE unique `{ slug: 1 }` index on each of
+ * `pods`, `beans` and `sprouts`, so a pod `krabs` and a bean `krabs` insert
+ * side by side and collide with nothing. Nothing downstream is ambiguous
+ * either: every entity ref is tier-prefixed and `resolveEntity`
+ * (`lib/entity-resolve.ts`) dispatches on that prefix, and the routes are
+ * distinct (`/pod/[slug]`, `/bean/[id]`).
+ *
+ * It is refused because the confusion is the AUTHOR's, and it is expensive
+ * where it lands: a manifest is prose plus refs, and a human — or an agent —
+ * writing `pod:krabs` in a body while a bean named `krabs` sits three lines
+ * below has no way to see which one they meant, and the resulting card points
+ * at a real, wrong entity rather than rendering nothing. One slug namespace per
+ * file makes every bare mention of a name unambiguous to read. The cost of the
+ * rule is a rename in a text file before anything is written; the cost of not
+ * having it is a wrong link nothing anywhere reports.
  */
 function findDuplicateSlug(pod: ManifestPod, beans: ManifestBean[]): string | null {
   const seen = new Map<string, string>();

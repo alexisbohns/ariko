@@ -34,7 +34,6 @@ import { extractRefs, mergeMirrored } from "./entity-refs";
 import type { Relation, Text } from "./data";
 import type { ContentPatch } from "./content-edit";
 import type { GardenSlugs, PlanAction } from "./garden-plan";
-import type { ManifestPod, ManifestBean, ManifestSprout } from "./garden-manifest";
 
 /**
  * A content write, composed the way every content door in the repo composes
@@ -80,7 +79,7 @@ export async function applyPlan(plan: PlanAction[], garden: GardenSlugs): Promis
     if (action.action === "skip") continue;
 
     if (action.tier === "pod") {
-      const pod = action.entry as ManifestPod;
+      const pod = action.entry;
       if (action.action === "create") {
         await createPod({
           slug: pod.slug,
@@ -102,7 +101,7 @@ export async function applyPlan(plan: PlanAction[], garden: GardenSlugs): Promis
     }
 
     if (action.tier === "bean") {
-      const bean = action.entry as ManifestBean;
+      const bean = action.entry;
       if (action.action === "create") {
         await createBean({
           slug: bean.slug,
@@ -110,7 +109,7 @@ export async function applyPlan(plan: PlanAction[], garden: GardenSlugs): Promis
           description: bean.description,
           // The pod the manifest nested it under. `plantSlug` is null because
           // the pod carries the plant — see `createBean`'s own comment.
-          podSlug: action.parentSlug ?? null,
+          podSlug: action.parentSlug,
           plantSlug: null,
         });
       } else {
@@ -119,7 +118,7 @@ export async function applyPlan(plan: PlanAction[], garden: GardenSlugs): Promis
       continue;
     }
 
-    const sprout = action.entry as ManifestSprout;
+    const sprout = action.entry;
     if (action.action === "create") {
       await createSprout({
         slug: sprout.slug,
