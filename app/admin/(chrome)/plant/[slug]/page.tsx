@@ -186,13 +186,6 @@ export default async function AdminPlantPage({
       }
     >
       <article className="flex flex-col gap-10">
-        <a
-          href="/admin"
-          className="self-start text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-        >
-          ← plants
-        </a>
-
         <PlantHero
           slug={plant.slug}
           name={resolveText(plant.name)}

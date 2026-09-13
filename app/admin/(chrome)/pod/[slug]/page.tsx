@@ -40,12 +40,6 @@ export default async function AdminPodPage({
 
         <div className="flex flex-col gap-8">
           <div className="flex flex-col gap-3">
-            <a
-              href="/admin/pods"
-              className="text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-            >
-              ← pods
-            </a>
             <h1 className="font-heading text-2xl font-medium tracking-tight">
               {resolveText(pod.name)}
             </h1>
