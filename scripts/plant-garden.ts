@@ -64,7 +64,20 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const parsed = parseManifest(readFileSync(args.path, "utf8"));
+  // A mistyped path is the likeliest mistake at this door — the manifest lives
+  // in ANOTHER repo, so every real invocation is a relative path typed by hand.
+  // Unguarded, `readFileSync` answers that with a Node stack trace, which says
+  // ENOENT where it should say which file it looked for.
+  let yamlText: string;
+  try {
+    yamlText = readFileSync(args.path, "utf8");
+  } catch (err) {
+    console.error(`cannot read ${args.path}: ${(err as Error).message}`);
+    console.error("nothing was written.");
+    process.exit(1);
+  }
+
+  const parsed = parseManifest(yamlText);
   if (!parsed.ok) {
     console.error(`manifest invalid: ${parsed.error}`);
     console.error("nothing was written.");
