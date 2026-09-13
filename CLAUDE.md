@@ -312,6 +312,29 @@ while quietly becoming false.
   shares that one island: the four tier tables and their shared cells, the
   inbox, the screen library's tiles, the palette's plant rows and the plant
   switcher's.
+- **The entity mark's `<img>` is in the server HTML — and that is the one place
+  the registry primitive is the wrong answer.** `AvatarMark` in
+  `components/admin/glyphs.tsx` renders plain elements: a monogram painted
+  underneath, a real `<img>` laid over it, the image covering the initials when
+  it arrives. No script, and three cases in CSS — no logo draws the monogram, a
+  loaded logo covers it, and a 404 collapses to nothing (`alt=""`) so the
+  monogram shows through. It replaced `components/ui/avatar.tsx`, now
+  **deleted** because that file had exactly one importer: Base UI's
+  `Avatar.Image` keeps its status in client state (`useState('idle')`), fetches
+  from a layout effect via `new window.Image()`, and renders with
+  `enabled: mounted` — so the `<img>` never reached the server HTML, the
+  preload scanner never saw it, and the request could not start until the bundle
+  had hydrated. Every plant logo in the admin flashed its initials on arrival.
+  This is the ONE documented exception to "never hand-roll one the registry
+  already has": the primitive is correct for a photo avatar on a client-rendered
+  page and wrong for a mark whose URL the server already knows. Reaching back for
+  `<Avatar>` looks identical once loaded and passes `tsc`, `eslint` and
+  `npm run build`, so `lib/entity-avatar-ssr.test.tsx` is what reports it. The
+  `data-slot` contract (`avatar` / `avatar-image` / `avatar-fallback`) is kept
+  deliberately — `lib/palette-render.test.ts` queries it, and the markup staying
+  addressable is the half of the primitive worth keeping. If a round, ringed
+  photo avatar is ever wanted, `npx shadcn@latest add avatar` restores it; do not
+  route the entity mark back through it.
 - **An icon trigger names its stored value.** The plant header's five editors
   and the sprout header's four are icons; the only place a reader learns what
   `status`, `visibility`, `state`, `date` and `type` currently ARE is each

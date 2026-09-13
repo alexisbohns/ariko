@@ -21,7 +21,6 @@ import {
   ZapOff,
 } from "lucide-react";
 import type { ComponentType } from "react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { PlantRoleKind, PlantStatus, SproutState, Visibility } from "@/lib/data";
 import { cloudinaryThumb } from "@/lib/image-url";
@@ -44,8 +43,11 @@ import { cn } from "@/lib/utils";
  *
  * ONE client island for all three tables, and a small one — a lucide icon is
  * already a client module (`components/media.tsx` documents why the public zone
- * refuses them outright), Base UI's Avatar and Tooltip are too, so the choice
- * was never "no client JS here" but "one boundary or nine". Nothing in this
+ * refuses them outright) and Base UI's Tooltip is too, so the choice was never
+ * "no client JS here" but "one boundary or nine". The avatar is the one thing
+ * here that is NOT a client component's doing: `AvatarMark` renders plain
+ * elements precisely so its `<img>` reaches the HTML, and its docblock says
+ * why. Nothing in this
  * file is a form control and nothing here writes: the tables around it stay the
  * server-rendered links and cells they were, which is why this is not a fourth
  * entry in CLAUDE.md's list of exceptions.
@@ -152,32 +154,98 @@ const AVATAR_PX = 24; // size-6, the `sm` avatar — asked for at 2x below
  * `rounded-lg` is 0.875rem — more than half of a 24px box, so it would clamp
  * back to a circle and quietly undo the change.
  *
- * The border goes with it: `components/ui/avatar.tsx` ships a blend-mode ring
- * on `::after` for a circular photo avatar, and against a table row it reads as
- * a chip nobody asked for. Suppressed here, in the consumer — the registry
- * primitive stays as shipped, so the next avatar in this repo starts round and
- * ringed like every other shadcn one.
+ * The border went with it: the registry's Avatar shipped a blend-mode ring on
+ * `::after` for a circular photo avatar, and against a table row it read as a
+ * chip nobody asked for.
  */
 const SQUIRCLE = "rounded-[min(var(--radius-md),10px)]";
 
+/**
+ * The admin's entity mark: a stored logo, or the monogram that stands in for
+ * one.
+ *
+ * **PLAIN ELEMENTS RATHER THAN `components/ui/avatar.tsx`, AND THE REASON IS
+ * SERVER RENDERING** — which is the one thing the registry primitive cannot do
+ * here, rather than a preference about markup.
+ *
+ * Base UI's `Avatar.Image` holds its loading state in client state
+ * (`useState('idle')`) and only reaches for the network from a layout effect:
+ *
+ *     const image = new window.Image();
+ *     image.onload = …; image.src = src;
+ *
+ * and it renders the `<img>` with `enabled: mounted`, where `mounted` starts
+ * false. So **the `<img>` is never in the server HTML at all**. The browser's
+ * preload scanner cannot see it, the request cannot even START until the
+ * client bundle has downloaded, parsed and hydrated, and until it finishes the
+ * fallback is what is on screen. Every plant logo in the admin visibly flashed
+ * its initials on arrival — the chrome's switcher most of all, because it is
+ * the first thing the eye lands on.
+ *
+ * That is correct behaviour for a photo avatar on a client-rendered page, where
+ * a fallback-then-swap is the whole point of the component. It is the wrong
+ * trade for a mark whose URL the server already knows.
+ *
+ * THE STACK IS THE WHOLE TECHNIQUE, and it needs no script: the monogram is
+ * painted underneath, the `<img>` is laid over it, and the image simply covers
+ * the initials once it arrives. Three cases, all handled by CSS alone:
+ *
+ *   - no `logoUrl` — no `<img>` is rendered, the monogram is the mark;
+ *   - the logo loads — it covers the monogram, from the FIRST paint if the
+ *     image is cached, because the element was in the HTML;
+ *   - the logo 404s — `alt=""` marks it decorative, so browsers collapse a
+ *     broken image to nothing instead of drawing a torn-page icon, and the
+ *     monogram shows through. That is the fallback the primitive gave us,
+ *     recovered without its cost.
+ *
+ * `width`/`height` are set as well as the CSS box: they reserve the square
+ * before the bytes land, so a row cannot shift as marks resolve.
+ *
+ * Deliberately NOT `next/image`. These are 48px squares already sized and
+ * format-negotiated by Cloudinary (`cloudinaryThumb` asks for `q_auto,f_auto`),
+ * so the optimizer has nothing left to do and would add a proxy hop per mark —
+ * 170 of them on the screen library.
+ *
+ * `lib/entity-avatar-ssr.test.tsx` pins it, and reaching back for `<Avatar>`
+ * fails that test rather than merely looking identical once loaded.
+ */
 function AvatarMark({ mark, className }: { mark: EntityMark; className?: string }) {
   return (
-    <Avatar size="sm" className={cn("shrink-0 after:hidden", SQUIRCLE, className)}>
-      {mark.logoUrl ? (
-        <AvatarImage
-          className={SQUIRCLE}
-          src={cloudinaryThumb(mark.logoUrl, { width: AVATAR_PX * 2, height: AVATAR_PX * 2 })}
-          alt=""
-        />
-      ) : null}
+    <span
+      data-slot="avatar"
+      className={cn(
+        "relative block size-6 shrink-0 overflow-hidden bg-muted",
+        SQUIRCLE,
+        className,
+      )}
+    >
       {/* 8px in a 24px box — a third of it, where a monogram avatar usually
           sits at ~40%. Two uppercase letters is all this ever renders
           (initialsOf caps it), so the mark reads as a mark and stops competing
           with the row's own text. */}
-      <AvatarFallback className={cn("font-heading text-[0.5rem] tracking-tight", SQUIRCLE)}>
+      <span
+        data-slot="avatar-fallback"
+        className="absolute inset-0 flex items-center justify-center font-heading text-[0.5rem] tracking-tight text-muted-foreground"
+      >
         {initialsOf(mark.name)}
-      </AvatarFallback>
-    </Avatar>
+      </span>
+      {mark.logoUrl ? (
+        // Cloudinary has already sized and format-negotiated this 48px square
+        // (q_auto,f_auto), so next/image would add a proxy hop per mark — 170
+        // of them on the screen library — to redo work that is done. And an
+        // <img> here is the POINT: it is what puts the logo in the server HTML.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          data-slot="avatar-image"
+          src={cloudinaryThumb(mark.logoUrl, { width: AVATAR_PX * 2, height: AVATAR_PX * 2 })}
+          alt=""
+          width={AVATAR_PX}
+          height={AVATAR_PX}
+          decoding="async"
+          className="absolute inset-0 size-full object-cover"
+        />
+      ) : null}
+    </span>
   );
 }
 
