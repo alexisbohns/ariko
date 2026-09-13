@@ -186,17 +186,23 @@ const SQUIRCLE = "rounded-[min(var(--radius-md),10px)]";
  * a fallback-then-swap is the whole point of the component. It is the wrong
  * trade for a mark whose URL the server already knows.
  *
- * THE STACK IS THE WHOLE TECHNIQUE, and it needs no script: the monogram is
- * painted underneath, the `<img>` is laid over it, and the image simply covers
- * the initials once it arrives. Three cases, all handled by CSS alone:
+ * THE BRANCH IS THE WHOLE TECHNIQUE, and it needs no script: a mark draws
+ * EITHER a monogram OR a logo, never both at once. Two cases, decided on the
+ * server:
  *
- *   - no `logoUrl` — no `<img>` is rendered, the monogram is the mark;
- *   - the logo loads — it covers the monogram, from the FIRST paint if the
- *     image is cached, because the element was in the HTML;
- *   - the logo 404s — `alt=""` marks it decorative, so browsers collapse a
- *     broken image to nothing instead of drawing a torn-page icon, and the
- *     monogram shows through. That is the fallback the primitive gave us,
- *     recovered without its cost.
+ *   - no `logoUrl` — the monogram is the mark, on a `bg-muted` square;
+ *   - there is one — the `<img>` is the mark, on NOTHING: no monogram beneath
+ *     it and no background colour, so a transparent PNG breathes instead of
+ *     showing initials and a grey plate through its own holes. It is in the
+ *     HTML, so a cached logo is there from the FIRST paint.
+ *
+ * The monogram used to be painted underneath as a 404 fallback, and that is
+ * what a transparent logo exposed: the stack cannot tell "the image has not
+ * arrived" from "the image is see-through", because CSS cannot ask. A logo
+ * that 404s now collapses to an empty square (`alt=""` keeps browsers from
+ * drawing a torn-page icon), which is a missing mark drawn as a missing mark —
+ * the right reading of a broken URL, and cheaper than the wrong reading of
+ * every transparent one.
  *
  * `width`/`height` are set as well as the CSS box: they reserve the square
  * before the bytes land, so a row cannot shift as marks resolve.
@@ -214,21 +220,14 @@ function AvatarMark({ mark, className }: { mark: EntityMark; className?: string 
     <span
       data-slot="avatar"
       className={cn(
-        "relative block size-6 shrink-0 overflow-hidden bg-muted",
+        "relative block size-6 shrink-0 overflow-hidden",
+        // The plate is the monogram's, not the mark's: a logo sits on the
+        // page's own ground so its transparency is transparency.
+        mark.logoUrl ? null : "bg-muted",
         SQUIRCLE,
         className,
       )}
     >
-      {/* 8px in a 24px box — a third of it, where a monogram avatar usually
-          sits at ~40%. Two uppercase letters is all this ever renders
-          (initialsOf caps it), so the mark reads as a mark and stops competing
-          with the row's own text. */}
-      <span
-        data-slot="avatar-fallback"
-        className="absolute inset-0 flex items-center justify-center font-heading text-[0.5rem] tracking-tight text-muted-foreground"
-      >
-        {initialsOf(mark.name)}
-      </span>
       {mark.logoUrl ? (
         // Cloudinary has already sized and format-negotiated this 48px square
         // (q_auto,f_auto), so next/image would add a proxy hop per mark — 170
@@ -244,7 +243,18 @@ function AvatarMark({ mark, className }: { mark: EntityMark; className?: string 
           decoding="async"
           className="absolute inset-0 size-full object-cover"
         />
-      ) : null}
+      ) : (
+        /* 8px in a 24px box — a third of it, where a monogram avatar usually
+           sits at ~40%. Two uppercase letters is all this ever renders
+           (initialsOf caps it), so the mark reads as a mark and stops competing
+           with the row's own text. */
+        <span
+          data-slot="avatar-fallback"
+          className="absolute inset-0 flex items-center justify-center font-heading text-[0.5rem] tracking-tight text-muted-foreground"
+        >
+          {initialsOf(mark.name)}
+        </span>
+      )}
     </span>
   );
 }
