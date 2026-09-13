@@ -4,9 +4,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { ComponentType, SVGProps } from "react";
 
 import {
+  Bean,
   ChessKnight,
   ChessPawn,
   Crown,
+  Package,
   Sprout,
   Waypoints,
   Zap,
@@ -15,10 +17,12 @@ import {
 import { PLANT_ROLE_ICONS as ADMIN_ROLE_ICONS } from "./admin/glyphs";
 import { PLANT_ROLE_KINDS } from "@/lib/plant-role";
 import {
+  BeanIcon,
   ChessKnightIcon,
   ChessPawnIcon,
   CrownIcon,
   PLANT_ROLE_ICONS,
+  PodIcon,
   SproutIcon,
   WaypointsIcon,
   ZapIcon,
@@ -40,7 +44,7 @@ import {
  * first person to notice is a visitor comparing two pages.
  *
  * So this test renders both and compares the GEOMETRY. On a lucide bump that
- * moves any of the five, it fails loudly — which is the point: the fix is for
+ * moves any of the nine, it fails loudly — which is the point: the fix is for
  * someone to re-copy the data deliberately, not for the divergence to ship.
  *
  * Two deliberate limits on what is compared:
@@ -49,11 +53,11 @@ import {
  *    reaching into dist/esm/icons/<name>.mjs for `__iconNode` would be reading a
  *    private implementation detail that a future package layout is free to move.
  *    Rendering the exported component is the contract lucide actually offers.
- *  - Geometry ONLY — every <path>/<circle>'s `d`, `cx`, `cy`, `r`, in document
- *    order. Stroke, fill, class and size legitimately differ: our SvgFrame sets
- *    its own defaults and callers size the glyph themselves. Asserting on those
- *    would make this test fail for a reason that has nothing to do with the
- *    shape it exists to protect.
+ *  - Geometry ONLY — every <path>/<circle>/<polyline>'s `d`, `cx`, `cy`, `r`
+ *    and `points`, in document order. Stroke, fill, class and size legitimately
+ *    differ: our SvgFrame sets its own defaults and callers size the glyph
+ *    themselves. Asserting on those would make this test fail for a reason that
+ *    has nothing to do with the shape it exists to protect.
  *
  * renderToStaticMarkup, no jsdom — same route as components/media.test.tsx,
  * which also explains why `tsconfig.test.json` exists.
@@ -62,7 +66,11 @@ import {
 /** One drawing primitive, reduced to the numbers that define its shape. */
 type Geometry = Record<string, string | undefined>;
 
-const GEOMETRY_ATTRS = ["d", "cx", "cy", "r"] as const;
+// `points` joins the list for lucide's `package`, which draws its open box as a
+// polyline: an attribute the extractor does not read is an attribute that can
+// drift without failing anything, which is the exact hole this file exists to
+// close.
+const GEOMETRY_ATTRS = ["d", "cx", "cy", "r", "points"] as const;
 
 /**
  * Attribute order inside a tag is an implementation detail of whoever emitted
@@ -72,7 +80,7 @@ const GEOMETRY_ATTRS = ["d", "cx", "cy", "r"] as const;
  */
 const geometryOf = (markup: string): Geometry[] => {
   const shapes: Geometry[] = [];
-  for (const tag of markup.matchAll(/<(path|circle)\b([^>]*)>/g)) {
+  for (const tag of markup.matchAll(/<(path|circle|polyline)\b([^>]*)>/g)) {
     const [, , attrs] = tag;
     const shape: Geometry = { tag: tag[1] };
     for (const name of GEOMETRY_ATTRS) {
@@ -97,6 +105,8 @@ const pairs: ReadonlyArray<
   ["crown", Crown, CrownIcon],
   ["sprout", Sprout, SproutIcon],
   ["waypoints", Waypoints, WaypointsIcon],
+  ["package", Package, PodIcon],
+  ["bean", Bean, BeanIcon],
   ["zap", Zap, ZapIcon],
   ["zap-off", ZapOff, ZapOffIcon],
   ["chess-knight", ChessKnight, ChessKnightIcon],
