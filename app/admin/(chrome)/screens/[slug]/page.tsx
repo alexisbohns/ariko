@@ -28,13 +28,39 @@ export const dynamic = "force-dynamic";
  *
  * prev/next are computed from the FILTERED rows, so the arrows walk the set the
  * author is looking at rather than the whole collection.
+ *
+ * `inSheet` IS THE ONE DIFFERENCE THE TWO RENDERS ARE ALLOWED, and it exists
+ * because the parenting chrome is `position: fixed`. A fixed cluster cannot be
+ * contained by the panel it happens to be rendered in — it lands at the
+ * viewport's top-center whatever its ancestors do — so inside the sheet the
+ * trail floats over the page while its subject sits in the right-hand panel,
+ * and the geometry claims "this is about the page" when it is not. That makes
+ * it a RENDER decision, not a CSS one: there is no containment to reach for.
+ *
+ * It is a parameter rather than either of the two obvious alternatives, both of
+ * which are worse:
+ *   - the sheet reimplementing the page's body to leave the cluster out —
+ *     exactly the drift `lib/screen-sheet-source.test.ts` exists to forbid,
+ *     since the slot reusing this module WHOLESALE is what keeps the library
+ *     script-off navigable;
+ *   - this page sniffing its own context (a header, a segment, a pathname) to
+ *     decide — which makes a server component's output depend on something no
+ *     caller can see or test.
+ * Next only ever hands a route's default export `params` / `searchParams`, so
+ * on `/admin/screens/[slug]` the flag is `undefined` and the standalone page
+ * keeps its trail. Only the sheet, which calls this component directly, passes
+ * it. Delete the guard or the pass-through and a viewport-fixed cluster sits
+ * back over the open sheet, with `tsc`, `npm test` and `npm run build` all
+ * green — which is why `lib/screen-sheet-source.test.ts` pins both ends.
  */
 export default async function ScreenPage({
   params,
   searchParams,
+  inSheet,
 }: {
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ plant?: string; bean?: string; tag?: string; error?: string }>;
+  inSheet?: boolean;
 }) {
   const { slug } = await params;
   const active = await searchParams;
@@ -82,7 +108,7 @@ export default async function ScreenPage({
 
   return (
     <>
-      <LineageChrome lineage={lineage} as={Link} />
+      {inSheet ? null : <LineageChrome lineage={lineage} as={Link} />}
       <div className="flex flex-col gap-6">
         <ScreenNav prev={prev} next={next} query={query} />
 
