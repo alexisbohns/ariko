@@ -1,0 +1,8 @@
+{
+  "name": "garden-plant",
+  "description": "Describe a project as a pod, beans and sprouts in a garden.yml — Ariko plants it with one reviewed command.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Alexis Bohns"
+  }
+}

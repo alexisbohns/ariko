@@ -8,6 +8,11 @@
       "name": "lab-note",
       "source": "./plugins/lab-note",
       "description": "Author bilingual (EN/FR) Lab Notes in PR bodies — merged PRs post them to the Ariko inbox automatically."
+    },
+    {
+      "name": "garden-plant",
+      "source": "./plugins/garden-plant",
+      "description": "Describe a project as a pod, beans and sprouts in a garden.yml — Ariko plants it with one reviewed command."
     }
   ]
 }
