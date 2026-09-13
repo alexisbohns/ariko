@@ -314,11 +314,13 @@ while quietly becoming false.
   switcher's.
 - **The entity mark's `<img>` is in the server HTML — and that is the one place
   the registry primitive is the wrong answer.** `AvatarMark` in
-  `components/admin/glyphs.tsx` renders plain elements: a monogram painted
-  underneath, a real `<img>` laid over it, the image covering the initials when
-  it arrives. No script, and three cases in CSS — no logo draws the monogram, a
-  loaded logo covers it, and a 404 collapses to nothing (`alt=""`) so the
-  monogram shows through. It replaced `components/ui/avatar.tsx`, now
+  `components/admin/glyphs.tsx` renders plain elements and branches on
+  the server: no logo draws a monogram on a `bg-muted` square, a logo draws a
+  real `<img>` on nothing at all — no initials beneath it and no backfill, so a
+  transparent PNG breathes instead of showing both through its own holes. A 404
+  collapses to an empty square (`alt=""`), which is a missing mark drawn as a
+  missing mark; the monogram-underneath fallback is gone because CSS cannot tell
+  "not arrived yet" from "see-through". It replaced `components/ui/avatar.tsx`, now
   **deleted** because that file had exactly one importer: Base UI's
   `Avatar.Image` keeps its status in client state (`useState('idle')`), fetches
   from a layout effect via `new window.Image()`, and renders with

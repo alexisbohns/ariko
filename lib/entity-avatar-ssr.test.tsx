@@ -58,14 +58,29 @@ test("a mark with a logo renders a real <img> on the server", () => {
 });
 
 /**
- * The monogram is rendered UNDERNEATH rather than instead — which is what makes
- * the stack work without script. If the logo 404s the image collapses (see
- * below) and the initials are already there to show through; no error handler,
- * no state, no second render.
+ * A mark draws EITHER a monogram OR a logo. The initials used to be painted
+ * underneath as a scriptless 404 fallback, and a transparent PNG is what that
+ * cost: CSS cannot tell "not arrived yet" from "see-through", so every logo
+ * with a hole in it showed initials and a grey plate through the hole. The
+ * branch is on the server, where the answer is already known.
  */
-test("the monogram is painted under the logo, not swapped for it", () => {
+test("a logo replaces the monogram rather than covering it", () => {
   const html = renderToStaticMarkup(<EntityAvatar mark={WITH_LOGO} />);
-  assert.ok(html.includes("OX"), `the initials must be present too. Got: ${html}`);
+  assert.ok(
+    !html.includes("OX"),
+    `initials behind a logo show through its transparency. Got: ${html}`,
+  );
+});
+
+/**
+ * And no plate behind it either — a background colour fills a transparent PNG's
+ * holes just as visibly as the initials did.
+ */
+test("a logo sits on no background of its own", () => {
+  const html = renderToStaticMarkup(<EntityAvatar mark={WITH_LOGO} />);
+  assert.ok(!/bg-muted/.test(html), `a logo must not carry a backfill. Got: ${html}`);
+  const bare = renderToStaticMarkup(<EntityAvatar mark={{ name: "Paulopus" }} />);
+  assert.ok(/bg-muted/.test(bare), `a monogram still gets its plate. Got: ${bare}`);
 });
 
 /**

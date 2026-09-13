@@ -36,12 +36,17 @@ import { cloudinaryThumb } from "@/lib/image-url";
 /**
  * The mark's box.
  *
+ * The box carries the shape and nothing else — the `bg-muted` plate belongs to
+ * the MONOGRAM, inside `PlantMarkContent`, not to the box around it. A ground
+ * on the box fills a transparent PNG's holes with grey, which is the same bug
+ * `AvatarMark` has in the tables, arriving one component up.
+ *
  * The radius is a PERCENTAGE, which is the whole reason it is worth naming: the
  * same class is right at every size this is rendered at, unlike the fixed
  * `min()` radius `components/admin/glyphs.tsx` uses for its 24px table avatars,
  * which would read as a barely-rounded square at 112px.
  */
-export const PLANT_MARK = "size-28 overflow-hidden rounded-[28%] bg-muted text-muted-foreground";
+export const PLANT_MARK = "size-28 overflow-hidden rounded-[28%]";
 
 /**
  * What goes inside the mark: the logo, or the plant's initials.
@@ -67,7 +72,7 @@ export function PlantMarkContent({ logoUrl, name }: { logoUrl?: string; name: st
       className="size-full object-cover"
     />
   ) : (
-    <span className="flex size-full items-center justify-center font-heading text-3xl tracking-tight">
+    <span className="flex size-full items-center justify-center bg-muted font-heading text-3xl tracking-tight text-muted-foreground">
       {initialsOf(name)}
     </span>
   );
