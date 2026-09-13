@@ -10,6 +10,8 @@ import { Prose } from "@/components/markdown";
 import { resolveEntity } from "@/lib/entity-resolve";
 import { MediaList } from "@/components/media";
 import { LinkRow } from "@/components/link-row";
+import { resolveLineage, PUBLIC_HREFS } from "@/lib/lineage";
+import { LineageChrome } from "@/components/lineage-chrome";
 
 export const dynamic = "force-dynamic";
 
@@ -72,8 +74,19 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
   // as the property-dump rows below — they have no public URL to link to yet.
   const article = articleFor(sprouts);
 
+  // From the FILTERED dataset, so a private pod or plant is simply absent from
+  // the trail — resolveLineage drops a ref it cannot resolve, which is the
+  // privacy projection doing the work rather than a second check here.
+  const lineage = resolveLineage(
+    bean.parents,
+    { plants: data.getPlants(), pods: data.getPods() },
+    { lang, hrefs: PUBLIC_HREFS },
+  );
+
   return (
-    <article className="flex flex-col gap-8">
+    <>
+      <LineageChrome lineage={lineage} />
+      <article className="flex flex-col gap-8">
       <h1 className="font-heading text-2xl font-medium tracking-tight">{resolveText(bean.name, lang)}</h1>
 
       {resolveText(bean.description ?? "", lang).trim() ? (
@@ -108,6 +121,7 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
           </CardContent>
         </Card>
       ))}
-    </article>
+      </article>
+    </>
   );
 }

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { resolveText } from "@/lib/data";
-import { getFullDataset } from "@/lib/store";
+import { getFullDataset, loadRawGarden } from "@/lib/store";
 import { beanDetail, type BeanDetailView } from "@/lib/bean-detail";
 import { beanCoverFor } from "@/lib/bean-cover";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -8,6 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BeanCoverForm } from "@/app/admin/_components/bean-cover-form";
 import { BeanKeywordForm } from "@/app/admin/_components/bean-keyword-form";
+import Link from "next/link";
+import { resolveLineage, ADMIN_HREFS } from "@/lib/lineage";
+import { LineageChrome } from "@/components/lineage-chrome";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +54,12 @@ export default async function AdminBeanPage({ params }: { params: Promise<{ id: 
 
   const { bean, plant, podParents, sprouts } = view;
 
+  // The LIVE garden, per CLAUDE.md's garden rule: the admin reads live, and the
+  // chrome is the surface most likely to be looked at right after a rename.
+  // "en" rather than a negotiated language — the admin zone is authored in one.
+  const raw = await loadRawGarden();
+  const lineage = resolveLineage(bean.parents, raw, { lang: "en", hrefs: ADMIN_HREFS });
+
   /* The keyword is drawn ONLY on the phone treatment, and only an explicit
      PORTRAIT cover reaches it. A landscape screenshot with a keyword typed
      under it is a silent no-op, so the Keyword card says so rather than
@@ -66,117 +75,113 @@ export default async function AdminBeanPage({ params }: { params: Promise<{ id: 
   const coverIsWordless = Boolean(bean.cover) && beanCoverFor(bean, [])?.kind !== "phone";
 
   return (
-    <article>
+    <>
+      <LineageChrome lineage={lineage} as={Link} />
+      <article>
+        <div className="flex flex-col gap-8">
+          <div className="flex flex-col gap-3">
+            <h1 className="font-heading text-2xl font-medium tracking-tight">
+              {resolveText(bean.name)}
+            </h1>
+            {resolveText(bean.description ?? "").trim() ? (
+              <p className="text-sm text-muted-foreground">{resolveText(bean.description)}</p>
+            ) : null}
+            {bean.projected ? (
+              <Alert role="note">
+                <AlertDescription>
+                  Projected from {bean.projected.source} (feed {bean.projected.feedId}) — read-only,
+                  rebuilt from the feed.
+                </AlertDescription>
+              </Alert>
+            ) : null}
+            <ul className="flex flex-col gap-1 font-heading text-xs">
+              <DumpRow label="bean">{bean.slug}</DumpRow>
+              <DumpRow label="visibility">{bean.visibility ?? "public (default)"}</DumpRow>
+              <DumpRow label="plant">{plant ?? "—"}</DumpRow>
+              <DumpRow label="pod">{podParents.join(", ") || "—"}</DumpRow>
+              <DumpRow label="tags">{(bean.tags ?? []).join(", ") || "—"}</DumpRow>
+            </ul>
+          </div>
 
-      <div className="flex flex-col gap-8">
-        <div className="flex flex-col gap-3">
-          <a
-            href="/admin/beans"
-            className="text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-          >
-            ← beans
-          </a>
-          <h1 className="font-heading text-2xl font-medium tracking-tight">
-            {resolveText(bean.name)}
-          </h1>
-          {resolveText(bean.description ?? "").trim() ? (
-            <p className="text-sm text-muted-foreground">{resolveText(bean.description)}</p>
-          ) : null}
-          {bean.projected ? (
-            <Alert role="note">
-              <AlertDescription>
-                Projected from {bean.projected.source} (feed {bean.projected.feedId}) — read-only,
-                rebuilt from the feed.
-              </AlertDescription>
-            </Alert>
-          ) : null}
-          <ul className="flex flex-col gap-1 font-heading text-xs">
-            <DumpRow label="bean">{bean.slug}</DumpRow>
-            <DumpRow label="visibility">{bean.visibility ?? "public (default)"}</DumpRow>
-            <DumpRow label="plant">{plant ?? "—"}</DumpRow>
-            <DumpRow label="pod">{podParents.join(", ") || "—"}</DumpRow>
-            <DumpRow label="tags">{(bean.tags ?? []).join(", ") || "—"}</DumpRow>
-          </ul>
-        </div>
+          {/* The page's first write surface — it was a read-only property dump
+              until this slice. Two cards, because they are two forms: see
+              bean-cover-form.tsx for why they cannot be one.
 
-        {/* The page's first write surface — it was a read-only property dump
-            until this slice. Two cards, because they are two forms: see
-            bean-cover-form.tsx for why they cannot be one.
-
-            Gated on !bean.projected. lib/data.ts's own declaration of the
-            field already says a projected bean is "read-only in the admin,
-            source-owned, rebuildable" — the Alert above states exactly that —
-            so rendering live write forms under it would contradict the page's
-            own banner. It is not only cosmetic: lib/pollen-store.ts's
-            deleteFeedData does `deleteMany({ "projected.feedId": feedId })`
-            on a full rebuild, which deletes the bean document — and any
-            authored cover or keyword with it. The ordinary sync path is
-            safe (upsert uses `$setOnInsert`, so an authored or
-            previously-synced bean always wins over the feed); the loss is
-            only on a deliberate full rebuild, which is exactly what the
-            banner above warns about. */}
-        {!bean.projected ? (
-          <section className="flex flex-col gap-4">
-            <h2 className="font-heading text-lg tracking-tight">Cover</h2>
-            <Card>
-              <CardContent>
-                <BeanCoverForm bean={bean} />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="flex flex-col gap-3">
-                <BeanKeywordForm bean={bean} />
-                {coverIsWordless ? (
-                  <p className="text-sm text-muted-foreground">
-                    This cover isn&apos;t phone-shaped, so the word won&apos;t be drawn — it
-                    shows only on a portrait cover. Saved either way.
-                  </p>
-                ) : null}
-              </CardContent>
-            </Card>
-          </section>
-        ) : null}
-
-        <section className="flex flex-col gap-4">
-          <h2 className="font-heading text-lg tracking-tight">
-            Versions <span className="text-muted-foreground">({sprouts.length})</span>
-          </h2>
-          {sprouts.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No versions.</p>
-          ) : (
-            sprouts.map((version) => (
-              <Card key={version.slug}>
-                <CardHeader>
-                  <CardTitle className="font-heading text-base tracking-tight">
-                    {resolveText(version.name)}
-                  </CardTitle>
-                  <div className="flex items-center gap-3">
-                    <Badge variant="secondary">{version.state ?? "—"}</Badge>
-                    <a
-                      href={`/admin/sprout/${version.slug}`}
-                      className="text-sm underline-offset-4 transition-colors hover:underline"
-                    >
-                      edit
-                    </a>
-                  </div>
-                </CardHeader>
+              Gated on !bean.projected. lib/data.ts's own declaration of the
+              field already says a projected bean is "read-only in the admin,
+              source-owned, rebuildable" — the Alert above states exactly that —
+              so rendering live write forms under it would contradict the page's
+              own banner. It is not only cosmetic: lib/pollen-store.ts's
+              deleteFeedData does `deleteMany({ "projected.feedId": feedId })`
+              on a full rebuild, which deletes the bean document — and any
+              authored cover or keyword with it. The ordinary sync path is
+              safe (upsert uses `$setOnInsert`, so an authored or
+              previously-synced bean always wins over the feed); the loss is
+              only on a deliberate full rebuild, which is exactly what the
+              banner above warns about. */}
+          {!bean.projected ? (
+            <section className="flex flex-col gap-4">
+              <h2 className="font-heading text-lg tracking-tight">Cover</h2>
+              <Card>
                 <CardContent>
-                  <ul className="flex flex-col gap-1 font-heading text-xs">
-                    {Object.entries(version)
-                      .filter(([, value]) => isScalar(value))
-                      .map(([key, value]) => (
-                        <DumpRow key={key} label={key}>
-                          {String(value)}
-                        </DumpRow>
-                      ))}
-                    <DumpRow label="tags">{(version.tags ?? []).join(", ") || "—"}</DumpRow>
-                  </ul>
+                  <BeanCoverForm bean={bean} />
                 </CardContent>
               </Card>
-            ))
-          )}
-        </section>
-      </div>
-    </article>
+              <Card>
+                <CardContent className="flex flex-col gap-3">
+                  <BeanKeywordForm bean={bean} />
+                  {coverIsWordless ? (
+                    <p className="text-sm text-muted-foreground">
+                      This cover isn&apos;t phone-shaped, so the word won&apos;t be drawn — it
+                      shows only on a portrait cover. Saved either way.
+                    </p>
+                  ) : null}
+                </CardContent>
+              </Card>
+            </section>
+          ) : null}
+
+          <section className="flex flex-col gap-4">
+            <h2 className="font-heading text-lg tracking-tight">
+              Versions <span className="text-muted-foreground">({sprouts.length})</span>
+            </h2>
+            {sprouts.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No versions.</p>
+            ) : (
+              sprouts.map((version) => (
+                <Card key={version.slug}>
+                  <CardHeader>
+                    <CardTitle className="font-heading text-base tracking-tight">
+                      {resolveText(version.name)}
+                    </CardTitle>
+                    <div className="flex items-center gap-3">
+                      <Badge variant="secondary">{version.state ?? "—"}</Badge>
+                      <a
+                        href={`/admin/sprout/${version.slug}`}
+                        className="text-sm underline-offset-4 transition-colors hover:underline"
+                      >
+                        edit
+                      </a>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="flex flex-col gap-1 font-heading text-xs">
+                      {Object.entries(version)
+                        .filter(([, value]) => isScalar(value))
+                        .map(([key, value]) => (
+                          <DumpRow key={key} label={key}>
+                            {String(value)}
+                          </DumpRow>
+                        ))}
+                      <DumpRow label="tags">{(version.tags ?? []).join(", ") || "—"}</DumpRow>
+                    </ul>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </section>
+        </div>
+      </article>
+    </>
   );
 }

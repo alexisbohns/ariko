@@ -2,13 +2,13 @@ import type { ComponentType, SVGProps } from "react";
 import type { PlantRoleKind } from "@/lib/data";
 
 /**
- * The public zone's icon set — seven glyphs, as SERVER components.
+ * The public zone's icon set — nine glyphs, as SERVER components.
  *
  * `components/media.tsx` states the rule these exist to obey: lucide-react@1.33
  * routes every icon through an Icon.mjs carrying "use client", so a single
  * <Crown /> imported from it would push a client boundary into a zone whose
- * whole rule is that it has none. Seven glyphs would be seven boundaries, to
- * draw seven static shapes.
+ * whole rule is that it has none. Nine glyphs would be nine boundaries, to
+ * draw nine static shapes.
  *
  * So the path data is inlined instead. It IS lucide's — copied verbatim from
  * lucide-react@1.33 (ISC licence: "Permission to use, copy, modify, and/or
@@ -21,10 +21,10 @@ import type { PlantRoleKind } from "@/lib/data";
  * chrome puts the word in the anchor's aria-label, and the plant head renders
  * the word beside the icon. Nothing here is the accessible name for anything.
  *
- * Adding an eighth: copy `__iconNode` out of
+ * Adding a tenth: copy `__iconNode` out of
  * node_modules/lucide-react/dist/esm/icons/<name>.mjs. Do not eyeball it.
  *
- * Bumping lucide: RE-COPY ALL SEVEN. package.json carries a caret on
+ * Bumping lucide: RE-COPY ALL NINE. package.json carries a caret on
  * lucide-react, and lucide redraws icons in minor releases — so an ordinary
  * install can move the admin's glyph and leave this copy behind, which no
  * compiler can see because the copy is a string.
@@ -84,6 +84,30 @@ export function WaypointsIcon(props: SVGProps<SVGSVGElement>) {
       <circle cx="12" cy="4" r="2" />
       <circle cx="20" cy="12" r="2" />
       <circle cx="4" cy="12" r="2" />
+    </SvgFrame>
+  );
+}
+
+/** lucide `package` — a pod. The admin rail's Pods icon, and the parenting
+ *  chrome's pod tier. */
+export function PodIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <SvgFrame {...props}>
+      <path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z" />
+      <path d="M12 22V12" />
+      <polyline points="3.29 7 12 12 20.71 7" />
+      <path d="m7.5 4.27 9 5.15" />
+    </SvgFrame>
+  );
+}
+
+/** lucide `bean` — a bean. The admin rail's Beans icon, and the parenting
+ *  chrome's bean tier. */
+export function BeanIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <SvgFrame {...props}>
+      <path d="M10.165 6.598C9.954 7.478 9.64 8.36 9 9c-.64.64-1.521.954-2.402 1.165A6 6 0 0 0 8 22c7.732 0 14-6.268 14-14a6 6 0 0 0-11.835-1.402Z" />
+      <path d="M5.341 10.62a4 4 0 1 0 5.279-5.28" />
     </SvgFrame>
   );
 }

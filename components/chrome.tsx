@@ -272,11 +272,15 @@ export function ChromeItem({
  * check real in the direction that matters (anything passed here must accept an
  * `href` and a `className`) while staying satisfiable by both anchors.
  */
-interface ChromeAnchorProps {
+/** The props `ChromeLink` passes its anchor. Exported because
+ *  `components/lineage-chrome.tsx` takes the same `as` parameter, and its
+ *  disclosure rows are plain anchors that pass neither aria prop — so both are
+ *  optional here. `ChromeLink` still passes both on every render. */
+export interface ChromeAnchorProps {
   href: string;
   className: string;
-  "aria-label": string;
-  "aria-current": "page" | undefined;
+  "aria-label"?: string;
+  "aria-current"?: "page" | undefined;
   children: ReactNode;
 }
 export function ChromeLink({

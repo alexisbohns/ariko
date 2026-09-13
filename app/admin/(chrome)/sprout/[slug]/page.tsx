@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { resolveText, textPart, BEAN_PREFIX, parentsWithPrefix } from "@/lib/data";
+import { resolveText, textPart } from "@/lib/data";
 import { getSprout } from "@/lib/botanical";
 import { loadRawGarden } from "@/lib/store";
 import { entityOptions } from "@/lib/entity-options";
@@ -16,6 +16,9 @@ import { EntityRail, type RailItem } from "../../../_components/entity-rail";
 import { FileCode2, Images, Trash2 } from "../../../_components/rail-icons";
 import { ProseEditor } from "@/components/editor/prose-editor";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import Link from "next/link";
+import { resolveLineage, ADMIN_HREFS } from "@/lib/lineage";
+import { LineageChrome } from "@/components/lineage-chrome";
 
 export const dynamic = "force-dynamic";
 
@@ -62,10 +65,10 @@ export default async function AdminSproutPage({
 
   const raw = await loadRawGarden();
 
-  const beanSlug = parentsWithPrefix(sprout.parents, BEAN_PREFIX)[0];
-  const bean = beanSlug ? (raw.beans ?? []).find((b) => b.slug === beanSlug) : undefined;
-  const backHref = beanSlug ? `/admin/bean/${encodeURIComponent(beanSlug)}` : "/admin/sprouts";
-  const backLabel = bean ? resolveText(bean.name) || beanSlug : beanSlug ? beanSlug : "sprouts";
+  // The admin reads the LIVE garden — it already does, one line up — because the
+  // chrome is the surface most likely to be looked at right after a rename.
+  // "en" rather than a negotiated language: the admin zone is authored in one.
+  const lineage = resolveLineage(sprout.parents, raw, { lang: "en", hrefs: ADMIN_HREFS });
 
   // The stored source, for the rail's diagnostic panel. STRICT textPart, the
   // same reader the editor loads from twenty lines down: with resolveText an
@@ -120,74 +123,71 @@ export default async function AdminSproutPage({
   ];
 
   return (
-    // EntityRail wraps the WHOLE body: the panel is fixed and the page moves out
-    // from under it, so what moves has to be everything — a head that stayed put
-    // while the editor slid would read as a glitch rather than as a push.
-    <EntityRail label="Sprout panels" items={railItems} openOnError={railForm}>
-      <article className="flex flex-col gap-8">
-        <a
-          href={backHref}
-          className="self-start text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-        >
-          ← {backLabel}
-        </a>
+    <>
+      <LineageChrome lineage={lineage} as={Link} />
+      {/* EntityRail wraps the WHOLE body: the panel is fixed and the page moves
+          out from under it, so what moves has to be everything — a head that
+          stayed put while the editor slid would read as a glitch rather than a
+          push. The parenting chrome above floats, so it sits outside. */}
+      <EntityRail label="Sprout panels" items={railItems} openOnError={railForm}>
+        <article className="flex flex-col gap-8">
+          <SproutHero
+            slug={sprout.slug}
+            name={resolveText(sprout.name)}
+            description={resolveText(sprout.description).trim()}
+            state={stateOf(sprout)}
+            date={sprout.date}
+            type={sprout.type}
+            // Both or neither, and only when a head surface owns the message.
+            // Every consumer inside the head also checks `errorForm`, so handing
+            // it a delete's message would be inert — but it would still be the
+            // page telling an island about a message that island must not render,
+            // which is the opposite of the split this page just made.
+            {...(heroForm ? { error, errorForm: heroForm } : {})}
+            metaForm={<SproutMetaForm sprout={sprout} />}
+            // Everything the head can write, as stored. STRICT textPart on both
+            // halves of each pair, so an fr-only edit still moves the fingerprint
+            // — resolveText would fall back and hide it.
+            saved={JSON.stringify([
+              textPart(sprout.name, "en"),
+              textPart(sprout.name, "fr"),
+              textPart(sprout.description, "en"),
+              textPart(sprout.description, "fr"),
+              sprout.date,
+              sprout.type,
+              stateOf(sprout),
+            ])}
+          />
 
-        <SproutHero
-          slug={sprout.slug}
-          name={resolveText(sprout.name)}
-          description={resolveText(sprout.description).trim()}
-          state={stateOf(sprout)}
-          date={sprout.date}
-          type={sprout.type}
-          // Both or neither, and only when a head surface owns the message.
-          // Every consumer inside the head also checks `errorForm`, so handing
-          // it a delete's message would be inert — but it would still be the
-          // page telling an island about a message that island must not render,
-          // which is the opposite of the split this page just made.
-          {...(heroForm ? { error, errorForm: heroForm } : {})}
-          metaForm={<SproutMetaForm sprout={sprout} />}
-          // Everything the head can write, as stored. STRICT textPart on both
-          // halves of each pair, so an fr-only edit still moves the fingerprint
-          // — resolveText would fall back and hide it.
-          saved={JSON.stringify([
-            textPart(sprout.name, "en"),
-            textPart(sprout.name, "fr"),
-            textPart(sprout.description, "en"),
-            textPart(sprout.description, "fr"),
-            sprout.date,
-            sprout.type,
-            stateOf(sprout),
-          ])}
-        />
+          {/* Only an error no surface will show: the head reopens onto a rejected
+              meta/state/date/type save and the rail onto a rejected delete, each
+              rendering the message inside, so repeating it here would say it
+              twice. */}
+          {error && !heroForm && !railForm ? (
+            <Alert variant="destructive" role="alert">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null}
 
-        {/* Only an error no surface will show: the head reopens onto a rejected
-            meta/state/date/type save and the rail onto a rejected delete, each
-            rendering the message inside, so repeating it here would say it
-            twice. */}
-        {error && !heroForm && !railForm ? (
-          <Alert variant="destructive" role="alert">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
-
-        {/* No ContentCard: a card's header above an editor that is the page's
-            only content is a frame around the page. STRICT textPart on the load
-            — resolveText's fallback would put the fr half into the editor and
-            save it back as en. */}
-        <ProseEditor
-          bare
-          float
-          initialMarkdown={textPart(sprout.content, "en")}
-          // No self-exclusion to do: entityOptions never emits `sprout:` rows
-          // at all, because a sprout has no public URL to mint a reference to.
-          // Passed anyway, so every content surface reads alike — the sentence
-          // ContentCard's `selfRef` docblock carries for the call sites where
-          // the argument does filter something.
-          entities={entityOptions(raw, `sprout:${sprout.slug}`)}
-          action={editContentAction}
-          hidden={{ slug: sprout.slug }}
-        />
-      </article>
-    </EntityRail>
+          {/* No ContentCard: a card's header above an editor that is the page's
+              only content is a frame around the page. STRICT textPart on the load
+              — resolveText's fallback would put the fr half into the editor and
+              save it back as en. */}
+          <ProseEditor
+            bare
+            float
+            initialMarkdown={textPart(sprout.content, "en")}
+            // No self-exclusion to do: entityOptions never emits `sprout:` rows
+            // at all, because a sprout has no public URL to mint a reference to.
+            // Passed anyway, so every content surface reads alike — the sentence
+            // ContentCard's `selfRef` docblock carries for the call sites where
+            // the argument does filter something.
+            entities={entityOptions(raw, `sprout:${sprout.slug}`)}
+            action={editContentAction}
+            hidden={{ slug: sprout.slug }}
+          />
+        </article>
+      </EntityRail>
+    </>
   );
 }

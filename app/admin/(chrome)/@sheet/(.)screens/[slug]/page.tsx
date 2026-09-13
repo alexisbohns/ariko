@@ -36,7 +36,18 @@ export default async function ScreenSheet(props: {
   return (
     <>
       <ActiveTile slug={slug} />
-      <ScreenPage {...props} />
+      {/* `inSheet` — the one prop this wrapper adds, and the only difference
+          between the two renders of the module. The page's parenting chrome is
+          a `position: fixed` cluster, so it escapes this panel no matter what
+          the panel's CSS says and lands at the viewport's top-center, naming an
+          ancestry for a subject that is over in the sheet. Suppressing it is
+          therefore a render decision, and it is made HERE, by a parameter,
+          precisely so this file keeps importing the page wholesale instead of
+          reimplementing a cluster-less copy of it — the drift
+          `lib/screen-sheet-source.test.ts` exists to forbid. Drop this prop and
+          the trail floats back over the open sheet while every check passes;
+          that test pins it. */}
+      <ScreenPage {...props} inSheet />
     </>
   );
 }

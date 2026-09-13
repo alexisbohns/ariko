@@ -195,3 +195,36 @@ test("the tiles are links, and the page is not a client component", () => {
   assert.match(text, /from "next\/link"/);
   assert.equal(text.includes('"use client"'), false);
 });
+
+/**
+ * The parenting chrome is a PAGE's cluster, and the sheet is not a page's worth
+ * of viewport.
+ *
+ * `LineageChrome` is `position: fixed`, top-center. Rendered inside the side
+ * sheet it escapes the panel — no ancestor can contain a fixed box — and floats
+ * over the middle of the screen while its subject sits in the right-hand panel,
+ * asserting an ancestry for something the reader is not looking at. So it is
+ * suppressed by a PARAMETER: the slot passes `inSheet`, the page guards on it,
+ * and nothing else about the module differs. That shape is chosen over the slot
+ * reimplementing a cluster-less body, which is the very drift the test at the
+ * top of this file forbids, and over the page sniffing its own context.
+ *
+ * Both halves are one deletion away from silence. Drop the `inSheet` from the
+ * slot and the page renders the cluster inside the panel; drop the guard and it
+ * renders there whatever the slot passes. `tsc` is happy either way (the prop is
+ * optional), `npm run build` never renders these force-dynamic pages, and no
+ * render test can reach them without a live garden — which is why this is a
+ * source assertion and why it names both ends.
+ */
+test("the screen page's parenting chrome is suppressed in the sheet", () => {
+  const slot = source(SLOT);
+  assert.match(slot, /<ScreenPage [^>]*\binSheet\b/, "the slot must pass inSheet to the page");
+
+  const page = source("app/admin/(chrome)/screens/[slug]/page.tsx");
+  assert.match(page, /\binSheet\??\s*[,:}]/, "the page must take an inSheet prop");
+  assert.match(
+    page,
+    /inSheet\s*\?\s*null\s*:\s*<LineageChrome/,
+    "the page must skip its LineageChrome when inSheet",
+  );
+});
