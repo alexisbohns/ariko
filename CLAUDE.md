@@ -415,6 +415,69 @@ screen library — live in `docs/superpowers/specs/`, which is where history
 belongs. `docs/audits/2026-09-10-code-quality-audit.md` §1 explains why this
 section is three invariants rather than a ledger of six exceptions.
 
+## Planting a project from another repo
+
+A sibling repo describes itself as a `garden.yml` — one pod, its beans, and the
+sprouts under them — and **Ariko plants it**, never the other way round:
+
+```bash
+npm run garden:plant -- ../krabs/garden.yml --dry-run   # prints the tree
+npm run garden:plant -- ../krabs/garden.yml             # writes it, privately
+```
+
+`lib/garden-manifest.ts` validates the whole file before a single write, because
+a pod that exists with three of its five beans missing is a worse state than an
+untouched garden — and it is the state a per-entity validator produces on the
+first bad sprout. `lib/garden-plan.ts` diffs the manifest against the garden and
+prints the tree a human approves; `lib/plant-garden-apply.ts` writes through
+`createPod` / `createBean` / `createSprout`, which is what inherits the unique
+slug index, the prefixed-ref grammar and private-at-birth rather than restating
+them. `lib/plant-garden.test.ts` exercises all of it against a real database.
+
+**There is no HTTP door, and that is the design.** The sibling agent writes a
+file and stops; the credential never leaves this repo and the write is a human
+decision made while looking at a diff. An ingest route would put a bad payload
+one `curl` from production, and `plugins/garden-plant/` says so to the agent
+that would otherwise reach for one.
+
+Four rules the tests pin, each of which passes `tsc`, `npm test` **and**
+`npm run build` while quietly becoming false:
+
+- **A manifest cannot publish.** `visibility`, `state`, `exhibited` and `order`
+  are REFUSED keys, not ignored ones, and the applier writes a sprout as
+  `"draft"` and never touches visibility. Publishing stays in the admin behind
+  the enum rule — a named member of a vocabulary and a Save that confirms. A
+  `--publish` flag here would run `publishCascade` from a CLI and flip the bean
+  and the pod above it with no confirmation, which is the shape the rulebook
+  rejected for a stray click on a globe.
+- **A bean has no `content`.** Only `Pod.content` and `Plant.content` exist
+  (`lib/data.ts:161`, `:129`); a bean's prose is a sprout under it, which is how
+  the timeline orders it and the cascade finds it. The validator refuses the key
+  BY NAME and says where the prose belongs, because it would otherwise parse,
+  write nothing, and lose the author's paragraphs in silence.
+- **An update preserves hand-authored relations.** `contentPatch` takes the
+  stored `relations` as a REQUIRED parameter, never a defaulted one.
+  `lib/content-edit.ts`'s §2.10 note already says that `articles-store.ts`'s
+  `undefined` is "right for a door that only writes unreviewed sprouts and wrong
+  for an edit path" — `--update` is an edit path, and passing `undefined` there
+  deletes every non-mirrored kind with nothing failing anywhere. The parameter is
+  required so no future call site can omit it back into the bug.
+- **The script does not invalidate the cache, deliberately.** A CLI has no Next
+  request store, so `revalidateGarden()` would take its tolerated branch and do
+  nothing — an invalidation that looks like one and is not. It is also
+  unnecessary: everything written is private, so `filterPublic` drops all of it
+  and the cached public dataset is unchanged by definition.
+
+The manifest also refuses a slug reused anywhere in one file. That one is an
+**authoring** guard, not a database constraint, and the docblock says so:
+`ensureBotanicalIndexes` builds a separate unique index per collection, so Mongo
+would accept a pod and a bean both called `krabs`. The reader would not — a
+manifest is prose plus references, and a bare mention of a name that two
+entities answer to is ambiguous to whoever edits the file next.
+
+Sibling agents get all of this as a skill — `plugins/garden-plant/`, installable
+with `/plugin install garden-plant@ariko`, beside the Lab Note plugin.
+
 Orientation lives in
 [`README.md`](README.md); the sequenced plan lives in
 [`docs/superpowers/ROADMAP.md`](docs/superpowers/ROADMAP.md).

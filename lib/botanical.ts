@@ -74,9 +74,15 @@ export async function listBeans(): Promise<Bean[]> {
 
 export interface NewPod {
   slug: string;
-  name: string;
+  // `Text`, not `string`: `Pod.name` and `Pod.description` have been `Text`
+  // since the bilingual slice, and this creator was the last place that could
+  // not say so — a bilingual pod could be edited into existence but never
+  // created as one. Widening is backward compatible (`Text = string |
+  // LocalizedText`), so every existing caller passing a plain string is
+  // unchanged.
+  name: Text;
   plantSlug: string | null;
-  description: string;
+  description: Text;
 }
 
 export async function createPod(input: NewPod): Promise<Pod> {
