@@ -74,11 +74,8 @@ async function main(): Promise<void> {
   const garden = await loadRawGarden();
   // `RawGarden`'s tiers are optional; `GardenSlugs` names the three this plan
   // diffs against, so the widening happens here rather than inside the planner.
-  const plan = planGarden(
-    parsed.manifest,
-    { pods: garden.pods ?? [], beans: garden.beans ?? [], sprouts: garden.sprouts ?? [] },
-    { update: args.update },
-  );
+  const slugs = { pods: garden.pods ?? [], beans: garden.beans ?? [], sprouts: garden.sprouts ?? [] };
+  const plan = planGarden(parsed.manifest, slugs, { update: args.update });
 
   console.log(renderPlan(plan));
   console.log("");
@@ -88,7 +85,8 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  await applyPlan(plan);
+  // The SAME snapshot the plan was computed against — never a second read.
+  await applyPlan(plan, slugs);
 
   for (const action of plan) {
     if (action.action === "skip") continue;

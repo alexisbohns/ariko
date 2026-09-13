@@ -31,14 +31,29 @@
  */
 import { createPod, createBean, createSprout, updatePodContent, updateBeanMeta, updateSproutMeta, updateSproutContent } from "./botanical";
 import { extractRefs, mergeMirrored } from "./entity-refs";
-import type { Text } from "./data";
+import type { Relation, Text } from "./data";
 import type { ContentPatch } from "./content-edit";
-import type { PlanAction } from "./garden-plan";
+import type { GardenSlugs, PlanAction } from "./garden-plan";
 import type { ManifestPod, ManifestBean, ManifestSprout } from "./garden-manifest";
 
 /**
- * A content write, composed the way the OTHER non-editor door composes one
- * (`lib/articles-store.ts`: `mergeMirrored(undefined, extractRefs(...))`).
+ * A content write, composed the way every content door in the repo composes
+ * one: `mergeMirrored(<what is stored now>, extractRefs(<the new body>))`.
+ *
+ * THE EXISTING RELATIONS ARE A REQUIRED ARGUMENT, never an optional one that
+ * defaults to `undefined`, because getting it wrong is silent and destructive.
+ * `mergeMirrored` (`lib/entity-refs.ts`) keeps the NON-mirrored kinds of what
+ * it is given and appends the freshly mirrored ones — so passing `undefined`
+ * for an entity that already exists deletes every hand-authored relation on it,
+ * with nothing failing anywhere. `lib/content-edit.ts`'s §2.10 note states the
+ * rule from the other side: `lib/articles-store.ts` passes `undefined` and is
+ * right to, because that door only ever writes unreviewed sprouts — and it is
+ * "wrong for an edit path". `--update` IS an edit path.
+ *
+ * So: `undefined` on a `create`, where nothing exists yet and there is nothing
+ * to preserve; the stored entity's `relations` on an `update`. A default
+ * parameter would let the wrong one back in by omission, which is exactly how
+ * this bug arrives.
  *
  * DELIBERATELY NOT `buildContentPatch` (`lib/content-edit.ts`), which is the
  * EDITOR's door and is `en`-only by design: it takes one markdown string, and
@@ -49,19 +64,18 @@ import type { ManifestPod, ManifestBean, ManifestSprout } from "./garden-manifes
  * silently drop every French narrative the author wrote: the plant would
  * succeed, the plan would print the same lines, the English would be perfect,
  * and the French would simply never exist, with nothing anywhere reporting it.
- *
- * `undefined` for the existing relations is correct rather than lazy: mirrored
- * kinds are derived state that every write recomputes from the body, and a
- * manifest may not author `relations` at all (`FORBIDDEN_KEYS`). On an update
- * this drops any hand-authored non-mirrored kinds the entity had — the
- * accepted trade the articles door already makes, and the reason `--update` is
- * opt-in.
  */
-function contentPatch(content: Text): ContentPatch {
-  return { content, relations: mergeMirrored(undefined, extractRefs(content)) };
+function contentPatch(content: Text, existing: Relation[] | undefined): ContentPatch {
+  return { content, relations: mergeMirrored(existing, extractRefs(content)) };
 }
 
-export async function applyPlan(plan: PlanAction[]): Promise<void> {
+/**
+ * The plan was computed against ONE snapshot of the garden, so the applier
+ * merges relations against that same snapshot rather than re-reading: a second
+ * read could answer with a garden that changed in between, and an update would
+ * then merge against relations the plan never saw.
+ */
+export async function applyPlan(plan: PlanAction[], garden: GardenSlugs): Promise<void> {
   for (const action of plan) {
     if (action.action === "skip") continue;
 
@@ -78,7 +92,11 @@ export async function applyPlan(plan: PlanAction[]): Promise<void> {
       // Whether just created or already there: a pod's narrative is the one
       // field the creator has no slot for, so it is always a second write.
       if (pod.content !== undefined) {
-        await updatePodContent(pod.slug, contentPatch(pod.content));
+        const existing =
+          action.action === "create"
+            ? undefined
+            : garden.pods.find((p) => p.slug === pod.slug)?.relations;
+        await updatePodContent(pod.slug, contentPatch(pod.content, existing));
       }
       continue;
     }
@@ -120,7 +138,8 @@ export async function applyPlan(plan: PlanAction[]): Promise<void> {
     } else {
       await updateSproutMeta(sprout.slug, { name: sprout.name, description: sprout.description });
       if (sprout.content !== undefined) {
-        await updateSproutContent(sprout.slug, contentPatch(sprout.content));
+        const existing = garden.sprouts.find((s) => s.slug === sprout.slug)?.relations;
+        await updateSproutContent(sprout.slug, contentPatch(sprout.content, existing));
       }
     }
   }
