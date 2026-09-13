@@ -9,6 +9,40 @@
  */
 import { load } from "js-yaml";
 import { composeText, type Text } from "./data";
+import { isTimelineDate } from "./sprout-date";
+import { isSproutType } from "./sprout-type";
+import { MAX_CONTENT_BYTES } from "./content-edit";
+
+/**
+ * Slugs become URL segments (`/pod/krabs`, `/bean/…`), so a capital or an
+ * underscore round-trips through `encodeURIComponent` into something an
+ * author cannot retype from the address bar.
+ */
+const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** `slug` at `where`, checked for kebab-case; "" is reported as missing. */
+function checkSlug(slug: string, where: string): string | null {
+  if (!slug) return `${where}.slug is required`;
+  if (!SLUG.test(slug)) return `${where}.slug must be kebab-case (got "${slug}")`;
+  return null;
+}
+
+/**
+ * `Text`'s two halves against `MAX_CONTENT_BYTES`, measured the way the
+ * article door measures them (`lib/content-edit.ts`) so the two doors agree
+ * on what fits.
+ */
+function checkContentSize(text: Text, where: string): string | null {
+  const parts: Array<[string, string | undefined]> =
+    typeof text === "string" ? [["en", text]] : [["en", text.en], ["fr", text.fr]];
+  for (const [lang, part] of parts) {
+    if (part === undefined) continue;
+    if (new TextEncoder().encode(part).length > MAX_CONTENT_BYTES) {
+      return `${where}.${lang} exceeds ${MAX_CONTENT_BYTES / 1024} KiB`;
+    }
+  }
+  return null;
+}
 
 export interface ManifestSprout {
   slug: string;
@@ -81,6 +115,9 @@ function buildPod(raw: Record<string, unknown>): PodResult {
   const description = readText(raw.description, "pod.description");
   if (!description.ok) return { ok: false, error: description.error };
 
+  const slugError = checkSlug(str(raw.slug), "pod");
+  if (slugError) return { ok: false, error: slugError };
+
   const pod: ManifestPod = {
     slug: str(raw.slug),
     name: name.text,
@@ -90,6 +127,8 @@ function buildPod(raw: Record<string, unknown>): PodResult {
   if (raw.content !== undefined) {
     const content = readText(raw.content, "pod.content");
     if (!content.ok) return { ok: false, error: content.error };
+    const sizeError = checkContentSize(content.text, "pod.content");
+    if (sizeError) return { ok: false, error: sizeError };
     pod.content = content.text;
   }
   return { ok: true, pod };
@@ -103,17 +142,32 @@ function buildSprout(raw: Record<string, unknown>, where: string): SproutResult 
   const description = readText(raw.description, `${where}.description`);
   if (!description.ok) return { ok: false, error: description.error };
 
+  const slugError = checkSlug(str(raw.slug), where);
+  if (slugError) return { ok: false, error: slugError };
+
+  const type = str(raw.type);
+  if (!isSproutType(type)) {
+    return { ok: false, error: `${where}.type must be non-blank with no surrounding whitespace (got "${type}")` };
+  }
+
+  // A YAML date scalar parses to a Date; force the authored text back.
+  const date = raw.date instanceof Date ? raw.date.toISOString().slice(0, 10) : String(raw.date ?? "");
+  if (!isTimelineDate(date)) {
+    return { ok: false, error: `${where}.date must be YYYY-MM-DD (got "${date}")` };
+  }
+
   const sprout: ManifestSprout = {
     slug: str(raw.slug),
-    type: str(raw.type),
-    // A YAML date scalar parses to a Date; force the authored text back.
-    date: raw.date instanceof Date ? raw.date.toISOString().slice(0, 10) : String(raw.date ?? ""),
+    type,
+    date,
     name: name.text,
     description: description.text,
   };
   if (raw.content !== undefined) {
     const content = readText(raw.content, `${where}.content`);
     if (!content.ok) return { ok: false, error: content.error };
+    const sizeError = checkContentSize(content.text, `${where}.content`);
+    if (sizeError) return { ok: false, error: sizeError };
     sprout.content = content.text;
   }
   return { ok: true, sprout };
@@ -126,6 +180,9 @@ function buildBean(raw: Record<string, unknown>, where: string): BeanResult {
   if (!name.ok) return { ok: false, error: name.error };
   const description = readText(raw.description, `${where}.description`);
   if (!description.ok) return { ok: false, error: description.error };
+
+  const slugError = checkSlug(str(raw.slug), where);
+  if (slugError) return { ok: false, error: slugError };
 
   const sproutsRaw = raw.sprouts ?? [];
   if (!Array.isArray(sproutsRaw)) return { ok: false, error: `${where}.sprouts must be a list` };
@@ -181,5 +238,37 @@ function buildManifest(doc: unknown): ParseResult {
     beans.push(result.bean);
   }
 
+  const dupError = findDuplicateSlug(podResult.pod, beans);
+  if (dupError) return { ok: false, error: dupError };
+
   return { ok: true, manifest: { pod: podResult.pod, beans } };
+}
+
+/**
+ * Pod, beans and sprouts share ONE slug namespace here: each becomes a unique
+ * slug in Mongo, so a pod and a bean sharing a slug is not a naming quirk
+ * but a collision at the write.
+ */
+function findDuplicateSlug(pod: ManifestPod, beans: ManifestBean[]): string | null {
+  const seen = new Map<string, string>();
+  const claim = (slug: string, where: string): string | null => {
+    const prior = seen.get(slug);
+    if (prior) return `duplicate slug "${slug}" at ${where} (first seen at ${prior})`;
+    seen.set(slug, where);
+    return null;
+  };
+
+  let error = claim(pod.slug, "pod");
+  if (error) return error;
+
+  for (let i = 0; i < beans.length; i += 1) {
+    const bwhere = `beans[${i}]`;
+    error = claim(beans[i].slug, bwhere);
+    if (error) return error;
+    for (let j = 0; j < beans[i].sprouts.length; j += 1) {
+      error = claim(beans[i].sprouts[j].slug, `${bwhere}.sprouts[${j}]`);
+      if (error) return error;
+    }
+  }
+  return null;
 }

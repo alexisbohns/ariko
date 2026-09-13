@@ -97,3 +97,105 @@ beans:
   if (result.ok) return;
   assert.match(result.error, /beans\[1\]\.sprouts\[0\]\.name/);
 });
+
+test("rejects a sprout date that is not YYYY-MM-DD", () => {
+  const result = parseManifest(`
+pod:
+  slug: krabs
+  name: { en: Krabs }
+  plant: null
+  description: { en: A small ledger. }
+beans:
+  - slug: ledger
+    name: { en: Ledger }
+    description: { en: The ledger bean. }
+    sprouts:
+      - slug: first-entry
+        type: note
+        date: "09/12/2026"
+        name: { en: First entry }
+        description: { en: The first entry. }
+`);
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /beans\[0\]\.sprouts\[0\]\.date/);
+  assert.match(result.error, /09\/12\/2026/);
+});
+
+test("rejects a sprout type with a trailing space", () => {
+  const result = parseManifest(`
+pod:
+  slug: krabs
+  name: { en: Krabs }
+  plant: null
+  description: { en: A small ledger. }
+beans:
+  - slug: ledger
+    name: { en: Ledger }
+    description: { en: The ledger bean. }
+    sprouts:
+      - slug: first-entry
+        type: "digest "
+        date: 2026-09-13
+        name: { en: First entry }
+        description: { en: The first entry. }
+`);
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /beans\[0\]\.sprouts\[0\]\.type/);
+  assert.match(result.error, /"digest "/);
+});
+
+test("rejects a non-kebab-case slug", () => {
+  const result = parseManifest(`
+pod:
+  slug: krabs
+  name: { en: Krabs }
+  plant: null
+  description: { en: A small ledger. }
+beans:
+  - slug: Krabs_Pod
+    name: { en: Ledger }
+    description: { en: The ledger bean. }
+    sprouts: []
+`);
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /beans\[0\]\.slug must be kebab-case \(got "Krabs_Pod"\)/);
+});
+
+test("rejects a duplicate slug across the manifest", () => {
+  const result = parseManifest(`
+pod:
+  slug: krabs
+  name: { en: Krabs }
+  plant: null
+  description: { en: A small ledger. }
+beans:
+  - slug: krabs
+    name: { en: Ledger }
+    description: { en: The ledger bean. }
+    sprouts: []
+`);
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /duplicate slug "krabs"/);
+  assert.match(result.error, /beans\[0\]/);
+});
+
+test("rejects content over 64 KiB", () => {
+  const big = "a".repeat(64 * 1024 + 1);
+  const result = parseManifest(`
+pod:
+  slug: krabs
+  name: { en: Krabs }
+  plant: null
+  description: { en: A small ledger. }
+  content: { en: "${big}" }
+beans: []
+`);
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /pod\.content\.en/);
+  assert.match(result.error, /64 KiB/);
+});
