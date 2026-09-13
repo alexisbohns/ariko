@@ -83,9 +83,14 @@ One `<Chrome magnet="top-center">`, one item per tier:
   This is the "an icon trigger names its stored value" rule applied to
   navigation.
 - **Two or more** → a `<details>` whose `<summary>` wears `chromeItemClass()`
-  and carries `aria-label="Pods: 3"`; the panel is a list of `ChromeLink` rows
-  wearing `CHROME_PLATE`, so it is visibly the same object as the cluster it
-  hangs from.
+  and carries `aria-label="Pods: Karma, Ledger, Studio"` — the parents, not
+  their count, since `<summary>`'s role already conveys expand/collapse. The
+  panel is a list of plain text rows (`ChromeLink` is a 36px icon-button with a
+  hover label, wrong for a vertical list of names) on a popover SURFACE —
+  `border bg-popover shadow-md`, the paint `chrome.tsx`'s hover label uses —
+  rather than `CHROME_PLATE`, which is ghost at `md:` and up and materialises
+  only on hover or focus OF ITSELF: a panel opened by a click is never the thing
+  under the pointer, so the plate would leave it unstyled text over the page.
 
 A disclosure rather than a popover because the public zone is progressively
 enhanced: Base UI's `Popover` is a client component, and reaching for it here
