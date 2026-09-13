@@ -71,10 +71,10 @@ export default async function AdminBeanPage({ params }: { params: Promise<{ id: 
       <div className="flex flex-col gap-8">
         <div className="flex flex-col gap-3">
           <a
-            href="/admin/sprouts"
+            href="/admin/beans"
             className="text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
           >
-            ← sprouts
+            ← beans
           </a>
           <h1 className="font-heading text-2xl font-medium tracking-tight">
             {resolveText(bean.name)}
