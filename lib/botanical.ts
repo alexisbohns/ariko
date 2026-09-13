@@ -23,7 +23,7 @@ import type { ContentPatch } from "./content-edit";
 import { plantMetaUpdate, type PlantMetaPatch } from "./plant-meta";
 import { screenMetaUpdate, type ScreenMetaPatch } from "./screen-edit";
 import type { ExhibitionWrites } from "./exhibition";
-import type { BeanMetaPatch } from "./bean-meta";
+import { beanMetaUpdate, type BeanMetaPatch } from "./bean-meta";
 
 // Thrown when a create hits the unique slug index. Lets the server action turn a
 // collision into a friendly message instead of a 500.
@@ -550,24 +550,6 @@ export async function updateBeanKeyword(slug: string, keyword: Text | null): Pro
     .updateOne({ slug }, keyword === null
       ? { $unset: { keyword: "" } }
       : { $set: { keyword } });
-}
-
-/**
- * Pure. A bean's meta patch to the update document.
- *
- * Extracted rather than composed inline for `plantMetaUpdate`'s reason, which is
- * a bug that actually shipped: a spread over a conditional produced TWO `$set`
- * keys, the second silently winning, and two of three fields never reached the
- * database. A second two-field writer must not re-earn that.
- *
- * A null description is an `$unset`, not a stored `""`: the meta sheet must be
- * able to REMOVE a description, and an empty string renders as a dangling line
- * wherever the bean is listed.
- */
-export function beanMetaUpdate(patch: BeanMetaPatch): Record<string, unknown> {
-  return patch.description === null
-    ? { $set: { name: patch.name }, $unset: { description: "" } }
-    : { $set: { name: patch.name, description: patch.description } };
 }
 
 /**

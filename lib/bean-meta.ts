@@ -44,3 +44,37 @@ export function buildBeanMetaPatch(form: FormData): BeanMetaPatch {
 
   return { name, description: description === "" ? null : description };
 }
+
+/** The Mongo update document for a meta patch. Pure, so it can be pinned. */
+export interface BeanMetaUpdate {
+  $set: Record<string, unknown>;
+  $unset?: Record<string, "">;
+}
+
+/**
+ * Pure. Builds the update document — `lib/plant-meta.ts`'s `plantMetaUpdate`,
+ * for the bean, and it lives HERE beside its patch rather than in
+ * `lib/botanical.ts` for the reason that file's writers give from the other
+ * side: `lib/botanical.ts` holds writes, and a pure shape parked among them is
+ * a pure shape the garden-cache test then has to classify as a "reader" to
+ * explain.
+ *
+ * Split out of the writer because getting this shape wrong is SILENT, which
+ * `plantMetaUpdate`'s docblock records from experience: composing it inline as
+ * `{ $set: { name }, ...(description === null ? { $unset } : { $set: { description } }) }`
+ * produces an object literal with TWO `$set` keys whenever a description is
+ * present. The later one wins, so the write carries the description alone and
+ * drops the name. Mongo reports nothing, the action redirects as though it had
+ * worked, and TypeScript does not flag a duplicate key introduced by a spread.
+ *
+ * So the fields are accumulated into ONE `$set`, and `$unset` is added beside it
+ * (the two operators are legal together; two `$set`s are not).
+ */
+export function beanMetaUpdate(patch: BeanMetaPatch): BeanMetaUpdate {
+  const $set: Record<string, unknown> = { name: patch.name };
+  if (patch.description !== null) {
+    $set.description = patch.description;
+    return { $set };
+  }
+  return { $set, $unset: { description: "" } };
+}

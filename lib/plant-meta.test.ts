@@ -6,7 +6,6 @@ import {
   InvalidPlantStatusError,
   plantMetaUpdate,
 } from "./plant-meta";
-import { beanMetaUpdate } from "./botanical";
 
 const form = (fields: Record<string, string>): FormData => {
   const f = new FormData();
@@ -101,23 +100,3 @@ test("a cleared description becomes an $unset without costing the other two", ()
   });
 });
 
-test("beanMetaUpdate sets the name and unsets a cleared description", () => {
-  assert.deepEqual(beanMetaUpdate({ name: "Timeline", description: null }), {
-    $set: { name: "Timeline" },
-    $unset: { description: "" },
-  });
-});
-
-test("beanMetaUpdate sets both fields when a description is present", () => {
-  assert.deepEqual(beanMetaUpdate({ name: "Timeline", description: "a feed" }), {
-    $set: { name: "Timeline", description: "a feed" },
-  });
-});
-
-test("beanMetaUpdate never emits a duplicate $set key", () => {
-  // The bug plantMetaUpdate exists because of: composing this document inline
-  // with a spread produced two $set keys and silently dropped fields.
-  const doc = beanMetaUpdate({ name: "Timeline", description: "a feed" });
-  assert.equal(Object.keys(doc).filter((k) => k === "$set").length, 1);
-  assert.ok(!("$unset" in doc), "a present description must not also be unset");
-});

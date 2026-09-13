@@ -157,7 +157,6 @@ const GARDEN_READERS = new Set([
   "listScreensForPlant",
   "getScreen",
   "getSprout",
-  "beanMetaUpdate",
 ]);
 
 /**
