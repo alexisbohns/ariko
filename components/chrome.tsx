@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 
 import { CHROME_PLATE } from "./chrome-plate";
 import { Kbd } from "./ui/kbd";
@@ -249,13 +249,43 @@ export function ChromeItem({
  *
  * `label` is the accessible name and the visible label, from one string, so the
  * two cannot drift.
+ *
+ * `as` IS THE PARAMETER THAT KEEPS THIS ONE COMPONENT, and it is the reason
+ * this file did not simply reach for `next/link`. The admin wants a soft
+ * navigation — the chrome must not be torn down and rebuilt on every click —
+ * and `next/link` is a client component: importing it HERE would put a client
+ * boundary under every public page, which is the exact shape of the
+ * `components/ui/table.tsx` regression `lib/server-safe-source.test.ts` exists
+ * to catch, and which no test would report because `next/link` is neither a
+ * `"use client"` directive in this file nor a lucide import.
+ *
+ * So the zone supplies its own anchor and the geometry stays shared: the admin
+ * passes `Link`, the public zone passes nothing and gets `"a"`. CLAUDE.md's
+ * shared-surfaces rule, spelled exactly as it asks — one file, and what differs
+ * is a parameter.
+ *
+ * Typed against THE PROPS THIS COMPONENT ACTUALLY PASSES rather than against
+ * all of `<a>`'s, which is not pedantry: `next/link` requires its `href`, and a
+ * `ComponentType<AnchorHTMLAttributes>` — where `href` is optional — is a
+ * weaker contract than `Link` can satisfy, so the obvious spelling rejects the
+ * one component this parameter exists for. Naming the five props keeps the
+ * check real in the direction that matters (anything passed here must accept an
+ * `href` and a `className`) while staying satisfiable by both anchors.
  */
+interface ChromeAnchorProps {
+  href: string;
+  className: string;
+  "aria-label": string;
+  "aria-current": "page" | undefined;
+  children: ReactNode;
+}
 export function ChromeLink({
   href,
   label,
   current,
   hotkey,
   children,
+  as: Anchor = "a",
 }: {
   href: string;
   label: string;
@@ -265,17 +295,21 @@ export function ChromeLink({
    *  registered by whoever owns the key state. */
   hotkey?: string;
   children: ReactNode;
+  /** The anchor to render. Defaults to a plain `<a>` — a hard navigation, which
+   *  is what the public zone wants and all it can have without a client
+   *  boundary. */
+  as?: "a" | ComponentType<ChromeAnchorProps>;
 }) {
   return (
     <ChromeItem label={label} hotkey={hotkey}>
-      <a
+      <Anchor
         href={href}
         aria-label={label}
         aria-current={current ? "page" : undefined}
         className={chromeItemClass(current)}
       >
         {children}
-      </a>
+      </Anchor>
     </ChromeItem>
   );
 }

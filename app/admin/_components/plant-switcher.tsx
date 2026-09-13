@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { ChevronsUpDown } from "lucide-react";
 import { useId, type ReactNode } from "react";
 import { EntityAvatar } from "@/components/admin/glyphs";
@@ -21,11 +22,17 @@ export interface PlantMark {
 /**
  * The admin's subject, as a control.
  *
- * EVERY ROW IS A PLAIN ANCHOR. Picking a plant is a navigation, not a write —
- * no server action, no cookie — which is what makes the resulting URL a
- * description of the view, and what makes this island inert rather than
- * destructive with script off: it simply never opens, and every destination it
- * offers is also a row in a table on the root.
+ * EVERY ROW IS AN ANCHOR WITH A REAL `href`. Picking a plant is a navigation,
+ * not a write — no server action, no cookie — which is what makes the resulting
+ * URL a description of the view, and what makes this island inert rather than
+ * destructive: it simply never opens, and every destination it offers is also a
+ * row in a table on the root.
+ *
+ * They are `next/link` rather than bare `<a>` now, which changes how the
+ * navigation is performed and nothing about what it IS. The href is still the
+ * whole of the row's meaning, still composed by `lib/admin-scope.ts`, and still
+ * middle-clickable and copyable. `Row`'s own note says why the soft navigation
+ * is worth having here in particular.
  *
  * Where each row points is `lib/admin-scope.ts`'s decision, not this file's: on
  * a filtering section it sets the dimension and keeps the others, and anywhere
@@ -141,7 +148,13 @@ export function PlantSwitcher({
 }
 
 /** One destination. `aria-current` rather than a tick glyph: the row the view
- *  is already on is a fact about this list, not a value the author picked. */
+ *  is already on is a fact about this list, not a value the author picked.
+ *
+ *  A `next/link`, for the chrome's reason (`admin-chrome.tsx`): picking a plant
+ *  is the navigation most likely to be followed by another one, and a hard load
+ *  here would tear down the switcher that was just used to make it. Still a
+ *  real `href` — what it points at is unchanged, and `lib/admin-scope.ts` is
+ *  still the only thing that decides it. */
 function Row({
   href,
   current,
@@ -152,7 +165,7 @@ function Row({
   children: ReactNode;
 }) {
   return (
-    <a
+    <Link
       href={href}
       aria-current={current ? "true" : undefined}
       className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent ${
@@ -160,6 +173,6 @@ function Row({
       }`}
     >
       {children}
-    </a>
+    </Link>
   );
 }

@@ -2,7 +2,7 @@ import { Suspense, type ReactNode } from "react";
 import { resolveText } from "@/lib/data";
 import { byResolvedName } from "@/lib/name-order";
 import { visibilityOf } from "@/lib/plant-visibility";
-import { loadRawGarden } from "@/lib/store";
+import { loadPlantMarks } from "@/lib/store";
 import { AdminChrome, AdminMain } from "../_components/admin-chrome";
 import type { PlantMark } from "../_components/plant-switcher";
 
@@ -105,6 +105,17 @@ import type { PlantMark } from "../_components/plant-switcher";
  * and every server action read live, and the chrome is the surface most likely
  * to be looked at immediately after a rename.
  *
+ * `loadPlantMarks`, though, and not `loadRawGarden` — the narrowing matters
+ * because THIS LAYOUT SITS ABOVE EVERY ADMIN PAGE and its `await` gates the
+ * first byte of all of them. `loadRawGarden` here was six unfiltered collection
+ * scans (421 KB, ~130 ms warm, most of it sprout markdown and pod narrative)
+ * spent composing 1.6 KB of marks. `lib/store.ts` carries the measurements.
+ *
+ * It reads no less OFTEN than before — see the note on soft navigation in
+ * `app/admin/_components/admin-chrome.tsx` for what actually stopped the
+ * per-navigation repeat, which is that this layout is no longer torn down and
+ * rebuilt on every click.
+ *
  * THE LOGIN PAGE NO LONGER PAYS FOR THIS READ, and never sees its result: it
  * sits outside `(chrome)`, so this layout does not wrap it. See the docblock at
  * the top of this file for what that used to cost.
@@ -115,7 +126,7 @@ import type { PlantMark } from "../_components/plant-switcher";
  */
 async function plantMarks(): Promise<PlantMark[]> {
   try {
-    return ((await loadRawGarden()).plants ?? [])
+    return (await loadPlantMarks())
       .map((plant) => ({
         slug: plant.slug,
         name: resolveText(plant.name),

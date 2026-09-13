@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useHeldKeys, useHotkeys } from "@tanstack/react-hotkeys";
 import { ExternalLink, LogOut } from "lucide-react";
@@ -19,10 +20,34 @@ import { READING_COLUMN, RAIL_CLEARANCE, WIDE_COLUMN } from "@/components/page-c
  * which is why the `current` prop the old AdminBar took is gone: the active
  * item comes from the pathname (lib/admin-nav.ts).
  *
- * Chrome, not a form: every nav item is a plain <a href> and Log out is still
- * a real <form> with a real submit button, so the zero-client-JS rule in
- * CLAUDE.md is untouched here. (The seed overlay is where this slice spends
- * its exception.)
+ * EVERY NAV ITEM IS A `next/link`, AND THAT IS THE WHOLE PERFORMANCE STORY of
+ * this chrome. It used to be a plain `<a href>`, justified by a zero-client-JS
+ * rule that belonged to the POC and outlived it — so every click in the admin
+ * tore the document down and built it again. A screen recording of five
+ * navigations timed the cost at 284–358 ms of visibly broken chrome EACH TIME,
+ * and all of it downstream of the reload rather than of any work worth doing:
+ *
+ *   - a white frame, because the old document is gone and the new one has not
+ *     painted;
+ *   - the plant switcher's logo flashing its `OX` monogram, because Base UI's
+ *     `Avatar.Image` starts at `idle` and only calls `new Image()` from a
+ *     layout effect — the `<img>` is never in the server HTML, so the request
+ *     cannot start until the bundle has downloaded and hydrated;
+ *   - the search icon missing entirely and arriving last, for the same reason
+ *     one layer up (see `command-palette.tsx`).
+ *
+ * A soft navigation does not fix those three; it makes them unreachable. The
+ * layout and every island in it STAY MOUNTED across a click, so there is no
+ * frame in which the chrome is half-built, and nothing to re-hydrate. The
+ * server cost fell with it: the layout's garden read is no longer repeated per
+ * navigation, because the layout is no longer re-rendered per navigation.
+ *
+ * The anchor comes in as `ChromeLink`'s `as` — that file says why it is a
+ * parameter rather than an import, and the short version is that
+ * `components/chrome.tsx` is server-safe and the public zone renders it.
+ *
+ * Log out is still a real `<form>` with a real submit button. That was never
+ * about script; it is a write, and a write belongs in a form.
  *
  * The SHELL is `components/chrome.tsx` now, shared with the public zone — see
  * that file for why the hover labels stopped being Base UI `Tooltip`s. This
@@ -174,7 +199,7 @@ export function AdminChrome({ plants }: { plants: PlantMark[] }) {
           half-lit rather than annotated — the mark and the switcher have no
           shortcut, so they simply show their names. */}
       <Chrome magnet="top-left" hotkeysVisible={altHeld}>
-        <ChromeLink href="/admin" label="Ariko">
+        <ChromeLink href="/admin" label="Ariko" as={Link}>
           <ArikoIcon className="size-4" />
         </ChromeLink>
         <PlantSwitcher
@@ -196,6 +221,7 @@ export function AdminChrome({ plants }: { plants: PlantMark[] }) {
               key={item.id}
               href={navHref(item, scope)}
               label={item.label}
+              as={Link}
               hotkey={item.hotkey ? `${ALT_SYMBOL}${item.hotkey}` : undefined}
               // The item's OWN href, not the scoped one: `resolveNavItem`
               // answers with a path, and the scoped href carries a query the

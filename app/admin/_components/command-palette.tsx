@@ -375,18 +375,40 @@ export function PaletteAutocomplete({
 }
 
 /**
- * The island's edge, and the reason it is a separate component rather than a
- * flag inside the one below: the server render IS the script-off render, so
- * `mounted` stays false there and this returns null — no dead search button
- * that looks pressable and does nothing, and no `useRouter()` call on a path
- * that has no router.
+ * THERE IS NO MOUNT GATE HERE ANY MORE, and its removal is a performance fix
+ * rather than a tidy-up.
  *
- * Same shape as MediaPicker's gate, for the same reason.
+ * It used to read:
+ *
+ *     const [mounted, setMounted] = useState(false);
+ *     useEffect(() => setMounted(true), []);
+ *     if (!mounted) return null;
+ *
+ * — so the search button was absent from the server HTML, absent through
+ * hydration, and arrived only when the effect flushed. On a screen recording of
+ * the admin that was the icon visibly blinking in a few hundred milliseconds
+ * after everything around it had painted, on every single page.
+ *
+ * The gate's argument was that the server render IS the script-off render, and
+ * a button that cannot be pressed should not be drawn. That argument belonged
+ * to the POC's zero-client-JS rule and does not survive it: the admin is a
+ * JavaScript application (CLAUDE.md §"Script, by zone"), it is behind a session
+ * gate, and it is not a surface anyone reaches with script disabled. Paying a
+ * visible flash on every page to be correct for a reader who does not exist is
+ * the wrong trade.
+ *
+ * This is NOT the shape MediaPicker's gate has, and that one stays. There the
+ * gate is a data-loss guard — an unmounted picker must be inert rather than
+ * destructive, because a server-rendered submit beside it would post an empty
+ * media list and clear every stored image (`lib/media-picker-mount.test.ts`
+ * pins it). Nothing here writes: the palette is a navigator, every row is a
+ * faster route to a page that still has its slow route, and the worst a
+ * script-off reader gets is a button that does nothing.
+ *
+ * `Palette` stays a separate component so its hooks sit below this boundary,
+ * which is the half of the old arrangement worth keeping.
  */
 export function CommandPalette() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  if (!mounted) return null;
   return <Palette />;
 }
 
