@@ -523,9 +523,39 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 **Files:**
 - Create: `components/lineage-chrome.tsx`
 - Test: `lib/lineage-chrome-render.test.tsx`
+- Modify: `components/chrome.tsx` (export and widen `ChromeAnchorProps`)
 - Modify: `lib/server-safe-source.test.ts`
 
-- [ ] **Step 1: Write the failing render test**
+**Why `components/chrome.tsx` changes.** Its `ChromeAnchorProps` is private and
+names `aria-label` and `aria-current` as REQUIRED. The parenting chrome needs
+the same anchor in two shapes — a `ChromeLink` (which passes both) and a plain
+row inside the disclosure (which passes neither) — so the interface is exported
+and those two props become optional. That widens what `as` accepts and narrows
+nothing: `ChromeLink` still passes both on every render, so no existing call
+site changes behaviour, and `next/link` still satisfies it.
+
+- [ ] **Step 1: Export and widen the anchor contract**
+
+In `components/chrome.tsx`, change the interface to:
+
+```ts
+/** The props `ChromeLink` passes its anchor. Exported because
+ *  `components/lineage-chrome.tsx` takes the same `as` parameter, and its
+ *  disclosure rows are plain anchors that pass neither aria prop — so both are
+ *  optional here. `ChromeLink` still passes both on every render. */
+export interface ChromeAnchorProps {
+  href: string;
+  className: string;
+  "aria-label"?: string;
+  "aria-current"?: "page" | undefined;
+  children: ReactNode;
+}
+```
+
+Then `npx tsc --noEmit` — expected: clean, because every existing caller passes
+more than the interface now demands.
+
+- [ ] **Step 2: Write the failing render test**
 
 Create `lib/lineage-chrome-render.test.tsx`:
 
@@ -596,7 +626,7 @@ test("an empty lineage renders nothing at all", () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [ ] **Step 3: Run it and watch it fail**
 
 ```bash
 TSX_TSCONFIG_PATH=tsconfig.test.json node --import tsx --test lib/lineage-chrome-render.test.tsx
@@ -604,7 +634,7 @@ TSX_TSCONFIG_PATH=tsconfig.test.json node --import tsx --test lib/lineage-chrome
 
 Expected: FAIL — `Cannot find module '@/components/lineage-chrome'`.
 
-- [ ] **Step 3: Write the component**
+- [ ] **Step 4: Write the component**
 
 Create `components/lineage-chrome.tsx`:
 
@@ -615,6 +645,7 @@ import { Chrome, ChromeLink, chromeItemClass } from "./chrome";
 import { CHROME_PLATE } from "./chrome-plate";
 import { PlantMarkContent } from "./plant-header";
 import { BeanIcon, PodIcon } from "./public-icons";
+import type { ChromeAnchorProps } from "./chrome";
 import type { Lineage, LineageEntry, LineageTier } from "@/lib/lineage";
 import { cn } from "@/lib/utils";
 
@@ -679,25 +710,20 @@ function TierItem({
   as,
 }: {
   tier: LineageTier;
-  as?: "a" | ComponentType<never>;
+  as?: "a" | ComponentType<ChromeAnchorProps>;
 }): ReactNode {
   const [first, ...rest] = tier.entries;
   if (!first) return null;
 
   if (rest.length === 0) {
     return (
-      <ChromeLink
-        href={first.href}
-        label={first.name}
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        as={as as any}
-      >
+      <ChromeLink href={first.href} label={first.name} as={as}>
         <TierGlyph kind={tier.kind} entry={first} />
       </ChromeLink>
     );
   }
 
-  const Anchor = (as ?? "a") as "a";
+  const Anchor = as ?? "a";
   return (
     <details className="relative">
       <summary
@@ -738,7 +764,7 @@ export function LineageChrome({
    * nothing and gets `<a>`. Importing `next/link` HERE would put a client
    * boundary under every public page.
    */
-  as?: "a" | ComponentType<never>;
+  as?: "a" | ComponentType<ChromeAnchorProps>;
 }) {
   // Nothing at all, rather than an empty plate floating at the top of a page
   // that has no parents to show. A plant's own page lands here.
@@ -754,7 +780,7 @@ export function LineageChrome({
 }
 ```
 
-- [ ] **Step 4: Run the test and watch it pass**
+- [ ] **Step 5: Run the test and watch it pass**
 
 ```bash
 TSX_TSCONFIG_PATH=tsconfig.test.json node --import tsx --test lib/lineage-chrome-render.test.tsx
@@ -763,7 +789,7 @@ TSX_TSCONFIG_PATH=tsconfig.test.json node --import tsx --test lib/lineage-chrome
 Expected: PASS, 4 tests. If the `aria-label` assertion fails on attribute order,
 read the printed markup and adjust the regex — not the component.
 
-- [ ] **Step 5: Pin the file as server-safe**
+- [ ] **Step 6: Pin the file as server-safe**
 
 In `lib/server-safe-source.test.ts`, add to the pinned list, after
 `"components/chrome.tsx",`:
@@ -774,7 +800,7 @@ In `lib/server-safe-source.test.ts`, add to the pinned list, after
   "components/lineage-chrome.tsx",
 ```
 
-- [ ] **Step 6: Run the server-safe suite**
+- [ ] **Step 7: Run the server-safe suite**
 
 ```bash
 TSX_TSCONFIG_PATH=tsconfig.test.json node --import tsx --test lib/server-safe-source.test.ts
@@ -783,10 +809,10 @@ TSX_TSCONFIG_PATH=tsconfig.test.json node --import tsx --test lib/server-safe-so
 Expected: PASS. A failure here names the exact rule broken — fix the component,
 never the list.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add components/lineage-chrome.tsx lib/lineage-chrome-render.test.tsx lib/server-safe-source.test.ts
+git add components/chrome.tsx components/lineage-chrome.tsx lib/lineage-chrome-render.test.tsx lib/server-safe-source.test.ts
 git commit -m "Draw where an entity hangs from
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
