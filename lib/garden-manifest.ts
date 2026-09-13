@@ -43,6 +43,11 @@ export type ParseResult =
   | { ok: true; manifest: GardenManifest }
   | { ok: false; error: string };
 
+/** A value that is a string, or "" — the coercion every slug/type field shares. */
+function str(v: unknown): string {
+  return typeof v === "string" ? v : "";
+}
+
 /**
  * A `{ en, fr }` pair from the file, composed into the garden's `Text`.
  *
@@ -63,6 +68,84 @@ function readText(value: unknown, where: string): TextResult {
   return { ok: true, text: composeText(en, fr) };
 }
 
+/** Is `value` a plain mapping — object, non-null, non-array? */
+function isMapping(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+type PodResult = { ok: true; pod: ManifestPod } | { ok: false; error: string };
+
+function buildPod(raw: Record<string, unknown>): PodResult {
+  const name = readText(raw.name, "pod.name");
+  if (!name.ok) return { ok: false, error: name.error };
+  const description = readText(raw.description, "pod.description");
+  if (!description.ok) return { ok: false, error: description.error };
+
+  const pod: ManifestPod = {
+    slug: str(raw.slug),
+    name: name.text,
+    plant: typeof raw.plant === "string" && raw.plant.trim() ? raw.plant.trim() : null,
+    description: description.text,
+  };
+  if (raw.content !== undefined) {
+    const content = readText(raw.content, "pod.content");
+    if (!content.ok) return { ok: false, error: content.error };
+    pod.content = content.text;
+  }
+  return { ok: true, pod };
+}
+
+type SproutResult = { ok: true; sprout: ManifestSprout } | { ok: false; error: string };
+
+function buildSprout(raw: Record<string, unknown>, where: string): SproutResult {
+  const name = readText(raw.name, `${where}.name`);
+  if (!name.ok) return { ok: false, error: name.error };
+  const description = readText(raw.description, `${where}.description`);
+  if (!description.ok) return { ok: false, error: description.error };
+
+  const sprout: ManifestSprout = {
+    slug: str(raw.slug),
+    type: str(raw.type),
+    // A YAML date scalar parses to a Date; force the authored text back.
+    date: raw.date instanceof Date ? raw.date.toISOString().slice(0, 10) : String(raw.date ?? ""),
+    name: name.text,
+    description: description.text,
+  };
+  if (raw.content !== undefined) {
+    const content = readText(raw.content, `${where}.content`);
+    if (!content.ok) return { ok: false, error: content.error };
+    sprout.content = content.text;
+  }
+  return { ok: true, sprout };
+}
+
+type BeanResult = { ok: true; bean: ManifestBean } | { ok: false; error: string };
+
+function buildBean(raw: Record<string, unknown>, where: string): BeanResult {
+  const name = readText(raw.name, `${where}.name`);
+  if (!name.ok) return { ok: false, error: name.error };
+  const description = readText(raw.description, `${where}.description`);
+  if (!description.ok) return { ok: false, error: description.error };
+
+  const sproutsRaw = raw.sprouts ?? [];
+  if (!Array.isArray(sproutsRaw)) return { ok: false, error: `${where}.sprouts must be a list` };
+
+  const sprouts: ManifestSprout[] = [];
+  for (let j = 0; j < sproutsRaw.length; j += 1) {
+    const s = sproutsRaw[j];
+    const swhere = `${where}.sprouts[${j}]`;
+    if (!isMapping(s)) return { ok: false, error: `${swhere} must be a mapping` };
+    const result = buildSprout(s, swhere);
+    if (!result.ok) return { ok: false, error: result.error };
+    sprouts.push(result.sprout);
+  }
+
+  return {
+    ok: true,
+    bean: { slug: str(raw.slug), name: name.text, description: description.text, sprouts },
+  };
+}
+
 export function parseManifest(yamlText: string): ParseResult {
   let doc: unknown;
   try {
@@ -79,82 +162,24 @@ function buildManifest(doc: unknown): ParseResult {
   }
   const root = doc as Record<string, unknown>;
 
-  const podRaw = root.pod;
-  if (typeof podRaw !== "object" || podRaw === null) {
-    return { ok: false, error: "pod: is required" };
+  if (!isMapping(root.pod)) {
+    return { ok: false, error: "pod must be a mapping" };
   }
-  const p = podRaw as Record<string, unknown>;
-
-  const podName = readText(p.name, "pod.name");
-  if (!podName.ok) return { ok: false, error: podName.error };
-  const podDescription = readText(p.description, "pod.description");
-  if (!podDescription.ok) return { ok: false, error: podDescription.error };
-
-  const pod: ManifestPod = {
-    slug: typeof p.slug === "string" ? p.slug : "",
-    name: podName.text,
-    plant: typeof p.plant === "string" && p.plant.trim() ? p.plant.trim() : null,
-    description: podDescription.text,
-  };
-  if (p.content !== undefined) {
-    const content = readText(p.content, "pod.content");
-    if (!content.ok) return { ok: false, error: content.error };
-    pod.content = content.text;
-  }
+  const podResult = buildPod(root.pod);
+  if (!podResult.ok) return { ok: false, error: podResult.error };
 
   const beansRaw = root.beans ?? [];
-  if (!Array.isArray(beansRaw)) return { ok: false, error: "beans: must be a list" };
+  if (!Array.isArray(beansRaw)) return { ok: false, error: "beans must be a list" };
 
   const beans: ManifestBean[] = [];
   for (let i = 0; i < beansRaw.length; i += 1) {
-    const b = beansRaw[i] as Record<string, unknown>;
+    const b = beansRaw[i];
     const where = `beans[${i}]`;
-    if (typeof b !== "object" || b === null) {
-      return { ok: false, error: `${where} must be a mapping` };
-    }
-    const name = readText(b.name, `${where}.name`);
-    if (!name.ok) return { ok: false, error: name.error };
-    const description = readText(b.description, `${where}.description`);
-    if (!description.ok) return { ok: false, error: description.error };
-
-    const sproutsRaw = b.sprouts ?? [];
-    if (!Array.isArray(sproutsRaw)) return { ok: false, error: `${where}.sprouts must be a list` };
-
-    const sprouts: ManifestSprout[] = [];
-    for (let j = 0; j < sproutsRaw.length; j += 1) {
-      const s = sproutsRaw[j] as Record<string, unknown>;
-      const swhere = `${where}.sprouts[${j}]`;
-      if (typeof s !== "object" || s === null) {
-        return { ok: false, error: `${swhere} must be a mapping` };
-      }
-      const sname = readText(s.name, `${swhere}.name`);
-      if (!sname.ok) return { ok: false, error: sname.error };
-      const sdescription = readText(s.description, `${swhere}.description`);
-      if (!sdescription.ok) return { ok: false, error: sdescription.error };
-
-      const sprout: ManifestSprout = {
-        slug: typeof s.slug === "string" ? s.slug : "",
-        type: typeof s.type === "string" ? s.type : "",
-        // A YAML date scalar parses to a Date; force the authored text back.
-        date: s.date instanceof Date ? s.date.toISOString().slice(0, 10) : String(s.date ?? ""),
-        name: sname.text,
-        description: sdescription.text,
-      };
-      if (s.content !== undefined) {
-        const content = readText(s.content, `${swhere}.content`);
-        if (!content.ok) return { ok: false, error: content.error };
-        sprout.content = content.text;
-      }
-      sprouts.push(sprout);
-    }
-
-    beans.push({
-      slug: typeof b.slug === "string" ? b.slug : "",
-      name: name.text,
-      description: description.text,
-      sprouts,
-    });
+    if (!isMapping(b)) return { ok: false, error: `${where} must be a mapping` };
+    const result = buildBean(b, where);
+    if (!result.ok) return { ok: false, error: result.error };
+    beans.push(result.bean);
   }
 
-  return { ok: true, manifest: { pod, beans } };
+  return { ok: true, manifest: { pod: podResult.pod, beans } };
 }
