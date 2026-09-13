@@ -7,7 +7,9 @@ import { SPROUT_STATE_ICONS } from "@/components/admin/glyphs";
 import { sproutStateLabel } from "@/lib/glyphs";
 import { SPROUT_STATES } from "@/lib/sprout-state";
 import { setSproutStateAction, setSproutDateAction, setSproutTypeAction } from "../actions";
+import { FactPopover } from "./fact-popover";
 import { OverlaySheet } from "./overlay-sheet";
+import { sweepRejection } from "@/lib/sweep-rejection";
 import { PlantHeader } from "@/components/plant-header";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -112,18 +114,12 @@ export function SproutHero({
   }, [saved, seenSaved]);
 
   // A rejected save leaves ?form= and ?error= in the URL and they outlive the
-  // surface: close, reload, and the banner comes back about an edit that no
-  // longer exists in any field. Dropped with replaceState rather than a router
-  // push — this is tidying the URL, not a navigation, and a navigation here
-  // would re-render the page under the closing sheet.
+  // surface. lib/sweep-rejection.ts carries the argument and the replaceState;
+  // it is shared with the other head and with entity-rail.tsx rather than
+  // written out a third time.
   const close = (): void => {
     setOpen(null);
-    if (typeof window === "undefined" || !window.location.search) return;
-    const url = new URL(window.location.href);
-    if (!url.searchParams.has("error") && !url.searchParams.has("form")) return;
-    url.searchParams.delete("error");
-    url.searchParams.delete("form");
-    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+    sweepRejection();
   };
 
   const surface = (next: Surface | null) => (next ? setOpen(next) : close());
@@ -239,71 +235,6 @@ export function SproutHero({
   );
 }
 
-/**
- * One fact: an icon that opens its editor, and nothing else.
- *
- * The icon is a trigger and NOT a submit — the whole point. The form lives
- * inside the popover, which Base UI unmounts on close, so an abandoned edit is
- * discarded with nothing to reset by hand. An abandoned edit is not a pending
- * write.
- *
- * `aria-label` states the STORED value, on the control rather than on a visible
- * span, because the hover label is CSS. `lib/sprout-hero-a11y.test.ts` pins it.
- */
-function FactPopover({
-  open,
-  onOpenChange,
-  label,
-  icon: Icon,
-  tone,
-  error,
-  children,
-}: {
-  open: boolean;
-  onOpenChange: (next: boolean) => void;
-  label: string;
-  icon: ComponentType<{ className?: string }>;
-  tone?: string;
-  /**
-   * A rejected save's message, when this is the surface it came from.
-   *
-   * It has to render HERE, beside the field, and that is the entire point of
-   * routing `?form=` back to a surface: reopening a popover onto silence tells
-   * the author only that their click did nothing. The page-level banner cannot
-   * cover for it either — the page suppresses that banner precisely when
-   * `?form=` names a surface, so without this line the message is not shown
-   * anywhere at all.
-   */
-  error?: string;
-  children: ReactNode;
-}) {
-  return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <PopoverTrigger
-              render={
-                <Button type="button" size="icon" variant="ghost" aria-label={label}>
-                  <Icon className={`size-4 ${tone ?? "text-muted-foreground"}`} />
-                </Button>
-              }
-            />
-          }
-        />
-        <TooltipContent side="bottom">{label}</TooltipContent>
-      </Tooltip>
-      <PopoverContent side="bottom" align="center" className="w-72 text-left">
-        {error ? (
-          <Alert variant="destructive" role="alert" className="mb-3">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
-        {children}
-      </PopoverContent>
-    </Popover>
-  );
-}
 
 /**
  * The state vocabulary, drawn as native radios.

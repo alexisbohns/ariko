@@ -48,7 +48,7 @@ async function hero(overrides: Record<string, unknown> = {}): Promise<string> {
       keywordEn: "Timeline",
       keywordFr: "Chronologie",
       tags: ["ariko", "design"],
-      keywordDrawn: true,
+      coverIsWordless: false,
       metaForm: React.createElement("div", null, "META FORM"),
       saved: "x",
       ...overrides,

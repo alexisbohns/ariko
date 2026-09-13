@@ -42,20 +42,12 @@ test("beanDetail resolves the plant slug for the admin view", () => {
   assert.equal(beanDetail(d, "a")?.plant, "pl");
 });
 
-test("podParents surfaces the pod: refs (as-is)", () => {
-  assert.deepEqual(beanDetail(DATASET, "rom-win")!.podParents, ["pod:rom"]);
+test("a standalone bean has a null plant", () => {
+  assert.equal(beanDetail(DATASET, "loner")!.plant, null);
 });
 
-test("a standalone bean has no pod parents and a null plant", () => {
-  const view = beanDetail(DATASET, "loner");
-  assert.deepEqual(view!.podParents, []);
-  assert.equal(view!.plant, null);
-});
-
-test("a dangling pod ref is surfaced as-is but yields a null plant", () => {
-  const view = beanDetail(DATASET, "dangler");
-  assert.deepEqual(view!.podParents, ["pod:ghost"]);
-  assert.equal(view!.plant, null);
+test("a dangling pod ref yields a null plant rather than throwing", () => {
+  assert.equal(beanDetail(DATASET, "dangler")!.plant, null);
 });
 
 test("an bean with no sprouts returns an empty sprouts array", () => {

@@ -6,7 +6,9 @@ import type { Visibility } from "@/lib/data";
 import { visibilityLabel } from "@/lib/glyphs";
 import { PLANT_VISIBILITIES } from "@/lib/plant-visibility";
 import { setBeanVisibilityAction, editBeanKeywordAction, editBeanTagsAction } from "../actions";
+import { FactPopover } from "./fact-popover";
 import { OverlaySheet } from "./overlay-sheet";
+import { sweepRejection } from "@/lib/sweep-rejection";
 import { PlantHeader } from "@/components/plant-header";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -39,8 +41,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
  * `readOnly` is the projected-bean gate's rendered half. A projected bean is
  * rebuilt from its feed, so every trigger here would offer an edit the next sync
  * discards — and `lib/pollen-store.ts`'s `deleteFeedData` takes the whole
- * document on a full rebuild. The three actions re-check it server-side, because
- * a rendered gate is not a guarantee.
+ * document on a full rebuild. Every action that can touch a bean re-checks it
+ * server-side, because a rendered gate is not a guarantee.
  */
 
 export interface BeanHeroProps {
@@ -54,12 +56,18 @@ export interface BeanHeroProps {
   keywordFr: string;
   tags: string[];
   /**
-   * Whether the stored cover is phone-shaped. Derived by the page from
-   * `lib/bean-cover.ts` — the island learns the rule's RESULT, never the rule.
-   * The keyword is drawn ONLY on the phone treatment, so a word typed under a
-   * landscape screenshot is a silent no-op and the popover says so.
+   * Whether the stored cover EXISTS and is not phone-shaped. Derived by the page
+   * from `lib/bean-cover.ts` — the island learns the rule's RESULT, never the
+   * rule.
+   *
+   * Phrased as "wordless" rather than as "drawn" because the underlying fact has
+   * three states and only the middle one is a warning: the keyword is drawn ONLY
+   * on the phone treatment, so a word typed under a landscape screenshot is a
+   * silent no-op and the popover says so — while a bean with NO cover has
+   * nothing to warn about, and an author may well set the word before the
+   * screenshot.
    */
-  keywordDrawn: boolean;
+  coverIsWordless: boolean;
   /** Source-owned and rebuildable: every trigger becomes a plain fact. */
   readOnly?: boolean;
   /** A rejected save's message, and which surface it came from. */
@@ -94,7 +102,7 @@ export function BeanHero({
   keywordEn,
   keywordFr,
   tags,
-  keywordDrawn,
+  coverIsWordless,
   readOnly = false,
   error,
   errorForm,
@@ -125,18 +133,12 @@ export function BeanHero({
   }, [saved, seenSaved]);
 
   // A rejected save leaves ?form= and ?error= in the URL and they outlive the
-  // surface: close, reload, and the banner comes back about an edit that no
-  // longer exists in any field. Dropped with replaceState rather than a router
-  // push — this is tidying the URL, not a navigation, and a navigation here would
-  // re-render the page under the closing surface.
+  // surface. lib/sweep-rejection.ts carries the argument and the replaceState;
+  // it is shared with the other head and with entity-rail.tsx rather than
+  // written out a third time.
   const close = (): void => {
     setOpen(null);
-    if (typeof window === "undefined" || !window.location.search) return;
-    const url = new URL(window.location.href);
-    if (!url.searchParams.has("error") && !url.searchParams.has("form")) return;
-    url.searchParams.delete("error");
-    url.searchParams.delete("form");
-    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+    sweepRejection();
   };
 
   const surface = (next: Surface | null) => (next ? setOpen(next) : close());
@@ -225,7 +227,7 @@ export function BeanHero({
                 label={labels.keyword}
                 icon={MessageSquareQuote}
               >
-                <KeywordForm slug={slug} en={keywordEn} fr={keywordFr} drawn={keywordDrawn} />
+                <KeywordForm slug={slug} en={keywordEn} fr={keywordFr} wordless={coverIsWordless} />
               </FactPopover>
 
               <FactPopover
@@ -263,67 +265,6 @@ export function BeanHero({
   );
 }
 
-/**
- * One fact: an icon that opens its editor, and nothing else.
- *
- * `sprout-hero.tsx`'s `FactPopover`, and the same two properties. The icon is a
- * trigger and NOT a submit: the form lives inside the popover, which Base UI
- * unmounts on close, so an abandoned edit is discarded with nothing to reset by
- * hand. An abandoned edit is not a pending write.
- *
- * `aria-label` states the STORED value, on the control rather than on a visible
- * span, because the hover label is CSS.
- */
-function FactPopover({
-  open,
-  onOpenChange,
-  label,
-  icon: Icon,
-  tone,
-  error,
-  children,
-}: {
-  open: boolean;
-  onOpenChange: (next: boolean) => void;
-  label: string;
-  icon: ComponentType<{ className?: string }>;
-  tone?: string;
-  /**
-   * A rejected save's message, when this is the surface it came from. It has to
-   * render HERE, beside the field: the page suppresses its own banner exactly
-   * when `?form=` names a surface, so without this the message is shown nowhere
-   * at all and the author learns only that their click did nothing.
-   */
-  error?: string;
-  children: ReactNode;
-}) {
-  return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <PopoverTrigger
-              render={
-                <Button type="button" size="icon" variant="ghost" aria-label={label}>
-                  <Icon className={`size-4 ${tone ?? "text-muted-foreground"}`} />
-                </Button>
-              }
-            />
-          }
-        />
-        <TooltipContent side="bottom">{label}</TooltipContent>
-      </Tooltip>
-      <PopoverContent side="bottom" align="center" className="w-72 text-left">
-        {error ? (
-          <Alert variant="destructive" role="alert" className="mb-3">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
-        {children}
-      </PopoverContent>
-    </Popover>
-  );
-}
 
 /**
  * The visibility vocabulary, drawn as native radios.
@@ -402,12 +343,12 @@ function KeywordForm({
   slug,
   en,
   fr,
-  drawn,
+  wordless,
 }: {
   slug: string;
   en: string;
   fr: string;
-  drawn: boolean;
+  wordless: boolean;
 }) {
   return (
     <form action={editBeanKeywordAction} className="flex flex-col gap-3">
@@ -418,9 +359,9 @@ function KeywordForm({
         <Label htmlFor="bean-keyword-fr">Keyword (fr)</Label>
         <Input id="bean-keyword-fr" type="text" name="keywordFr" defaultValue={fr} />
         <p className="text-xs leading-snug text-muted-foreground">
-          {drawn
-            ? "The one word the cover wears. Blank clears it."
-            : "This cover isn't phone-shaped, so the word won't be drawn — it shows only on a portrait cover. Saved either way."}
+          {wordless
+            ? "This cover isn't phone-shaped, so the word won't be drawn — it shows only on a portrait cover. Saved either way."
+            : "The one word the cover wears. Blank clears it."}
         </p>
       </div>
       <div className="flex justify-end">

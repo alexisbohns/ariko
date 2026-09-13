@@ -38,9 +38,10 @@ export const dynamic = "force-dynamic";
  *    in the first column.
  *
  * The head and the meta form read the STORED bean, not `beanDetail`'s view model:
- * that one resolves `name` to a display string (B1), which is right for the error
- * card above and wrong for a form — an fr name would prefill the en box and save
- * back as en, which is the trap every meta form in this repo documents.
+ * that one resolves `name` to a display string (B1), which is wrong for a form:
+ * an fr name would prefill the en box and save back as en, the trap every meta
+ * form in this repo documents. What the view model is still FOR here is the
+ * sprout list and the parent slugs.
  */
 export default async function AdminBeanPage({
   params,
@@ -102,9 +103,17 @@ export default async function AdminBeanPage({
      Asked of beanCoverFor rather than re-derived here — portrait-ness is
      lib/bean-cover.ts's rule and stays there, and the island receives only the
      RESULT. The empty sprouts array is safe because an explicit cover
-     short-circuits the derivation, and the Boolean(bean.cover) guard is what
-     makes that true. */
-  const keywordDrawn = Boolean(bean.cover) && beanCoverFor(bean, [])?.kind === "phone";
+     short-circuits the derivation, and the `Boolean(bean.cover)` guard is what
+     makes that true.
+
+     THREE states, not two, which is why this is phrased as "wordless" rather
+     than as "drawn": a cover that is not phone-shaped gets the warning, a
+     phone-shaped one does not, and a bean with NO cover gets nothing to warn
+     about — there is no cover for the word to fail to appear on, and an author
+     may well set the word before the screenshot. Inverting this predicate
+     collapses the third state into the first and tells a coverless bean that
+     its cover is the wrong shape. */
+  const coverIsWordless = Boolean(bean.cover) && beanCoverFor(bean, [])?.kind !== "phone";
 
   // Which surface a rejected save came from — narrowed here rather than trusted.
   // Both halves require the ERROR as well as the name: `?form=` alone is a bare
@@ -118,8 +127,9 @@ export default async function AdminBeanPage({
      says "read-only in the admin, source-owned, rebuildable", and
      lib/pollen-store.ts's deleteFeedData deletes the whole document on a full
      rebuild — an authored cover, keyword or tag list with it. The head states its
-     facts as words instead of triggers, and the rail loses its one panel. Each of
-     the four actions re-checks this server-side, because a rendered gate is not a
+     facts as words instead of triggers, and the rail loses its one panel. All
+     FIVE of the actions that can touch a bean — meta, visibility, keyword, tags
+     and cover — re-check this server-side, because a rendered gate is not a
      guarantee. */
   const readOnly = Boolean(bean.projected);
 
@@ -155,7 +165,7 @@ export default async function AdminBeanPage({
             keywordEn={textPart(bean.keyword, "en")}
             keywordFr={textPart(bean.keyword, "fr")}
             tags={bean.tags ?? []}
-            keywordDrawn={keywordDrawn}
+            coverIsWordless={coverIsWordless}
             readOnly={readOnly}
             {...(heroForm ? { error, errorForm: heroForm } : {})}
             metaForm={<BeanMetaForm bean={bean} />}
@@ -170,7 +180,7 @@ export default async function AdminBeanPage({
               visibilityOf(bean),
               textPart(bean.keyword, "en"),
               textPart(bean.keyword, "fr"),
-              (bean.tags ?? []).join(" "),
+              JSON.stringify(bean.tags ?? []),
             ])}
           />
 
