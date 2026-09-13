@@ -158,9 +158,15 @@ that confirms. A CLI flag that ran `publishCascade` would flip the bean and the
 pod above it with no confirmation, which is the shape the rulebook rejected for
 a stray click on a globe.
 
-**The cache is invalidated at the end** — `revalidateTag("garden")`, the same
-door `app/admin/actions.ts` and the three API routes use. `lib/garden-cache-source.test.ts`
-is per-function for `actions.ts`; the script gets the same treatment.
+**The cache is NOT invalidated, and that is correct.** A CLI has no Next
+request store, so `revalidateGarden()` (`lib/garden-cache.ts:105`) would take
+its tolerated branch and do nothing — an invalidation that looks like one and
+is not. It is not needed either: everything the script writes is private, so
+`filterPublic` drops all of it and the cached public dataset is unchanged by
+definition. The cache matters at the moment of publishing, and publishing
+happens in the admin, where the four real doors invalidate properly. The
+script's docblock says this, so the next reader does not add a call that cannot
+work.
 
 ### Tests
 
