@@ -73,6 +73,9 @@ import {
   updatePlantVisibility,
   updateBeanCover,
   updateBeanKeyword,
+  updateBeanMeta,
+  updateBeanTags,
+  updateBeanVisibility,
   createScreen,
   getScreen,
   updateScreenMeta,
@@ -83,6 +86,8 @@ import {
 } from "@/lib/botanical";
 import { buildBeanCoverPatch } from "@/lib/bean-cover-edit";
 import { buildBeanKeywordPatch } from "@/lib/bean-keyword";
+import { buildBeanMetaPatch, BlankBeanNameError, type BeanMetaPatch } from "@/lib/bean-meta";
+import { parseBeanTags } from "@/lib/bean-tags";
 import { buildScreenMetaPatch } from "@/lib/screen-edit";
 import { buildScreenImagePatch } from "@/lib/screen-image";
 import { buildNewScreenInput } from "@/lib/screen-create";
@@ -797,6 +802,109 @@ export async function editBeanKeywordAction(formData: FormData): Promise<void> {
 
   revalidateGarden();
   redirect(`/admin/bean/${encodeURIComponent(slug)}`);
+}
+
+/**
+ * The bean's name and description — and nothing else.
+ *
+ * `editPlantMetaAction`'s shape exactly, minus the status it has to carry.
+ * Existence is checked FIRST so the error redirect below can only ever target a
+ * real page and can only interpolate a known-good stored slug.
+ */
+export async function editBeanMetaAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+
+  const raw = await loadRawGarden();
+  const existing = raw.beans?.find((b) => b.slug === slug);
+  if (!existing) redirect("/admin/sprouts");
+
+  const back = `/admin/bean/${encodeURIComponent(slug)}`;
+  // A projected bean is source-owned and read-only. The page renders no trigger
+  // for it, but a rendered gate is not a server-side guarantee — the same reason
+  // editBeanCoverAction re-checks, and the same reason buildBeanCoverPatch checks
+  // `cover__ready`.
+  if (existing.projected) redirect(back);
+
+  let patch: BeanMetaPatch;
+  try {
+    patch = buildBeanMetaPatch(formData);
+  } catch (err) {
+    if (!(err instanceof BlankBeanNameError)) throw err;
+    redirect(`${back}?form=meta&error=${encodeURIComponent(`could not save: ${err.message}`)}`);
+  }
+
+  await updateBeanMeta(slug, patch);
+
+  revalidateGarden();
+  redirect(back);
+}
+
+/**
+ * The bean's visibility — and nothing else.
+ *
+ * A named member of a vocabulary, RE-VALIDATED here rather than trusted, which
+ * is what makes a stale page harmless: it can only ever post a value
+ * `lib/plant-visibility.ts` already has. The head draws the members as radios
+ * behind a Save, so nothing flips on the click that opens it.
+ *
+ * Not routed through `flipPlantField` above: that helper redirects to
+ * `/admin/plant/...` and looks the slug up in `raw.plants`. A bean is a different
+ * collection and a different address, and a helper generic over both would need
+ * four parameters to say so.
+ */
+export async function setBeanVisibilityAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+
+  const raw = await loadRawGarden();
+  const existing = raw.beans?.find((b) => b.slug === slug);
+  if (!existing) redirect("/admin/sprouts");
+
+  const back = `/admin/bean/${encodeURIComponent(slug)}`;
+  if (existing.projected) redirect(back);
+
+  const value = String(formData.get("visibility") ?? "").trim();
+  if (!isVisibility(value)) {
+    redirect(
+      `${back}?form=visibility&error=${encodeURIComponent(
+        `unknown visibility: ${value || "(blank)"}`,
+      )}`,
+    );
+  }
+
+  await updateBeanVisibility(slug, value);
+
+  revalidateGarden();
+  redirect(back);
+}
+
+/**
+ * The bean's tags — and nothing else.
+ *
+ * The comma field is parsed by `lib/bean-tags.ts` rather than here: the trim is
+ * load-bearing (the garden's tag filters compare with `===` and do not trim, so a
+ * stored " ariko" matches nothing while drawing identically) and a rule told in
+ * two files is two files that drift.
+ *
+ * An empty field is a CLEAR, not a rejection. A bean with no tags is an ordinary
+ * bean, which is why nothing here throws and there is no error redirect.
+ */
+export async function editBeanTagsAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+
+  const raw = await loadRawGarden();
+  const existing = raw.beans?.find((b) => b.slug === slug);
+  if (!existing) redirect("/admin/sprouts");
+
+  const back = `/admin/bean/${encodeURIComponent(slug)}`;
+  if (existing.projected) redirect(back);
+
+  await updateBeanTags(slug, parseBeanTags(String(formData.get("tags") ?? "")));
+
+  revalidateGarden();
+  redirect(back);
 }
 
 // Manual pull of every configured feed — same core the cron Action calls.

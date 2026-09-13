@@ -108,6 +108,9 @@ const GARDEN_WRITERS = new Set([
   "updateBeanKeyword",
   "updatePlantStatus",
   "updatePlantVisibility",
+  "updateBeanMeta",
+  "updateBeanTags",
+  "updateBeanVisibility",
   "updateSproutMedia",
   "writeArticles",
   "upsertDigestDrafts",
@@ -154,6 +157,7 @@ const GARDEN_READERS = new Set([
   "listScreensForPlant",
   "getScreen",
   "getSprout",
+  "beanMetaUpdate",
 ]);
 
 /**
