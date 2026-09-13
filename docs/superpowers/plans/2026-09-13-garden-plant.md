@@ -110,6 +110,7 @@ Create `lib/garden-manifest.ts`:
  * existing. `lib/garden-plan.ts` is the other half — what is surprising about
  * the GARDEN.
  */
+import { load } from "js-yaml";
 import { composeText, type Text } from "./data";
 
 export interface ManifestSprout {
@@ -145,23 +146,30 @@ export type ParseResult =
   | { ok: true; manifest: GardenManifest }
   | { ok: false; error: string };
 
-/** A `{ en, fr }` pair from the file, composed into the garden's `Text`. */
-function readText(value: unknown, where: string): Text | string {
+/**
+ * A `{ en, fr }` pair from the file, composed into the garden's `Text`.
+ *
+ * TAGGED, not a `Text | string` union — `composeText` returns a bare string
+ * for an en-only value, so a union would make a perfectly good name
+ * indistinguishable from an error message.
+ */
+type TextResult = { ok: true; text: Text } | { ok: false; error: string };
+
+function readText(value: unknown, where: string): TextResult {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return `${where} must be a mapping with an "en" key`;
+    return { ok: false, error: `${where} must be a mapping with an "en" key` };
   }
   const pair = value as Record<string, unknown>;
   const en = typeof pair.en === "string" ? pair.en : "";
   const fr = typeof pair.fr === "string" ? pair.fr : "";
-  if (!en.trim()) return `${where}.en is required and must be non-blank`;
-  return composeText(en, fr);
+  if (!en.trim()) return { ok: false, error: `${where}.en is required and must be non-blank` };
+  return { ok: true, text: composeText(en, fr) };
 }
 
 export function parseManifest(yamlText: string): ParseResult {
   let doc: unknown;
   try {
-    // Lazy require keeps this module importable from a test that never parses.
-    doc = (require("js-yaml") as typeof import("js-yaml")).load(yamlText);
+    doc = load(yamlText);
   } catch (err) {
     return { ok: false, error: `YAML parse failed: ${(err as Error).message}` };
   }
@@ -181,20 +189,20 @@ function buildManifest(doc: unknown): ParseResult {
   const p = podRaw as Record<string, unknown>;
 
   const podName = readText(p.name, "pod.name");
-  if (typeof podName === "string") return { ok: false, error: podName };
+  if (!podName.ok) return podName;
   const podDescription = readText(p.description, "pod.description");
-  if (typeof podDescription === "string") return { ok: false, error: podDescription };
+  if (!podDescription.ok) return podDescription;
 
   const pod: ManifestPod = {
     slug: typeof p.slug === "string" ? p.slug : "",
-    name: podName,
+    name: podName.text,
     plant: typeof p.plant === "string" && p.plant.trim() ? p.plant.trim() : null,
-    description: podDescription,
+    description: podDescription.text,
   };
   if (p.content !== undefined) {
     const content = readText(p.content, "pod.content");
-    if (typeof content === "string") return { ok: false, error: content };
-    pod.content = content;
+    if (!content.ok) return content;
+    pod.content = content.text;
   }
 
   const beansRaw = root.beans ?? [];
@@ -208,9 +216,9 @@ function buildManifest(doc: unknown): ParseResult {
       return { ok: false, error: `${where} must be a mapping` };
     }
     const name = readText(b.name, `${where}.name`);
-    if (typeof name === "string") return { ok: false, error: name };
+    if (!name.ok) return name;
     const description = readText(b.description, `${where}.description`);
-    if (typeof description === "string") return { ok: false, error: description };
+    if (!description.ok) return description;
 
     const sproutsRaw = b.sprouts ?? [];
     if (!Array.isArray(sproutsRaw)) return { ok: false, error: `${where}.sprouts must be a list` };
@@ -223,30 +231,30 @@ function buildManifest(doc: unknown): ParseResult {
         return { ok: false, error: `${swhere} must be a mapping` };
       }
       const sname = readText(s.name, `${swhere}.name`);
-      if (typeof sname === "string") return { ok: false, error: sname };
+      if (!sname.ok) return sname;
       const sdescription = readText(s.description, `${swhere}.description`);
-      if (typeof sdescription === "string") return { ok: false, error: sdescription };
+      if (!sdescription.ok) return sdescription;
 
       const sprout: ManifestSprout = {
         slug: typeof s.slug === "string" ? s.slug : "",
         // A YAML date scalar parses to a Date; force the authored text back.
         type: typeof s.type === "string" ? s.type : "",
         date: s.date instanceof Date ? s.date.toISOString().slice(0, 10) : String(s.date ?? ""),
-        name: sname,
-        description: sdescription,
+        name: sname.text,
+        description: sdescription.text,
       };
       if (s.content !== undefined) {
         const content = readText(s.content, `${swhere}.content`);
-        if (typeof content === "string") return { ok: false, error: content };
-        sprout.content = content;
+        if (!content.ok) return content;
+        sprout.content = content.text;
       }
       sprouts.push(sprout);
     }
 
     beans.push({
       slug: typeof b.slug === "string" ? b.slug : "",
-      name,
-      description,
+      name: name.text,
+      description: description.text,
       sprouts,
     });
   }
@@ -1501,10 +1509,10 @@ EOF
 
 ## Notes for the implementer
 
-- **`require` inside an ESM module.** Task 1 uses `require("js-yaml")` for
-  brevity. If `npx tsc --noEmit` or the ESM loader objects, change it to a
-  top-level `import { load } from "js-yaml";` and call `load(yamlText)` — the
-  dependency and its `@types` are already installed.
+- **`readText` is tagged deliberately.** `Text` can be a bare string, so a
+  `Text | string` return makes a valid en-only name indistinguishable from an
+  error message. This was caught during Task 1 and the plan now carries the
+  fix.
 - **`lib/entity-refs.ts`** supplies `extractRefs` and `mergeMirrored`. If the
   export names differ, follow `lib/articles-store.ts:11` — that file is the
   precedent this one copies.
