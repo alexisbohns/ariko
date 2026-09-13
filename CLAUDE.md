@@ -146,8 +146,9 @@ while quietly becoming false.
   write is filtered on `exhibited: true` for a related reason: a reorder
   computed against a stale strip would republish a screen someone had just
   withdrawn.
-- **No enum writes on the click that opens it.** Three fields work this way now
-  — a plant's `status` and `visibility`, and a sprout's `state`. The icon opens
+- **No enum writes on the click that opens it.** Four fields work this way now
+  — a plant's `status` and `visibility`, a sprout's `state`, and a bean's
+  `visibility`. The icon opens
   the vocabulary as a list of native radios, the author picks a member, and a
   Save button commits it — disabled until the pick differs from what is stored,
   so the second click is a confirmation rather than a formality. A one-click
@@ -176,7 +177,15 @@ while quietly becoming false.
   publishing it flips the curated private bean and plant public — the exact act
   the exemption exists to prevent, with nothing looking wrong anywhere. That is
   the argument for a module for a field with no vocabulary: the shape is
-  load-bearing even when the value is free-form.
+  load-bearing even when the value is free-form. A bean's `tags` is the second
+  field to earn that argument, through `lib/bean-tags.ts`: the garden's tag
+  filters compare with `===` and do not trim either, so a stored `" ariko"`
+  draws identically to `"ariko"` in every badge and matches nothing at all —
+  the tag exists, looks right, and filters to an empty list. A bean's
+  `visibility` is the fourth enum, and the one that does NOT cascade in either
+  direction: downward privacy is a read-time projection, so going private needs
+  no write beneath, and going public must not republish sprouts that were held
+  back on their own terms.
 - **A screen's image cannot be cleared**, because `Screen.image` is required —
   the one rule `buildScreenImagePatch` has that its three siblings lack.
 - **The Exhibition panel composes no payload.** Its contents are
@@ -337,13 +346,18 @@ while quietly becoming false.
   addressable is the half of the primitive worth keeping. If a round, ringed
   photo avatar is ever wanted, `npx shadcn@latest add avatar` restores it; do not
   route the entity mark back through it.
-- **An icon trigger names its stored value.** The plant header's five editors
-  and the sprout header's four are icons; the only place a reader learns what
-  `status`, `visibility`, `state`, `date` and `type` currently ARE is each
-  trigger's accessible name, set on the control rather than on a visible span
-  (the hover label is CSS). Replace `Status: Active` or `State: Draft` with a
-  bare word and the page looks identical and stops saying what it is.
-  `lib/plant-hero-a11y.test.ts` and `lib/sprout-hero-a11y.test.ts` pin it.
+- **An icon trigger names its stored value.** The plant header's five editors,
+  the sprout header's four and the bean header's four are icons; the only place
+  a reader learns what `status`, `visibility`, `state`, `date`, `type`,
+  `keyword` and `tags` currently ARE is each trigger's accessible name, set on
+  the control rather than on a visible span (the hover label is CSS). Replace
+  `Status: Active` or `State: Draft` with a bare word and the page looks
+  identical and stops saying what it is. An empty value states itself too — the
+  bean's `Keyword: none` — because a label ending in a colon reads as broken
+  rather than as blank. `lib/plant-hero-a11y.test.ts`,
+  `lib/sprout-hero-a11y.test.ts` and `lib/bean-hero-a11y.test.ts` pin it, the
+  last one also pinning that a projected bean draws no trigger at all while
+  still stating all three facts.
 - **The admin's subject lives in the URL, and picking one is a navigation.**
   `lib/admin-scope.ts` is the only reader of the scope — the slug on
   `/admin/plant/[slug]` first, `?plant=` second — and the only builder of the
