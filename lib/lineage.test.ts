@@ -63,3 +63,33 @@ test("a slug with a space is encoded in the href", () => {
 test("no parents is an empty lineage, not a cluster of nothing", () => {
   assert.deepEqual(resolveLineage(undefined, GARDEN, { lang: "en", hrefs: ADMIN_HREFS }), []);
 });
+
+/**
+ * The dangling ref one hop UP the climb — the case the test above cannot see.
+ *
+ * "bean:ghost" is dropped where the entity's own parents are read, which is the
+ * obvious guard and the one a reader checks. This is the other one: a pod that
+ * exists, naming a plant that does not. It is reached only from inside the
+ * climb, so nothing in the entity's own `parents` could have filtered it, and
+ * without its own guard the tier would carry an entry linking at a plant page
+ * that 404s — or, in the public zone, at a plant deliberately withheld from the
+ * filtered garden this resolver was handed.
+ */
+test("a pod naming a plant the garden does not hold yields no plant tier", () => {
+  const garden = {
+    pods: [pod("orphan-pod", "Orphan", ["plant:ghost"])],
+    beans: [bean("orphan-bean", "Orphan bean", ["pod:orphan-pod"])],
+  };
+
+  const lineage = resolveLineage(["bean:orphan-bean"], garden, {
+    lang: "en",
+    hrefs: ADMIN_HREFS,
+  });
+
+  assert.deepEqual(
+    lineage.map((tier) => tier.kind),
+    ["pod", "bean"],
+    "a plant that is absent from the passed garden must not reach the trail — " +
+      "in the public zone that absence IS the privacy projection",
+  );
+});
