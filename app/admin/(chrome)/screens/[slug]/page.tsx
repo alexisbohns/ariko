@@ -10,6 +10,9 @@ import { ScreenImageForm } from "@/app/admin/_components/screen-image-form";
 import { ScreenDeleteForm } from "@/app/admin/_components/screen-delete-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent } from "@/components/ui/card";
+import Link from "next/link";
+import { resolveLineage, ADMIN_HREFS } from "@/lib/lineage";
+import { LineageChrome } from "@/components/lineage-chrome";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +67,10 @@ export default async function ScreenPage({
   const isCover = (screen.relations ?? []).some((r) => r.kind === "cover");
   const plantSlug = parentsWithPrefix(screen.parents, PLANT_PREFIX)[0] ?? null;
   const plantDoc = plantSlug ? (raw.plants ?? []).find((p) => p.slug === plantSlug) : undefined;
+  // The LIVE garden — already loaded above, per CLAUDE.md's garden rule. "en":
+  // the admin zone is authored in one language.
+  const lineage = resolveLineage(screen.parents, raw, { lang: "en", hrefs: ADMIN_HREFS });
+
   // Three states, not `string | null`: a plant ref that names no document in
   // the garden is neither "no plant" nor a resolved name, and ScreenExhibitForm's
   // docblock explains why collapsing it into either would be wrong.
@@ -74,77 +81,80 @@ export default async function ScreenPage({
       : { kind: "dangling", slug: plantSlug };
 
   return (
-    <div className="flex flex-col gap-6">
-      <ScreenNav prev={prev} next={next} query={query} />
+    <>
+      <LineageChrome lineage={lineage} as={Link} />
+      <div className="flex flex-col gap-6">
+        <ScreenNav prev={prev} next={next} query={query} />
 
-      {active.error ? (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription>{active.error}</AlertDescription>
-        </Alert>
-      ) : null}
+        {active.error ? (
+          <Alert variant="destructive" role="alert">
+            <AlertDescription>{active.error}</AlertDescription>
+          </Alert>
+        ) : null}
 
-      <div className="flex flex-col gap-2">
-        <h1 className="font-heading text-xl font-medium tracking-tight">
-          {resolveText(screen.name)}
-        </h1>
-        <p className="font-heading text-xs text-muted-foreground">{screen.slug}</p>
+        <div className="flex flex-col gap-2">
+          <h1 className="font-heading text-xl font-medium tracking-tight">
+            {resolveText(screen.name)}
+          </h1>
+          <p className="font-heading text-xs text-muted-foreground">{screen.slug}</p>
+        </div>
+
+        <div className="flex justify-center rounded-lg border bg-muted/40 p-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={cloudinaryFit(screen.image.url, { width: 720 })}
+            alt={screen.image.alt ?? ""}
+            className="max-h-[50vh] w-auto object-contain"
+          />
+        </div>
+
+        {/* Each card is named, in the bean page's shape (`<h2>` above the card),
+            because three unlabelled cards leave this body with no heading outline
+            under its h1 — and the Delete card in particular would be identified
+            only by the text of its own checkbox. It matters more here than on an
+            ordinary page: the same markup is the side sheet's contents, where a
+            reader arrives without the page around it. */}
+        <section className="flex flex-col gap-2">
+          <h2 className="font-heading text-lg tracking-tight">Details</h2>
+          <Card>
+            <CardContent>
+              <ScreenMetaForm
+                screen={screen}
+                plants={raw.plants ?? []}
+                beans={raw.beans ?? []}
+                query={query}
+              />
+            </CardContent>
+          </Card>
+        </section>
+
+        <section className="flex flex-col gap-2">
+          <h2 className="font-heading text-lg tracking-tight">Exhibition</h2>
+          <Card>
+            <CardContent>
+              <ScreenExhibitForm screen={screen} plant={plantRef} query={query} />
+            </CardContent>
+          </Card>
+        </section>
+
+        <section className="flex flex-col gap-2">
+          <h2 className="font-heading text-lg tracking-tight">Image</h2>
+          <Card>
+            <CardContent>
+              <ScreenImageForm screen={screen} query={query} />
+            </CardContent>
+          </Card>
+        </section>
+
+        <section className="flex flex-col gap-2">
+          <h2 className="font-heading text-lg tracking-tight text-destructive">Danger zone</h2>
+          <Card className="ring-destructive/30">
+            <CardContent>
+              <ScreenDeleteForm screen={screen} isCover={isCover} query={query} />
+            </CardContent>
+          </Card>
+        </section>
       </div>
-
-      <div className="flex justify-center rounded-lg border bg-muted/40 p-4">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={cloudinaryFit(screen.image.url, { width: 720 })}
-          alt={screen.image.alt ?? ""}
-          className="max-h-[50vh] w-auto object-contain"
-        />
-      </div>
-
-      {/* Each card is named, in the bean page's shape (`<h2>` above the card),
-          because three unlabelled cards leave this body with no heading outline
-          under its h1 — and the Delete card in particular would be identified
-          only by the text of its own checkbox. It matters more here than on an
-          ordinary page: the same markup is the side sheet's contents, where a
-          reader arrives without the page around it. */}
-      <section className="flex flex-col gap-2">
-        <h2 className="font-heading text-lg tracking-tight">Details</h2>
-        <Card>
-          <CardContent>
-            <ScreenMetaForm
-              screen={screen}
-              plants={raw.plants ?? []}
-              beans={raw.beans ?? []}
-              query={query}
-            />
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="flex flex-col gap-2">
-        <h2 className="font-heading text-lg tracking-tight">Exhibition</h2>
-        <Card>
-          <CardContent>
-            <ScreenExhibitForm screen={screen} plant={plantRef} query={query} />
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="flex flex-col gap-2">
-        <h2 className="font-heading text-lg tracking-tight">Image</h2>
-        <Card>
-          <CardContent>
-            <ScreenImageForm screen={screen} query={query} />
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="flex flex-col gap-2">
-        <h2 className="font-heading text-lg tracking-tight text-destructive">Danger zone</h2>
-        <Card className="ring-destructive/30">
-          <CardContent>
-            <ScreenDeleteForm screen={screen} isCover={isCover} query={query} />
-          </CardContent>
-        </Card>
-      </section>
-    </div>
+    </>
   );
 }
