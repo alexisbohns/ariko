@@ -48,7 +48,10 @@ const RAIL_PANELS = [
   "app/admin/_components/sprout-delete-form.tsx",
 ];
 
-const RAIL_PAGES = ["app/admin/(chrome)/sprout/[slug]/page.tsx"];
+const RAIL_PAGES = [
+  "app/admin/(chrome)/sprout/[slug]/page.tsx",
+  "app/admin/(chrome)/bean/[id]/page.tsx",
+];
 
 function source(path: string): string {
   return readFileSync(join(process.cwd(), path), "utf8");

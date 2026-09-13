@@ -12,6 +12,7 @@ import {
 import { X } from "lucide-react";
 import { Chrome, ChromeItem, chromeItemClass } from "@/components/chrome";
 import { Button } from "@/components/ui/button";
+import { sweepRejection } from "@/lib/sweep-rejection";
 
 /**
  * An entity page's own rail — a cluster on the right edge, and one panel the
@@ -161,28 +162,6 @@ const PANEL_WIDTH = "w-full max-w-md";
  */
 const PAGE_BASE = "relative right-0 transition-[right] duration-200 ease-out";
 const PAGE_ASIDE = "min-[76rem]:right-56";
-
-/**
- * Drop `?form=` and `?error=` on close.
- *
- * `app/admin/_components/sprout-hero.tsx` does this for the head's surfaces on
- * the same page and for the same reason: a rejected save leaves both in the URL
- * and they outlive the surface, so close, reload, and the banner comes back
- * about an edit that no longer exists in any field. `replaceState` rather than
- * a router push — this is tidying the URL, not a navigation, and a navigation
- * here would re-render the page under the closing panel.
- *
- * Module-level because it reads nothing from the component; that also keeps it
- * a stable reference for the callbacks below.
- */
-function sweepRejection(): void {
-  if (typeof window === "undefined" || !window.location.search) return;
-  const url = new URL(window.location.href);
-  if (!url.searchParams.has("error") && !url.searchParams.has("form")) return;
-  url.searchParams.delete("error");
-  url.searchParams.delete("form");
-  window.history.replaceState(null, "", url.pathname + url.search + url.hash);
-}
 
 export interface RailItem {
   /** Matches `openOnError`, and is the panel's key. Never a field name. */

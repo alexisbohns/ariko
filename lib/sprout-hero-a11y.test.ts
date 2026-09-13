@@ -146,9 +146,14 @@ test("every fact popover is handed the message a rejection from it would carry",
     );
   }
 
-  // And the component must actually draw what it is handed.
+  // And the component must actually draw what it is handed — read from the file
+  // it now LIVES in. `FactPopover` was byte-identical in both heads until the
+  // bean-edition slice gave it a third caller's worth of reason to be one file;
+  // the property is unchanged, and asserting it here rather than against
+  // whichever head happens to import it is what keeps it true for both.
+  const popover = readFileSync("app/admin/_components/fact-popover.tsx", "utf8");
   assert.match(
-    source,
+    popover,
     /error \? \(\s*<Alert/,
     "FactPopover must render the error it receives",
   );

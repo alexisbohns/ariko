@@ -1,4 +1,4 @@
-import type { Plant, Visibility } from "./data";
+import type { Bean, Plant, Visibility } from "./data";
 
 /**
  * A plant's visibility as a vocabulary — the sibling of `lib/plant-status.ts`,
@@ -14,11 +14,17 @@ export const PLANT_VISIBILITIES: readonly Visibility[] = ["public", "private"];
 
 /**
  * The one place absence becomes a value, exactly as `statusOf` is for status.
- * `Plant.visibility` is optional and "absent ⇒ public" (lib/data.ts), the same
- * rule `filterPublic` reads with `!== "private"`.
+ * `visibility` is optional on both `Plant` and `Bean` and "absent ⇒ public"
+ * (lib/data.ts), the same rule `filterPublic` reads with `!== "private"`.
+ *
+ * Widened to the bean when the bean's head grew a visibility control. A
+ * `lib/bean-visibility.ts` twin would have been a second copy of one rule, and a
+ * copy of a default is a copy that drifts. `PLANT_VISIBILITIES` keeps its name:
+ * the vocabulary is the same two members either way, and renaming the constant
+ * would move every plant call site for no gain.
  */
-export function visibilityOf(plant: Pick<Plant, "visibility">): Visibility {
-  return plant.visibility ?? "public";
+export function visibilityOf(entity: Pick<Bean | Plant, "visibility">): Visibility {
+  return entity.visibility ?? "public";
 }
 
 export function isVisibility(raw: string): raw is Visibility {

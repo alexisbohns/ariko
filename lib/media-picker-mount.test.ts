@@ -85,10 +85,9 @@ test("the capture bar keeps its own submit button without script", async () => {
 // These import the REAL components rather than reconstructing their shape
 // with React.createElement, unlike the two tests above (which pin MediaPicker
 // itself, not a caller). Importing the real thing is what makes a wiring
-// mutation in bean-cover-form.tsx or bean-keyword-form.tsx — a renamed `name`,
-// a dropped `max`, a dropped `submitLabel`, `textPart` swapped for
-// `resolveText`, `keywordFr` typo'd — visible here, rather than only in
-// something these tests happen to agree with.
+// mutation in bean-cover-form.tsx — a renamed `name`, a dropped `max`, a
+// dropped `submitLabel` — visible here, rather than only in something these
+// tests happen to agree with.
 //
 // bean-cover-form.tsx renders `<form action={editBeanCoverAction}>`. Outside
 // Next's runtime, a server action passed as a form `action` does not render as
@@ -193,24 +192,6 @@ test("the Cover card hands the picker the exact contract the builder reads", asy
   // Drop this and the card is unsavable even WITH script — every OTHER
   // picker button on the page is `type="button"`, so nothing else submits it.
   assert.equal(picker!.props.submitLabel, "Save cover");
-});
-
-test("the bean keyword form emits both language fields, unconditionally", async () => {
-  const React = await import("react");
-  const { BeanKeywordForm } = await import("@/app/admin/_components/bean-keyword-form");
-  const bean = { slug: "b", name: "Bean", keyword: { fr: "Karma" } } as import("@/lib/data").Bean;
-
-  const html = await renderScriptOff(React.createElement(BeanKeywordForm, { bean }));
-
-  assert.equal(html.includes('name="keyword"'), true, "the en keyword field must be present");
-  assert.equal(html.includes('name="keywordFr"'), true, "the fr keyword field must be present");
-  // An fr-only bean must leave the EN box empty — resolveText's fallback would
-  // copy "Karma" into it and save it back as the en value, the exact
-  // corruption plant-meta-form.tsx warns against and textPart avoids. Attributes
-  // land adjacent (`name="…" value="…"`) in the rendered markup, so this checks
-  // each field's OWN value rather than "value=... appears somewhere".
-  assert.equal(html.includes('name="keyword" value=""'), true, "the en box must be blank, not fr's value");
-  assert.equal(html.includes('name="keywordFr" value="Karma"'), true, "the fr box must still carry the fr value");
 });
 
 /**

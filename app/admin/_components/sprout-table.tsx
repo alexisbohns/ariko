@@ -28,18 +28,26 @@ import { MarkCell } from "./table-cells";
  * `lib/admin-table-source.test.ts` has to assert for all five what this one
  * enforces for itself.
  *
- * `limit` and `showPlant` mean what they mean in `PodTable`: `limit` draws the
- * first n and leaves any "n more" line to the caller, which is the only side
- * that knows the full count; `showPlant` drops a column a hub already answers.
+ * `limit`, `showPlant` and `showBean` mean what they mean in `PodTable`: `limit`
+ * draws the first n and leaves any "n more" line to the caller, which is the only
+ * side that knows the full count; the two flags each drop a column the page
+ * around the table already answers.
  */
 export function SproutTable({
   entries,
   limit,
   showPlant = true,
+  showBean = true,
 }: {
   entries: TimelineEntry[];
   limit?: number;
   showPlant?: boolean;
+  /**
+   * Drops the bean column, exactly as `showPlant` drops the plant one and for
+   * the identical reason: a column whose value is constant on the page drawing
+   * it is a column that says nothing. The bean's own page passes false for both.
+   */
+  showBean?: boolean;
 }) {
   // See `PodTable`: zero is a limit, not the absence of one.
   const shown = limit === undefined ? entries : entries.slice(0, limit);
@@ -50,7 +58,7 @@ export function SproutTable({
           <TableHead>sprout</TableHead>
           <TableHead>state</TableHead>
           {showPlant ? <TableHead>plant</TableHead> : null}
-          <TableHead>bean</TableHead>
+          {showBean ? <TableHead>bean</TableHead> : null}
           <TableHead>date</TableHead>
           <TableHead>tags</TableHead>
         </TableRow>
@@ -95,7 +103,9 @@ export function SproutTable({
                 }
               />
             ) : null}
-            <TableCell className="text-muted-foreground">{e.bean?.slug ?? "—"}</TableCell>
+            {showBean ? (
+              <TableCell className="text-muted-foreground">{e.bean?.slug ?? "—"}</TableCell>
+            ) : null}
             <TableCell className="text-muted-foreground">{e.sprout.date}</TableCell>
             <TableCell className="text-muted-foreground">
               {(e.sprout.tags ?? []).join(", ") || "—"}
