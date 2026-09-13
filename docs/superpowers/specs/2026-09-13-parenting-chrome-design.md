@@ -118,7 +118,7 @@ resolved, and a layout would have to resolve it a second time.
 | Page | Tiers |
 | --- | --- |
 | `app/admin/(chrome)/sprout/[slug]` | plant, pod, bean |
-| `app/admin/(chrome)/bean/[slug]` | plant, pod |
+| `app/admin/(chrome)/bean/[id]` | plant, pod |
 | `app/admin/(chrome)/pod/[slug]` | plant |
 | `app/admin/(chrome)/screens/[slug]` | plant |
 | `app/(public)/(chrome)/bean/[id]` | plant, pod |
