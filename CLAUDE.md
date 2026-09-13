@@ -40,9 +40,12 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
     `Chrome` takes a **magnet** (eight edge positions) and an orientation;
     `ChromeLink` / `ChromeItem` / `chromeItemClass()` are the ghost icon-buttons.
     The hover label is CSS, and the side it opens toward is **derived from the
-    magnet** rather than passed. `lib/server-safe-source.test.ts` enforces the two
-    rules above, because a violation passes `tsc`, `npm test` *and*
-    `npm run build`.
+    magnet** rather than passed. `ChromeLink` takes its anchor as `as` — the
+    admin passes `next/link`, the public zone takes the default `<a>` — which is
+    the shared-surfaces rule doing exactly the work it exists for: one geometry,
+    and what differs is a parameter. `lib/server-safe-source.test.ts` enforces
+    the rules above **plus** the `next/link` ban, because every violation passes
+    `tsc`, `npm test` *and* `npm run build`.
   - `components/page-column.tsx` — `READING_COLUMN` is the same string in both
     zones, which is what makes the author's column the visitor's column.
     `resolveColumn()` in `lib/admin-nav.ts` picks it: a section index is
@@ -228,9 +231,37 @@ while quietly becoming false.
   and every tile, prev, next and close is a real `href` — never
   `router.back()` — so the same click is an ordinary navigation when
   interception does not happen.
-  `lib/screen-sheet-source.test.ts` pins both halves. The library is this
-  repo's only use of `next/link`, and it stays confined to that slice's four
-  files: interception needs a client-side navigation.
+  `lib/screen-sheet-source.test.ts` pins both halves. Interception needs a
+  client-side navigation, which is why the library reached for `next/link`
+  first — but it is no longer the only place: **the admin chrome navigates
+  client-side too**, see the rule below.
+- **The admin navigates client-side, and the public zone does not — out of one
+  `ChromeLink`.** Every admin nav item is a `next/link`; the public zone's are
+  plain `<a>`. The difference is `ChromeLink`'s `as` parameter, and it is a
+  parameter rather than an import because `components/chrome.tsx` is
+  server-safe: `next/link` is a client component, so reaching for it *there*
+  would put a client boundary under every public page — the
+  `components/ui/table.tsx` regression again, arriving by a door neither the
+  `"use client"` check nor the `lucide-react` check watches.
+  `lib/server-safe-source.test.ts` now watches it for all fifteen server-safe
+  files. The admin's hard navigations were a POC-era fossil and cost 284–358 ms
+  of visibly broken chrome per click: a white frame, the plant switcher's logo
+  flashing its monogram (Base UI's `Avatar.Image` starts `idle` and only calls
+  `new Image()` from a layout effect, so the `<img>` is never in the server
+  HTML), and the search icon arriving last. A soft navigation does not fix
+  those three — it keeps the layout and its islands **mounted**, so there is no
+  frame in which the chrome is half-built. `app/admin/_components/admin-chrome.tsx`
+  carries the measurements.
+- **The layout above every admin page reads twelve plants, not the garden.**
+  `loadPlantMarks` (`lib/store.ts`), not `loadRawGarden` — still live, per the
+  garden rule below, and narrowed only in WHAT it reads. The chrome needs
+  `slug`, `name`, `logo.url` and `visibility` for twelve plants; `loadRawGarden`
+  answered that with six unfiltered collection scans — 421 KB, ~130 ms warm,
+  most of it sprout markdown bodies and pod narrative — to compose 1.6 KB of
+  marks, and it did so above **every** admin page, where its `await` gates the
+  first byte. The projection is spelled as the four fields rather than as an
+  exclusion, so adding a field to the switcher means widening it deliberately
+  rather than by default.
 - **`lib/palette.ts` is server-only; `lib/palette-items.ts` is the client
   half.** `lib/palette.ts` imports `lib/data.ts`, which opens with `node:fs`.
   Importing the wrong one from the palette component does not merely bloat the

@@ -61,7 +61,7 @@ const LOGIN_ROUTE = "/admin/login";
  *  because `getFullDataset` skips `filterPublic` on the way through — see
  *  CLAUDE.md's note on which reader you import being a privacy decision. */
 const GARDEN_MODULES = ["lib/store", "lib/garden-cache", "lib/data", "lib/seeds"];
-const GARDEN_READERS = /\b(loadRawGarden|loadCachedGarden|getFullDataset|listSeeds)\b/;
+const GARDEN_READERS = /\b(loadRawGarden|loadPlantMarks|loadCachedGarden|getFullDataset|listSeeds)\b/;
 
 /** A file's CODE — comments removed, for `lib/screen-sheet-source.test.ts`'s
  *  reason: this file's own prose names every symbol it forbids, and so does

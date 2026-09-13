@@ -101,6 +101,31 @@ for (const path of SERVER_SAFE) {
     );
   });
 
+  test(`${path} imports no next/link`, () => {
+    // The third way to put a client boundary in a server-safe file, and the
+    // one with no directive to grep for: `next/link` is a client component, so
+    // importing it here would drag every public page that renders this file
+    // across the boundary — the `components/ui/table.tsx` regression again,
+    // arriving by a door the two checks above do not watch.
+    //
+    // It is worth its own test because the temptation is now REAL rather than
+    // hypothetical. The admin's chrome wants a soft navigation (see
+    // `app/admin/_components/admin-chrome.tsx` for what a hard one cost it),
+    // and the obvious way to give it one is to reach for `Link` in
+    // `components/chrome.tsx` — where it would silently be the public zone's
+    // navigation too. The way that keeps both zones is `ChromeLink`'s `as`:
+    // the ADMIN supplies `Link`, the public zone takes the default `"a"`, and
+    // the geometry stays one file. A parameter, per CLAUDE.md's shared-surfaces
+    // rule — which is exactly what this assertion protects.
+    assert.ok(
+      !/from\s+["']next\/link["']/.test(source),
+      `${path} must not import next/link — it is a client component, and the ` +
+        `public zone renders this file. Take the anchor as a prop instead ` +
+        `(components/chrome.tsx's ChromeLink \`as\`) so the admin can pass Link ` +
+        `without the public zone paying for it`,
+    );
+  });
+
   test(`${path} pulls in no server-only module`, () => {
     // The other direction, and the one that fails LOUDLY rather than quietly:
     // lib/data.ts opens with node:fs, so a shared file that reached for it
