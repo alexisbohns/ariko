@@ -22,4 +22,4 @@
  * one, so `tsc`, `eslint`, `npm test` and `npm run build` ALL pass on a page
  * that 500s on every request.
  */
-export { FileCode2, Images, Trash2 } from "lucide-react";
+export { FileCode2, Image, Images, Trash2 } from "lucide-react";
