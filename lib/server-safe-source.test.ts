@@ -77,7 +77,7 @@ const SERVER_SAFE = [
   // component, and the stock directive shadcn ships assumes otherwise.
   "components/ui/table.tsx", // components/markdown.tsx, for GFM tables
   "components/ui/badge.tsx", // plant-head.tsx, /beanstalk, components/media.tsx
-  "components/ui/card.tsx", // bean/[id], components/entity-card.tsx
+  "components/ui/card.tsx", // components/entity-card.tsx
   "components/ui/separator.tsx", // /beanstalk
   "components/ui/kbd.tsx", // components/chrome.tsx, for the rail's shortcut hints
 ];
