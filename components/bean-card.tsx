@@ -21,17 +21,16 @@ import type { ReactNode } from "react";
  * card: a row, frame at the left, name and description beside it. This is the
  * LANDING TILE: a stacked column, frame on top, text beneath.
  *
- * What it owns is the FRAME, the text beneath it, and — as of `w-56` on the
- * anchor below — its own WIDTH. That is not this component's free choice to
- * make and it is not the caller's either: `components/bean-cover.tsx` reckons
- * the phone's rise in pixels off a 224x168 frame (`top-[58px]` is 168 - 110),
- * so 224px is a fixed consequence of that math, not a layout preference. A
- * caller that varied it would break only the VERTICAL half of the
- * composition — the phone's `w-1/2` and the frame's `aspect-[4/3]` scale with
- * the box, but the phone's absolute `top-[58px]` does not, so the rise would
- * land short of or past the frame's edge. That failure does not look broken,
- * it looks slightly wrong — which is worse, and is why the width is fixed
- * here rather than offered as a parameter and argued for in a paragraph.
+ * What it owns is the FRAME and the text beneath it. The WIDTH is the
+ * caller's: this component fills whatever cell it is given rather than
+ * declaring one, because the landing row is a horizontal scroller of fixed
+ * 224px cells and the related rail is a grid that is one full-width column
+ * on a phone and three on a desktop — two different widths for one card.
+ * That is only safe because `components/bean-cover.tsx` expresses its phone
+ * composition in container-query units against the frame's own size rather
+ * than in pixels against a 224x168 frame, so it scales correctly with
+ * whatever width the caller hands it. If that file ever reverted to
+ * absolute pixels, this freedom would silently become a bug again.
  */
 export function BeanCard({
   href,
@@ -61,7 +60,7 @@ export function BeanCard({
   clamp?: boolean;
 }) {
   return (
-    <a href={href} className="group flex w-56 flex-col gap-3">
+    <a href={href} className="group flex flex-col gap-3">
       {/* `overflow-hidden` is what clips the departing word on its way
           out and crops the phone at the bottom; `relative` is
           belt-and-braces since the phone branch establishes its own
