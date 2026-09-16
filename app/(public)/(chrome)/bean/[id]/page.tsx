@@ -113,29 +113,32 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
           <h2 className="font-heading text-xs uppercase tracking-widest text-muted-foreground">
             Keep reading
           </h2>
-          {/* A WRAPPING ROW, not a grid with a track width: the card carries
-              its own 224px (`w-56` on its anchor in components/bean-card.tsx,
-              where the phone cover's pixel geometry requires it), so a
-              `grid-cols-[repeat(auto-fill,14rem)]` here would state the same
-              number a second time and let the two drift. Three fit the 720px
-              reading column, one fits a phone, and neither is written down.
+          {/* A FLUID GRID, not a wrapping row with a fixed cell: the card no
+              longer dictates a width — `components/bean-cover.tsx` expresses
+              its phone composition in container-query units against the
+              frame's own size, so the card scales cleanly at any width the
+              grid hands it, and the track can simply say how many columns.
+
+              `READING_COLUMN` is `max-w-3xl px-6`, i.e. `min(viewport, 768) -
+              48` of content: a 375px phone → 327px → one full-width card; at
+              `sm` (640px) → 592px → two cards of ~288px; at `md` (768px) and
+              up → 720px → three cards of ~229px. Each breakpoint fills the
+              column exactly, with no leftover slack. One full-width card on a
+              phone is the point of switching to a grid at all — the old fixed
+              224px card sat in a 327px column and left a bare strip of dead
+              space beside it, which read as a mistake rather than a layout.
+
               `gap-x-4 gap-y-8`: the ROW gap is larger than the column gap on
               purpose — a wrapped rail stacks a description directly above the
               next row's cover, and tiles want more vertical air between them
               than horizontal.
-
-              No `shrink-0` on the `<li>`, unlike `app/(public)/page.tsx`'s row:
-              `min-width: auto` on a flex item resolves to its min-content
-              contribution, and a block with a definite `width: 14rem` has a
-              min-content contribution of 14rem — so the `<li>` cannot shrink
-              below the card's own width regardless.
 
               NO `group` on this element or any wrapper: Tailwind's
               `group-hover:` matches ANY ancestor carrying it, and every cover's
               choreography is group-hover on its own card's anchor — so a
               `group` here would animate all six covers whenever the pointer
               entered the rail. */}
-          <ul className="flex flex-wrap gap-x-4 gap-y-8">
+          <ul className="grid grid-cols-1 gap-x-4 gap-y-8 sm:grid-cols-2 md:grid-cols-3">
             {related.map((sibling) => (
               <li key={sibling.slug}>
                 <BeanCard
