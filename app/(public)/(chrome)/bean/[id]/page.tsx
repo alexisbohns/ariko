@@ -7,6 +7,10 @@ import { Prose } from "@/components/markdown";
 import { resolveEntity } from "@/lib/entity-resolve";
 import { resolveLineage, PUBLIC_HREFS } from "@/lib/lineage";
 import { LineageChrome } from "@/components/lineage-chrome";
+import { relatedBeans } from "@/lib/related-beans";
+import { beanCoverFor } from "@/lib/bean-cover";
+import { BeanCard } from "@/components/bean-card";
+import { BeanCover } from "@/components/bean-cover";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +44,11 @@ export const dynamic = "force-dynamic";
  *
  * `sproutsForBean` therefore survives for exactly one reader: `articleFor`,
  * which picks the newest published sprout carrying content (spec §4).
+ *
+ * The rail beneath it is `lib/related-beans.ts` — pod siblings first, topped up
+ * from the plant, and never a bean with nothing written under it. It draws
+ * `components/bean-card.tsx`, the landing page's own card, so a visitor who
+ * reaches a bean from the landing page meets the same object twice.
  */
 export default async function BeanPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -59,6 +68,11 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
     { lang, hrefs: PUBLIC_HREFS },
   );
 
+  // From the same FILTERED dataset the rest of the page reads, so a private
+  // sibling is simply absent — `relatedBeans` runs no privacy check of its own
+  // and must not grow one (lib/related-beans.ts says why).
+  const related = relatedBeans(data, bean);
+
   return (
     <>
       <LineageChrome lineage={lineage} />
@@ -76,6 +90,52 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
             resolve={(ref) => resolveEntity(data, ref, lang)} />
         ) : null}
       </article>
+
+      {/* Zero is NO rail — no heading, no border, no empty box under the word
+          "Keep reading". A standalone bean reaches this, and so does the first
+          bean written under a new plant. An absent rail is a statement about
+          the garden; an empty one is a component that failed. */}
+      {related.length > 0 ? (
+        <nav aria-label="Keep reading" className="mt-16 flex flex-col gap-6 border-t pt-8">
+          {/* The pod page's "Inside" treatment, verbatim — the footer matches
+              the only other index in the zone rather than inventing a second.
+              English regardless of the language switch, as every other piece of
+              UI chrome in this zone is (the lineage chrome's Plants/Pods/Beans,
+              the pod page's Inside). */}
+          <h2 className="font-heading text-xs uppercase tracking-widest text-muted-foreground">
+            Keep reading
+          </h2>
+          {/* A WRAPPING ROW, not a grid with a track width: the card carries
+              its own 224px (`w-56` on its anchor in components/bean-card.tsx,
+              where the phone cover's pixel geometry requires it), so a
+              `grid-cols-[repeat(auto-fill,14rem)]` here would state the same
+              number a second time and let the two drift. Three fit the 720px
+              reading column, one fits a phone, and neither is written down.
+
+              NO `group` on this element or any wrapper: Tailwind's
+              `group-hover:` matches ANY ancestor carrying it, and every cover's
+              choreography is group-hover on its own card's anchor — so a
+              `group` here would animate all six covers whenever the pointer
+              entered the rail. */}
+          <ul className="flex flex-wrap gap-4">
+            {related.map((sibling) => (
+              <li key={sibling.slug}>
+                <BeanCard
+                  href={`/bean/${sibling.slug}`}
+                  title={resolveText(sibling.name, lang)}
+                  description={resolveText(sibling.description ?? "", lang)}
+                  coverArt={
+                    <BeanCover
+                      cover={beanCoverFor(sibling, data.sproutsForBean(sibling.slug))}
+                      lang={lang}
+                    />
+                  }
+                />
+              </li>
+            ))}
+          </ul>
+        </nav>
+      ) : null}
     </>
   );
 }
