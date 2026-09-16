@@ -27,11 +27,17 @@ import { Card, CardContent } from "@/components/ui/card";
  * with `node:fs`) while this file is still imported by the editor's client node
  * view, which passes no slot at all.
  *
- * What this file owns is the FRAME — 224×168, the landing card's box to the
- * pixel, because `components/bean-cover.tsx` derives its phone geometry from
- * exactly those numbers — and the fact that a card with art is a ROW: cover at
- * the left, name and description beside it. Without art it is the same stack of
- * text it always was.
+ * What this file owns is the FRAME: 224×168, the landing card's box, at `sm`
+ * and up — and full-width below it, where the card stacks instead. Either way
+ * the cover scales cleanly, because `components/bean-cover.tsx` expresses its
+ * phone composition in container-query units against the frame's own size
+ * rather than in pixels against those numbers.
+ *
+ * A card with art is a ROW at `sm` and up — cover at the left, name and
+ * description beside it — and a COLUMN below it: a 224px cover beside text in
+ * a 327px phone column leaves the text about a hundred pixels, so below `sm`
+ * the cover moves to the top at full width instead. Without art it is the
+ * same stack of text it always was, at every width.
  *
  * Server-safe, and used from a client node view — the same property
  * `components/chrome.tsx` and `components/plant-header.tsx` rest on.
@@ -100,18 +106,21 @@ export function EntityCardBody({
     <Card
       className={`py-0${interactive ? " transition-shadow group-hover:shadow-md" : ""}`}
     >
-      <div className="flex items-stretch">
+      <div className="flex flex-col items-stretch sm:flex-row">
         {/* The landing row's frame, verbatim (components/bean-card.tsx): the
-            same 224×168 box, the same `overflow-hidden` that clips the
-            departing word and crops the phone at the bottom, the same bare
-            `bg-muted` underneath. `relative` is belt-and-braces — the phone
-            branch establishes its own positioning context — and `shrink-0`
-            is not: without it a long description squeezes the frame and the
-            phone's geometry, which is reckoned in pixels, stops matching its
-            box. The same frame shape is declared in `components/bean-card.tsx`,
-            which differs only in its width and radius — change one and look
-            at the other. */}
-        <div className="relative aspect-[4/3] w-56 shrink-0 overflow-hidden bg-muted">
+            same 224×168 box at `sm` and up, the same `overflow-hidden` that
+            clips the departing word and crops the phone at the bottom, the
+            same bare `bg-muted` underneath. `relative` is belt-and-braces —
+            the phone branch establishes its own positioning context.
+            `shrink-0` is `sm:shrink-0` deliberately: in a column flex (below
+            `sm`) it would constrain the vertical axis, which is not what it
+            was ever for — the row is the only axis it needs to hold the
+            frame against. `items-stretch` on the wrapper above stays
+            unprefixed: it is what makes the cover fill the width when
+            stacked. The same frame shape is declared in
+            `components/bean-card.tsx`, which differs only in its width and
+            radius — change one and look at the other. */}
+        <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted sm:w-56 sm:shrink-0">
           {coverArt}
         </div>
         <CardContent className="flex min-w-0 flex-col justify-center gap-1 py-(--card-spacing)">
