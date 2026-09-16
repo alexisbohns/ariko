@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { buildDataset, type RawGarden, type Bean } from "./data";
 import { relatedBeans } from "./related-beans";
 
@@ -137,15 +139,23 @@ test("equal article dates tie-break by English name, then slug", () => {
       { slug: "here", name: "Here", parents: ["pod:karma"] },
       { slug: "z-bean", name: "Alpha", parents: ["pod:karma"] },
       { slug: "a-bean", name: "Beta", parents: ["pod:karma"] },
+      // Same name AND same date as z-bean, so only the SLUG can separate them
+      // — and it is listed last, so garden order disagrees with slug order.
+      // Without the tie-break's second key the stable sort leaves these two in
+      // garden order (z-bean, m-bean) and this assertion fails, which is the
+      // whole point of the third bean.
+      { slug: "m-bean", name: "Alpha", parents: ["pod:karma"] },
     ],
     sprouts: [
       written("s-here", "here", "2026-01-01"),
       written("s-z", "z-bean", "2025-05-05"),
       written("s-a", "a-bean", "2025-05-05"),
+      written("s-m", "m-bean", "2025-05-05"),
     ],
   };
-  // Same date: NAME decides, so "Alpha" (slug z-bean) precedes "Beta" (slug a-bean).
-  assert.deepEqual(slugsFor(raw, "here"), ["z-bean", "a-bean"]);
+  // Same date: NAME decides first, so both Alphas precede "Beta" (slug a-bean).
+  // Between the two Alphas the SLUG decides, and "m-bean" < "z-bean".
+  assert.deepEqual(slugsFor(raw, "here"), ["m-bean", "z-bean", "a-bean"]);
 });
 
 test("a bean parented straight to a plant still gets the plant tier", () => {
@@ -171,4 +181,29 @@ test("a standalone bean gets nothing", () => {
     sprouts: [...garden.sprouts!, written("s-lonely", "lonely", "2026-01-01")],
   };
   assert.deepEqual(slugsFor(raw, "lonely"), []);
+});
+
+// The one assertion that is about SOURCE rather than behaviour, and it is here
+// because behaviour cannot reach it: `relatedBeans` builds both tiers as Maps
+// and re-sorts them, so the Map absorbs everything `beansForPlantDeep` does
+// that a hand-rolled `beansForPlant` + `podsForPlant.flatMap(beansForPod)`
+// concat would not — its dedupe and its ordering alike. Swapping the call for
+// that concat passes `tsc`, all thirteen tests above, and `npm run build`,
+// while leaving a second definition of "every bean under a plant" to drift
+// from the one `/admin/beans` and the plant hub already count with.
+// lib/admin-section-source.test.ts pins the same function the same way.
+test("the plant tier is built by CALLING beansForPlantDeep, not by composing it", () => {
+  const text = readFileSync(join(process.cwd(), "lib/related-beans.ts"), "utf8");
+  assert.match(
+    text,
+    /import\s*\{[^}]*\bbeansForPlantDeep\b[^}]*\}\s*from\s*["']\.\/plant-hub["']/,
+    "lib/related-beans.ts must import beansForPlantDeep from lib/plant-hub",
+  );
+  assert.match(
+    text,
+    /beansForPlantDeep\(\s*dataset\s*,\s*plant\.slug\s*\)/,
+    "lib/related-beans.ts must build its plant tier from " +
+      "beansForPlantDeep(dataset, plant.slug) — the one definition of what a " +
+      "plant contains, which the plant hub and /admin/beans already share",
+  );
 });
