@@ -38,6 +38,7 @@ export function BeanCard({
   title,
   description,
   coverArt,
+  clamp,
 }: {
   href: string;
   title: string;
@@ -48,6 +49,16 @@ export function BeanCard({
    *  in both callers today. Absent renders the bare `bg-muted` frame, which is
    *  what a bean with no cover has always shown. */
   coverArt?: ReactNode;
+  /**
+   * Bound the description where the row WRAPS. The landing page's row is a
+   * horizontal scroller — one line of cards, each standing alone, so a ragged
+   * bottom is invisible there and the full description is worth showing. A
+   * wrapping row is the opposite: the longest description in a row sets that
+   * row's height and pushes the next row down past every short card in it, and
+   * this garden's descriptions are 200-250 characters — 6 to 8 lines at this
+   * width. Off by default, so the caller that does not wrap pays nothing.
+   */
+  clamp?: boolean;
 }) {
   return (
     <a href={href} className="group flex w-56 flex-col gap-3">
@@ -67,7 +78,14 @@ export function BeanCard({
           {title}
         </span>
         {description?.trim() ? (
-          <span className="text-xs leading-relaxed text-muted-foreground">{description}</span>
+          <span
+            className={
+              "text-xs leading-relaxed text-muted-foreground" +
+              (clamp ? " line-clamp-2" : "")
+            }
+          >
+            {description}
+          </span>
         ) : null}
       </div>
     </a>

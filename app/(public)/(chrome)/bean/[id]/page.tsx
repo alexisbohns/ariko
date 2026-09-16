@@ -148,6 +148,9 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
                       lang={lang}
                     />
                   }
+                  // This rail wraps; the landing row scrolls and never does —
+                  // clamp is the one prop the two callers differ by.
+                  clamp
                 />
               </li>
             ))}
