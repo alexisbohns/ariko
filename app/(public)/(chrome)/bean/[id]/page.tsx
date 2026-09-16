@@ -7,6 +7,10 @@ import { Prose } from "@/components/markdown";
 import { resolveEntity } from "@/lib/entity-resolve";
 import { resolveLineage, PUBLIC_HREFS } from "@/lib/lineage";
 import { LineageChrome } from "@/components/lineage-chrome";
+import { relatedBeans } from "@/lib/related-beans";
+import { beanCoverFor } from "@/lib/bean-cover";
+import { BeanCard } from "@/components/bean-card";
+import { BeanCover } from "@/components/bean-cover";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +44,11 @@ export const dynamic = "force-dynamic";
  *
  * `sproutsForBean` therefore survives for exactly one reader: `articleFor`,
  * which picks the newest published sprout carrying content (spec §4).
+ *
+ * The rail beneath it is `lib/related-beans.ts` — pod siblings first, topped up
+ * from the plant, and never a bean with nothing written under it. It draws
+ * `components/bean-card.tsx`, the landing page's own card, so a visitor who
+ * reaches a bean from the landing page meets the same object twice.
  */
 export default async function BeanPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -59,6 +68,11 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
     { lang, hrefs: PUBLIC_HREFS },
   );
 
+  // From the same FILTERED dataset the rest of the page reads, so a private
+  // sibling is simply absent — `relatedBeans` runs no privacy check of its own
+  // and must not grow one (lib/related-beans.ts says why).
+  const related = relatedBeans(data, bean);
+
   return (
     <>
       <LineageChrome lineage={lineage} />
@@ -76,6 +90,76 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
             resolve={(ref) => resolveEntity(data, ref, lang)} />
         ) : null}
       </article>
+
+      {/* Zero is NO rail — no heading, no border, no empty box under the word
+          "Keep reading". A standalone bean reaches this, and so does the first
+          bean written under a new plant. An absent rail is a statement about
+          the garden; an empty one is a component that failed. */}
+      {related.length > 0 ? (
+        <nav aria-label="Keep reading" className="mt-16 flex flex-col gap-4 border-t pt-6">
+          {/* The pod page's "Inside" HEADING, verbatim — the footer matches
+              the only other index in the zone rather than inventing a second.
+              English regardless of the language switch, as every other piece of
+              UI chrome in this zone is (the lineage chrome's Plants/Pods/Beans,
+              the pod page's Inside).
+
+              Named rather than bare — the pod page's "Inside" is the outlier,
+              and this page already carries two other navs (the chrome's and
+              the lineage's), so a third unnamed "navigation" in the landmark
+              list is the outcome to avoid. The name is an `aria-label` rather
+              than `aria-labelledby` on the heading because that needs an `id`,
+              and `components/toc-rail.tsx` indexes `main h2[id]` — an id here
+              would file "Keep reading" in the article's own contents. */}
+          <h2 className="font-heading text-xs uppercase tracking-widest text-muted-foreground">
+            Keep reading
+          </h2>
+          {/* A FLUID GRID, not a wrapping row with a fixed cell: the card no
+              longer dictates a width — `components/bean-cover.tsx` expresses
+              its phone composition in container-query units against the
+              frame's own size, so the card scales cleanly at any width the
+              grid hands it, and the track can simply say how many columns.
+
+              `READING_COLUMN` is `max-w-3xl px-6`, i.e. `min(viewport, 768) -
+              48` of content: a 375px phone → 327px → one full-width card; at
+              `sm` (640px) → 592px → two cards of ~288px; at `md` (768px) and
+              up → 720px → three cards of ~229px. Each breakpoint fills the
+              column exactly, with no leftover slack. One full-width card on a
+              phone is the point of switching to a grid at all — the old fixed
+              224px card sat in a 327px column and left a bare strip of dead
+              space beside it, which read as a mistake rather than a layout.
+
+              `gap-x-4 gap-y-8`: the ROW gap is larger than the column gap on
+              purpose — a wrapped rail stacks a description directly above the
+              next row's cover, and tiles want more vertical air between them
+              than horizontal.
+
+              NO `group` on this element or any wrapper: Tailwind's
+              `group-hover:` matches ANY ancestor carrying it, and every cover's
+              choreography is group-hover on its own card's anchor — so a
+              `group` here would animate all six covers whenever the pointer
+              entered the rail. */}
+          <ul className="grid grid-cols-1 gap-x-4 gap-y-8 sm:grid-cols-2 md:grid-cols-3">
+            {related.map((sibling) => (
+              <li key={sibling.slug}>
+                <BeanCard
+                  href={PUBLIC_HREFS.bean(sibling.slug)}
+                  title={resolveText(sibling.name, lang)}
+                  description={resolveText(sibling.description ?? "", lang)}
+                  coverArt={
+                    <BeanCover
+                      cover={beanCoverFor(sibling, data.sproutsForBean(sibling.slug))}
+                      lang={lang}
+                    />
+                  }
+                  // This rail wraps; the landing row scrolls and never does —
+                  // clamp is the one prop the two callers differ by.
+                  clamp
+                />
+              </li>
+            ))}
+          </ul>
+        </nav>
+      ) : null}
     </>
   );
 }

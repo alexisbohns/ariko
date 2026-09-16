@@ -9,6 +9,7 @@ import { cloudinaryThumb } from "@/lib/image-url";
 import { ArikoLogo } from "@/components/brand/ariko-logo";
 import { ProfanePreload } from "@/components/brand/profane-preload";
 import { BeanCover as BeanCoverArt } from "@/components/bean-cover";
+import { BeanCard } from "@/components/bean-card";
 
 export const dynamic = "force-dynamic";
 
@@ -82,31 +83,19 @@ export default async function DirectoryPage() {
     <div className="no-scrollbar overflow-x-auto overscroll-x-none pb-2">
       <ul className={`flex w-max gap-4 ${GUTTER}`}>
         {entries.map((entry) => (
-          // w-56 is 224px, and components/bean-cover.tsx derives its phone
-          // geometry from that number — widen the card and the numbers in
-          // that file need revisiting.
+          // The width is this row's own again, not the card's: BeanCard fills
+          // whatever cell it is given, and this row is a SCROLLER — a `w-max`
+          // flex row needs a definite cell width to scroll past, which is a
+          // different question from what the card itself can do. shrink-0
+          // says the same thing from the other side: without it a long row
+          // would squeeze the card below its fixed width.
           <li key={entry.key} className="w-56 shrink-0">
-            <a href={entry.href} className="group flex flex-col gap-3">
-              {/* `overflow-hidden` is what clips the departing word on its way
-                  out and crops the phone at the bottom; `relative` is
-                  belt-and-braces since the phone branch establishes its own
-                  positioning context. A null cover renders nothing here, so a
-                  bean or pod with no cover simply shows this bare `bg-muted`
-                  frame, like any other entry. */}
-              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-muted">
-                <BeanCoverArt cover={entry.cover} lang={lang} />
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="font-heading text-sm tracking-tight underline-offset-4 group-hover:underline">
-                  {entry.title}
-                </span>
-                {entry.description.trim() ? (
-                  <span className="text-xs leading-relaxed text-muted-foreground">
-                    {entry.description}
-                  </span>
-                ) : null}
-              </div>
-            </a>
+            <BeanCard
+              href={entry.href}
+              title={entry.title}
+              description={entry.description}
+              coverArt={<BeanCoverArt cover={entry.cover} lang={lang} />}
+            />
           </li>
         ))}
       </ul>
