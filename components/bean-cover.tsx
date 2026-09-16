@@ -37,30 +37,42 @@ const GLIDE =
  * whole card, which is why the word can travel out of the frame and still be
  * driven by the same hover.
  *
- * The geometry is tied to the row's `w-56` card (224x168 frame). The phone
- * SPAN is half the frame wide — 112px — but `p-1` is inside that under
- * border-box, so the screenshot itself paints 104px, and at the 224x484
- * derivative's ratio that is 104 x 484/224 ~= 225px tall. Add the 4px of bezel
- * above it and the span is ~229px, which from `top-[58px]` runs ~119px past
- * the frame's bottom edge — so the frame reads as a window onto something
- * taller rather than as a cropped picture. Its bezel is drawn HERE rather than
- * baked into the stored file: baking it would make cloudinaryThumb crop a
- * composite instead of a screen, and turn "re-shoot that screen" into
- * "re-composite that screen".
+ * The composition is expressed in container-query units against the frame
+ * itself rather than in pixels against the row's card size, so it scales
+ * with the card at ANY width — a full-bleed phone card and a third-of-a-column
+ * desktop one both get the same proportions — and the numbers below do NOT
+ * need revisiting the way a pixel value would. `@container` lives on this
+ * component's OWN wrapper (the div that opens this branch), deliberately: the
+ * file that depends on a container is the file that establishes one, so no
+ * caller has to know to wrap it in one. A `cqw` with no container in scope
+ * resolves against the VIEWPORT instead of the card — a silent,
+ * size-dependent break rather than a build error, which is exactly why the
+ * container isn't left for `bean-card.tsx` to supply.
+ *
+ * Each cqw value is stated as a fraction of the card's own width, and each
+ * fraction is the one this file used to spell in pixels against a 224x168
+ * frame. `top-[25.893cqw]` (on `PhoneFrame`) is 58/224, and 58 itself is
+ * 168 - 110 — the frame's height minus the 110px the phone should show of
+ * ITSELF at rest. `pt-[4.018cqw]` (the keyword span's inset) is 9/224 and
+ * `text-[15.179cqw]` (its leading-none type size) is 34/224 — together a
+ * ~43px block at a 224px card, leaving the same clean headroom above the
+ * phone's bezel it always did, at any card width. `translateY(-20.536cqw)`
+ * in the hover transform is 46/224. At a 224px card every one of these
+ * resolves back to the exact old pixel value; at any other width it scales
+ * with the card instead of silently drifting off the phone. Its bezel is
+ * drawn HERE rather than baked into the stored file: baking it would make
+ * cloudinaryThumb crop a composite instead of a screen, and turn "re-shoot
+ * that screen" into "re-composite that screen".
+ *
+ * `components/phone-frame.tsx`'s own `p-1` bezel stays in pixels rather than
+ * following suit: that file is shared with `components/screen-strip.tsx`,
+ * which is NOT inside a container, so a cq unit there would resolve against
+ * the viewport and silently break the strip. A 4px bezel at any card size is
+ * acceptable and arguably correct.
  *
  * The phone itself is `components/phone-frame.tsx` since the gallery slice
  * needed the same one. What stayed here is what is the COVER's: where the phone
  * sits, how it rises on hover, and the word that leaves as it does.
- *
- * Three more numbers worth naming so they don't read as arbitrary: the frame
- * is 168px tall and the phone should show 110px of ITSELF at rest — the same
- * 110px the hover-transform comment below reckons its math from, of which the
- * top 4px is bezel, so 106px of screen — which is where `top-[58px]` comes
- * from: 168 - 110 = 58. The word above it is a `pt-[9px]` inset plus
- * `text-[34px]` leading-none text, a ~43px block, so 58 leaves it a clean
- * ~15px of headroom before the phone's bezel starts — without that gap the
- * word and the rising phone would overlap mid-transition rather than only
- * trading places at the end of it.
  */
 export function BeanCover({
   cover,
@@ -95,7 +107,7 @@ export function BeanCover({
     // shape stay the caller's — this div owns nothing but `relative`, so the
     // two absolutely-positioned children below can never end up positioned
     // against some ancestor further up the tree than intended.
-    <div className="relative h-full w-full">
+    <div className="relative h-full w-full @container">
       {word ? (
         <span
           // aria-hidden: the bean's name sits two lines below this and the word
@@ -107,7 +119,7 @@ export function BeanCover({
           // OVER the departing word for the middle of the hover transition,
           // rather than the two visibly trading places.
           aria-hidden
-          className={`absolute inset-x-0 top-0 z-10 pt-[9px] text-center font-display text-[34px] leading-none tracking-tight text-foreground ${GLIDE} group-hover:-translate-y-[110%]`}
+          className={`absolute inset-x-0 top-0 z-10 pt-[4.018cqw] text-center font-display text-[15.179cqw] leading-none tracking-tight text-foreground ${GLIDE} group-hover:-translate-y-[110%]`}
         >
           {word}
         </span>
@@ -121,17 +133,21 @@ export function BeanCover({
         // markup for that rather than a missing description. The same
         // reasoning is what puts aria-hidden on the keyword span above.
         alt=""
-        // ~2.15x the box the screenshot actually paints — 104 x 225, once
-        // `p-1` is taken out of the 112px span — rather than the flat 2x
-        // lib/image-url.ts states every caller asks for. This is the one
-        // caller that departs from that rule, and the departure is in the safe
-        // direction: a little sharper than needed, never softer.
+        // The card is fluid now, so this derivative is sized for the LARGEST
+        // box it plausibly paints — a full-width phone card, where the
+        // screenshot itself paints ~155px wide — rather than the smallest,
+        // and is correspondingly more generous at desktop size where the
+        // card shrinks back down. 336/224 = 1.5x, the same 484/224 ratio the
+        // box has always used, rather than the flat 2x lib/image-url.ts
+        // states every caller asks for. This is the one caller that departs
+        // from that rule, and the departure is in the safe direction: a
+        // little sharper than needed, never softer.
         //
         // The FULL height, not the ~110px visible at rest: hover reveals more
         // of the image, and a derivative sized to the rest state would blur
         // exactly when the visitor leans in.
-        width={224}
-        height={484}
+        width={336}
+        height={726}
         // The transform is written whole rather than composed from Tailwind's
         // translate-x / translate-y / scale utilities. Those set separate
         // custom properties that a hover variant then has to re-declare in full
@@ -142,7 +158,7 @@ export function BeanCover({
         // -46px with a 0.80 scale from `origin-top`: 110px of the phone visible
         // at rest becomes ~156px of a smaller phone on hover. Against the
         // span's real ~229px that is 48% of it showing, becoming 85%.
-        className={`absolute left-1/2 top-[58px] w-1/2 origin-top [transform:translateX(-50%)] ${GLIDE} group-hover:[transform:translateX(-50%)_translateY(-46px)_scale(0.8)]`}
+        className={`absolute left-1/2 top-[25.893cqw] w-1/2 origin-top [transform:translateX(-50%)] ${GLIDE} group-hover:[transform:translateX(-50%)_translateY(-20.536cqw)_scale(0.8)]`}
       />
     </div>
   );

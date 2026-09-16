@@ -41,11 +41,12 @@ test("a fill cover is one image at the 448x336 derivative", () => {
 });
 
 test("a phone cover asks for the TALL derivative, not the square one", () => {
-  // The phone box is 112x242 CSS px; 224x484 is that doubled for a retina
-  // display. Asking for the 448x336 fill derivative here would deliver a
+  // 336x726 is sized for the LARGEST box the card plausibly paints — a
+  // full-width phone card — at the same 484/224 (1.5x) ratio the box has
+  // always used. Asking for the 448x336 fill derivative here would deliver a
   // landscape crop of a portrait screenshot.
   const markup = html({ kind: "phone", image: img("shot", { width: 390, height: 844 }) });
-  assert.match(markup, /w_224,h_484,c_fill,q_auto,f_auto/);
+  assert.match(markup, /w_336,h_726,c_fill,q_auto,f_auto/);
   assert.doesNotMatch(markup, /w_448/);
   // Attributes, not class strings, so the "don't assert Tailwind classes"
   // rule doesn't cover them — and the landing page renders a whole row of
@@ -78,7 +79,7 @@ test("the keyword resolves per language", () => {
 test("a wordless phone renders the bezel and no empty word box", () => {
   const markup = html({ kind: "phone", image: img("shot", { width: 390, height: 844 }) });
   assert.doesNotMatch(markup, /aria-hidden/);
-  assert.match(markup, /w_224,h_484/);
+  assert.match(markup, /w_336,h_726/);
 });
 
 test("a keyword that resolves to whitespace is the WORDLESS phone", () => {
@@ -97,7 +98,7 @@ test("a keyword that resolves to whitespace is the WORDLESS phone", () => {
   );
   assert.doesNotMatch(markup, /aria-hidden/);
   assert.equal(text(markup), "");
-  assert.match(markup, /w_224,h_484/);
+  assert.match(markup, /w_336,h_726/);
 });
 
 test("a phone cover's image is decorative even when the stored image carries alt text", () => {
