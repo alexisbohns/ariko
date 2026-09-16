@@ -28,7 +28,7 @@ const GLIDE =
  * would fail at build with a confusing bundler error rather than a clear one.
  * This is only ever meant to render on the server.
  *
- * The frame itself stays in app/(public)/page.tsx: `relative aspect-[4/3]
+ * The frame itself stays in components/bean-card.tsx: `relative aspect-[4/3]
  * w-full overflow-hidden rounded-lg bg-muted`. Its `relative` is only
  * belt-and-braces — the phone branch below establishes its own positioning
  * context, so the frame's copy is never actually needed. What lives here is

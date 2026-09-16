@@ -16,6 +16,11 @@ import type { ReactNode } from "react";
  * contents in from outside costs one prop and is what keeps THIS file
  * server-safe, which is what puts it in `lib/server-safe-source.test.ts`.
  *
+ * This is not a variant of `components/entity-card.tsx` — it is a different
+ * LAYOUT that happens to share a frame shape. The entity card is the PROSE
+ * card: a row, frame at the left, name and description beside it. This is the
+ * LANDING TILE: a stacked column, frame on top, text beneath.
+ *
  * What it owns is the FRAME and the text beneath it. The card's WIDTH belongs
  * to the caller and is not optional decoration: `components/bean-cover.tsx`
  * reckons the phone's rise in pixels off a 224x168 frame (`top-[58px]` is
@@ -35,7 +40,7 @@ export function BeanCard({
    *  not (spec §5). Blank renders nothing rather than an empty line. */
   description?: string;
   /** What goes INSIDE the cover frame, composed by the caller — `<BeanCover>`
-   *  in both zones today. Absent renders the bare `bg-muted` frame, which is
+   *  in both callers today. Absent renders the bare `bg-muted` frame, which is
    *  what a bean with no cover has always shown. */
   coverArt?: ReactNode;
 }) {
@@ -46,7 +51,9 @@ export function BeanCard({
           belt-and-braces since the phone branch establishes its own
           positioning context. A null cover renders nothing here, so a
           bean or pod with no cover simply shows this bare `bg-muted`
-          frame, like any other entry. */}
+          frame, like any other entry. The same frame shape is declared in
+          `components/entity-card.tsx`, which differs only in its width and
+          radius — change one and look at the other. */}
       <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-muted">
         {coverArt}
       </div>

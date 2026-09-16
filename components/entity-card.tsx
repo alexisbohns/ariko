@@ -101,13 +101,16 @@ export function EntityCardBody({
       className={`py-0${interactive ? " transition-shadow group-hover:shadow-md" : ""}`}
     >
       <div className="flex items-stretch">
-        {/* The landing row's frame, verbatim (app/(public)/page.tsx): the same
-            224×168 box, the same `overflow-hidden` that clips the departing
-            word and crops the phone at the bottom, the same bare `bg-muted`
-            underneath. `relative` is belt-and-braces — the phone branch
-            establishes its own positioning context — and `shrink-0` is not:
-            without it a long description squeezes the frame and the phone's
-            geometry, which is reckoned in pixels, stops matching its box. */}
+        {/* The landing row's frame, verbatim (components/bean-card.tsx): the
+            same 224×168 box, the same `overflow-hidden` that clips the
+            departing word and crops the phone at the bottom, the same bare
+            `bg-muted` underneath. `relative` is belt-and-braces — the phone
+            branch establishes its own positioning context — and `shrink-0`
+            is not: without it a long description squeezes the frame and the
+            phone's geometry, which is reckoned in pixels, stops matching its
+            box. The same frame shape is declared in `components/bean-card.tsx`,
+            which differs only in its width and radius — change one and look
+            at the other. */}
         <div className="relative aspect-[4/3] w-56 shrink-0 overflow-hidden bg-muted">
           {coverArt}
         </div>
