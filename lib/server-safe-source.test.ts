@@ -44,6 +44,7 @@ const SERVER_SAFE = [
   "components/media.tsx",
   "components/public-icons.tsx",
   "components/link-row.tsx",
+  "components/bean-card.tsx",
   "components/bean-cover.tsx",
   "components/phone-frame.tsx",
   "components/screen-strip.tsx",
