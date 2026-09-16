@@ -32,6 +32,9 @@ import { articleFor } from "./article";
 interface Candidate {
   bean: Bean;
   date: string;
+  /** Resolved once, here, rather than per comparison — which is the whole
+   *  reason this interface exists rather than sorting `Bean`s directly. */
+  name: string;
 }
 
 /**
@@ -52,10 +55,7 @@ interface Candidate {
  */
 function byNewestThenName(a: Candidate, b: Candidate): number {
   if (a.date !== b.date) return a.date < b.date ? 1 : -1;
-  return (
-    resolveText(a.bean.name).localeCompare(resolveText(b.bean.name)) ||
-    a.bean.slug.localeCompare(b.bean.slug)
-  );
+  return a.name.localeCompare(b.name) || a.bean.slug.localeCompare(b.bean.slug);
 }
 
 export function relatedBeans(dataset: Dataset, bean: Bean, limit = 6): Bean[] {
@@ -72,6 +72,12 @@ export function relatedBeans(dataset: Dataset, bean: Bean, limit = 6): Bean[] {
   // so the common case — a bean parented only to a pod — still finds its plant.
   // `beansForPlantDeep` is called rather than composed: that is what inherits
   // its dedupe of a bean parented to both a pod and that pod's plant.
+  //
+  // Tier 2 is deliberately the ONE plant `plantForBean` names, not a union to
+  // match tier 1's: a bean may name two plants, and unioning them would make a
+  // rail that spans two plants under a heading that names neither. The pod
+  // union is right because pods are collections within one practice; the plant
+  // union would not be.
   const plantTier = new Map<string, Bean>();
   const plant = dataset.plantForBean(bean.slug);
   if (plant) {
@@ -89,7 +95,9 @@ export function relatedBeans(dataset: Dataset, bean: Bean, limit = 6): Bean[] {
     for (const candidate of beans) {
       if (candidate.slug === bean.slug) continue;
       const article = articleFor(dataset.sproutsForBean(candidate.slug));
-      if (article) out.push({ bean: candidate, date: article.date });
+      if (article) {
+        out.push({ bean: candidate, date: article.date, name: resolveText(candidate.name) });
+      }
     }
     return out.sort(byNewestThenName);
   };

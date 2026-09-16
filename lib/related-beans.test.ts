@@ -120,16 +120,30 @@ test("a bean parented to both a pod and that pod's plant appears once", () => {
   const raw: RawGarden = {
     ...garden,
     beans: garden.beans!.map((b) =>
-      b.slug === "cousin" ? { ...b, parents: ["pod:atlas", "plant:paulopus"] } : b,
+      b.slug === "sib-new" ? { ...b, parents: ["pod:karma", "plant:paulopus"] } : b,
     ),
   };
-  const out = slugsFor(raw, "here");
-  assert.equal(out.filter((s) => s === "cousin").length, 1);
+  // `sib-new` reaches BOTH tiers — pod sibling of `here`, and a direct child of
+  // paulopus — so this pins `relatedBeans`'s own cross-tier guard rather than
+  // the dedupe inside `beansForPlantDeep`. The whole rail is asserted, because
+  // a duplicate is only visible in the full array.
+  assert.deepEqual(slugsFor(raw, "here"), ["sib-new", "sib-old", "cousin", "direct"]);
 });
 
 test("the rail caps at the limit", () => {
   assert.equal(slugsFor(garden, "here", 2).length, 2);
   assert.deepEqual(slugsFor(garden, "here", 2), ["sib-new", "sib-old"]);
+});
+
+test("the default rail is six beans, not five and not seven", () => {
+  // Eight candidates for `here`: six pod siblings and two plant beans.
+  const extras = ["e1", "e2", "e3", "e4"];
+  const raw: RawGarden = {
+    ...garden,
+    beans: [...garden.beans!, ...extras.map((s) => ({ slug: s, name: s, parents: ["pod:karma"] }))],
+    sprouts: [...garden.sprouts!, ...extras.map((s) => written(`s-${s}`, s, "2023-01-01"))],
+  };
+  assert.equal(slugsFor(raw, "here").length, 6);
 });
 
 test("equal article dates tie-break by English name, then slug", () => {
@@ -156,6 +170,27 @@ test("equal article dates tie-break by English name, then slug", () => {
   // Same date: NAME decides first, so both Alphas precede "Beta" (slug a-bean).
   // Between the two Alphas the SLUG decides, and "m-bean" < "z-bean".
   assert.deepEqual(slugsFor(raw, "here"), ["m-bean", "z-bean", "a-bean"]);
+});
+
+test("the order is English-name order even when French would disagree", () => {
+  const raw: RawGarden = {
+    ...garden,
+    beans: [
+      { slug: "here", name: "Here", parents: ["pod:karma"] },
+      { slug: "x-bean", name: { en: "Alpha", fr: "Zèbre" }, parents: ["pod:karma"] },
+      { slug: "y-bean", name: { en: "Beta", fr: "Aube" }, parents: ["pod:karma"] },
+    ],
+    sprouts: [
+      written("s-here", "here", "2026-01-01"),
+      written("s-x", "x-bean", "2025-05-05"),
+      written("s-y", "y-bean", "2025-05-05"),
+    ],
+  };
+  // Same date, so the name decides — and the two languages disagree about it:
+  // EN is Alpha before Beta, FR is Aube before Zèbre, i.e. the reverse. The
+  // comparator resolves to English for every reader, which is what stops the
+  // `slice(0, limit)` keeping a different six beans per language.
+  assert.deepEqual(slugsFor(raw, "here"), ["x-bean", "y-bean"]);
 });
 
 test("a bean parented straight to a plant still gets the plant tier", () => {
