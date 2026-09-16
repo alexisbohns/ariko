@@ -96,12 +96,20 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
           bean written under a new plant. An absent rail is a statement about
           the garden; an empty one is a component that failed. */}
       {related.length > 0 ? (
-        <nav aria-label="Keep reading" className="mt-16 flex flex-col gap-6 border-t pt-8">
-          {/* The pod page's "Inside" treatment, verbatim — the footer matches
+        <nav aria-label="Keep reading" className="mt-16 flex flex-col gap-4 border-t pt-6">
+          {/* The pod page's "Inside" HEADING, verbatim — the footer matches
               the only other index in the zone rather than inventing a second.
               English regardless of the language switch, as every other piece of
               UI chrome in this zone is (the lineage chrome's Plants/Pods/Beans,
-              the pod page's Inside). */}
+              the pod page's Inside).
+
+              Named rather than bare — the pod page's "Inside" is the outlier,
+              and this page already carries two other navs (the chrome's and
+              the lineage's), so a third unnamed "navigation" in the landmark
+              list is the outcome to avoid. The name is an `aria-label` rather
+              than `aria-labelledby` on the heading because that needs an `id`,
+              and `components/toc-rail.tsx` indexes `main h2[id]` — an id here
+              would file "Keep reading" in the article's own contents. */}
           <h2 className="font-heading text-xs uppercase tracking-widest text-muted-foreground">
             Keep reading
           </h2>
@@ -111,17 +119,27 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
               `grid-cols-[repeat(auto-fill,14rem)]` here would state the same
               number a second time and let the two drift. Three fit the 720px
               reading column, one fits a phone, and neither is written down.
+              `gap-x-4 gap-y-8`: the ROW gap is larger than the column gap on
+              purpose — a wrapped rail stacks a description directly above the
+              next row's cover, and tiles want more vertical air between them
+              than horizontal.
+
+              No `shrink-0` on the `<li>`, unlike `app/(public)/page.tsx`'s row:
+              `min-width: auto` on a flex item resolves to its min-content
+              contribution, and a block with a definite `width: 14rem` has a
+              min-content contribution of 14rem — so the `<li>` cannot shrink
+              below the card's own width regardless.
 
               NO `group` on this element or any wrapper: Tailwind's
               `group-hover:` matches ANY ancestor carrying it, and every cover's
               choreography is group-hover on its own card's anchor — so a
               `group` here would animate all six covers whenever the pointer
               entered the rail. */}
-          <ul className="flex flex-wrap gap-4">
+          <ul className="flex flex-wrap gap-x-4 gap-y-8">
             {related.map((sibling) => (
               <li key={sibling.slug}>
                 <BeanCard
-                  href={`/bean/${sibling.slug}`}
+                  href={PUBLIC_HREFS.bean(sibling.slug)}
                   title={resolveText(sibling.name, lang)}
                   description={resolveText(sibling.description ?? "", lang)}
                   coverArt={
