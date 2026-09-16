@@ -26,14 +26,16 @@ import { articleFor } from "./article";
  */
 
 /**
- * A candidate, carrying the date it sorts by so `articleFor` is called once per
- * bean rather than once per comparison.
+ * A candidate, carrying both of the things its sort would otherwise recompute
+ * on every comparison. That is the whole reason it exists rather than sorting
+ * `Bean`s directly, and it is TWO reasons rather than one — the date below and
+ * the name beside it are each hoisted for the same argument.
  */
 interface Candidate {
   bean: Bean;
+  /** So `articleFor` runs once per bean rather than once per comparison. */
   date: string;
-  /** Resolved once, here, rather than per comparison — which is the whole
-   *  reason this interface exists rather than sorting `Bean`s directly. */
+  /** So `resolveText` does too. */
   name: string;
 }
 
