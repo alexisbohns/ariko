@@ -83,10 +83,12 @@ export default async function DirectoryPage() {
     <div className="no-scrollbar overflow-x-auto overscroll-x-none pb-2">
       <ul className={`flex w-max gap-4 ${GUTTER}`}>
         {entries.map((entry) => (
-          // w-56 is 224px, and components/bean-cover.tsx derives its phone
-          // geometry from that number — widen the card and the numbers in
-          // that file need revisiting.
-          <li key={entry.key} className="w-56 shrink-0">
+          // The width is BeanCard's own (`w-56` on its anchor) — 224px, which
+          // components/bean-cover.tsx derives its phone geometry from, so
+          // widening the card means revisiting the numbers in that file, not
+          // this className. shrink-0 is still this row's to say: without it
+          // a long row would squeeze the card below its fixed width.
+          <li key={entry.key} className="shrink-0">
             <BeanCard
               href={entry.href}
               title={entry.title}
