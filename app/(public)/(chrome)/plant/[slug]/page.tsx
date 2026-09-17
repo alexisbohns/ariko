@@ -4,6 +4,7 @@ import { currentLang } from "@/lib/locale-server";
 import { getPublicDataset } from "@/lib/garden-cache";
 import { resolveEntity } from "@/lib/entity-resolve";
 import { PlantHead } from "@/app/(public)/_components/plant-head";
+import { seq } from "@/components/reveal";
 import { ProfanePreload } from "@/components/brand/profane-preload";
 import { Prose } from "@/components/markdown";
 import { LinkRow } from "@/components/link-row";
@@ -64,8 +65,12 @@ export default async function PlantPage({ params }: { params: Promise<{ slug: st
           every plant but casa — the one page state nobody looks at while
           building the feature that fills it. */}
       {plant.links && plant.links.length > 0 ? (
-        <div className="flex justify-center">
-          <LinkRow links={plant.links} lang={lang} label={`Find ${resolveText(plant.name, lang)} elsewhere`} />
+        <div {...seq(5, "flex justify-center")}>
+          <LinkRow
+            links={plant.links}
+            lang={lang}
+            label={`Find ${resolveText(plant.name, lang)} elsewhere`}
+          />
         </div>
       ) : null}
 
@@ -74,18 +79,20 @@ export default async function PlantPage({ params }: { params: Promise<{ slug: st
           needs no guard of its own — ScreenStrip returns null and React drops
           the flex item, which is the shape the links block above could not
           take (a centring wrapper around null is still an item). */}
-      <ScreenStrip rows={screens} plantName={resolveText(plant.name, lang)} />
+      <ScreenStrip index={6} rows={screens} plantName={resolveText(plant.name, lang)} />
 
       {/* The narrative — where the argument lives. Its entity refs resolve
           against the public dataset, so anything hidden renders as nothing. */}
       <Prose
-          lang={lang}
-          content={plant.content}
-          resolve={(ref) => resolveEntity(data, ref, lang)} />
+        reveal
+        lang={lang}
+        content={plant.content}
+        resolve={(ref) => resolveEntity(data, ref, lang)}
+      />
 
       {/* Mechanical index — an aggregation with no argument to make (spec §5). */}
       {pods.length > 0 || beans.length > 0 ? (
-        <nav className="flex flex-col gap-2">
+        <nav className="reveal flex flex-col gap-2">
           <h2 className="font-heading text-xs uppercase tracking-widest text-muted-foreground">
             Inside
           </h2>

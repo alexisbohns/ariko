@@ -1,3 +1,4 @@
+import type React from "react";
 import { resolveText } from "@/lib/data";
 import type { Bean, Plant, Pod } from "@/lib/data";
 import { currentLang } from "@/lib/locale-server";
@@ -102,7 +103,11 @@ export default async function DirectoryPage() {
     </div>
   );
 
-  const plantSection = (plant: Plant) => {
+  // `index` is only the reveal's place in the sequence — see `reveal` in
+  // app/globals.css. It has to be handed in rather than read from each map's
+  // own callback, because the inactive list is a second map that would
+  // otherwise restart the stagger from zero halfway down the page.
+  const plantSection = (plant: Plant, index: number) => {
     // A bean parented to BOTH the plant and one of its pods appears in each
     // place — multi-parent membership is by design.
     const entries = [
@@ -110,9 +115,17 @@ export default async function DirectoryPage() {
       ...data.beansForPlant(plant.slug).map(beanEntry),
     ];
     return (
-      <section key={plant.slug} className="flex flex-col gap-5">
-        <div className={`${GUTTER} flex flex-col gap-3`}>
-          {/* The plant's mark, above its name and left-aligned to the same
+      // The layout classes moved INSIDE, onto the element that staggers: the
+      // section itself is now nothing but the scroll-driven wrapper, and a
+      // wrapper that also laid out its children would put the two animations'
+      // transforms on the same box.
+      <section key={plant.slug} className="reveal">
+        <div
+          className="reveal-in flex flex-col gap-5"
+          style={{ "--i": index } as React.CSSProperties}
+        >
+          <div className={`${GUTTER} flex flex-col gap-3`}>
+            {/* The plant's mark, above its name and left-aligned to the same
               gutter, so the logo, the title and the first card of the row all
               share one left edge.
 
@@ -124,37 +137,38 @@ export default async function DirectoryPage() {
               alt="" because it is decorative — the plant's name is the very
               next element, and a screen reader announcing both would say it
               twice. */}
-          {plant.logo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={cloudinaryThumb(plant.logo.url, { width: 96, height: 96 })}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              className="h-12 w-12 rounded-xl object-cover"
-            />
-          ) : null}
-          <div className="flex flex-col gap-2">
-            <h2 className="font-display text-3xl font-normal tracking-tight sm:text-4xl">
-              <a href={`/plant/${plant.slug}`} className="underline-offset-4 hover:underline">
-                {resolveText(plant.name, lang)}
-              </a>
-            </h2>
-            {/* A subtitle, not a badge: a pill beside a text-4xl display
+            {plant.logo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={cloudinaryThumb(plant.logo.url, { width: 96, height: 96 })}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                className="h-12 w-12 rounded-xl object-cover"
+              />
+            ) : null}
+            <div className="flex flex-col gap-2">
+              <h2 className="font-display text-3xl font-normal tracking-tight sm:text-4xl">
+                <a href={`/plant/${plant.slug}`} className="underline-offset-4 hover:underline">
+                  {resolveText(plant.name, lang)}
+                </a>
+              </h2>
+              {/* A subtitle, not a badge: a pill beside a text-4xl display
                 title reads as UI chrome interrupting the typography, where
                 a small line reads as part of the heading. `detail` stays
                 off this surface — too long for a section header. */}
-            <p className="font-heading text-xs uppercase tracking-widest text-muted-foreground">
-              {roleLine(plant.role)}
-            </p>
-            {resolveText(plant.description ?? "", lang).trim() ? (
-              <p className="max-w-2xl text-sm text-muted-foreground">
-                {resolveText(plant.description, lang)}
+              <p className="font-heading text-xs uppercase tracking-widest text-muted-foreground">
+                {roleLine(plant.role)}
               </p>
-            ) : null}
+              {resolveText(plant.description ?? "", lang).trim() ? (
+                <p className="max-w-2xl text-sm text-muted-foreground">
+                  {resolveText(plant.description, lang)}
+                </p>
+              ) : null}
+            </div>
           </div>
+          {entries.length > 0 ? cardRow(entries) : null}
         </div>
-        {entries.length > 0 ? cardRow(entries) : null}
       </section>
     );
   };
@@ -163,12 +177,12 @@ export default async function DirectoryPage() {
     <main className="pb-20">
       <ProfanePreload />
       {/* No nav bar here: the landing wears the mark, centred, with room to breathe. */}
-      <header className={`${GUTTER} flex justify-center py-20`}>
-        <ArikoLogo title="Ariko" className="h-20 w-auto text-foreground sm:h-24" />
+      <header className={`${GUTTER} flex justify-center py-16`}>
+        <ArikoLogo title="Ariko" className="mark-in h-12 w-auto text-foreground sm:h-14" />
       </header>
 
       <div className="flex flex-col gap-14">
-        {active.map(plantSection)}
+        {active.map((plant, i) => plantSection(plant, i))}
 
         {/* Rendered only when there is something under it — an all-active
             garden shows no divider at all.
@@ -185,20 +199,31 @@ export default async function DirectoryPage() {
                 split exists to create. It wears the role line's register
                 instead. */}
             <h2
-              className={`${GUTTER} border-t pt-6 font-heading text-xs uppercase tracking-widest text-muted-foreground`}
+              className={`reveal-in ${GUTTER} border-t pt-6 font-heading text-xs uppercase tracking-widest text-muted-foreground`}
             >
               Inactive
             </h2>
-            {inactive.map(plantSection)}
+            {inactive.map((plant, i) => plantSection(plant, active.length + i))}
           </div>
         ) : null}
 
         {unrooted.length > 0 || standalone.length > 0 ? (
-          <section className="flex flex-col gap-5">
-            <h2 className={`${GUTTER} font-display text-3xl font-normal tracking-tight sm:text-4xl`}>
-              Unrooted
-            </h2>
-            {cardRow([...unrooted.map(podEntry), ...standalone.map(beanEntry)])}
+          <section className="reveal">
+            <div
+              className="reveal-in flex flex-col gap-5"
+              style={
+                {
+                  "--i": active.length + inactive.length,
+                } as React.CSSProperties
+              }
+            >
+              <h2
+                className={`${GUTTER} font-display text-3xl font-normal tracking-tight sm:text-4xl`}
+              >
+                Unrooted
+              </h2>
+              {cardRow([...unrooted.map(podEntry), ...standalone.map(beanEntry)])}
+            </div>
           </section>
         ) : null}
       </div>

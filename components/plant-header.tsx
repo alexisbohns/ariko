@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { seq } from "@/components/reveal";
 import { initialsOf } from "@/lib/glyphs";
 import { cloudinaryThumb } from "@/lib/image-url";
 
@@ -94,6 +95,7 @@ export function PlantHeader({
   description,
   facts,
   children,
+  sequence,
 }: {
   /**
    * The squircle — a plain `<div>` on the public page, a popover trigger in the
@@ -120,24 +122,46 @@ export function PlantHeader({
   facts?: ReactNode;
   /** Anything below the facts: the role's detail line, the natures. */
   children?: ReactNode;
+  /**
+   * Arrive one slot at a time — mark, name, description, facts, then the rest.
+   *
+   * A parameter rather than a default, which is the shared-surfaces rule doing
+   * its usual work: the public page is a thing to look at and sequences, the
+   * admin hero is a thing to work in and does not. It is CSS either way
+   * (`reveal-in`, app/globals.css), so neither zone gains a client boundary and
+   * script-off both heads are simply there.
+   *
+   * The wrappers appear only when it is on, so the admin's DOM is untouched.
+   */
+  sequence?: boolean;
 }) {
+  const step = (index: number, className?: string) =>
+    sequence ? seq(index, className) : { className };
   return (
     <header className="flex flex-col items-center gap-5 text-center">
-      {mark}
+      {mark && sequence ? <div {...seq(0)}>{mark}</div> : mark}
 
       {/* The h1 is rendered HERE, in both zones, and the admin's sheet trigger
           goes inside it rather than instead of it — so the admin page still has
           exactly one document title, which is the property plant-hero.tsx was
           already protecting when it owned this markup. */}
       <div className="flex flex-col items-center gap-1.5">
-        <h1 className={TITLE}>{title}</h1>
+        <h1 {...step(1, TITLE)}>{title}</h1>
         {description ? (
-          <p className="max-w-prose text-base text-muted-foreground">{description}</p>
+          <p {...step(2, "max-w-prose text-base text-muted-foreground")}>{description}</p>
         ) : null}
       </div>
 
-      {facts}
-      {children}
+      {/* The facts row and everything under it arrive last, and TOGETHER under
+          one wrapper when sequencing: `children` is two flex items on the
+          public plant page (the role detail and the natures), so the wrapper
+          has to restate the header's own gap or the two would collide. */}
+      {facts && sequence ? <div {...seq(3)}>{facts}</div> : facts}
+      {children && sequence ? (
+        <div {...seq(4, "flex flex-col items-center gap-5")}>{children}</div>
+      ) : (
+        children
+      )}
     </header>
   );
 }

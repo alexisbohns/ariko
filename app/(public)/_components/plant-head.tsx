@@ -47,6 +47,9 @@ export function PlantHead({
   const RoleIcon = PLANT_ROLE_ICONS[plant.role.kind];
   return (
     <PlantHeader
+      // The public head always arrives one slot at a time; the admin hero, which
+      // fills these same slots with controls, never does.
+      sequence
       // Decorative: the name is the very next element.
       mark={
         <div aria-hidden="true" className={PLANT_MARK}>
@@ -88,7 +91,9 @@ export function PlantHead({
     >
       {/* The role's one line of context. Never markdown — plants already have
           `content` for prose. */}
-      {roleDetail ? <p className="max-w-prose text-sm text-muted-foreground">{roleDetail}</p> : null}
+      {roleDetail ? (
+        <p className="max-w-prose text-sm text-muted-foreground">{roleDetail}</p>
+      ) : null}
 
       {plant.natures.length > 0 ? (
         <div className="flex flex-wrap justify-center gap-1.5">

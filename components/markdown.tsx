@@ -44,11 +44,19 @@ export function Prose({
   resolve,
   showUnresolved,
   lang = DEFAULT_LANG,
+  reveal,
 }: {
   content?: Text;
   resolve?: EntityResolver;
   showUnresolved?: boolean;
   lang?: Lang;
+  /**
+   * Draw each top-level block as it enters the fold (`reveal-each`,
+   * app/globals.css). Opt-in, because this component also renders the admin
+   * editor's preview, where prose fading in under the caret would read as a
+   * glitch rather than as arrival.
+   */
+  reveal?: boolean;
 }) {
   const source = resolveText(content ?? "", lang).trim();
   if (!source) return null;
@@ -85,12 +93,13 @@ export function Prose({
     // than the thing it previews is a preview that lies. Which is also why
     // `components/editor/prose-editor.tsx` carries the same heading treatment:
     // the author types into the face they will publish in.
-    <div className="prose max-w-none dark:prose-invert prose-headings:font-heading prose-headings:font-medium prose-headings:tracking-tight">
-      <Markdown
-        remarkPlugins={remarkPlugins}
-        rehypePlugins={rehypePlugins}
-        components={components}
-      >
+    <div
+      className={
+        (reveal ? "reveal-each " : "") +
+        "prose max-w-none dark:prose-invert prose-headings:font-heading prose-headings:font-medium prose-headings:tracking-tight"
+      }
+    >
+      <Markdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={components}>
         {source}
       </Markdown>
     </div>
