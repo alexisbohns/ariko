@@ -4,6 +4,7 @@ import { currentLang } from "@/lib/locale-server";
 import { getPublicDataset } from "@/lib/garden-cache";
 import { articleFor } from "@/lib/article";
 import { Prose } from "@/components/markdown";
+import { seq } from "@/components/reveal";
 import { resolveEntity } from "@/lib/entity-resolve";
 import { resolveLineage, PUBLIC_HREFS } from "@/lib/lineage";
 import { LineageChrome } from "@/components/lineage-chrome";
@@ -77,17 +78,23 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
     <>
       <LineageChrome lineage={lineage} />
       <article className="flex flex-col gap-8">
-        <h1 className="font-heading text-2xl font-medium tracking-tight">{resolveText(bean.name, lang)}</h1>
+        <h1 {...seq(0, "font-heading text-2xl font-medium tracking-tight")}>
+          {resolveText(bean.name, lang)}
+        </h1>
 
         {resolveText(bean.description ?? "", lang).trim() ? (
-          <p className="text-base text-muted-foreground">{resolveText(bean.description, lang)}</p>
+          <p {...seq(1, "text-base text-muted-foreground")}>
+            {resolveText(bean.description, lang)}
+          </p>
         ) : null}
 
         {article ? (
           <Prose
+            reveal
             lang={lang}
             content={article.content}
-            resolve={(ref) => resolveEntity(data, ref, lang)} />
+            resolve={(ref) => resolveEntity(data, ref, lang)}
+          />
         ) : null}
       </article>
 
@@ -96,7 +103,7 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
           bean written under a new plant. An absent rail is a statement about
           the garden; an empty one is a component that failed. */}
       {related.length > 0 ? (
-        <nav aria-label="Keep reading" className="mt-16 flex flex-col gap-4 border-t pt-6">
+        <nav aria-label="Keep reading" className="reveal mt-16 flex flex-col gap-4 border-t pt-6">
           {/* The pod page's "Inside" HEADING, verbatim — the footer matches
               the only other index in the zone rather than inventing a second.
               English regardless of the language switch, as every other piece of

@@ -4,6 +4,7 @@ import { getFederation } from "@/lib/federation";
 import { listPollen } from "@/lib/pollen-store";
 import { exhibitedPollen, mergeBeanstalk, plantSlugOf } from "@/lib/beanstalk";
 import { Badge } from "@/components/ui/badge";
+import { seq } from "@/components/reveal";
 import { Separator } from "@/components/ui/separator";
 import { currentLang } from "@/lib/locale-server";
 
@@ -33,9 +34,9 @@ export default async function BeanstalkPage({
 
   return (
     <article className="flex flex-col gap-8">
-      <h1 className="font-heading text-2xl font-medium tracking-tight">Beanstalk</h1>
+      <h1 {...seq(0, "font-heading text-2xl font-medium tracking-tight")}>Beanstalk</h1>
 
-      <nav>
+      <nav {...seq(1)}>
         <ul className="flex flex-wrap items-center gap-2">
           {["all", ...plantSlugs].map((filter) => (
             <li key={filter}>
@@ -43,7 +44,11 @@ export default async function BeanstalkPage({
                 <Badge>{filter}</Badge>
               ) : (
                 <a
-                  href={filter === "all" ? "/beanstalk" : `/beanstalk?plant=${encodeURIComponent(filter)}`}
+                  href={
+                    filter === "all"
+                      ? "/beanstalk"
+                      : `/beanstalk?plant=${encodeURIComponent(filter)}`
+                  }
                 >
                   <Badge variant="outline" className="transition-colors hover:bg-accent">
                     {filter}
@@ -55,9 +60,11 @@ export default async function BeanstalkPage({
         </ul>
       </nav>
 
-      <Separator />
+      <Separator {...seq(2)} />
 
-      <ul className="flex flex-col gap-4">
+      {/* Each entry arrives as it reaches the fold — the timeline is the one
+          surface here long enough for that to be the whole point. */}
+      <ul className="reveal-each flex flex-col gap-4">
         {entries.map((e) =>
           e.type === "sprout" ? (
             <li key={`sprout:${e.entry.sprout.slug}`} className="flex flex-col gap-1">

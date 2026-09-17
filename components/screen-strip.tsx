@@ -1,3 +1,4 @@
+import { seq } from "@/components/reveal";
 import type { ExhibitionRow } from "@/lib/exhibition";
 import { PhoneFrame } from "@/components/phone-frame";
 
@@ -45,11 +46,31 @@ import { PhoneFrame } from "@/components/phone-frame";
 export function ScreenStrip({
   rows,
   plantName,
+  index,
 }: {
   rows: ExhibitionRow[];
   /** For the group's accessible name — the visitor hears whose screens these
    *  are, not "gallery". */
   plantName: string;
+  /**
+   * Where the FIRST screen falls in the page's mount sequence; each one after
+   * it takes the next place, so the gallery deals itself out left to right
+   * rather than arriving as one block.
+   *
+   * The stagger is on the figures rather than on the track, and it has to be:
+   * the track's `transform` is already the full-bleed centring, so animating it
+   * would throw the strip half a viewport sideways for the length of the
+   * animation. A figure has no transform of its own and takes the page's
+   * ordinary `reveal-in` — the same rise as every other block.
+   *
+   * Time-driven rather than scroll-driven because the strip sits directly under
+   * the head, where a `view()` reveal would render it finished before the head
+   * had begun.
+   *
+   * Absent ⇒ no animation at all, which keeps this component's own tests and
+   * any future caller out of the sequence by default.
+   */
+  index?: number;
 }) {
   // Nothing at all for an empty exhibition. Not an empty <section>: the plant
   // page's `gap-8` puts 32px on both sides of every flex item, so a wrapper
@@ -69,10 +90,14 @@ export function ScreenStrip({
       className="no-scrollbar not-prose relative left-1/2 w-screen -translate-x-1/2 overflow-x-auto overscroll-x-none pb-2 outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
     >
       <div className="flex w-max snap-x snap-mandatory items-start gap-4 px-6">
-        {rows.map((row) => (
+        {rows.map((row, i) => (
           <figure
             key={row.slug}
-            className="flex w-[min(52vw,13rem)] shrink-0 snap-start flex-col gap-3"
+            {...(index === undefined
+              ? {
+                  className: "flex w-[min(52vw,13rem)] shrink-0 snap-start flex-col gap-3",
+                }
+              : seq(index + i, "flex w-[min(52vw,13rem)] shrink-0 snap-start flex-col gap-3"))}
           >
             <a
               // The FULL image, not a derivative. See the docblock.

@@ -38,6 +38,7 @@ import { join } from "node:path";
  */
 const SERVER_SAFE = [
   "components/chrome.tsx",
+  "components/reveal.ts",
   // The parenting chrome. Public bean and pod pages render it, so a
   // lucide import or a next/link here is the public zone's navigation.
   "components/lineage-chrome.tsx",
