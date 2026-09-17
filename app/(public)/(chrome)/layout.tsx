@@ -5,6 +5,7 @@ import { PublicChrome } from "@/app/(public)/_components/public-chrome";
 import { READING_COLUMN } from "@/components/page-column";
 import { TocRail } from "@/components/toc-rail";
 import { LANG_COOKIE, resolveLang } from "@/lib/locale";
+import { isAuthenticated } from "@/app/admin/session";
 
 /**
  * The inner exhibition pages: floating chrome + a reading-width column.
@@ -34,9 +35,15 @@ export default async function ChromeLayout({ children }: { children: ReactNode }
   // The layout renders the switch; each PAGE resolves the language again for its
   // own prose. Both read the same cookie, so they cannot disagree.
   const lang = resolveLang(undefined, (await cookies()).get(LANG_COOKIE)?.value);
+  // The session read is here and not in the island because the session cookie is
+  // httpOnly: client JavaScript cannot see it, so a client guess would be wrong.
+  // It costs nothing new — this layout already calls cookies() and is already
+  // dynamic — and it decides ONE thing: whether the menu shows a link to /admin.
+  // Nothing about the page's content varies on it.
+  const authed = await isAuthenticated();
   return (
     <>
-      <PublicChrome lang={lang} />
+      <PublicChrome lang={lang} authed={authed} />
       <TocRail />
       <main className="pb-20 pt-24">
         <div className={READING_COLUMN}>{children}</div>
