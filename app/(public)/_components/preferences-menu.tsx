@@ -76,7 +76,6 @@ export function PreferencesMenu({ lang, authed }: { lang: Lang; authed: boolean 
           content is `w-(--anchor-width)` — sized to its trigger, which here is
           a 36px icon button. */}
       <DropdownMenuContent align="end" className="min-w-44">
-        <DropdownMenuLabel>Language</DropdownMenuLabel>
         {/*
           Real anchors to `?lang=…`, so the mechanism is UNCHANGED: still a
           link, still `middleware.ts`, still a cookie, still a redirect to the
@@ -90,6 +89,11 @@ export function PreferencesMenu({ lang, authed }: { lang: Lang; authed: boolean 
           reaches the accessibility tree.
         */}
         <DropdownMenuRadioGroup value={lang}>
+          {/* The label lives INSIDE the group, which is both the accessible
+              arrangement and the only legal one: Base UI's GroupLabel reads a
+              MenuGroupContext that only Menu.Group and Menu.RadioGroup
+              provide, and throws on open when it cannot find one. */}
+          <DropdownMenuLabel>Language</DropdownMenuLabel>
           {LANGS.map((value) => (
             <DropdownMenuRadioItem
               key={value}
@@ -103,7 +107,6 @@ export function PreferencesMenu({ lang, authed }: { lang: Lang; authed: boolean 
 
         <DropdownMenuSeparator />
 
-        <DropdownMenuLabel>Theme</DropdownMenuLabel>
         <ThemeRadioGroup />
 
         {authed ? (
@@ -165,6 +168,7 @@ function ThemeRadioGroup() {
       value={theme}
       onValueChange={(value) => choose(parseTheme(value))}
     >
+      <DropdownMenuLabel>Theme</DropdownMenuLabel>
       {THEMES.map((value) => (
         <DropdownMenuRadioItem key={value} value={value}>
           {THEME_LABEL[value]}
