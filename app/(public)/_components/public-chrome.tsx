@@ -1,25 +1,30 @@
 import { ArikoIcon } from "@/components/brand/ariko-icon";
 import { Chrome, ChromeLink } from "@/components/chrome";
-import { LangSwitch } from "@/components/lang-switch";
+import { PreferencesMenu } from "@/app/(public)/_components/preferences-menu";
 import { SproutIcon, WaypointsIcon } from "@/components/public-icons";
 import type { Lang } from "@/lib/locale";
 
 /**
  * The public zone's chrome: two fixed clusters where a header bar used to be.
  *
- * A SERVER component, and every part of it stays one — this is the half of the
- * zone that does NOT spend its script budget. The glyphs are inline SVG
- * (components/public-icons.tsx) because lucide is "use client"; the hover labels
- * are CSS (components/chrome.tsx) because the registry Tooltip is too. A visitor
- * with script off can still go everywhere.
+ * A SERVER component, and its NAVIGATION half stays entirely one — the glyphs
+ * are inline SVG (components/public-icons.tsx) because lucide is "use client",
+ * and the hover labels are CSS (components/chrome.tsx) because the registry
+ * Tooltip is too. A visitor with script off can still go everywhere.
+ *
+ * The preferences cluster is the exception, and it is declared rather than
+ * incidental: `preferences-menu.tsx` is a client island, because a menu is a
+ * client component in the registry and hand-rolling one to avoid that would
+ * break the rule that matters more. What it costs — the language switch,
+ * script-off — is written down in CLAUDE.md.
  *
  * The shell itself is no longer this file's: `Chrome` and `ChromeLink` are the
  * admin rail's shell as well, which is what the shared-surfaces slice was for.
  * What used to be a hand-rolled `<nav>` plus `IconLink` here and a different
  * hand-rolled `<nav>` plus Base UI `Tooltip` there is one component with a
- * magnet. Nothing about this zone's no-script promise changed — the shared file
- * is held to it by `lib/chrome-source.test.ts`, which is stricter than the prose
- * that guarded it before.
+ * magnet. That shared file is still held to the zone's no-script promise by
+ * `lib/server-safe-source.test.ts` (which absorbed `chrome-source.test.ts`),
+ * and it still is — the island above sits BESIDE `Chrome`, never inside it.
  *
  * The mark and "Directory" both point at `/`. That duplication is in the header
  * this replaces, and it is kept deliberately: the mark is the brand, the icon
@@ -30,7 +35,7 @@ import type { Lang } from "@/lib/locale";
  * becomes the author finds the same glyph meaning the same thing.
  */
 
-export function PublicChrome({ lang }: { lang: Lang }) {
+export function PublicChrome({ lang, authed }: { lang: Lang; authed: boolean }) {
   return (
     <>
       <Chrome magnet="top-left" label="Site">
@@ -45,15 +50,14 @@ export function PublicChrome({ lang }: { lang: Lang }) {
         </ChromeLink>
       </Chrome>
 
-      {/* The language switch keeps its own anchors and its own aria-label — it
-          is a link to `?lang=…`, not an icon, so it does not go through
-          ChromeLink, and it is the one CONTENT cluster rather than an icon
-          cluster. It wears the same plate as the rail: a solid pill beside a
-          chrome that had vanished would read as a stray button rather than as
-          the other half of the same furniture. `content` is what gives text its
-          own radius and padding. */}
-      <Chrome magnet="top-right" content>
-        <LangSwitch lang={lang} />
+      {/* The preferences cluster: language, theme, and — for the author — the
+          way back into the admin. It is an ORDINARY icon cluster now, not the
+          `content` text variant the EN/FR pill needed, so both clusters in this
+          zone finally have the same geometry as every cluster in the admin. The
+          island inside is server-rendered, so this corner is never empty on a
+          cold load. */}
+      <Chrome magnet="top-right">
+        <PreferencesMenu lang={lang} authed={authed} />
       </Chrome>
     </>
   );

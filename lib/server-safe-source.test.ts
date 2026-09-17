@@ -63,6 +63,11 @@ const SERVER_SAFE = [
   // template is as editable as any other source.
   "components/brand/ariko-icon.tsx",
   "components/brand/ariko-logo.tsx",
+  // The theme vocabulary and its blocking <head> script. `app/layout.tsx`
+  // imports it, and the root layout is the ONE layout both zones enter — so a
+  // "use client" here would put a client boundary above every public page,
+  // which is the widest blast radius on this list.
+  "lib/theme.ts",
   // The registry primitives the public zone renders — all of them, which is
   // the whole point. This list used to stop at components/, so shadcn's stock
   // "use client" on table.tsx cost every prose page 8.5 kB of

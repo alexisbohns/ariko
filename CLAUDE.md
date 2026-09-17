@@ -88,9 +88,39 @@ for twenty slices. `components/public-icons.tsx` is the way around lucide in
 the chrome; `components/chrome.tsx` does its hover labels in CSS for the same
 reason, with the accessible name on the control's `aria-label`.
 
-Today the public zone has exactly one island, `components/toc-rail.tsx`
-(1.2 kB), and `lib/toc-mount.test.ts` pins that it renders nothing until it
-mounts.
+Today the public zone has TWO islands. `components/toc-rail.tsx` (1.2 kB) is
+the mild one — `lib/toc-mount.test.ts` pins that it renders nothing until it
+mounts, so script-off the page is byte-for-byte what it was.
+
+`app/(public)/_components/preferences-menu.tsx` is the other, and it is the one
+that COSTS something: it replaced the language pill, so **a visitor with
+scripting off no longer has a language switch**. That is a real narrowing of
+this zone's promise and is written here rather than discovered. It was taken
+deliberately — a menu is a client component by construction in Base UI, and
+hand-rolling a CSS disclosure to keep the island count at one would break the
+older and more load-bearing rule (never hand-roll a primitive the registry has)
+to satisfy a rule that was never absolute. Everything else the zone promises is
+untouched: every page reads, every link navigates, every media item is
+reachable. Unlike the rail it is NOT mount-gated — chrome that arrives late
+reads as broken — so its trigger is in the server HTML, which
+`lib/preferences-a11y.test.ts` pins. It takes the public chrome layout's client
+chunk from 2.35 kB to 11.9 kB raw; Next's rounded first-load figure for
+`/beanstalk` reads 105 kB either way.
+
+That island imports `lucide-react` directly, and that is the lucide rule working
+rather than being broken: the ban is on lucide in a SERVER-SAFE file, where one
+import is one boundary under every public page. A declared client boundary
+holding one cluster is where an icon is allowed to come from.
+
+The theme the two zones share is `lib/theme.ts` — a named vocabulary like
+`lib/plant-status.ts`, plus `THEME_SCRIPT`, a bare blocking `<script>` in the
+root layout's head. It is a STRING and not a component on purpose (it must run
+before first paint, in both zones), which means the compiler cannot see inside
+it: rename the storage key or change the `dark` class and `tsc`, `npm test` and
+`npm run build` all pass while the theme silently stops working.
+`lib/theme-script.test.ts` is the only thing that reports it. The theme is
+localStorage and never a cookie, which is why a theme choice costs no
+navigation and why the server can never name one.
 
 **The admin zone is a JavaScript application.** Server actions are the write
 path and a server-rendered `<form action>` is the default form, because both
@@ -358,6 +388,12 @@ while quietly becoming false.
   `lib/sprout-hero-a11y.test.ts` and `lib/bean-hero-a11y.test.ts` pin it, the
   last one also pinning that a projected bean draws no trigger at all while
   still stating all three facts.
+  The public zone's preferences trigger is the one DOCUMENTED EXCEPTION: it
+  names its language and not its theme, because the theme lives in
+  `localStorage` and the server cannot read it — a name that guessed would be
+  wrong on every first paint. The theme states itself on its own radio rows,
+  where a radio group's checked state is the accessible statement.
+  `lib/preferences-a11y.test.ts` pins the half that is knowable.
 - **The admin's subject lives in the URL, and picking one is a navigation.**
   `lib/admin-scope.ts` is the only reader of the scope — the slug on
   `/admin/plant/[slug]` first, `?plant=` second — and the only builder of the

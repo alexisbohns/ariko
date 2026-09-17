@@ -4,6 +4,7 @@ import { Geist_Mono } from "next/font/google";
 import { inclusiveSans } from "./fonts";
 import { cn } from "@/lib/utils";
 import { SITE_DESCRIPTION, SITE_NAME, THEME_COLOR } from "@/lib/site";
+import { THEME_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
 /**
@@ -61,6 +62,11 @@ const REGISTER_SW =
  * admin's case that is load-bearing rather than cosmetic: see
  * `lib/admin-login-layout-source.test.ts`.
  *
+ * The theme script beside it is the second bare <script> in this head, and it
+ * is here for the same reason: it must reach BOTH zones, and it must run
+ * before first paint. Neither is a component, so neither is a boundary and
+ * neither shows up in the zone's island count.
+ *
  * The favicon, the Apple touch icon and the manifest link are NOT written here
  * any more. `app/icon.svg`, `app/apple-icon.png` and `app/manifest.ts` are Next
  * file conventions and Next emits the three <link>s itself — which is how the
@@ -72,8 +78,25 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html
       lang="en"
       className={cn("font-sans antialiased", inclusiveSans.variable, geistMono.variable)}
+      // THEME_SCRIPT adds `dark` to this element before React hydrates, so the
+      // server's className and the client's deliberately disagree here and
+      // React logs a hydration mismatch for the one attribute. Suppressing it
+      // is the correct answer rather than a silencing: the mismatch IS the
+      // feature — the whole point of a blocking script is to have mutated the
+      // document before hydration, and React cannot know the difference was
+      // intended. The alternative is rendering the class on the server, which
+      // needs the theme in a cookie, which costs a navigation per toggle.
+      //
+      // It reaches THIS ELEMENT'S OWN ATTRIBUTES ONLY — not its children — so
+      // it cannot hide a mismatch anywhere else in the tree. That narrowness is
+      // why it is acceptable at the root at all.
+      suppressHydrationWarning
     >
       <head>
+        {/* Applies the stored theme before first paint. MUST come first and
+            MUST be blocking: anything later is a flash of the wrong theme on
+            every cold load, in both zones. See lib/theme.ts. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: REGISTER_SW }} />
       </head>
       <body className="min-h-svh bg-background text-foreground">{children}</body>
