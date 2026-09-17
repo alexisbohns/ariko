@@ -50,3 +50,22 @@ test("the script cannot throw — localStorage throws in Safari private mode", (
 test("the default is a member of the union", () => {
   assert.ok(THEMES.includes(DEFAULT_THEME));
 });
+
+test("the root layout suppresses the hydration warning the script causes", async () => {
+  // THEME_SCRIPT mutates <html class> before React hydrates, so the server's
+  // className and the client's disagree BY DESIGN. Without
+  // suppressHydrationWarning on that element React logs a mismatch error on
+  // every cold load in dev — noise that trains people to ignore real ones.
+  //
+  // Source text rather than a render: the attribute is a directive to React's
+  // hydration pass and leaves no trace in renderToStaticMarkup's output, so
+  // there is nothing to assert on a rendered tree. lib/server-safe-source.test.ts
+  // makes the same argument for the same reason.
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
+  const html = source.slice(source.indexOf("<html"), source.indexOf(">", source.indexOf("<html")));
+  assert.ok(
+    html.includes("suppressHydrationWarning"),
+    "app/layout.tsx's <html> must suppress the mismatch THEME_SCRIPT deliberately creates",
+  );
+});

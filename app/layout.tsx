@@ -78,6 +78,19 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html
       lang="en"
       className={cn("font-sans antialiased", inclusiveSans.variable, geistMono.variable)}
+      // THEME_SCRIPT adds `dark` to this element before React hydrates, so the
+      // server's className and the client's deliberately disagree here and
+      // React logs a hydration mismatch for the one attribute. Suppressing it
+      // is the correct answer rather than a silencing: the mismatch IS the
+      // feature — the whole point of a blocking script is to have mutated the
+      // document before hydration, and React cannot know the difference was
+      // intended. The alternative is rendering the class on the server, which
+      // needs the theme in a cookie, which costs a navigation per toggle.
+      //
+      // It reaches THIS ELEMENT'S OWN ATTRIBUTES ONLY — not its children — so
+      // it cannot hide a mismatch anywhere else in the tree. That narrowness is
+      // why it is acceptable at the root at all.
+      suppressHydrationWarning
     >
       <head>
         {/* Applies the stored theme before first paint. MUST come first and
