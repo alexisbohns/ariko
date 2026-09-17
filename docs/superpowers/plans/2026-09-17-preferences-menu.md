@@ -191,23 +191,22 @@ export function resolvesDark(theme: Theme, prefersDark: boolean): boolean {
 export const THEME_SCRIPT =
   `(()=>{try{` +
   `var t=localStorage.getItem("${THEME_STORAGE_KEY}")||"${DEFAULT_THEME}";` +
-  `var d=t==="dark"||(t==="system"&&matchMedia("${MEDIA_DARK}").matches);` +
+  `var d=t==="dark"||(t!=="light"&&matchMedia("${MEDIA_DARK}").matches);` +
   `document.documentElement.classList.toggle("${DARK_CLASS}",d);` +
   `}catch(e){}})()`;
 ```
 
-Note the `"light"` member: it reaches the script via `t==="dark"` being false
-and the `system` branch not applying — but the test asserts every member is
-*present* in the string, so the literal `light` must appear. Satisfy it
-honestly rather than by adding a dead token: change the dark test to
+Two details in that last string are deliberate rather than stylistic.
 
-```ts
-  `var d=t==="dark"||(t!=="light"&&matchMedia("${MEDIA_DARK}").matches);`
-```
+`t!=="light"` rather than `t==="system"`: the three members are equivalent under
+both spellings, but this one names all three (the test asserts every member of
+`THEMES` is reachable from the script) and is the safer reading of a corrupted
+stored value — an unrecognised string follows the OS, which is what
+`DEFAULT_THEME` says it should do. It agrees with `parseTheme` by construction.
 
-which is equivalent for the three members, names all three, and is the more
-defensive reading of a corrupted stored value (an unknown string falls back to
-following the OS, matching `DEFAULT_THEME`).
+`var` and `catch(e){}` rather than `const` and bare `catch`: this string is not
+transpiled by anything. It is shipped to the browser exactly as written, so it
+is written in the syntax with the widest reach.
 
 - [ ] **Step 4: Run the test to verify it passes**
 
