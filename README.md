@@ -8,6 +8,10 @@
 
 ## Data model
 
+*The full taxonomy — every species, the `parents[]` / `relations[]` grammar, the three
+visibility cascades, and what the model derives rather than stores — is
+[`docs/TAXONOMY.md`](docs/TAXONOMY.md). What follows is the short form.*
+
 ### Seeding
 
 * pre-seeded from `/data/garden.yml` (human-authored), imported into Mongo via `npm run migrate`
