@@ -16,7 +16,9 @@ import { join } from "node:path";
  * per-function invariant on this same file: each function is sliced out on
  * its own name, from `export async function <name>` to the next top-level
  * `\nexport `, so a regression in one of the two functions cannot hide behind
- * the other one still doing it right.
+ * the other one still doing it right. `sliceFunction` below checks that
+ * boundary is exact — exactly one function declaration per slice — rather
+ * than trusting it on faith.
  */
 
 const ACTIONS_PATH = "app/admin/actions.ts";
@@ -29,8 +31,12 @@ const source = readFileSync(join(process.cwd(), ACTIONS_PATH), "utf8");
  * `export async function <name>` to the next top-level `export `. The two
  * functions this file checks are both followed, in source order, by another
  * exported action (`editSproutMediaAction`, `editPlantRoleAction`), so this
- * boundary is exact for both — see the name list checked against
- * FUNCTION_NAMES below, which would fail loudly if that ever stopped being true.
+ * boundary is exact for both — but "exact" here is asserted, not assumed: the
+ * slice is checked to contain exactly one `async function ` declaration, so a
+ * boundary that swallowed the NEXT function too (an export slipping past the
+ * `\nexport ` search, or a helper declared between the two) would fail here
+ * rather than let a stray writer or `withEditLang(` in the neighbour's body
+ * pass this file's checks on the wrong function's behalf.
  */
 function sliceFunction(name: string): string {
   const marker = `export async function ${name}`;
@@ -38,7 +44,15 @@ function sliceFunction(name: string): string {
   assert.ok(start !== -1, `could not find ${marker} in ${ACTIONS_PATH}`);
   const nextExport = source.indexOf("\nexport ", start + marker.length);
   const end = nextExport === -1 ? source.length : nextExport;
-  return source.slice(start, end);
+  const body = source.slice(start, end);
+  assert.equal(
+    body.match(/\basync function /g)?.length,
+    1,
+    `the slice for ${name} contains more than one function declaration — the ` +
+      "boundary swallowed a neighbour, and the checks below would be reading " +
+      "the wrong function's body",
+  );
+  return body;
 }
 
 for (const name of FUNCTION_NAMES) {
