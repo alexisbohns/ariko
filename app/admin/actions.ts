@@ -303,7 +303,7 @@ export async function editContentAction(formData: FormData): Promise<void> {
   const existing = await getSprout(slug);
   if (!existing) redirect("/admin/sprouts");
 
-  const result = buildContentPatch(existing, markdown);
+  const result = buildContentPatch(existing, markdown, "en");
   if (!result.ok) {
     redirect(
       `/admin/sprout/${encodeURIComponent(slug)}?error=${encodeURIComponent(
@@ -561,7 +561,7 @@ export async function editContainerContentAction(formData: FormData): Promise<vo
   if (!existing) redirect("/admin");
 
   const back = isPlant ? narrativeHref(slug) : `/admin/pod/${encodeURIComponent(slug)}`;
-  const result = buildContentPatch(existing, markdown);
+  const result = buildContentPatch(existing, markdown, "en");
   if (!result.ok) {
     redirect(`${back}?error=${encodeURIComponent(`could not save content: ${result.error}`)}`);
   }
