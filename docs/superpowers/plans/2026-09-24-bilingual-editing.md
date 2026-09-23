@@ -138,7 +138,7 @@ Run: `TSX_TSCONFIG_PATH=tsconfig.test.json node --import tsx --test lib/entity-r
 Expected: PASS, including the existing `"duplicates collapse, and a localized value reads its en part"` test.
 
 Run: `npm test`
-Expected: PASS (the article door, the garden-plant script and `buildContentPatch` all call `extractRefs`; none writes French today, so none changes).
+Expected: PASS (the article door, the garden-plant script and `buildContentPatch` all call `extractRefs`; the first two already write French bodies and inherit the fix; the suite must still pass).
 
 - [ ] **Step 5: Commit**
 

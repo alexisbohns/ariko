@@ -174,15 +174,23 @@ the graph, not in the related-beans rail, not scrubbed by `filterPublic`.
 It becomes the **union** of refs found in `textPart(content, "en")` and
 `textPart(content, "fr")`, deduplicated by the existing `kind ref` key, English
 refs first so existing relation order is unchanged for every English-only
-document. The article door and the garden-plant script call the same function
-and inherit the fix; neither writes French bodies today, so neither changes
-behaviour.
+document. The article door (`lib/articles.ts` accepts `{ en?, fr? }` bodies)
+and the garden-plant script (`lib/garden-manifest.ts` builds `{ en, fr }`
+bodies) ALREADY write French halves, and call the same function — so they
+inherit the fix rather than being untouched by it: a ref only their French half
+carries now mirrors, where before it was silently dropped.
+
+No backfill. Checked read-only against production on 2026-09-24: 5 sprouts and
+3 pods carry refs in their French half, and every one of those refs already has
+its relation, because the English half references the same entities. Any
+future gap closes on the document's next content write.
 
 ## Out of scope
 
 - French heads, lineage, tables, palette or chrome in the admin.
 - Carrying `?lang=` across admin navigation.
-- A French half through `/api/articles` or `garden.yml` bodies.
+- Any change to `/api/articles` or `garden.yml`, which already accept French
+  bodies (§6 is the only way this slice touches them).
 - A `beforeunload` guard for the editor in general (§3 guards only the switch).
 - Any public-zone change: `resolveText` already serves `fr` to French readers
   and falls back to English where there is none.
