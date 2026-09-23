@@ -100,13 +100,18 @@ on any of the three pages changes — the sprout head still draws
 
 `ProseEditor` gains an optional `langSwitch: { current: Lang; hrefs: Record<Lang, string> }`.
 When present, the floating commit bar draws two links — `EN` and `FR` — beside
-Save, with `aria-current="page"` on the active one and an accessible name that
-says what it does (`Edit English`, `Edit French`).
+Save, in a `role="group"` named *Language being edited*, with
+`aria-current="page"` on the active one. Each accessible name starts with the
+visible code and says what it does (`EN — edit English`), so a voice-control
+user who says "click FR" finds it (WCAG 2.5.3).
 
 It lives **inside** the editor rather than in the page head because only the
 editor knows whether there is unsaved text. **While the document is dirty,
-both links are disabled** (`aria-disabled`, no `href`, hover label *Save
-first*). The editor has no `beforeunload` guard today; without this, a stray
+both links are disabled**: no `href` at all, but still a focusable
+`role="link"` with `aria-disabled`, so assistive tech is told the control
+exists and is unavailable rather than meeting plain text, and *Save first*
+reaches everyone — the registry Tooltip for pointer and focus, and
+`aria-describedby` for screen readers. The editor has no `beforeunload` guard today; without this, a stray
 click on `FR` in the middle of a paragraph would navigate and drop it, and the
 French editor that opened would be empty — indistinguishable from a paragraph
 that was never written.
