@@ -102,6 +102,12 @@ test(`${NARRATIVE} loads the plant's own narrative into the editor through edito
   );
   assert.match(
     text,
+    /const ref = `plant:\$\{plant\.slug\}`;/,
+    `${NARRATIVE} must build \`ref\` as \`plant:<slug>\` — the only thing ` +
+      `telling editContainerContentAction which collection to write`,
+  );
+  assert.match(
+    text,
     /hidden=\{\{\s*ref,\s*lang\s*\}\}/,
     `${NARRATIVE} must post both \`ref\` (\`plant:<slug>\`, which ` +
       `editContainerContentAction reads the tier off) and \`lang\` — an absent ` +
@@ -109,13 +115,13 @@ test(`${NARRATIVE} loads the plant's own narrative into the editor through edito
   );
 });
 
-test(`${HUB} previews the same read the narrative editor loads`, () => {
+test(`${HUB} previews the same read as the narrative editor's English half`, () => {
   const text = source(HUB);
   assert.match(
     text,
     /const\s+excerpt\s*=\s*narrativeExcerpt\(textPart\(plant\.content,\s*"en"\)\)\s*;/,
-    `${HUB} must derive the excerpt from the STRICT en textPart — the same read ` +
-      `${NARRATIVE} loads into the editor`,
+    `${HUB} must derive the excerpt from the STRICT en textPart — the same ` +
+      `read as the narrative editor's English half`,
   );
   assert.match(
     text,

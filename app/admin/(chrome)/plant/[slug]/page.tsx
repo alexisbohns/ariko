@@ -154,10 +154,10 @@ export default async function AdminPlantPage({
   // chrome would have handed it.
   const scopeQuery = `?plant=${encodeURIComponent(slug)}`;
 
-  // The narrative, as one line. STRICT textPart, the same read the editor on
-  // `narrative/page.tsx` loads — `resolveText` would preview the fr half over
-  // an editor holding the empty en one, which is a hub that says the narrative
-  // is written when it is not.
+  // The narrative, as one line. STRICT textPart, the same read as the
+  // narrative editor's English half — `resolveText` would preview the fr half
+  // over an editor holding the empty en one, which is a hub that says the
+  // narrative is written when it is not.
   const excerpt = narrativeExcerpt(textPart(plant.content, "en"));
 
   const { label, title } = roleParts(plant.role);

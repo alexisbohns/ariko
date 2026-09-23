@@ -82,7 +82,7 @@ export default async function AdminPlantNarrativePage({
         </Alert>
       ) : null}
 
-      {/* Moved from the hub verbatim, `bare` included: this page IS the frame,
+      {/* Moved from the hub, `bare` included: this page IS the frame,
           so a card around the editor would be a frame around the only thing on
           it. The load goes through `editorHalves` — STRICT per half, so
           neither half is ever loaded into the other's editor. */}
