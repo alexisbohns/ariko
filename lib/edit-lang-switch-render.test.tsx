@@ -46,11 +46,25 @@ test("disabled while dirty: no href anywhere, so no click can navigate away from
   // Still says which one is current, even disabled.
   assert.equal(html.match(/aria-current="page"/g)?.length, 1);
 
-  // Both items describe themselves via the SAME sr-only "Save first" span.
+  // Both items describe themselves via the SAME sr-only "Save first" span,
+  // which is itself hidden from the tree (aria-describedby still resolves to
+  // a hidden target — a screen reader's browse mode just won't hit it twice).
   const hintTag = html.match(/<span[^>]*>Save first<\/span>/);
   assert.ok(hintTag, "expected an sr-only 'Save first' span");
+  assert.match(hintTag![0], /aria-hidden="true"/);
   const hintId = hintTag![0].match(/id="([^"]+)"/)?.[1];
   assert.ok(hintId, "expected the hint span to carry an id");
   const describedBy = html.match(new RegExp(`aria-describedby="${hintId}"`, "g"));
   assert.equal(describedBy?.length, 2);
+
+  // Dead items no longer react like live ones: the ghost hover and the base
+  // press nudge are both overridden, and twMerge keeps the overrides rather
+  // than dropping them alongside what they replace.
+  const items = html.split(/(?=<a )/).filter((chunk) => chunk.startsWith("<a "));
+  for (const item of items) {
+    assert.match(item, /hover:bg-transparent/);
+    assert.doesNotMatch(item, /hover:bg-muted/);
+    assert.match(item, /active:not-aria-\[haspopup\]:translate-y-0/);
+    assert.doesNotMatch(item, /translate-y-px/);
+  }
 });

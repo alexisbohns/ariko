@@ -3,7 +3,7 @@
 import { useId } from "react";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { LANGS, LANG_SHORT, type Lang } from "@/lib/locale";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +11,13 @@ import { cn } from "@/lib/utils";
 // ("EN"/"FR") is what's on screen, and WCAG 2.5.3 wants the accessible name to
 // START with it, not be replaced by something a sighted user never sees.
 const EDIT_SUFFIX: Record<Lang, string> = { en: "edit English", fr: "edit French" };
+
+// Ghost's hover and the base's press nudge both still fire on a disabled item
+// because it's still a real, focusable element — these cancel them, matching
+// the modifier chain of what they override so twMerge treats them as the same
+// conflicting utility rather than leaving both in the stylesheet.
+const DEAD_OVERRIDES =
+  "cursor-not-allowed opacity-50 hover:bg-transparent dark:hover:bg-transparent active:not-aria-[haspopup]:translate-y-0";
 
 /**
  * Which half of the article the editor is on, and the way to the other one.
@@ -27,14 +34,20 @@ const EDIT_SUFFIX: Record<Lang, string> = { en: "edit English", fr: "edit French
  * "EN FR". `aria-disabled` (not `disabled`, which isn't valid on an anchor)
  * says the state without removing the element from the tree.
  *
- * The "why disabled" hint is a registry `Tooltip`, not a `title`: `title`
- * never surfaces on an element carrying `cursor-not-allowed`'s sibling
- * `pointer-events-none` (dropped for that reason, in favour of
- * `cursor-not-allowed` alone) and is unreachable from a keyboard regardless.
+ * The "why disabled" hint is a registry `Tooltip`, not a `title`:
+ * `pointer-events-none` (dropped here for that reason) suppresses the hover a
+ * `title` needs, and a `title` is unreachable from the keyboard regardless.
+ * `TooltipProvider` wraps the whole switch so it opens on the same delay as
+ * the plant/sprout/bean heroes' tooltips, rather than inventing a second one.
  * Both disabled items point `aria-describedby` at the SAME `sr-only` span
  * holding "Save first" — announced on focus even before the tooltip's own
  * hover/focus delay opens its popup, and assertable from static markup, which
- * the popup itself never renders into.
+ * the popup itself never renders into. That span is `aria-hidden`:
+ * `aria-describedby` still resolves to a hidden target (a standard technique,
+ * unlike `aria-labelledby`), and hiding it stops a screen reader's
+ * browse/reading mode from also reading "Save first" as ordinary page
+ * content, on top of the tooltip and the description each item already
+ * carries.
  */
 export function EditLangSwitch({
   current,
@@ -47,48 +60,50 @@ export function EditLangSwitch({
 }) {
   const hintId = useId();
   return (
-    <div role="group" aria-label="Language being edited" className="flex items-center gap-0.5">
-      {LANGS.map((lang) => {
-        const active = lang === current;
-        const className = cn(buttonVariants({ variant: active ? "secondary" : "ghost", size: "sm" }));
-        const content = (
-          <>
-            {LANG_SHORT[lang]}
-            <span className="sr-only"> — {EDIT_SUFFIX[lang]}</span>
-          </>
-        );
-        if (!disabled) {
-          return (
-            <Link key={lang} href={hrefs[lang]} aria-current={active ? "page" : undefined} className={className}>
-              {content}
-            </Link>
+    <TooltipProvider>
+      <div role="group" aria-label="Language being edited" className="flex items-center gap-0.5">
+        {LANGS.map((lang) => {
+          const active = lang === current;
+          const className = cn(buttonVariants({ variant: active ? "secondary" : "ghost", size: "sm" }));
+          const content = (
+            <>
+              {LANG_SHORT[lang]}
+              <span className="sr-only"> — {EDIT_SUFFIX[lang]}</span>
+            </>
           );
-        }
-        return (
-          <Tooltip key={lang}>
-            <TooltipTrigger
-              render={
-                <a
-                  role="link"
-                  tabIndex={0}
-                  aria-disabled="true"
-                  aria-current={active ? "page" : undefined}
-                  aria-describedby={hintId}
-                  className={cn(className, "cursor-not-allowed opacity-50")}
-                />
-              }
-            >
-              {content}
-            </TooltipTrigger>
-            <TooltipContent>Save first</TooltipContent>
-          </Tooltip>
-        );
-      })}
-      {disabled ? (
-        <span id={hintId} className="sr-only">
-          Save first
-        </span>
-      ) : null}
-    </div>
+          if (!disabled) {
+            return (
+              <Link key={lang} href={hrefs[lang]} aria-current={active ? "page" : undefined} className={className}>
+                {content}
+              </Link>
+            );
+          }
+          return (
+            <Tooltip key={lang}>
+              <TooltipTrigger
+                render={
+                  <a
+                    role="link"
+                    tabIndex={0}
+                    aria-disabled="true"
+                    aria-current={active ? "page" : undefined}
+                    aria-describedby={hintId}
+                    className={cn(className, DEAD_OVERRIDES)}
+                  />
+                }
+              >
+                {content}
+              </TooltipTrigger>
+              <TooltipContent>Save first</TooltipContent>
+            </Tooltip>
+          );
+        })}
+        {disabled ? (
+          <span id={hintId} aria-hidden="true" className="sr-only">
+            Save first
+          </span>
+        ) : null}
+      </div>
+    </TooltipProvider>
   );
 }
