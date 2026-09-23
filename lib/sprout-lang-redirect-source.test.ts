@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * The sprout head's five OTHER writes — media, meta, state, date, type — never
+ * The sprout page's five OTHER writes — media, meta, state, date, type — never
  * touch the prose, so none of them chooses which half of an article to save.
  * But every one of them redirects back to `/admin/sprout/<slug>` through
  * `sproutHref` (app/admin/actions.ts), and that redirect has to land the
@@ -29,11 +29,12 @@ import { join } from "node:path";
  * source.test.ts` and `lib/garden-cache-source.test.ts` both use: each
  * function is sliced from its own `export async function <name>` to the next
  * top-level `\nexport `, so a regression in one of the five cannot hide behind
- * the other four still doing it right. Two of these slices (`editSproutMediaAction`
- * and `editSproutMetaAction`) swallow the non-exported `sproutHref` helper's
- * own declaration on their way to the next export — harmless, since that
- * helper's body contains neither `redirect(sproutHref(` nor a second `async
- * function` for `sliceFunction`'s own boundary check to trip over.
+ * the other four still doing it right. One of these slices
+ * (`editSproutMediaAction`, which the non-exported `sproutHref` helper sits
+ * right after in source order) swallows that helper's own declaration on its
+ * way to the next export — harmless, since that helper's body contains
+ * neither `redirect(sproutHref(` nor a second `async function` for
+ * `sliceFunction`'s own boundary check to trip over.
  */
 
 const ACTIONS_PATH = "app/admin/actions.ts";
@@ -79,11 +80,11 @@ for (const name of FUNCTION_NAMES) {
 
   test(`${name} wraps every sproutHref redirect in withEditLang`, () => {
     const body = sliceFunction(name);
-    // `redirect(...)`, not a bare `sproutHref(` count: two of these slices
-    // (editSproutMediaAction, editSproutMetaAction) swallow the non-exported
-    // `sproutHref` helper's own `function sproutHref(...)` declaration on
-    // their way to the next export, and that declaration also contains the
-    // substring `sproutHref(` without being a redirect at all.
+    // `redirect(...)`, not a bare `sproutHref(` count: editSproutMediaAction's
+    // slice swallows the non-exported `sproutHref` helper's own `function
+    // sproutHref(...)` declaration on its way to the next export (the helper
+    // sits right after it in source order), and that declaration also
+    // contains the substring `sproutHref(` without being a redirect at all.
     const totalRedirects =
       body.match(/redirect\(\s*(?:withEditLang\(\s*)?sproutHref\(/g)?.length ?? 0;
     const wrappedRedirects = body.match(/redirect\(\s*withEditLang\(\s*sproutHref\(/g)?.length ?? 0;

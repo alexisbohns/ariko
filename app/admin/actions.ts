@@ -358,13 +358,20 @@ export async function editSproutMediaAction(formData: FormData): Promise<void> {
  * overlay or popover and the banner would otherwise have nowhere to live. An unknown value opens nothing and falls through to the
  * page-level alert, which is why nothing here has to trust it.
  *
- * Every call site wraps the result in `withEditLang(…, lang)`, `lang` read
- * TOLERANTLY via `editLang(formData.get("lang"))` — never the strict
+ * Every call site but one wraps the result in `withEditLang(…, lang)`, `lang`
+ * read TOLERANTLY via `editLang(formData.get("lang"))` — never the strict
  * `parseEditLangField` the content action uses, because here `lang` only picks
  * which half of the URL an author lands back on, never which half of the prose
  * gets written. Skip the wrap and an author on `?lang=fr` who renames,
  * republishes, redates, retypes or re-covers a sprout lands on the English
  * editor — the French text reads as having vanished (spec §5).
+ *
+ * The one exception is `deleteSproutAction`'s confirm-checkbox refusal: the
+ * checkbox is `required`, so that redirect only fires script-off or from a
+ * forged POST, and a SUCCESSFUL delete never lands here at all — it leaves the
+ * sprout page entirely, for `/admin/sprouts` or the parent bean. There is no
+ * "half the author was editing" left to preserve on that path, so it stays
+ * unwrapped.
  */
 function sproutHref(slug: string, error?: string, form?: string): string {
   const base = `/admin/sprout/${encodeURIComponent(slug)}`;
