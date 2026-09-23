@@ -1,4 +1,4 @@
-import { resolveText, type Relation, type Text } from "./data";
+import { textPart, type Relation, type Text } from "./data";
 
 const MIRRORED_KINDS = new Set(["embeds", "mentions"]);
 
@@ -129,10 +129,14 @@ function stripCode(source: string): string {
 }
 
 // Pure. The refs a document points at, as relations ready to mirror.
+//
+// BOTH halves, English first. It used to read `resolveText(content)` — the en
+// half, or fr only when en was blank — which was harmless while nothing could
+// write a French body and became a hole the day something could: a card
+// embedded only in the French text would never mirror into `relations`, so it
+// would be off the graph and outside the scrub filterPublic runs on them.
+// English first keeps the output byte-identical for every English-only document.
 export function extractRefs(content: Text | undefined): Relation[] {
-  const raw = resolveText(content ?? "");
-  if (!raw.trim()) return [];
-  const source = stripCode(raw);
   const out: Relation[] = [];
   const seen = new Set<string>();
   const add = (kind: string, ref: string) => {
@@ -141,8 +145,13 @@ export function extractRefs(content: Text | undefined): Relation[] {
     seen.add(key);
     out.push({ kind, ref });
   };
-  for (const m of source.matchAll(BLOCK)) add("embeds", m[1]);
-  for (const m of source.matchAll(INLINE)) add("mentions", m[1]);
+  for (const lang of ["en", "fr"] as const) {
+    const raw = textPart(content, lang);
+    if (!raw.trim()) continue;
+    const source = stripCode(raw);
+    for (const m of source.matchAll(BLOCK)) add("embeds", m[1]);
+    for (const m of source.matchAll(INLINE)) add("mentions", m[1]);
+  }
   return out;
 }
 

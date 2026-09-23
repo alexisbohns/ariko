@@ -100,3 +100,29 @@ test("a labeled block card mints an embeds edge, like the unlabeled form", () =>
     { kind: "embeds", ref: "bean:x" },
   ]);
 });
+
+test("a ref that lives only in the fr half is extracted", () => {
+  // Once the French body is editable, a card embedded only there must still
+  // mirror into relations — or it is off the graph and outside filterPublic.
+  assert.deepEqual(
+    extractRefs({ en: "just prose", fr: "::entity{ref=bean:k}\n\nvoir :entity[ici]{ref=plant:p}" }),
+    [
+      { kind: "embeds", ref: "bean:k" },
+      { kind: "mentions", ref: "plant:p" },
+    ],
+  );
+});
+
+test("a ref in both halves appears once, English refs first", () => {
+  assert.deepEqual(
+    extractRefs({ en: "::entity{ref=bean:a}", fr: "::entity{ref=bean:b}\n\n::entity{ref=bean:a}" }),
+    [
+      { kind: "embeds", ref: "bean:a" },
+      { kind: "embeds", ref: "bean:b" },
+    ],
+  );
+});
+
+test("a code fence in the fr half hides its refs, as it does in en", () => {
+  assert.deepEqual(extractRefs({ en: "", fr: "```\n::entity{ref=bean:k}\n```" }), []);
+});
