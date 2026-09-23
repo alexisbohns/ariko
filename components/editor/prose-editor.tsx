@@ -13,6 +13,10 @@ import { Button } from "@/components/ui/button";
 import { Chrome } from "@/components/chrome";
 import { uploadImageAction } from "@/app/admin/actions";
 import { checkUploadFile, ALLOWED_TYPES } from "@/lib/upload-input";
+// `Lang` from lib/locale.ts and never lib/edit-lang.ts: that one is the
+// server half, and it opens node:fs — importing it here fails the build.
+import type { Lang } from "@/lib/locale";
+import { EditLangSwitch } from "./edit-lang-switch";
 
 /** See `onUpdate` — one serialization per burst of typing, not one per key. */
 const DIRTY_DEBOUNCE_MS = 200;
@@ -24,6 +28,8 @@ export function ProseEditor({
   hidden,
   bare = false,
   float = false,
+  langSwitch,
+  seed,
 }: {
   initialMarkdown: string;
   entities: EntityOption[];
@@ -72,6 +78,20 @@ export function ProseEditor({
    * describe.
    */
   float?: boolean;
+  /**
+   * Which half of a bilingual article this instance edits, and the links to
+   * the other. The page keys the editor on `current`, so switching REMOUNTS it
+   * with the other half's baseline rather than diffing French against English.
+   * Absent on any caller that has no halves to switch between.
+   */
+  langSwitch?: { current: Lang; hrefs: Record<Lang, string> };
+  /**
+   * The English body, handed over ONLY when this is the French half and it is
+   * blank (lib/edit-lang.ts `editorHalves`). It powers "Start from English",
+   * which loads it as an unsaved draft — the stored value does not change until
+   * the author presses Save.
+   */
+  seed?: string;
 }) {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [pending, startTransition] = useTransition();
@@ -92,6 +112,12 @@ export function ProseEditor({
   const [unchanged, setUnchanged] = useState(false);
   const dirtyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Whether the document is empty — "Start from English" is a way IN, not a
+  // reset, so it shows only over an empty document and disappears the moment
+  // there is anything to lose. Seeded from the string so the first client
+  // render is right; `onCreate` then replaces the guess with the editor's own
+  // answer, for the same reason `baselineRef` below is not the stored prop.
+  const [empty, setEmpty] = useState(initialMarkdown.trim() === "");
   // Mirrors `menu` for the keydown handler, which runs outside React's render
   // and would otherwise close over a stale index.
   const menuRef = useRef<MenuState | null>(null);
@@ -191,13 +217,22 @@ export function ProseEditor({
         class: bare
           ? "prose max-w-none dark:prose-invert prose-headings:font-heading prose-headings:font-medium prose-headings:tracking-tight min-h-[60vh] focus:outline-none"
           : "prose prose-sm max-w-none dark:prose-invert prose-headings:font-heading prose-headings:font-medium prose-headings:tracking-tight min-h-48 focus:outline-none",
+        // Spellcheck in the language being written. Read once at mount, like
+        // `class` — which is fine because the page keys this editor on it, so
+        // a switch is a new instance rather than a prop this one never sees.
+        lang: langSwitch?.current ?? "en",
       },
     },
     onCreate: ({ editor }) => {
       baselineRef.current = editor.getMarkdown();
+      setEmpty(editor.isEmpty);
     },
     onUpdate: ({ editor }) => {
       setUnchanged(false);
+      // Not debounced, unlike `dirty`: `isEmpty` stops descending at the first
+      // non-empty node, where `getMarkdown()` serializes the whole document.
+      // Undo back to nothing brings "Start from English" back.
+      setEmpty(editor.isEmpty);
       // A previous failure's red line must not outlive the attempt the author
       // is making right now — the file's own rule, from the image input's
       // onChange below. In the FLOAT shape it is also the only way out of a
@@ -385,6 +420,20 @@ export function ProseEditor({
         </BubbleMenu>
       ) : null}
 
+      {seed && editor && empty ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="self-start"
+          // Replaces the (empty) document; emits an update, so `dirty` goes
+          // true and the commit lights. Nothing is written until Save.
+          onClick={() => editor.chain().focus().setContent(normalizeEmptyListMarkers(seed), { contentType: "markdown" }).run()}
+        >
+          Start from English
+        </Button>
+      ) : null}
+
       <div className={bare ? undefined : "rounded-lg border p-3"}>
         <EditorContent editor={editor} />
       </div>
@@ -462,6 +511,17 @@ export function ProseEditor({
                 )}
               </Button>
             </span>
+            {/* AFTER the save, not before it: lib/prose-commit-source.test.ts
+                reads the FIRST `disabled` in this cluster as the Save button's,
+                and the switch's own expression carries no `!error` — nor
+                should it, since a failed save is exactly unsaved text. */}
+            {langSwitch ? (
+              <EditLangSwitch
+                current={langSwitch.current}
+                hrefs={langSwitch.hrefs}
+                disabled={dirty || pending || imageBusy}
+              />
+            ) : null}
           </Chrome>
         ) : null
       ) : (
@@ -474,6 +534,17 @@ export function ProseEditor({
           ) : null}
           {error ? (
             <span className="self-center text-xs text-destructive">Could not save: {error}</span>
+          ) : null}
+          {/* `dirty` is kept by `onUpdate` in both shapes, not only the
+              float one — so the same guard holds here. */}
+          {langSwitch ? (
+            <div className="ml-auto">
+              <EditLangSwitch
+                current={langSwitch.current}
+                hrefs={langSwitch.hrefs}
+                disabled={dirty || pending || imageBusy}
+              />
+            </div>
           ) : null}
         </div>
       )}
