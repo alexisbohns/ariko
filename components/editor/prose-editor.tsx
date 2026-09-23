@@ -10,6 +10,7 @@ import type { EntityOption } from "@/lib/entity-options";
 import { buildEditorExtensions, type MenuState } from "./editor-extensions";
 import { SuggestionMenu } from "./suggestion-menu";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Chrome } from "@/components/chrome";
 import { uploadImageAction } from "@/app/admin/actions";
 import { checkUploadFile, ALLOWED_TYPES } from "@/lib/upload-input";
@@ -420,21 +421,38 @@ export function ProseEditor({
         </BubbleMenu>
       ) : null}
 
-      {seed && editor && empty ? (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="self-start"
-          // Replaces the (empty) document; emits an update, so `dirty` goes
-          // true and the commit lights. Nothing is written until Save.
-          onClick={() => editor.chain().focus().setContent(normalizeEmptyListMarkers(seed), { contentType: "markdown" }).run()}
-        >
-          Start from English
-        </Button>
-      ) : null}
+      <div className={cn("relative", !bare && "rounded-lg border p-3")}>
+        {/* OUT OF FLOW, because in flow it moved the writing surface three
+            times: once after hydration, when `editor` arrives and the button
+            appears above an empty page; once on the first keystroke, when the
+            document stops being empty and the button leaves; and again
+            whenever a `/` pick or an undo empties the document and brings it
+            back. Each is the surface jumping under the caret.
 
-      <div className={bare ? undefined : "rounded-lg border p-3"}>
+            BEFORE <EditorContent> in the DOM and with NO z-index, on purpose:
+            the bubble menu is appended inside EditorContent's own element
+            (`view.dom.parentElement`) as an absolute box, so being later in
+            the tree is what lets it paint over this button — and tab order
+            stays button, then surface.
+
+            `relative` is safe here where a `transform` would not be: it makes
+            no containing block for `position: fixed` descendants, which is the
+            entity-rail trap CLAUDE.md records — the SuggestionMenu and the
+            float commit's Chrome are both fixed. */}
+        {seed && editor && empty ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={cn("absolute", bare ? "right-0 top-0" : "right-3 top-3")}
+            // Replaces the (empty) document; emits an update, so `dirty` goes
+            // true and the commit lights. Nothing is written until Save. The
+            // caret goes to the START, where a translator begins.
+            onClick={() => editor.chain().focus().setContent(normalizeEmptyListMarkers(seed), { contentType: "markdown" }).focus("start").run()}
+          >
+            Start from English
+          </Button>
+        ) : null}
         <EditorContent editor={editor} />
       </div>
 

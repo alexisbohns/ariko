@@ -39,3 +39,7 @@ test("Start from English goes through setContent as markdown, and only when a se
 test("the editable surface declares its language, for the browser's spellcheck", () => {
   assert.match(source(PROSE_EDITOR), /lang: langSwitch\?\.current \?\? "en"/);
 });
+
+test("the seed action disappears the moment there is anything to lose", () => {
+  assert.match(source(PROSE_EDITOR), /onUpdate: \(\{ editor \}\) => \{[\s\S]*?setEmpty\(editor\.isEmpty\)[\s\S]*?setDirty\(true\)/);
+});
