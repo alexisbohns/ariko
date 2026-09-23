@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { resolveText, textPart } from "@/lib/data";
+import { editLang, editLangHrefs, editorHalves } from "@/lib/edit-lang";
 import { getSprout } from "@/lib/botanical";
 import { loadRawGarden } from "@/lib/store";
 import { entityOptions } from "@/lib/entity-options";
@@ -55,10 +56,12 @@ export default async function AdminSproutPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ error?: string; form?: string }>;
+  searchParams: Promise<{ error?: string; form?: string; lang?: string }>;
 }) {
   const { slug } = await params;
-  const { error, form } = await searchParams;
+  const query = await searchParams;
+  const { error, form } = query;
+  const lang = editLang(query.lang);
 
   const sprout = await getSprout(slug);
   if (!sprout) notFound();
@@ -70,11 +73,12 @@ export default async function AdminSproutPage({
   // "en" rather than a negotiated language: the admin zone is authored in one.
   const lineage = resolveLineage(sprout.parents, raw, { lang: "en", hrefs: ADMIN_HREFS });
 
-  // The stored source, for the rail's diagnostic panel. STRICT textPart, the
-  // same reader the editor loads from twenty lines down: with resolveText an
-  // fr-only sprout would show its fr bytes here while the editor sat empty —
-  // the diagnostic disagreeing with the surface it exists to diagnose.
-  const source = textPart(sprout.content, "en").trim();
+  // What the editor opens on, and the half the rail's diagnostic shows. ONE
+  // read serves both: with two, the Source panel could show one half while the
+  // editor sat on the other — the diagnostic disagreeing with the surface it
+  // exists to diagnose.
+  const halves = editorHalves(sprout.content, lang);
+  const source = halves.initialMarkdown.trim();
 
   // Which surface a rejected save came from — narrowed here rather than
   // trusted. Both halves require the ERROR as well as the name: `?form=` alone
@@ -170,13 +174,18 @@ export default async function AdminSproutPage({
           ) : null}
 
           {/* No ContentCard: a card's header above an editor that is the page's
-              only content is a frame around the page. STRICT textPart on the load
-              — resolveText's fallback would put the fr half into the editor and
-              save it back as en. */}
+              only content is a frame around the page. The load goes through
+              `editorHalves` — STRICT per half, so neither half is ever loaded
+              into the other's editor. */}
           <ProseEditor
+            key={lang}
             bare
             float
-            initialMarkdown={textPart(sprout.content, "en")}
+            {...halves}
+            langSwitch={{
+              current: lang,
+              hrefs: editLangHrefs(`/admin/sprout/${encodeURIComponent(sprout.slug)}`, query),
+            }}
             // No self-exclusion to do: entityOptions never emits `sprout:` rows
             // at all, because a sprout has no public URL to mint a reference to.
             // Passed anyway, so every content surface reads alike — the sentence
@@ -184,7 +193,7 @@ export default async function AdminSproutPage({
             // the argument does filter something.
             entities={entityOptions(raw, `sprout:${sprout.slug}`)}
             action={editContentAction}
-            hidden={{ slug: sprout.slug }}
+            hidden={{ slug: sprout.slug, lang }}
           />
         </article>
       </EntityRail>

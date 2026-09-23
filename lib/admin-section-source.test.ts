@@ -40,10 +40,13 @@ import { join } from "node:path";
  *    asked-for half is empty, and either side reaching for it is a quiet,
  *    plausible-looking edit: on the hub it renders a French excerpt over a hub
  *    that claims the English narrative is written, and in the EDITOR it loads
- *    the French half into a field whose next save writes it back as English —
- *    a data-loss bug one keystroke deep. `textPart(plant.content, "en")` is the
- *    read both must make, and the excerpt must be derived from that same call
- *    rather than from a second read of the field.
+ *    the wrong half into a field whose next save writes it back over the right
+ *    one — a data-loss bug one keystroke deep. The hub's excerpt is always
+ *    English (`textPart(plant.content, "en")`), because the hub itself has no
+ *    `?lang=`; the editor opens on whichever half `?lang=` names, through
+ *    `editorHalves` (lib/edit-lang.ts) — STRICT per half in the same way,
+ *    which is what keeps the editor from ever loading one half and posting it
+ *    back labeled as the other.
  */
 
 function source(path: string): string {
@@ -88,20 +91,21 @@ test(`${BEANS} narrows the plant dimension through beansForPlantDeep`, () => {
   );
 });
 
-test(`${NARRATIVE} loads the plant's own English narrative into the editor`, () => {
+test(`${NARRATIVE} loads the plant's own narrative into the editor through editorHalves`, () => {
   const text = source(NARRATIVE);
   assert.match(
     text,
-    /initialMarkdown=\{textPart\(plant\.content,\s*"en"\)\}/,
-    `${NARRATIVE} must load the editor with the STRICT en textPart: resolveText ` +
-      `falls back to the fr half, and the next save writes it back as en`,
+    /editorHalves\(plant\.content,\s*lang\)/,
+    `${NARRATIVE} must load the editor through editorHalves(plant.content, lang) ` +
+      `— STRICT per half, so the editor never loads one half and saves it back ` +
+      `labeled as the other`,
   );
   assert.match(
     text,
-    /hidden=\{\{\s*ref:\s*`plant:\$\{plant\.slug\}`\s*\}\}/,
-    `${NARRATIVE} must post the ref \`plant:<slug>\` — editContainerContentAction ` +
-      `reads the tier off the ref, and it is the only thing telling it which ` +
-      `collection to write`,
+    /hidden=\{\{\s*ref,\s*lang\s*\}\}/,
+    `${NARRATIVE} must post both \`ref\` (\`plant:<slug>\`, which ` +
+      `editContainerContentAction reads the tier off) and \`lang\` — an absent ` +
+      `lang saves as English`,
   );
 });
 

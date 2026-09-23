@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { buildDataset, resolveText } from "@/lib/data";
+import { editLang, editLangHrefs } from "@/lib/edit-lang";
 import { loadRawGarden } from "@/lib/store";
 import { editContainerContentAction } from "../../../actions";
 import { ContentCard } from "../../../_components/content-card";
@@ -17,10 +18,12 @@ export default async function AdminPodPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; lang?: string }>;
 }) {
   const { slug } = await params;
-  const { error } = await searchParams;
+  const query = await searchParams;
+  const { error } = query;
+  const lang = editLang(query.lang);
 
   const raw = await loadRawGarden();
   const pod = raw.pods?.find((p) => p.slug === slug);
@@ -66,6 +69,8 @@ export default async function AdminPodPage({
             selfRef={`pod:${pod.slug}`}
             action={editContainerContentAction}
             hidden={{ ref: `pod:${pod.slug}` }}
+            lang={lang}
+            langHrefs={editLangHrefs(`/admin/pod/${encodeURIComponent(pod.slug)}`, query)}
           />
 
           <Card>

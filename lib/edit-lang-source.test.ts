@@ -43,3 +43,28 @@ test("the editable surface declares its language, for the browser's spellcheck",
 test("the seed action disappears the moment there is anything to lose", () => {
   assert.match(source(PROSE_EDITOR), /onUpdate: \(\{ editor \}\) => \{[\s\S]*?setEmpty\(editor\.isEmpty\)[\s\S]*?setDirty\(true\)/);
 });
+
+// Every place a content editor is mounted. ContentCard stands in for the pod
+// page, which renders the editor through it.
+const EDITOR_MOUNTS = [
+  "app/admin/(chrome)/sprout/[slug]/page.tsx",
+  "app/admin/(chrome)/plant/[slug]/narrative/page.tsx",
+  "app/admin/_components/content-card.tsx",
+];
+
+for (const path of EDITOR_MOUNTS) {
+  test(`${path} loads through editorHalves, keys on lang, and posts lang`, () => {
+    const text = source(path);
+    assert.match(text, /editorHalves\(/, "the load goes through editorHalves");
+    assert.doesNotMatch(text, /textPart\([^)]*content[^)]*"en"\)/, "no hard-coded English load of content");
+    assert.match(text, /key=\{lang\}/, "the editor remounts on a switch");
+    assert.match(text, /langSwitch=\{/, "the editor is handed its switch");
+    assert.match(text, /hidden=\{\{[^}]*\blang \}\}/, "the save must post which half it is — an absent lang saves as English");
+  });
+}
+
+test("the pod page hands ContentCard its language", () => {
+  const text = source("app/admin/(chrome)/pod/[slug]/page.tsx");
+  assert.match(text, /editLang\(/);
+  assert.match(text, /langHrefs=\{/);
+});
