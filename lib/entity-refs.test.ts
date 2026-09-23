@@ -126,3 +126,14 @@ test("a ref in both halves appears once, English refs first", () => {
 test("a code fence in the fr half hides its refs, as it does in en", () => {
   assert.deepEqual(extractRefs({ en: "", fr: "```\n::entity{ref=bean:k}\n```" }), []);
 });
+
+test("an fr-only ref extracts whether en is absent, blank, or whitespace-only", () => {
+  // The whitespace case is the one resolveText got wrong: a whitespace-only en
+  // is truthy, so resolveText's `value.en || value.fr` picked it and returned
+  // "" — the fr ref was never scanned at all. textPart per-half sidesteps that
+  // fallback entirely.
+  const expected = [{ kind: "embeds", ref: "bean:k" }];
+  assert.deepEqual(extractRefs({ fr: "::entity{ref=bean:k}" }), expected);
+  assert.deepEqual(extractRefs({ en: "", fr: "::entity{ref=bean:k}" }), expected);
+  assert.deepEqual(extractRefs({ en: "   ", fr: "::entity{ref=bean:k}" }), expected);
+});
