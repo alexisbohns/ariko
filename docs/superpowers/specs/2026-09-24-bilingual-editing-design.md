@@ -47,9 +47,16 @@ body is exactly the confusion this slice must not create.
 
 ### 1. `lib/edit-lang.ts` — reading the parameter, building the switch
 
-Pure and client-safe (the editor imports its types). Reuses `Lang` and
-`parseLang` from `lib/locale.ts`, so there is still one definition of what a
-language is.
+Pure, and server-side: it reads `Text` through `textPart`, and `lib/data.ts`
+opens with `node:fs`. The editor island never imports it — the switch needs only
+`Lang` and `LANG_SHORT`, which it takes from `lib/locale.ts`. Reuses `Lang` and
+`parseLang` from there too, so there is still one definition of what a language
+is.
+
+- `editorHalves(content, lang)` — what an editor opens on: `textPart(content, lang)`,
+  plus the English body as `seed` when the French half is blank (§4).
+- `parseEditLangField(value)` and `withEditLang(href, lang)` — the actions'
+  halves of §5, pure so they are tested without a database.
 
 - `editLang(param: unknown): Lang` — `parseLang(param) ?? "en"`. A value that
   is not a language (`?lang=de`, `?lang=` repeated) is English, never an error:
@@ -196,9 +203,15 @@ behaviour.
   language branch (with a valid session it passes through with `lang` intact).
 - **Actions** — `lang` absent saves English; `lang=de` is refused; a French
   save's redirect carries `lang=fr`.
-- **Editor SSR** — the switch renders as real hrefs with `aria-current` on the
-  active language; a French editor over an English-only document renders empty
-  with the Start from English action, and never the English body.
+- **Switch SSR** — `EditLangSwitch` (its own component, because the float
+  commit renders nothing until the editor mounts, so the editor has no server
+  HTML to test) renders real hrefs with `aria-current` on the active language,
+  and no `href` at all while disabled.
+- **`editorHalves`** — a French editor over an English-only document opens
+  empty with the English body as `seed`, never as its `initialMarkdown`.
+- **Source** — the editor disables the switch on `dirty` in both commit
+  shapes, and every editing page loads through `editorHalves` and keys the
+  editor on `lang`.
 
 ## Lab Note
 
