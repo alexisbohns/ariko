@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Calendar, Tag } from "lucide-react";
 import type { SproutState } from "@/lib/data";
+import type { Lang } from "@/lib/locale";
 import { SPROUT_STATE_ICONS } from "@/components/admin/glyphs";
 import { sproutStateLabel } from "@/lib/glyphs";
 import { SPROUT_STATES } from "@/lib/sprout-state";
@@ -48,6 +49,15 @@ export interface SproutHeroProps {
   state: SproutState;
   date: string;
   type: string;
+  /**
+   * The half being edited, from the page's `?lang=` (lib/edit-lang.ts). Each
+   * of the three forms this component renders itself posts it as a hidden
+   * field — not to choose what gets written (none of state, date or type has
+   * an fr/en half), but so `sproutHref`'s redirect (app/admin/actions.ts)
+   * lands the author back on the half they were editing rather than on the
+   * English editor.
+   */
+  lang: Lang;
   /** A rejected save's message, and which surface it came from. */
   error?: string;
   errorForm?: Surface;
@@ -84,6 +94,7 @@ export function SproutHero({
   state,
   date,
   type,
+  lang,
   error,
   errorForm,
   metaForm,
@@ -166,7 +177,7 @@ export function SproutHero({
                     : undefined
               }
             >
-              <StateForm slug={slug} current={state} />
+              <StateForm slug={slug} current={state} lang={lang} />
             </FactPopover>
 
             {/* Date and type. NOT enums: `type` is free-form (lib/sprouts.ts
@@ -189,6 +200,7 @@ export function SproutHero({
                 current={date}
                 heading="Date"
                 hint="When this sprout is dated on every timeline it appears in."
+                lang={lang}
               />
             </FactPopover>
 
@@ -207,6 +219,7 @@ export function SproutHero({
                 current={type}
                 heading="Type"
                 hint="Free text. A type of “digest” exempts this sprout from the publish cascade."
+                lang={lang}
               />
             </FactPopover>
           </div>
@@ -247,12 +260,13 @@ export function SproutHero({
  * Not the Base UI RadioGroup: that one submits through a script-populated
  * hidden input, and a real radio is what keeps this form a form.
  */
-function StateForm({ slug, current }: { slug: string; current: SproutState }) {
+function StateForm({ slug, current, lang }: { slug: string; current: SproutState; lang: Lang }) {
   const [picked, setPicked] = useState<SproutState>(current);
 
   return (
     <form action={setSproutStateAction} className="flex flex-col gap-3">
       <input type="hidden" name="slug" value={slug} />
+      <input type="hidden" name="lang" value={lang} />
 
       <div className="flex flex-col gap-2">
         {SPROUT_STATES.map((option) => {
@@ -316,6 +330,7 @@ function FieldForm({
   current,
   heading,
   hint,
+  lang,
 }: {
   slug: string;
   action: (formData: FormData) => Promise<void>;
@@ -324,10 +339,12 @@ function FieldForm({
   current: string;
   heading: string;
   hint: string;
+  lang: Lang;
 }) {
   return (
     <form action={action} className="flex flex-col gap-3">
       <input type="hidden" name="slug" value={slug} />
+      <input type="hidden" name="lang" value={lang} />
       <div className="flex flex-col gap-2">
         <Label htmlFor={`field-${field}`}>{heading}</Label>
         <Input

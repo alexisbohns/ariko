@@ -114,7 +114,7 @@ export default async function AdminSproutPage({
       label: "Media",
       heading: "Media",
       icon: Images,
-      panel: <SproutMediaForm sprout={sprout} />,
+      panel: <SproutMediaForm sprout={sprout} lang={lang} />,
     },
     {
       id: "delete",
@@ -142,13 +142,14 @@ export default async function AdminSproutPage({
             state={stateOf(sprout)}
             date={sprout.date}
             type={sprout.type}
+            lang={lang}
             // Both or neither, and only when a head surface owns the message.
             // Every consumer inside the head also checks `errorForm`, so handing
             // it a delete's message would be inert — but it would still be the
             // page telling an island about a message that island must not render,
             // which is the opposite of the split this page just made.
             {...(heroForm ? { error, errorForm: heroForm } : {})}
-            metaForm={<SproutMetaForm sprout={sprout} />}
+            metaForm={<SproutMetaForm sprout={sprout} lang={lang} />}
             // Everything the head can write, as stored. STRICT textPart on both
             // halves of each pair, so an fr-only edit still moves the fingerprint
             // — resolveText would fall back and hide it.

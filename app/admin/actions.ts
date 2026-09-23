@@ -36,7 +36,7 @@ import { isSproutState } from "@/lib/sprout-state";
 import { isTimelineDate } from "@/lib/sprout-date";
 import { isSproutType } from "@/lib/sprout-type";
 import { buildContentPatch } from "@/lib/content-edit";
-import { parseEditLangField, withEditLang } from "@/lib/edit-lang";
+import { editLang, parseEditLangField, withEditLang } from "@/lib/edit-lang";
 import { buildMediaPatch } from "@/lib/media-edit";
 import { buildPlantRolePatch, InvalidRoleKindError } from "@/lib/plant-role";
 import {
@@ -334,6 +334,7 @@ export async function editContentAction(formData: FormData): Promise<void> {
 export async function editSproutMediaAction(formData: FormData): Promise<void> {
   await requireSession();
   const slug = String(formData.get("slug") ?? "");
+  const lang = editLang(formData.get("lang"));
 
   const existing = await getSprout(slug);
   if (!existing) redirect("/admin/sprouts");
@@ -344,7 +345,7 @@ export async function editSproutMediaAction(formData: FormData): Promise<void> {
   if (result.dirty) await updateSproutMedia(slug, result.media);
 
   revalidateGarden();
-  redirect(`/admin/sprout/${encodeURIComponent(slug)}`);
+  redirect(withEditLang(sproutHref(slug), lang));
 }
 
 /**
@@ -356,6 +357,14 @@ export async function editSproutMediaAction(formData: FormData): Promise<void> {
  * reopens onto it, because the field that was rejected is behind a closed
  * overlay or popover and the banner would otherwise have nowhere to live. An unknown value opens nothing and falls through to the
  * page-level alert, which is why nothing here has to trust it.
+ *
+ * Every call site wraps the result in `withEditLang(…, lang)`, `lang` read
+ * TOLERANTLY via `editLang(formData.get("lang"))` — never the strict
+ * `parseEditLangField` the content action uses, because here `lang` only picks
+ * which half of the URL an author lands back on, never which half of the prose
+ * gets written. Skip the wrap and an author on `?lang=fr` who renames,
+ * republishes, redates, retypes or re-covers a sprout lands on the English
+ * editor — the French text reads as having vanished (spec §5).
  */
 function sproutHref(slug: string, error?: string, form?: string): string {
   const base = `/admin/sprout/${encodeURIComponent(slug)}`;
@@ -376,6 +385,7 @@ function sproutHref(slug: string, error?: string, form?: string): string {
 export async function editSproutMetaAction(formData: FormData): Promise<void> {
   await requireSession();
   const slug = String(formData.get("slug") ?? "");
+  const lang = editLang(formData.get("lang"));
 
   // Existence first, so the redirects below can only ever target a real page
   // and can only interpolate a known-good stored slug.
@@ -391,13 +401,13 @@ export async function editSproutMetaAction(formData: FormData): Promise<void> {
     patch = buildSproutMetaPatch(formData);
   } catch (err) {
     if (!(err instanceof BlankSproutNameError)) throw err;
-    redirect(sproutHref(slug, `could not save: ${err.message}`, "meta"));
+    redirect(withEditLang(sproutHref(slug, `could not save: ${err.message}`, "meta"), lang));
   }
 
   await updateSproutMeta(slug, patch);
 
   revalidateGarden();
-  redirect(sproutHref(slug));
+  redirect(withEditLang(sproutHref(slug), lang));
 }
 
 /**
@@ -426,13 +436,14 @@ export async function editSproutMetaAction(formData: FormData): Promise<void> {
 export async function setSproutStateAction(formData: FormData): Promise<void> {
   await requireSession();
   const slug = String(formData.get("slug") ?? "");
+  const lang = editLang(formData.get("lang"));
 
   const existing = await getSprout(slug);
   if (!existing) redirect("/admin/sprouts");
 
   const state = String(formData.get("state") ?? "").trim();
   if (!isSproutState(state)) {
-    redirect(sproutHref(slug, `unknown state: ${state || "(blank)"}`, "state"));
+    redirect(withEditLang(sproutHref(slug, `unknown state: ${state || "(blank)"}`, "state"), lang));
   }
 
   // No `as SproutState`: `isSproutState` is a type predicate and `redirect`
@@ -452,7 +463,7 @@ export async function setSproutStateAction(formData: FormData): Promise<void> {
   }
 
   revalidateGarden();
-  redirect(sproutHref(slug));
+  redirect(withEditLang(sproutHref(slug), lang));
 }
 
 /**
@@ -470,20 +481,26 @@ export async function setSproutStateAction(formData: FormData): Promise<void> {
 export async function setSproutDateAction(formData: FormData): Promise<void> {
   await requireSession();
   const slug = String(formData.get("slug") ?? "");
+  const lang = editLang(formData.get("lang"));
 
   const existing = await getSprout(slug);
   if (!existing) redirect("/admin/sprouts");
 
   const date = String(formData.get("date") ?? "").trim();
-  if (!date) redirect(sproutHref(slug, "could not save: a sprout needs a date", "date"));
+  if (!date) {
+    redirect(withEditLang(sproutHref(slug, "could not save: a sprout needs a date", "date"), lang));
+  }
   if (!isTimelineDate(date)) {
     // The shape, not just the verdict: the author cannot fix "invalid" without
     // being told which of the several dates they might have typed is wanted.
     redirect(
-      sproutHref(
-        slug,
-        `could not save: a sprout's date must read YYYY-MM-DD (got "${date}")`,
-        "date",
+      withEditLang(
+        sproutHref(
+          slug,
+          `could not save: a sprout's date must read YYYY-MM-DD (got "${date}")`,
+          "date",
+        ),
+        lang,
       ),
     );
   }
@@ -491,7 +508,7 @@ export async function setSproutDateAction(formData: FormData): Promise<void> {
   await updateSproutDate(slug, date);
 
   revalidateGarden();
-  redirect(sproutHref(slug));
+  redirect(withEditLang(sproutHref(slug), lang));
 }
 
 /**
@@ -521,19 +538,20 @@ export async function setSproutDateAction(formData: FormData): Promise<void> {
 export async function setSproutTypeAction(formData: FormData): Promise<void> {
   await requireSession();
   const slug = String(formData.get("slug") ?? "");
+  const lang = editLang(formData.get("lang"));
 
   const existing = await getSprout(slug);
   if (!existing) redirect("/admin/sprouts");
 
   const type = String(formData.get("type") ?? "").trim();
   if (!isSproutType(type)) {
-    redirect(sproutHref(slug, "could not save: a sprout needs a type", "type"));
+    redirect(withEditLang(sproutHref(slug, "could not save: a sprout needs a type", "type"), lang));
   }
 
   await updateSproutType(slug, type);
 
   revalidateGarden();
-  redirect(sproutHref(slug));
+  redirect(withEditLang(sproutHref(slug), lang));
 }
 
 // Plant and pod narrative. One action for both tiers: the ref carries the tier,

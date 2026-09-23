@@ -168,6 +168,16 @@ Both actions **redirect back with `?lang=fr` when the save was French**, on the
 success path and the error path alike. Without it a French save lands the
 author on the English editor, which reads as the French text having vanished.
 
+The sprout page's OTHER saves — meta, state, date, type, media — carry `lang`
+too, for the same reason, even though none of them chooses which half of
+anything gets written: each posts a hidden `lang` field, and each action reads
+it TOLERANTLY (`editLang`, English default) rather than through the strict
+`parseEditLangField` the two content actions use, because here `lang` only
+picks where `sproutHref`'s redirect lands, never a half to save. Skip it and an
+author on `?lang=fr` who renames the sprout, flips its state, or swaps its
+cover image is bounced to the English editor exactly as if the content actions
+themselves had forgotten to redirect back.
+
 ### 6. Relations read both halves
 
 `extractRefs(content)` (`lib/entity-refs.ts`) currently reads
