@@ -14,8 +14,13 @@ import { isLang, LANG_PARAM, parseLang, type Lang } from "./locale";
  * `node:fs`. The editor island never imports this file.
  */
 
-// The SAME parameter as the public zone's, on purpose — the middleware
-// paragraph that makes sharing the name safe for /admin arrives in Task 4.
+// The SAME parameter as the public zone's, on purpose: the editor's `lang`
+// and the reader's `lang` never collide because they never share a request.
+// middleware.ts's public branch — the one that turns `?lang=` into a cookie
+// and redirects to the clean URL — runs only on paths that do NOT start with
+// `/admin`, so an admin `?lang=fr` reaches this module untouched instead of
+// being stripped into a cookie somewhere upstream. lib/admin-lang-middleware.test.ts
+// pins that boundary from the middleware side.
 
 /** The URL's answer. Anything that is not a language is English, never an error — it came from a URL bar. */
 export function editLang(param: unknown): Lang {

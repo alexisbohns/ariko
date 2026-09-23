@@ -36,6 +36,7 @@ import { isSproutState } from "@/lib/sprout-state";
 import { isTimelineDate } from "@/lib/sprout-date";
 import { isSproutType } from "@/lib/sprout-type";
 import { buildContentPatch } from "@/lib/content-edit";
+import { parseEditLangField, withEditLang } from "@/lib/edit-lang";
 import { buildMediaPatch } from "@/lib/media-edit";
 import { buildPlantRolePatch, InvalidRoleKindError } from "@/lib/plant-role";
 import {
@@ -295,6 +296,10 @@ export async function deleteSproutAction(formData: FormData): Promise<void> {
 
 // Prose only. Deliberately separate from the head's four writes: content
 // touches neither `state` nor `visibility`, so there is no cascade to run here.
+//
+// One HALF of the prose, named by the posted `lang` (lib/edit-lang.ts), and
+// every redirect lands back on that half — a French save that returned the
+// author to the English editor would read as the French text having vanished.
 export async function editContentAction(formData: FormData): Promise<void> {
   await requireSession();
   const slug = String(formData.get("slug") ?? "");
@@ -303,12 +308,16 @@ export async function editContentAction(formData: FormData): Promise<void> {
   const existing = await getSprout(slug);
   if (!existing) redirect("/admin/sprouts");
 
-  const result = buildContentPatch(existing, markdown, "en");
+  const back = `/admin/sprout/${encodeURIComponent(slug)}`;
+  const field = parseEditLangField(formData.get("lang"));
+  if (!field.ok) {
+    redirect(`${back}?error=${encodeURIComponent(`could not save content: ${field.error}`)}`);
+  }
+
+  const result = buildContentPatch(existing, markdown, field.lang);
   if (!result.ok) {
     redirect(
-      `/admin/sprout/${encodeURIComponent(slug)}?error=${encodeURIComponent(
-        `could not save content: ${result.error}`,
-      )}`,
+      withEditLang(`${back}?error=${encodeURIComponent(`could not save content: ${result.error}`)}`, field.lang),
     );
   }
   // Dirty-gated (spec §2.5): opening a digest and saving it untouched writes
@@ -316,7 +325,7 @@ export async function editContentAction(formData: FormData): Promise<void> {
   if (result.dirty) await updateSproutContent(slug, result.patch);
 
   revalidateGarden();
-  redirect(`/admin/sprout/${encodeURIComponent(slug)}`);
+  redirect(withEditLang(back, field.lang));
 }
 
 // A sprout's media[] — its own form, its own action, its own narrow writer.
@@ -544,6 +553,9 @@ export async function setSproutTypeAction(formData: FormData): Promise<void> {
 // the plant address (lib/plant-path.ts), after the existence check below: the
 // ref arrives from a form, and a redirect target is not a thing to take on
 // trust from a payload.
+//
+// One half of the prose, named by the posted `lang`, and every redirect lands
+// back on that half — see editContentAction.
 export async function editContainerContentAction(formData: FormData): Promise<void> {
   await requireSession();
   const ref = String(formData.get("ref") ?? "");
@@ -561,9 +573,16 @@ export async function editContainerContentAction(formData: FormData): Promise<vo
   if (!existing) redirect("/admin");
 
   const back = isPlant ? narrativeHref(slug) : `/admin/pod/${encodeURIComponent(slug)}`;
-  const result = buildContentPatch(existing, markdown, "en");
+  const field = parseEditLangField(formData.get("lang"));
+  if (!field.ok) {
+    redirect(`${back}?error=${encodeURIComponent(`could not save content: ${field.error}`)}`);
+  }
+
+  const result = buildContentPatch(existing, markdown, field.lang);
   if (!result.ok) {
-    redirect(`${back}?error=${encodeURIComponent(`could not save content: ${result.error}`)}`);
+    redirect(
+      withEditLang(`${back}?error=${encodeURIComponent(`could not save content: ${result.error}`)}`, field.lang),
+    );
   }
   if (result.dirty) {
     if (isPlant) await updatePlantContent(slug, result.patch);
@@ -571,7 +590,7 @@ export async function editContainerContentAction(formData: FormData): Promise<vo
   }
 
   revalidateGarden();
-  redirect(back);
+  redirect(withEditLang(back, field.lang));
 }
 
 /**
