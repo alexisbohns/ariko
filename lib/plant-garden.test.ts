@@ -102,10 +102,11 @@ test("planting creates the tree private, parented upward, bilingual", { skip: !h
   assert.notEqual(sprout.state, "published");
 
   // Bilingual content survived AS bilingual. This is what pins the applier's
-  // refusal to route through `buildContentPatch`, the editor's `en`-only door:
-  // that path carries a stored `fr` back verbatim and can never SET one, so
-  // planting through it would drop every French narrative in silence — the
-  // plan prints identically, the English is perfect, the French never exists.
+  // refusal to route through `buildContentPatch`, the editor's per-half door:
+  // it writes ONE named half per call and carries the other back verbatim, so
+  // planting a manifest's both-halves-at-once narrative through it would take
+  // two calls per entity and re-derive relations twice for what should be a
+  // single write — the reason `contentPatch` composes both halves directly.
   assert.deepEqual(pod.content, { en: "The narrative.", fr: "Le récit." });
 });
 

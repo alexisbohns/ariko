@@ -66,6 +66,12 @@ export function buildContentPatch(current: ContentOwner, markdown: string, lang:
  * "Blank" means blank once trimmed. A blank fr collapses to a plain string —
  * clearing the French body un-translates the article, and simple content stays
  * simple.
+ *
+ * A whitespace-only half counts as absent too, on EITHER side — not just the
+ * one being written — because this blank-checks both `en` and `fr` on every
+ * call. So "carried back verbatim" (see `buildContentPatch`'s docblock) means
+ * verbatim for a half that has content; a stored whitespace-only half is
+ * dropped here rather than round-tripped, on the next write to either half.
  */
 function composeBody(en: string, fr: string): Text {
   const hasEn = en.trim() !== "";

@@ -15,12 +15,17 @@ test("a plain string stays a plain string", () => {
 });
 
 test("a bilingual value keeps its fr half untouched", () => {
-  // Spec §2.9: the editor only ever edits `en`, and must never destroy `fr`.
+  // An English save carries the `fr` half back verbatim.
   const result = buildContentPatch({ content: { en: "old", fr: "français" } }, "new", "en");
   assert.deepEqual(result.ok && result.dirty && result.patch.content, {
     en: "new",
     fr: "français",
   });
+});
+
+test("an English save carries a French-only document's fr half back verbatim", () => {
+  const result = buildContentPatch({ content: { fr: "f" } }, "e", "en");
+  assert.deepEqual(result.ok && result.dirty && result.patch.content, { en: "e", fr: "f" });
 });
 
 test("mirrored relations are re-derived and hand-authored kinds survive", () => {
