@@ -1,5 +1,5 @@
 import { textPart, type Text } from "./data";
-import { isLang, parseLang, type Lang } from "./locale";
+import { isLang, LANG_PARAM, parseLang, type Lang } from "./locale";
 
 /**
  * Which half of an article the admin is editing — `?lang=fr` on the editing
@@ -14,7 +14,8 @@ import { isLang, parseLang, type Lang } from "./locale";
  * `node:fs`. The editor island never imports this file.
  */
 
-const LANG_PARAM = "lang";
+// The SAME parameter as the public zone's, on purpose — the middleware
+// paragraph that makes sharing the name safe for /admin arrives in Task 4.
 
 /** The URL's answer. Anything that is not a language is English, never an error — it came from a URL bar. */
 export function editLang(param: unknown): Lang {
@@ -39,7 +40,12 @@ export function editorHalves(content: Text | undefined, lang: Lang): { initialMa
 // belongs to the half that received it.
 const DROPPED = new Set([LANG_PARAM, "error", "form"]);
 
-/** The switch's two links. Every other parameter (the `?plant=` scope among them) is kept. */
+/**
+ * The switch's two links. Every other parameter (the `?plant=` scope among
+ * them) is kept. `pathname` must already be URL-encoded — callers build it by
+ * hand (e.g. `/admin/sprout/${encodeURIComponent(slug)}`), and this function
+ * writes it back out verbatim.
+ */
 export function editLangHrefs(
   pathname: string,
   searchParams: Record<string, string | string[] | undefined>,
@@ -74,5 +80,10 @@ export function parseEditLangField(value: FormDataEntryValue | null): EditLangFi
 /** A redirect target that lands back on the half that was saved. */
 export function withEditLang(href: string, lang: Lang): string {
   if (lang === "en") return href;
-  return `${href}${href.includes("?") ? "&" : "?"}${LANG_PARAM}=fr`;
+  // A real query edit, not concatenation: a fragment or an existing `lang`
+  // would otherwise put the parameter in the hash, or repeat it — and Next
+  // hands a repeated parameter over as an array, which editLang reads as English.
+  const url = new URL(href, "http://_"); // relative only; the origin is discarded
+  url.searchParams.set(LANG_PARAM, "fr");
+  return `${url.pathname}${url.search}${url.hash}`;
 }
