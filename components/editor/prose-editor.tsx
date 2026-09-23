@@ -320,6 +320,14 @@ export function ProseEditor({
     // variant and the content chain.
     const formData = new FormData();
     for (const [key, value] of Object.entries(hidden)) formData.set(key, value);
+    // The editor posts the half it is DRAWING, not whatever the page's own
+    // `hidden` happened to carry — set AFTER the loop above so it wins over a
+    // `hidden.lang` that agrees anyway. `lang: langSwitch?.current ?? "en"` on
+    // the editable surface (above) and this line read the same value, so the
+    // switch, the spellcheck and the save cannot disagree; a page whose mount
+    // forgot `lang` in `hidden` would otherwise show FR and save into the
+    // English half, since the actions read an absent `lang` as English.
+    if (langSwitch) formData.set("lang", langSwitch.current);
     // The serialize step (spec §2.3): markdown is what the database stores, and
     // the editor is only ever a surface over it.
     formData.set("content", markdown);

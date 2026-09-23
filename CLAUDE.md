@@ -228,8 +228,11 @@ while quietly becoming false.
   body wearing a French label — and `buildContentPatch` takes `lang` as a
   REQUIRED parameter and carries the other half back verbatim. The content
   actions treat an absent `lang` as English (a tab open across the deploy) and
-  refuse an unknown one, so every editor mount MUST post `lang` — an editor
-  that forgot would save French over English. Every save on the sprout page,
+  refuse an unknown one. `ProseEditor`'s `save` posts `lang` itself, from
+  `langSwitch.current`, after the `hidden` loop so it wins — the editor posts
+  the half it is DRAWING, so the switch, the spellcheck and the save cannot
+  disagree. The three pages' own `hidden.lang` is belt-and-braces on top of
+  that, covering a caller with no switch at all. Every save on the sprout page,
   not only the body, lands back on the half it came from. The EN/FR switch is
   dead while the editor is dirty, because the editor has no `beforeunload`
   guard — dead but perceivable: no `href`, still a focusable `role="link"`
