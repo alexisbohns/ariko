@@ -55,14 +55,16 @@ import type { GardenSlugs, PlanAction } from "./garden-plan";
  * this bug arrives.
  *
  * DELIBERATELY NOT `buildContentPatch` (`lib/content-edit.ts`), which is the
- * EDITOR's door and is `en`-only by design: it takes one markdown string, and
- * carries a stored `fr` half back verbatim because the editor can only ever
- * have been editing the English one. It cannot SET an `fr` half at all. A
- * manifest is bilingual at birth — `readText` composes `{ en, fr }` for every
- * narrative in the file — so routing planting through the editor's door would
- * silently drop every French narrative the author wrote: the plant would
- * succeed, the plan would print the same lines, the English would be perfect,
- * and the French would simply never exist, with nothing anywhere reporting it.
+ * EDITOR's door: it writes ONE NAMED half per call, named by a required `lang`,
+ * and carries the OTHER half back verbatim — because the editor is always
+ * looking at a single language's view and saving it. A manifest is bilingual
+ * at birth — `readText` composes `{ en, fr }` for every narrative in the file
+ * — so routing planting through the editor's door would take two calls per
+ * entity, one per half, where a manifest wants one write of both; and because
+ * each call independently re-derives relations from `extractRefs`, the second
+ * call would re-mirror against content the first had just written, doing the
+ * mirroring work twice for what should be a single write. `contentPatch`
+ * below composes both halves directly instead.
  */
 function contentPatch(content: Text, existing: Relation[] | undefined): ContentPatch {
   return { content, relations: mergeMirrored(existing, extractRefs(content)) };

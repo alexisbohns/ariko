@@ -218,6 +218,32 @@ while quietly becoming false.
   back on their own terms.
 - **A screen's image cannot be cleared**, because `Screen.image` is required —
   the one rule `buildScreenImagePatch` has that its three siblings lack.
+- **An article's halves are edited one at a time, and the URL names which.**
+  `?lang=fr` on the sprout, plant-narrative and pod pages opens the editor on
+  the French half (`lib/edit-lang.ts`); every page opens in English and the
+  choice is never a cookie, so a URL always says which half is on screen. The
+  load is `editorHalves` — STRICT per half, so an empty French body opens
+  empty with "Start from English" floating over it (out of flow: it vanishes
+  on the first keystroke and must not move the caret), never as the English
+  body wearing a French label — and `buildContentPatch` takes `lang` as a
+  REQUIRED parameter and carries the other half back verbatim. The content
+  actions treat an absent `lang` as English (a tab open across the deploy) and
+  refuse an unknown one. `ProseEditor`'s `save` posts `lang` itself, from
+  `langSwitch.current`, after the `hidden` loop so it wins — the editor posts
+  the half it is DRAWING, so the switch, the spellcheck and the save cannot
+  disagree. The three pages' own `hidden.lang` is belt-and-braces on top of
+  that, covering a caller with no switch at all. Every save on the sprout page,
+  not only the body, lands back on the half it came from. The EN/FR switch is
+  dead while the editor is dirty, saving, or uploading an image, because the
+  editor has no `beforeunload` guard — dead but perceivable: no `href`, still
+  a focusable `role="link"` with `aria-disabled` and a "Save first" description.
+  `extractRefs` reads BOTH halves, so a card embedded only in French still
+  mirrors into `relations`. The admin's `lang` shares its name with the public
+  zone's, which is safe only because `middleware.ts`'s language branch never
+  sees an `/admin` path. `lib/admin-lang-middleware.test.ts`,
+  `lib/content-actions-lang-source.test.ts`,
+  `lib/sprout-lang-redirect-source.test.ts` and `lib/edit-lang-source.test.ts`
+  pin it.
 - **The Exhibition panel composes no payload.** Its contents are
   server-rendered by `app/admin/(chrome)/plant/[slug]/page.tsx` and handed down
   as a prop, exactly as `metaForm` / `roleForm` / `logoForm` are, so

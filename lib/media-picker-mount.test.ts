@@ -209,7 +209,7 @@ test("the sprout media form server-renders no submit button and no other field",
   const { SproutMediaForm } = await import("@/app/admin/_components/sprout-media-form");
   const sprout = { slug: "s", name: "Sprout" } as unknown as import("@/lib/data").Sprout;
 
-  const html = await renderScriptOff(React.createElement(SproutMediaForm, { sprout }));
+  const html = await renderScriptOff(React.createElement(SproutMediaForm, { sprout, lang: "en" }));
 
   assert.equal(/<button/i.test(html), false, "a script-off browser must see no submit button");
   assert.equal(html.includes("Save media"), false, "the submit label belongs to the island, not the form");
@@ -232,7 +232,7 @@ test("the Media panel hands the picker the exact contract the builder reads", as
   };
   const sprout = { slug: "s", name: "Sprout", media: [media] } as unknown as import("@/lib/data").Sprout;
 
-  const element = SproutMediaForm({ sprout }) as unknown;
+  const element = SproutMediaForm({ sprout, lang: "en" }) as unknown;
   const picker = findPicker(element, MediaPicker);
 
   assert.ok(picker, "the media form must render a MediaPicker");

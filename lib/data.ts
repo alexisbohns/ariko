@@ -510,6 +510,20 @@ export function textPart(value: Text | undefined, lang: "en" | "fr"): string {
   return value[lang] ?? "";
 }
 
+// A narrative counts as PRESENT when EITHER half has anything in it. Before
+// the bilingual-editing slice this was always `textPart(value, "en").trim()`
+// alone, correctly — the fr half never held prose of its own. Once the editor
+// could save a French half with no English one (`{ fr }`), an admin table
+// still checking only "en" drew a French-only narrative as absent — a
+// narrative that was written and simply not in the language the check looked
+// at. Each half is still read with the STRICT `textPart`, never `resolveText`'s
+// cross-language fallback: this is an OR of two strict reads, not a lenient
+// read of one. Excerpts (`narrativeExcerpt`) stay English-only on purpose —
+// this only changes the yes/no glyph.
+export function hasNarrative(value: Text | undefined): boolean {
+  return textPart(value, "en").trim() !== "" || textPart(value, "fr").trim() !== "";
+}
+
 // Inverse of the paired form inputs (B1): both blank → "", fr blank → a plain
 // string (keeps simple content simple), otherwise { en?, fr } with a blank en
 // omitted. Trims both parts.

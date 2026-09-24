@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
-import { resolveText, textPart } from "@/lib/data";
+import { resolveText } from "@/lib/data";
+import { editLang, editLangHrefs, editorHalves } from "@/lib/edit-lang";
 import { loadRawGarden } from "@/lib/store";
 import { entityOptions } from "@/lib/entity-options";
-import { hubHref } from "@/lib/plant-path";
+import { hubHref, narrativeHref } from "@/lib/plant-path";
 import { editContainerContentAction } from "../../../../actions";
 import { ProseEditor } from "@/components/editor/prose-editor";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -41,16 +42,19 @@ export default async function AdminPlantNarrativePage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; lang?: string }>;
 }) {
   const { slug } = await params;
-  const { error } = await searchParams;
+  const query = await searchParams;
+  const { error } = query;
+  const lang = editLang(query.lang);
 
   const raw = await loadRawGarden();
   const plant = raw.plants?.find((p) => p.slug === slug);
   if (!plant) notFound();
 
   const name = resolveText(plant.name);
+  const ref = `plant:${plant.slug}`;
 
   return (
     <article className="flex flex-col gap-8">
@@ -78,16 +82,18 @@ export default async function AdminPlantNarrativePage({
         </Alert>
       ) : null}
 
-      {/* Moved from the hub verbatim, `bare` included: this page IS the frame,
+      {/* Moved from the hub, `bare` included: this page IS the frame,
           so a card around the editor would be a frame around the only thing on
-          it. STRICT textPart on the load — resolveText's fallback would put the
-          fr half into the editor and save it back as en. */}
+          it. The load goes through `editorHalves` — STRICT per half, so
+          neither half is ever loaded into the other's editor. */}
       <ProseEditor
+        key={lang}
         bare
-        initialMarkdown={textPart(plant.content, "en")}
-        entities={entityOptions(raw, `plant:${plant.slug}`)}
+        {...editorHalves(plant.content, lang)}
+        langSwitch={{ current: lang, hrefs: editLangHrefs(narrativeHref(plant.slug), query) }}
+        entities={entityOptions(raw, ref)}
         action={editContainerContentAction}
-        hidden={{ ref: `plant:${plant.slug}` }}
+        hidden={{ ref, lang }}
       />
     </article>
   );

@@ -1,7 +1,7 @@
 import type { EntityMark } from "@/components/admin/glyphs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { plantFilterGroup, resolveScope } from "@/lib/admin-scope";
-import { PLANT_PREFIX, buildDataset, parentsWithPrefix, resolveText, textPart } from "@/lib/data";
+import { PLANT_PREFIX, buildDataset, hasNarrative, parentsWithPrefix, resolveText } from "@/lib/data";
 import { byResolvedName } from "@/lib/name-order";
 import { loadRawGarden } from "@/lib/store";
 import { AdminFilters, type FilterGroup } from "../../_components/admin-filters";
@@ -97,7 +97,7 @@ export default async function AdminPodsPage({
           slug: pod.slug,
           name: resolveText(pod.name),
           visibility: pod.visibility ?? "public",
-          hasNarrative: textPart(pod.content, "en").trim().length > 0,
+          hasNarrative: hasNarrative(pod.content),
           beanCount: dataset.beansForPod(pod.slug).length,
           plantSlugs,
           ...(plant ? { plant } : {}),

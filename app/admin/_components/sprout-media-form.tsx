@@ -1,4 +1,5 @@
 import type { Sprout } from "@/lib/data";
+import type { Lang } from "@/lib/locale";
 import { editSproutMediaAction } from "../actions";
 import { MediaPicker } from "@/components/admin/media-picker";
 
@@ -24,11 +25,17 @@ import { MediaPicker } from "@/components/admin/media-picker";
  * every stored image. `buildMediaPatch` refuses the same payload server-side
  * via `__ready`, for the POST that never rendered a button at all;
  * `lib/media-picker-mount.test.ts` pins the script-off half.
+ *
+ * `lang` is a plain hidden field beside `slug`, untouched by `__ready`: it
+ * picks nothing about WHAT gets written (media has no fr/en half), only where
+ * `editSproutMediaAction`'s redirect lands — an author on `?lang=fr` saving a
+ * cover image must not be dropped back on the English editor.
  */
-export function SproutMediaForm({ sprout }: { sprout: Sprout }) {
+export function SproutMediaForm({ sprout, lang }: { sprout: Sprout; lang: Lang }) {
   return (
     <form action={editSproutMediaAction} className="flex flex-col gap-4">
       <input type="hidden" name="slug" value={sprout.slug} />
+      <input type="hidden" name="lang" value={lang} />
 
       {/* Order is load-bearing and its consequence is invisible from here: the
           first image becomes the bean's public cover. Saying so on screen, not

@@ -1,4 +1,5 @@
 import { textPart, type Sprout } from "@/lib/data";
+import type { Lang } from "@/lib/locale";
 import { editSproutMetaAction } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,15 +22,21 @@ import { Textarea } from "@/components/ui/textarea";
  * to catch it. It is shown at all because the overlay is where identity is
  * read, and the page's old `slug` / `bean` list has nowhere else to go.
  *
- * No hidden carry-along field, unlike `PlantMetaForm`'s `status`. That one is
- * load-bearing because `buildPlantMetaPatch` reads an absent status as
- * `active`; `buildSproutMetaPatch` names two fields and `updateSproutMeta`
- * writes the same two, so there is nothing a missing input could default.
+ * No hidden carry-along field for the fields themselves, unlike `PlantMetaForm`'s
+ * `status`. That one is load-bearing because `buildPlantMetaPatch` reads an
+ * absent status as `active`; `buildSproutMetaPatch` names two fields and
+ * `updateSproutMeta` writes the same two, so there is nothing a missing input
+ * could default. `lang` IS carried along regardless — not to pick which half
+ * gets written (this form has no fr/en choice of its own; both halves post
+ * together), but to pick which half of the URL the redirect lands the author
+ * back on (`sproutHref`, app/admin/actions.ts): an author on `?lang=fr` who
+ * renames the sprout must not be dropped back on the English editor.
  */
-export function SproutMetaForm({ sprout }: { sprout: Sprout }) {
+export function SproutMetaForm({ sprout, lang }: { sprout: Sprout; lang: Lang }) {
   return (
     <form action={editSproutMetaAction} className="flex flex-col gap-5">
       <input type="hidden" name="slug" value={sprout.slug} />
+      <input type="hidden" name="lang" value={lang} />
 
       <p className="font-heading text-xs text-muted-foreground">
         <span className="text-muted-foreground/70">slug</span> {sprout.slug}
