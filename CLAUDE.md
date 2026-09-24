@@ -234,13 +234,13 @@ while quietly becoming false.
   disagree. The three pages' own `hidden.lang` is belt-and-braces on top of
   that, covering a caller with no switch at all. Every save on the sprout page,
   not only the body, lands back on the half it came from. The EN/FR switch is
-  dead while the editor is dirty, because the editor has no `beforeunload`
-  guard — dead but perceivable: no `href`, still a focusable `role="link"`
-  with `aria-disabled` and a "Save first" description. `extractRefs` reads
-  BOTH halves, so a card embedded only in French still mirrors into
-  `relations`. The admin's `lang` shares its name with the public zone's,
-  which is safe only because `middleware.ts`'s language branch never sees an
-  `/admin` path. `lib/admin-lang-middleware.test.ts`,
+  dead while the editor is dirty, saving, or uploading an image, because the
+  editor has no `beforeunload` guard — dead but perceivable: no `href`, still
+  a focusable `role="link"` with `aria-disabled` and a "Save first" description.
+  `extractRefs` reads BOTH halves, so a card embedded only in French still
+  mirrors into `relations`. The admin's `lang` shares its name with the public
+  zone's, which is safe only because `middleware.ts`'s language branch never
+  sees an `/admin` path. `lib/admin-lang-middleware.test.ts`,
   `lib/content-actions-lang-source.test.ts`,
   `lib/sprout-lang-redirect-source.test.ts` and `lib/edit-lang-source.test.ts`
   pin it.

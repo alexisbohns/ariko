@@ -8,6 +8,7 @@ import {
   composeText,
   filterPublic,
   getDataset,
+  hasNarrative,
   publishCascade,
   textPart,
   unpublishCascade,
@@ -380,6 +381,22 @@ test("textPart returns empty for a missing part (no cross-language fallback)", (
 test("textPart of an absent value is empty", () => {
   assert.equal(textPart(undefined, "en"), "");
   assert.equal(textPart(undefined, "fr"), "");
+});
+
+test("hasNarrative is true for an English-only string, exactly as before French was writable", () => {
+  assert.equal(hasNarrative("hello"), true);
+});
+
+test("hasNarrative is true for an fr-only object — a narrative can now exist as { fr } alone", () => {
+  assert.equal(hasNarrative({ fr: "Salut" }), true);
+});
+
+test("hasNarrative is true when either half is non-blank, false only when both are", () => {
+  assert.equal(hasNarrative({ en: "Hi", fr: "" }), true);
+  assert.equal(hasNarrative({ en: "", fr: "Salut" }), true);
+  assert.equal(hasNarrative({ en: "  ", fr: "  " }), false);
+  assert.equal(hasNarrative(undefined), false);
+  assert.equal(hasNarrative(""), false);
 });
 
 test("composeText with both parts blank is the empty string", () => {

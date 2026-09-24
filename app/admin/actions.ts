@@ -308,7 +308,7 @@ export async function editContentAction(formData: FormData): Promise<void> {
   const existing = await getSprout(slug);
   if (!existing) redirect("/admin/sprouts");
 
-  const back = `/admin/sprout/${encodeURIComponent(slug)}`;
+  const back = sproutHref(slug);
   const field = parseEditLangField(formData.get("lang"));
   if (!field.ok) {
     redirect(`${back}?error=${encodeURIComponent(`could not save content: ${field.error}`)}`);

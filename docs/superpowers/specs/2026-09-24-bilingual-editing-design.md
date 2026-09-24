@@ -1,7 +1,7 @@
 # Editing an article's French half
 
 **Date:** 2026-09-24
-**Status:** designed, not yet implemented
+**Status:** implemented (branch bilingual-editing)
 
 ## What this finishes
 
@@ -96,6 +96,17 @@ disagree with the surface it diagnoses.
 on any of the three pages changes — the sprout head still draws
 `resolveText(name)` in English.
 
+One admin-index side effect follows from French becoming writable: the plant
+and pod tables' "has a narrative" glyph used to check `textPart(content, "en")`
+alone, which was correct while the fr half never held prose of its own. A
+narrative can now exist as `{ fr }` with no English, and that old check drew it
+as absent — written, and simply in the language the check did not look at.
+`lib/data.ts`'s `hasNarrative(content)` checks both halves (STRICT, still no
+cross-language fallback) and replaces the one-sided read at all three call
+sites. The plant hub's excerpt stays English-only (`narrativeExcerpt` over
+`textPart(plant.content, "en")`) — this only changes the yes/no glyph, not what
+displays.
+
 ### 3. The switch lives in the editor
 
 `ProseEditor` gains an optional `langSwitch: { current: Lang; hrefs: Record<Lang, string> }`.
@@ -106,12 +117,13 @@ visible code and says what it does (`EN — edit English`), so a voice-control
 user who says "click FR" finds it (WCAG 2.5.3).
 
 It lives **inside** the editor rather than in the page head because only the
-editor knows whether there is unsaved text. **While the document is dirty,
-both links are disabled**: no `href` at all, but still a focusable
-`role="link"` with `aria-disabled`, so assistive tech is told the control
-exists and is unavailable rather than meeting plain text, and *Save first*
-reaches everyone — the registry Tooltip for pointer and focus, and
-`aria-describedby` for screen readers. The editor has no `beforeunload` guard today; without this, a stray
+editor knows whether there is unsaved text. **While the editor is dirty,
+saving, or uploading an image, both links are disabled** (`dirty || pending ||
+imageBusy`): no `href` at all, but still a focusable `role="link"` with
+`aria-disabled`, so assistive tech is told the control exists and is
+unavailable rather than meeting plain text, and *Save first* reaches everyone —
+the registry Tooltip for pointer and focus, and `aria-describedby` for screen
+readers. The editor has no `beforeunload` guard today; without this, a stray
 click on `FR` in the middle of a paragraph would navigate and drop it, and the
 French editor that opened would be empty — indistinguishable from a paragraph
 that was never written.

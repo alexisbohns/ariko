@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import {
   buildDataset,
+  hasNarrative,
   resolveText,
   textPart,
   PLANT_PREFIX,
@@ -110,7 +111,7 @@ export default async function AdminPlantPage({
     slug: pod.slug,
     name: resolveText(pod.name),
     visibility: pod.visibility ?? "public",
-    hasNarrative: textPart(pod.content, "en").trim().length > 0,
+    hasNarrative: hasNarrative(pod.content),
     beanCount: dataset.beansForPod(pod.slug).length,
   }));
 

@@ -1,5 +1,5 @@
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { resolveText, textPart, type Plant } from "@/lib/data";
+import { hasNarrative, resolveText, type Plant } from "@/lib/data";
 import { greeting } from "@/lib/greeting";
 import { byResolvedName } from "@/lib/name-order";
 import { roleLine } from "@/lib/plant-role";
@@ -24,7 +24,7 @@ function toRow(plant: Plant): PlantRow {
     ...(plant.logo?.url ? { logoUrl: plant.logo.url } : {}),
     role: { kind: plant.role.kind, label: roleLine(plant.role) },
     status: statusOf(plant),
-    hasNarrative: textPart(plant.content, "en").trim().length > 0,
+    hasNarrative: hasNarrative(plant.content),
   };
 }
 

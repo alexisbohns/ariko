@@ -11,11 +11,12 @@ import { PreviewSection } from "./preview-panel";
  * plant contains rather than as an appliance parked in the middle of a list.
  *
  * This component DERIVES NOTHING. The excerpt is computed by the page with
- * `narrativeExcerpt` over the same STRICT `textPart(plant.content, "en")` the
- * editor loads, and arrives as a string; the href is built by the page from
- * `narrativeHref`. That is the same posture `ExhibitionPanel` takes on the
- * rail, and it is what keeps a second idea of "which half of a bilingual
- * field" out of this file.
+ * `narrativeExcerpt` over the STRICT `textPart(plant.content, "en")` — the
+ * editor's ENGLISH half, not necessarily the half it currently has open (the
+ * editor may be showing French) — and arrives as a string; the href is built
+ * by the page from `narrativeHref`. That is the same posture `ExhibitionPanel`
+ * takes on the rail, and it is what keeps a second idea of "which half of a
+ * bilingual field" out of this file.
  *
  * The clamp is a display cap over a cut that already happened: `narrativeExcerpt`
  * bounds the STRING (so a 40,000-word narrative never reaches the browser) and
