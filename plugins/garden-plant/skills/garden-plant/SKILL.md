@@ -204,7 +204,7 @@ stops the run with nothing touched.
   stored `"digest "` draws identically to `"digest"` everywhere and matches
   none of the three.
 - **Every bilingual pair needs a non-blank `en`.** `fr` may be omitted.
-- **`content` is capped at 64 KiB per language.** A narrative, not a book.
+- **`content` is capped at 512 KiB per language.** Room for a long essay; still not a book.
 
 One YAML habit worth keeping: **wrap any single-line value containing a colon
 in double quotes**. A colon is natural French punctuation ("ta machine : Krabs

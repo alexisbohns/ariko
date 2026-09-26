@@ -102,7 +102,7 @@ Pure, in `lib/articles.ts`, all-or-nothing, first failure names the offender:
 
 - `container` is a `plant:`/`pod:` ref matching the slug grammar `^[a-z0-9][a-z0-9-]*$`; `bean:` is
   refused (a bean's narrative is its sprout's content, not a field).
-- `narrative`, when present, is a string of at most **64 KiB** (the largest Paulopus focus is ~8 KB,
+- `narrative`, when present, is a string of at most **64 KiB** (raised to 512 KiB on 2026-09-27; the largest Paulopus focus is ~8 KB,
   the molecule ~12 KB).
 - Each article: `slug` matching the slug grammar and unique within the batch; `name` non-blank;
   `date` `YYYY-MM-DD`; `content` a string of at most 64 KiB; `description` optional; **any `state`

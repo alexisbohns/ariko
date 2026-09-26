@@ -3,9 +3,10 @@ import { textPart } from "./data";
 import { extractRefs, mergeMirrored } from "./entity-refs";
 import type { Lang } from "./locale";
 
-// The article door's ceiling (article-door spec §4), applied to the same field
-// from the authoring side so the two doors agree on what fits.
-export const MAX_CONTENT_BYTES = 64 * 1024;
+// The article door's ceiling, applied to the same field from the authoring side
+// — ONE constant, so the two doors cannot disagree on what fits.
+import { MAX_CONTENT_BYTES } from "./articles";
+export { MAX_CONTENT_BYTES };
 
 /** The slice of a Sprout / Plant / Pod this module cares about. */
 export interface ContentOwner {

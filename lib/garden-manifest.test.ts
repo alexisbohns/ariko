@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseManifest } from "./garden-manifest";
+import { MAX_CONTENT_BYTES } from "./content-edit";
+
+const CAP = new RegExp(`${MAX_CONTENT_BYTES / 1024} KiB`);
 
 const MINIMAL = `
 pod:
@@ -183,8 +186,8 @@ beans:
   assert.match(result.error, /beans\[0\]/);
 });
 
-test("rejects content over 64 KiB", () => {
-  const big = "a".repeat(64 * 1024 + 1);
+test("rejects content over the cap", () => {
+  const big = "a".repeat(MAX_CONTENT_BYTES + 1);
   const result = parseManifest(`
 pod:
   slug: krabs
@@ -197,11 +200,11 @@ beans: []
   assert.equal(result.ok, false);
   if (result.ok) return;
   assert.match(result.error, /pod\.content\.en/);
-  assert.match(result.error, /64 KiB/);
+  assert.match(result.error, CAP);
 });
 
 test("rejects an oversized fr content, not just en", () => {
-  const big = "a".repeat(64 * 1024 + 1);
+  const big = "a".repeat(MAX_CONTENT_BYTES + 1);
   const result = parseManifest(`
 pod:
   slug: krabs
@@ -214,7 +217,7 @@ beans: []
   assert.equal(result.ok, false);
   if (result.ok) return;
   assert.match(result.error, /pod\.content\.fr/);
-  assert.match(result.error, /64 KiB/);
+  assert.match(result.error, CAP);
 });
 
 test("rejects a missing slug distinctly from checkSlug's empty branch", () => {

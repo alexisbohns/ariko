@@ -23,7 +23,15 @@ export interface ArticlesPayload {
   articles?: ArticleInput[];
 }
 
-export const MAX_CONTENT_BYTES = 64 * 1024;
+// Per part, per language. Was 64 KiB when the largest article was ~12 KB; the
+// first long-form article outgrew it. It is an authoring ceiling, not a
+// platform one — server actions accept ~4 MiB (next.config.ts) and a Mongo
+// document 16 MiB — so the number is headroom, chosen well under both. The
+// editor re-serializes the whole document on every burst of typing, which is
+// the cost that grows with it. `lib/content-edit.ts` re-exports this, so the
+// authoring door and the article door cannot drift apart.
+export const MAX_CONTENT_BYTES = 512 * 1024;
+const MAX_CONTENT_LABEL = `${MAX_CONTENT_BYTES / 1024} KiB`;
 
 const SLUG = /^[a-z0-9][a-z0-9-]*$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -54,7 +62,7 @@ function validateText(
 ): { ok: true } | { ok: false; error: string } {
   if (typeof value === "string") {
     if (required && !value.trim()) return { ok: false, error: `${label} is required` };
-    if (tooBig(value)) return { ok: false, error: `${label} must be at most 64 KiB` };
+    if (tooBig(value)) return { ok: false, error: `${label} must be at most ${MAX_CONTENT_LABEL}` };
     return { ok: true };
   }
   if (typeof value !== "object" || value === null || Array.isArray(value))
@@ -71,7 +79,7 @@ function validateText(
   for (const [key, part] of entries) {
     if (typeof part !== "string")
       return { ok: false, error: `${label}.${key} must be a string` };
-    if (tooBig(part)) return { ok: false, error: `${label}.${key} must be at most 64 KiB` };
+    if (tooBig(part)) return { ok: false, error: `${label}.${key} must be at most ${MAX_CONTENT_LABEL}` };
   }
   if (required && !entries.some(([, part]) => (part as string).trim()))
     return { ok: false, error: `${label} is required` };
