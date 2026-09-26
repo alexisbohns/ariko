@@ -24,12 +24,20 @@
  *  - NEVER `parents` ON AN UPDATE. Re-homing an entity is the same
  *    privacy-cascade decision, and it belongs to the admin. Parentage is
  *    written once, at creation, from the manifest's own nesting.
+ *  - AN IMAGE IS WRITTEN ONLY WHERE THERE IS NONE. A bean's `cover` and a
+ *    sprout's `media` come from the manifest at creation, and on `--update`
+ *    only when the stored entity carries no image — a cover the maintainer
+ *    picked in the admin is a decision a routine re-plant must not undo. The
+ *    `assets` map holds exactly what `assetsNeeded` (`lib/garden-assets.ts`)
+ *    said would be needed; the applier asks it the same question, so a miss
+ *    is a bug in the flow and throws rather than writing nothing quietly.
  *  - `--update` TOUCHES `name`, `description` AND `content` ONLY. That is why
  *    the update branches call the narrow writers (`updateBeanMeta`,
  *    `updateSproutMeta`, the two content writers) rather than re-running a
  *    creator: a creator would re-assert every field, parentage included.
  */
-import { createPod, createBean, createSprout, updatePodContent, updateBeanMeta, updateSproutMeta, updateSproutContent } from "./botanical";
+import { createPod, createBean, createSprout, updatePodContent, updateBeanMeta, updateBeanCover, updateSproutMeta, updateSproutContent, updateSproutMedia } from "./botanical";
+import { uploadedFor, type UploadedAssets } from "./garden-assets";
 import { extractRefs, mergeMirrored } from "./entity-refs";
 import type { Relation, Text } from "./data";
 import type { ContentPatch } from "./content-edit";
@@ -76,7 +84,11 @@ function contentPatch(content: Text, existing: Relation[] | undefined): ContentP
  * read could answer with a garden that changed in between, and an update would
  * then merge against relations the plan never saw.
  */
-export async function applyPlan(plan: PlanAction[], garden: GardenSlugs): Promise<void> {
+export async function applyPlan(
+  plan: PlanAction[],
+  garden: GardenSlugs,
+  assets: UploadedAssets = new Map(),
+): Promise<void> {
   for (const action of plan) {
     if (action.action === "skip") continue;
 
@@ -114,8 +126,13 @@ export async function applyPlan(plan: PlanAction[], garden: GardenSlugs): Promis
           podSlug: action.parentSlug,
           plantSlug: null,
         });
+        if (bean.cover) await updateBeanCover(bean.slug, uploadedFor(assets, bean.cover));
       } else {
         await updateBeanMeta(bean.slug, { name: bean.name, description: bean.description });
+        const existing = garden.beans.find((b) => b.slug === bean.slug);
+        if (bean.cover && !existing?.cover) {
+          await updateBeanCover(bean.slug, uploadedFor(assets, bean.cover));
+        }
       }
       continue;
     }
@@ -130,7 +147,7 @@ export async function applyPlan(plan: PlanAction[], garden: GardenSlugs): Promis
         description: sprout.description,
         state: "draft",
         parents: [`bean:${action.parentSlug}`],
-        media: [],
+        media: (sprout.media ?? []).map((image) => uploadedFor(assets, image)),
         source: { kind: "manifest" },
         ...(sprout.content
           ? { content: sprout.content, relations: mergeMirrored(undefined, extractRefs(sprout.content)) }
@@ -138,9 +155,12 @@ export async function applyPlan(plan: PlanAction[], garden: GardenSlugs): Promis
       });
     } else {
       await updateSproutMeta(sprout.slug, { name: sprout.name, description: sprout.description });
+      const stored = garden.sprouts.find((s) => s.slug === sprout.slug);
       if (sprout.content !== undefined) {
-        const existing = garden.sprouts.find((s) => s.slug === sprout.slug)?.relations;
-        await updateSproutContent(sprout.slug, contentPatch(sprout.content, existing));
+        await updateSproutContent(sprout.slug, contentPatch(sprout.content, stored?.relations));
+      }
+      if (sprout.media?.length && !stored?.media?.length) {
+        await updateSproutMedia(sprout.slug, sprout.media.map((image) => uploadedFor(assets, image)));
       }
     }
   }

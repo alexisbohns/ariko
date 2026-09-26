@@ -57,12 +57,27 @@ function checkSlug(raw: unknown, where: string): string | null {
  */
 const FORBIDDEN_KEYS = ["visibility", "state", "exhibited", "order", "relations", "parents"] as const;
 
+/**
+ * Image keys that exist on ONE tier only: `cover` is a bean's (`Bean.cover`),
+ * `media` is a sprout's (`Sprout.media`). Named per tier so a cover on a
+ * sprout is refused with where it belongs, rather than parsing, writing
+ * nothing, and leaving the author sure their screenshot went somewhere.
+ */
+const MISPLACED_IMAGE_KEYS: Record<"pod" | "bean" | "sprout", Array<[string, string]>> = {
+  pod: [["cover", "a pod has no cover — put it on a bean"], ["media", "a pod has no media — put it on a sprout"]],
+  bean: [["media", "a bean has no media — put it on one of its sprouts; a bean takes one cover"]],
+  sprout: [["cover", "a sprout has no cover — put it on its bean; a sprout takes media"]],
+};
+
 /** The first forbidden key present on `raw`, as a full "`${where}.key`" error, or null. */
-function checkForbiddenKeys(raw: Record<string, unknown>, where: string): string | null {
+function checkForbiddenKeys(raw: Record<string, unknown>, where: string, tier: "pod" | "bean" | "sprout"): string | null {
   for (const key of FORBIDDEN_KEYS) {
     if (raw[key] !== undefined) {
       return `${where}.${key} is not allowed in a manifest`;
     }
+  }
+  for (const [key, why] of MISPLACED_IMAGE_KEYS[tier]) {
+    if (raw[key] !== undefined) return `${where}.${key}: ${why}`;
   }
   return null;
 }
@@ -84,6 +99,19 @@ function checkContentSize(text: Text, where: string): string | null {
   return null;
 }
 
+/**
+ * An image the manifest points at: a path RELATIVE TO THE MANIFEST FILE, and
+ * an optional alt text. The manifest never carries a URL or a storage key —
+ * those are minted by the upload at plant time (`lib/garden-assets.ts`), so a
+ * file in a sibling repo can name a screenshot beside it and nothing else.
+ * Written as a bare string (`cover: shots/import.png`) or a mapping
+ * (`cover: { file: shots/import.png, alt: The import screen }`).
+ */
+export interface ManifestImage {
+  file: string;
+  alt?: string;
+}
+
 export interface ManifestSprout {
   slug: string;
   type: string;
@@ -91,6 +119,8 @@ export interface ManifestSprout {
   name: Text;
   description: Text;
   content?: Text;
+  /** Images rendered in the sprout's body, in order. */
+  media?: ManifestImage[];
 }
 
 export interface ManifestBean {
@@ -98,6 +128,8 @@ export interface ManifestBean {
   name: Text;
   description: Text;
   sprouts: ManifestSprout[];
+  /** The one image on the bean's card and page head. */
+  cover?: ManifestImage;
 }
 
 export interface ManifestPod {
@@ -147,6 +179,69 @@ function isMapping(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Raster formats the upload door accepts (`lib/upload-input.ts`'s
+ * ALLOWED_TYPES), keyed by extension so a manifest can be refused for a `.svg`
+ * or a `.pdf` before any file is opened. SVG is absent on purpose there and
+ * therefore here: it is an image the browser executes script from.
+ */
+export const IMAGE_EXTENSIONS: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+  avif: "image/avif",
+};
+
+/** The MIME type a manifest image path implies, or null when the extension is not a raster we accept. */
+export function imageMimeType(file: string): string | null {
+  const ext = file.toLowerCase().split(".").pop() ?? "";
+  return IMAGE_EXTENSIONS[ext] ?? null;
+}
+
+type ImageResult = { ok: true; image: ManifestImage } | { ok: false; error: string };
+
+/**
+ * `cover: path` or `cover: { file, alt }`. The path must be RELATIVE: an
+ * absolute one names a file on the author's machine, which the maintainer
+ * planting from another checkout does not have, and a `..` segment reaches
+ * outside the repo the manifest describes. Both would fail later with an
+ * ENOENT that says nothing about why; refusing here says it in the file's own
+ * terms.
+ */
+function readImage(value: unknown, where: string): ImageResult {
+  let file: unknown;
+  let alt: unknown;
+  if (typeof value === "string") {
+    file = value;
+  } else if (isMapping(value)) {
+    file = value.file;
+    alt = value.alt;
+  } else {
+    return { ok: false, error: `${where} must be a file path or a mapping with a "file" key` };
+  }
+  if (typeof file !== "string" || !file.trim()) {
+    return { ok: false, error: `${where}.file is required` };
+  }
+  const path = file.trim();
+  if (path.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(path) || path.split(/[\\/]/).includes("..")) {
+    return { ok: false, error: `${where}.file must be a path relative to the manifest, inside the repo (got "${path}")` };
+  }
+  if (imageMimeType(path) === null) {
+    return {
+      ok: false,
+      error: `${where}.file must be a raster image (${Object.keys(IMAGE_EXTENSIONS).join(", ")}) (got "${path}")`,
+    };
+  }
+  if (alt !== undefined && typeof alt !== "string") {
+    return { ok: false, error: `${where}.alt must be a string` };
+  }
+  const image: ManifestImage = { file: path };
+  if (typeof alt === "string" && alt.trim()) image.alt = alt.trim();
+  return { ok: true, image };
+}
+
 type PodResult = { ok: true; pod: ManifestPod } | { ok: false; error: string };
 
 function buildPod(raw: Record<string, unknown>): PodResult {
@@ -158,7 +253,7 @@ function buildPod(raw: Record<string, unknown>): PodResult {
   const slugError = checkSlug(raw.slug, "pod");
   if (slugError) return { ok: false, error: slugError };
 
-  const forbiddenError = checkForbiddenKeys(raw, "pod");
+  const forbiddenError = checkForbiddenKeys(raw, "pod", "pod");
   if (forbiddenError) return { ok: false, error: forbiddenError };
 
   const pod: ManifestPod = {
@@ -188,7 +283,7 @@ function buildSprout(raw: Record<string, unknown>, where: string): SproutResult 
   const slugError = checkSlug(raw.slug, where);
   if (slugError) return { ok: false, error: slugError };
 
-  const forbiddenError = checkForbiddenKeys(raw, where);
+  const forbiddenError = checkForbiddenKeys(raw, where, "sprout");
   if (forbiddenError) return { ok: false, error: forbiddenError };
 
   const type = str(raw.type);
@@ -216,6 +311,16 @@ function buildSprout(raw: Record<string, unknown>, where: string): SproutResult 
     if (sizeError) return { ok: false, error: sizeError };
     sprout.content = content.text;
   }
+  if (raw.media !== undefined) {
+    if (!Array.isArray(raw.media)) return { ok: false, error: `${where}.media must be a list of image paths` };
+    const media: ManifestImage[] = [];
+    for (let k = 0; k < raw.media.length; k += 1) {
+      const image = readImage(raw.media[k], `${where}.media[${k}]`);
+      if (!image.ok) return { ok: false, error: image.error };
+      media.push(image.image);
+    }
+    sprout.media = media;
+  }
   return { ok: true, sprout };
 }
 
@@ -230,7 +335,7 @@ function buildBean(raw: Record<string, unknown>, where: string): BeanResult {
   const slugError = checkSlug(raw.slug, where);
   if (slugError) return { ok: false, error: slugError };
 
-  const forbiddenError = checkForbiddenKeys(raw, where);
+  const forbiddenError = checkForbiddenKeys(raw, where, "bean");
   if (forbiddenError) return { ok: false, error: forbiddenError };
 
   // A `Bean` has no `content` field at all — only `Pod` and `Plant` carry
@@ -258,10 +363,13 @@ function buildBean(raw: Record<string, unknown>, where: string): BeanResult {
     sprouts.push(result.sprout);
   }
 
-  return {
-    ok: true,
-    bean: { slug: str(raw.slug), name: name.text, description: description.text, sprouts },
-  };
+  const bean: ManifestBean = { slug: str(raw.slug), name: name.text, description: description.text, sprouts };
+  if (raw.cover !== undefined) {
+    const cover = readImage(raw.cover, `${where}.cover`);
+    if (!cover.ok) return { ok: false, error: cover.error };
+    bean.cover = cover.image;
+  }
+  return { ok: true, bean };
 }
 
 export function parseManifest(yamlText: string): ParseResult {

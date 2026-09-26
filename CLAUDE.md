@@ -524,6 +524,15 @@ Four rules the tests pin, each of which passes `tsc`, `npm test` **and**
   for an edit path" — `--update` is an edit path, and passing `undefined` there
   deletes every non-mirrored kind with nothing failing anywhere. The parameter is
   required so no future call site can omit it back into the bug.
+- **An image is written only where there is none.** A bean's `cover:` and a
+  sprout's `media:` are manifest-relative file paths; `lib/garden-assets.ts`
+  stats and size-checks every one through the same `checkUploadFile` the admin
+  picker uses BEFORE the garden is read, uploads only what `assetsNeeded` says
+  a created or image-less entity will take, and the applier looks each one up
+  by the author's own path. On `--update` a stored cover or media is never
+  replaced: a cover the maintainer chose in the admin is a decision, and a
+  routine re-plant must not undo it. `lib/garden-assets.test.ts` pins it with
+  a fake disk and a fake uploader.
 - **The script does not invalidate the cache, deliberately.** A CLI has no Next
   request store, so `revalidateGarden()` would take its tolerated branch and do
   nothing — an invalidation that looks like one and is not. It is also
