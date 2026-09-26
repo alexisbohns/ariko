@@ -153,6 +153,33 @@ Notes on the shape:
 - `plant:` is either `null` or the slug of a plant that already exists in the
   garden. When unsure, use `null` and let the maintainer re-home it.
 
+## Screenshots and covers
+
+A bean can carry one **cover** image and a sprout can carry **media** — images
+rendered in its body. Both are **file paths relative to `garden.yml`**, pointing
+at rasters checked into this repo. Planting uploads them and stores the
+result; the manifest never holds a URL.
+
+```yaml
+beans:
+  - slug: ledger-import
+    cover: garden/ledger-import.png
+    sprouts:
+      - slug: krabs-ofx-import
+        media:
+          - garden/ofx-dialog.png
+          - { file: garden/ofx-result.webp, alt: "The ledger after an OFX import" }
+```
+
+- Keep them in one folder beside the manifest (`garden/` is the habit).
+- PNG, JPEG, GIF, WebP or AVIF, **4 MB max** each. No SVG.
+- The path must stay inside the repo: no leading `/`, no `..`.
+- Every file is checked before anything is uploaded or written; a missing
+  ninth screenshot fails the whole run with nothing touched.
+- **An image is never replaced on re-plant.** `--update` writes a cover or
+  media only where the entity has none, so a cover the maintainer swapped in
+  the admin survives the next run.
+
 ## What the validator checks
 
 The whole file is checked before anything is written, and the first problem
@@ -198,6 +225,7 @@ Each of these is a **hard error**, not a field quietly dropped:
 | `relations` | Derived from the prose's own references, never authored. |
 | `parents` | Containment; re-homing an entity is a privacy decision. |
 | `content` on a bean | A bean has no such field — use a sprout. |
+| `cover` on a pod or sprout, `media` on a bean | A cover is a bean's; media is a sprout's. |
 
 **Everything a manifest creates is private.** Sprouts land as drafts. The
 maintainer publishes in the admin, where the vocabulary is a list of radios and
@@ -232,8 +260,8 @@ npm run garden:plant -- ../<this-repo>/garden.yml --dry-run
 npm run garden:plant -- ../<this-repo>/garden.yml
 ```
 
-The dry run prints the plan — a `create` or `skip` per entity — and writes
-nothing.
+The dry run prints the plan — a `create` or `skip` per entity, plus the list
+of images it would upload — and writes nothing.
 
 **Re-running is safe.** A slug that already exists is skipped, so planting the
 same file twice changes nothing. `--update` opts into rewriting names,

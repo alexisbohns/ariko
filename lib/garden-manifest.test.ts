@@ -419,3 +419,66 @@ beans:
     fr: "Corps du sprout",
   });
 });
+
+const WITH_IMAGES = (cover: string, media: string) => `
+pod:
+  slug: krabs
+  name: { en: Krabs }
+  plant: null
+  description: { en: A small ledger. }
+beans:
+  - slug: ledger
+    name: { en: Ledger }
+    description: { en: The ledger bean. }
+    cover: ${cover}
+    sprouts:
+      - slug: first-entry
+        type: note
+        date: 2026-09-13
+        name: { en: First entry }
+        description: { en: The first entry. }
+        media: ${media}
+`;
+
+test("a bean cover and sprout media parse as manifest-relative paths, bare or with alt", () => {
+  const result = parseManifest(
+    WITH_IMAGES("shots/ledger.png", '[shots/one.jpg, { file: shots/two.webp, alt: "The second" }]'),
+  );
+  assert.equal(result.ok, true, result.ok ? "" : result.error);
+  if (!result.ok) return;
+  assert.deepEqual(result.manifest.beans[0].cover, { file: "shots/ledger.png" });
+  assert.deepEqual(result.manifest.beans[0].sprouts[0].media, [
+    { file: "shots/one.jpg" },
+    { file: "shots/two.webp", alt: "The second" },
+  ]);
+});
+
+test("an image path must be relative and inside the repo", () => {
+  const abs = parseManifest(WITH_IMAGES("/Users/me/shot.png", "[]"));
+  assert.equal(abs.ok, false);
+  if (!abs.ok) assert.match(abs.error, /beans\[0\]\.cover\.file must be a path relative/);
+  const up = parseManifest(WITH_IMAGES("shots/a.png", "[../../etc/shot.png]"));
+  assert.equal(up.ok, false);
+  if (!up.ok) assert.match(up.error, /sprouts\[0\]\.media\[0\]\.file must be a path relative/);
+});
+
+test("an image must be a raster the upload door accepts — never an SVG", () => {
+  const result = parseManifest(WITH_IMAGES("shots/logo.svg", "[]"));
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.error, /beans\[0\]\.cover\.file must be a raster image/);
+});
+
+test("media must be a list", () => {
+  const result = parseManifest(WITH_IMAGES("shots/a.png", "shots/b.png"));
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.error, /media must be a list/);
+});
+
+test("an image key on the wrong tier is refused and told where it belongs", () => {
+  const onSprout = parseManifest(WITH_IMAGES("shots/a.png", "[]").replace("media: []", "cover: shots/b.png"));
+  assert.equal(onSprout.ok, false);
+  if (!onSprout.ok) assert.match(onSprout.error, /sprouts\[0\]\.cover: a sprout has no cover/);
+  const onBean = parseManifest(WITH_IMAGES("shots/a.png", "[]").replace("cover: shots/a.png", "media: [shots/a.png]"));
+  assert.equal(onBean.ok, false);
+  if (!onBean.ok) assert.match(onBean.error, /beans\[0\]\.media: a bean has no media/);
+});

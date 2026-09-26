@@ -1,7 +1,10 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
+import { dirname } from "node:path";
 import { parseManifest } from "../lib/garden-manifest";
 import { planGarden, renderPlan } from "../lib/garden-plan";
 import { applyPlan } from "../lib/plant-garden-apply";
+import { assetsNeeded, checkAssets, uploadAssets, type AssetFs } from "../lib/garden-assets";
+import { cloudinaryStorage } from "../lib/storage";
 import { loadRawGarden } from "../lib/store";
 
 /**
@@ -17,6 +20,13 @@ import { loadRawGarden } from "../lib/store";
  * that can be wrong in a way worth testing lives in `lib/garden-manifest.ts`
  * (the author's file), `lib/garden-plan.ts` (this garden) and
  * `lib/plant-garden-apply.ts` (the writes).
+ *
+ * IMAGES ARE CHECKED ON DISK BEFORE THE DATABASE IS READ, AND UPLOADED AFTER
+ * THE PLAN IS PRINTED. A manifest's `cover:` and `media:` paths are relative
+ * to the manifest file. Every one is stat'd and size-checked first, so a typo
+ * in the twelfth path fails with nothing minted in Cloudinary; then only the
+ * files the plan will actually hand to a created (or image-less) entity are
+ * uploaded, right before the writes — see `lib/garden-assets.ts`.
  *
  * THE WHOLE FILE IS VALIDATED BEFORE THE DATABASE IS TOUCHED. A manifest that
  * failed halfway would leave a pod that exists with three of its five beans
@@ -84,6 +94,25 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  const baseDir = dirname(args.path);
+  const diskFs: AssetFs = {
+    size: (p) => {
+      try {
+        const st = statSync(p);
+        return st.isFile() ? st.size : null;
+      } catch {
+        return null;
+      }
+    },
+    read: (p) => readFileSync(p),
+  };
+  const assetCheck = checkAssets(parsed.manifest, baseDir, diskFs);
+  if (!assetCheck.ok) {
+    console.error(`manifest invalid: ${assetCheck.error}`);
+    console.error("nothing was written.");
+    process.exit(1);
+  }
+
   const garden = await loadRawGarden();
   // `RawGarden`'s tiers are optional; `GardenSlugs` names the three this plan
   // diffs against, so the widening happens here rather than inside the planner.
@@ -91,15 +120,22 @@ async function main(): Promise<void> {
   const plan = planGarden(parsed.manifest, slugs, { update: args.update });
 
   console.log(renderPlan(plan));
+  const needed = assetsNeeded(plan, slugs);
+  if (needed.length > 0) {
+    console.log(`${needed.length} image${needed.length === 1 ? "" : "s"} to upload: ${needed.map((i) => i.file).join(", ")}`);
+  }
   console.log("");
 
   if (args.dryRun) {
-    console.log("--dry-run: nothing was written.");
+    console.log("--dry-run: nothing was written, nothing was uploaded.");
     process.exit(0);
   }
 
+  const assets = await uploadAssets(needed, baseDir, diskFs, cloudinaryStorage);
+  for (const [file, image] of assets) console.log(`upload ${file} -> ${image.url}`);
+
   // The SAME snapshot the plan was computed against — never a second read.
-  await applyPlan(plan, slugs);
+  await applyPlan(plan, slugs, assets);
 
   for (const action of plan) {
     if (action.action === "skip") continue;

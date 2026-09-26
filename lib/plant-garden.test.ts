@@ -180,6 +180,44 @@ test("--update preserves hand-authored relations", { skip: !hasDb }, async (t) =
   assert.deepEqual(pod?.relations, [{ kind: "evolves-from", ref: "pod:something" }]);
 });
 
+test("a manifest cover and media are written at creation and never replaced on --update", { skip: !hasDb }, async (t) => {
+  await ensureBotanicalIndexes();
+  await cleanup();
+  t.after(cleanup);
+
+  const yaml = manifestYaml("The narrative.", "Le récit.")
+    .replace("    sprouts:", "    cover: shots/import.png\n    sprouts:")
+    .replace("        content: { en: Body., fr: Corps. }", "        content: { en: Body., fr: Corps. }\n        media: [{ file: shots/first.png, alt: First }]");
+
+  // `applyPlan` takes the ALREADY-uploaded map; the fake stands in for
+  // Cloudinary so the write path is exercised with no network.
+  const first = { kind: "image" as const, storageKey: "k1", url: "https://cdn/import.png" };
+  const second = { kind: "image" as const, storageKey: "k2", url: "https://cdn/first.png", alt: "First" };
+  const assets = new Map([["shots/import.png", first], ["shots/first.png", second]]);
+
+  const plantWith = async (update: boolean, map: Map<string, typeof first>) => {
+    const parsed = parseManifest(yaml);
+    assert.equal(parsed.ok, true, parsed.ok ? "" : parsed.error);
+    if (!parsed.ok) return;
+    const garden = await loadRawGarden();
+    const slugs = { pods: garden.pods ?? [], beans: garden.beans ?? [], sprouts: garden.sprouts ?? [] };
+    await applyPlan(planGarden(parsed.manifest, slugs, { update }), slugs, map);
+  };
+
+  await plantWith(false, assets);
+  let { bean, sprout } = await readTree();
+  assert.deepEqual(bean?.cover, first);
+  assert.deepEqual(sprout?.media, [second]);
+
+  // A re-plant with a DIFFERENT upload must not touch either: the stored
+  // image may be one the maintainer chose in the admin since.
+  const other = { kind: "image" as const, storageKey: "k9", url: "https://cdn/other.png" };
+  await plantWith(true, new Map([["shots/import.png", other], ["shots/first.png", other]]));
+  ({ bean, sprout } = await readTree());
+  assert.deepEqual(bean?.cover, first);
+  assert.deepEqual(sprout?.media, [second]);
+});
+
 // The house pattern for a DB-backed file: the pooled client is a live handle,
 // so without this the runner reports four passes and then never exits —
 // hanging `npm run test:db`, which runs these files serially.
