@@ -9,6 +9,7 @@ import { Node as PMNode } from "@tiptap/pm/model";
 import { remarkPlugins, rehypePlugins } from "./markdown";
 import { headlessExtensions, normalizeEmptyListMarkers } from "./entity-markdown";
 import { extractRefs } from "./entity-refs";
+import { MAX_CONTENT_BYTES } from "./articles";
 import { ENTITY_FIXTURES } from "./entity-fixtures";
 
 // C1's durable half: MarkdownManager (used for `editorVerdict` below) does
@@ -353,8 +354,9 @@ test("REGRESSION (ReDoS): extractRefs stays fast on adversarial input that actua
   // attempts, and the assertion below fails loudly if that ever stops being
   // true.
   //
-  // Shapes, interleaved through a body sized to what POST /api/articles
-  // actually accepts per request (~64 KiB): (1) marker-run lines — the
+  // Shapes, interleaved through a body sized to what the doors actually
+  // accept per part (MAX_CONTENT_BYTES — the constant, not a copy of its
+  // value, so raising the cap raises the stakes here with it): (1) marker-run lines — the
   // 07129b5 shape; (2) long whitespace-only lines with no marker at all —
   // required by item 4's own review, since a purely-whitespace line is a
   // realistic "body full of indentation" document shape and was never
@@ -370,7 +372,7 @@ test("REGRESSION (ReDoS): extractRefs stays fast on adversarial input that actua
   const lines: string[] = [];
   let bytes = 0;
   let i = 0;
-  while (bytes < 64 * 1024) {
+  while (bytes < MAX_CONTENT_BYTES) {
     const line = shapes[i % shapes.length];
     lines.push(line);
     bytes += line.length + 1;
@@ -400,14 +402,14 @@ test("REGRESSION (ReDoS): extractRefs stays fast on adversarial input that actua
   // 64 KiB body, which would have passed a 1-second assertion. A regression
   // test whose threshold sits above the bug it guards against is decoration.
   const twoLongBlankLines =
-    "::entity{ref=bean:x}\n" + `${" ".repeat(32000)}\n`.repeat(2) + "::entity{ref=bean:y}\n";
+    "::entity{ref=bean:x}\n" + `${" ".repeat(Math.floor(MAX_CONTENT_BYTES / 2) - 64)}\n`.repeat(2) + "::entity{ref=bean:y}\n";
   const worstStart = performance.now();
   const worstResult = extractRefs(twoLongBlankLines);
   const worstElapsed = performance.now() - worstStart;
   assert.ok(
     worstElapsed < 250,
     `extractRefs took ${worstElapsed.toFixed(1)}ms on two long whitespace-only lines ` +
-      `(the pre-215fe7f regex took ~900ms on this exact input)`,
+      `(the pre-215fe7f regex took ~900ms at a 64 KiB cap)`,
   );
   assert.deepEqual(worstResult, [
     { kind: "embeds", ref: "bean:x" },

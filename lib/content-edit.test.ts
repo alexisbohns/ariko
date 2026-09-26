@@ -53,7 +53,7 @@ test("content over the ceiling is refused, and the message names the limit", () 
   const tooBig = "x".repeat(MAX_CONTENT_BYTES + 1);
   const result = buildContentPatch({}, tooBig, "en");
   assert.equal(result.ok, false);
-  assert.match(result.ok === false ? result.error : "", /64 KiB/);
+  assert.match(result.ok === false ? result.error : "", new RegExp(`${MAX_CONTENT_BYTES / 1024} KiB`));
 });
 
 test("the ceiling counts bytes, not characters", () => {

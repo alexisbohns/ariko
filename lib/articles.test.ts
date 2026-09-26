@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { validateArticlesPayload } from "./articles";
+import { MAX_CONTENT_BYTES, validateArticlesPayload } from "./articles";
 
 const article = {
   slug: "karma-accountability",
@@ -49,7 +49,7 @@ test("article fields are checked, and the first failure names the offender", () 
   assert.match(bad({ slug: "Bad Slug" }).error, /Bad Slug/);
   assert.match(bad({ name: "  " }).error, /name/);
   assert.match(bad({ date: "24-07-2026" }).error, /date/);
-  assert.match(bad({ content: "x".repeat(64 * 1024 + 1) }).error, /64/);
+  assert.match(bad({ content: "x".repeat(MAX_CONTENT_BYTES + 1) }).error, /KiB/);
   assert.match(bad({ content: 42 }).error, /content/);
 });
 
@@ -132,15 +132,16 @@ test("a required name must be non-blank in at least one language", () => {
 });
 
 test("the size cap applies per language part, not to the pair", () => {
-  const big = "x".repeat(64 * 1024 + 1);
-  const fits = "x".repeat(60 * 1024);
+  const big = "x".repeat(MAX_CONTENT_BYTES + 1);
+  const fits = "x".repeat(MAX_CONTENT_BYTES - 4 * 1024);
   assert.match(
     (
       validateArticlesPayload({ container: "plant:pbbls", narrative: { en: big } }) as { error: string }
     ).error,
-    /narrative\.en must be at most 64 KiB/,
+    new RegExp(`narrative\\.en must be at most ${MAX_CONTENT_BYTES / 1024} KiB`),
   );
-  // 120 KiB across two parts is fine: neither part exceeds the cap.
+  // Two near-cap parts together exceed the cap, and that is fine: neither
+  // part does on its own.
   assert.deepEqual(
     validateArticlesPayload({ container: "plant:pbbls", narrative: { en: fits, fr: fits } }),
     { ok: true },
