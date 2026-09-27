@@ -105,10 +105,11 @@ quietly falls back to the bare image — safe, and therefore silent, which is
 why `lib/screen-lightbox-mount.test.ts` (nothing rendered, no `href`, the
 shared constant) and `components/screen-strip.test.tsx` (the attribute is on
 every anchor) pin the two halves. Base UI's Dialog does the focus trap and
-Escape. It adds about 7 kB gzipped over the public chrome layout. Next's rounded first-load figure for `/plant/[slug]` moves
-from 103 kB to 144 kB, because it counts chunks the layout already loaded.
+Escape. It adds about 7 kB gzipped over the public chrome layout. Next's
+rounded first-load figure for `/plant/[slug]` moves from 103 kB to 144 kB,
+because it counts chunks the layout already loaded.
 
-`app/(public)/_components/preferences-menu.tsx` is the third, and it is the one
+`app/(public)/_components/preferences-menu.tsx` is the second by age, and the one
 that COSTS something: it replaced the language pill, so **a visitor with
 scripting off no longer has a language switch**. That is a real narrowing of
 this zone's promise and is written here rather than discovered. It was taken

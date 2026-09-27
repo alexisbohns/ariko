@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type TouchEvent } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type TouchEvent } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -72,11 +72,20 @@ const LIGHTBOX_WIDTH = 900;
  * takes. Uploads record both dimensions (lib/storage.ts); a screen without
  * them falls back to a width alone and the sheet scrolls if it must — a
  * missing measurement costs fit, never the image.
+ *
+ * FLOORED at the strip's own phone width (`min(52vw, 13rem)` there, so
+ * `min(88vw, 13rem)` here is never narrower). On a phone held sideways the
+ * height budget is a hundred-odd pixels, and without the floor the lightbox
+ * would draw the screen SMALLER than the strip it was opened from — at 208px
+ * of height, not at all. Below the floor the sheet scrolls instead, which is
+ * what its `overflow-y-auto` is for.
  */
 function phoneWidth(row: ExhibitionRow): CSSProperties {
   const { width, height } = row.image;
   if (width && height) {
-    return { width: `min(88vw, 28rem, calc((100dvh - 13rem) * ${width / height}))` };
+    return {
+      width: `max(min(88vw, 13rem), min(88vw, 28rem, calc((100dvh - 13rem) * ${width / height})))`,
+    };
   }
   return { width: "min(88vw, 22rem)" };
 }
@@ -89,6 +98,7 @@ function MountedScreenLightbox({ rows, plantName }: { rows: ExhibitionRow[]; pla
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const announcementId = useId();
 
   // One listener on the document rather than one per anchor: the anchors are
   // the gallery's, server-rendered, and the island only ever READS them. The
@@ -140,9 +150,18 @@ function MountedScreenLightbox({ rows, plantName }: { rows: ExhibitionRow[]; pla
           // also scrolls the strip to it. The default (`true`) is the fallback
           // should the anchor somehow be gone.
           finalFocus={() => anchorFor(row.slug) ?? true}
+          // Announce WHICH screen opened, not only that a dialog did: focus
+          // lands on Close, so without this a screen-reader visitor has to go
+          // looking for the image. The live region below is the description,
+          // so the words on open and on each step are the same words.
+          aria-describedby={announcementId}
           // `touch-pan-y` hands horizontal movement to the swipe below rather
           // than to the browser, and keeps a short viewport's vertical scroll.
-          className="fixed inset-0 z-50 flex touch-pan-y flex-col overflow-y-auto p-6 pt-16 outline-none duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0"
+          // `touch-pinch-zoom` is NOT optional: `pan-y` alone disables pinch,
+          // and zooming into a screenshot is the one thing the browser's own
+          // image view — the script-off fallback — lets a phone visitor do.
+          // An enhancement must not take it away.
+          className="fixed inset-0 z-50 flex touch-pan-y touch-pinch-zoom flex-col overflow-y-auto p-6 pt-16 outline-none duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0"
           // The popup is full-bleed, so nothing is ever "outside" it for the
           // primitive's outside-press to catch — the admin's OverlaySheet
           // hand-rolls the same thing for the same reason. Only a press that
@@ -151,16 +170,28 @@ function MountedScreenLightbox({ rows, plantName }: { rows: ExhibitionRow[]; pla
             if (event.target === event.currentTarget) setOpen(false);
           }}
           onKeyDown={(event) => {
+            // A modified arrow is the browser's — ⌘← and Alt+← are Back.
+            // `isPlainClick`'s rule, applied to the keyboard.
+            if (event.metaKey || event.ctrlKey || event.altKey) return;
             const delta = event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0;
             if (delta === 0) return;
             event.preventDefault();
             go(delta);
           }}
+          // ONE finger only. A second finger makes the gesture a pinch, and a
+          // pinch whose fingers happen to spread sideways would otherwise read
+          // as a swipe and change the screen under the zoom. Once a gesture
+          // has been a pinch it stays void until every finger has lifted.
           onTouchStart={(event: TouchEvent) => {
             const touch = event.touches[0];
-            touchStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+            touchStart.current =
+              event.touches.length === 1 && touch ? { x: touch.clientX, y: touch.clientY } : null;
           }}
           onTouchEnd={(event: TouchEvent) => {
+            if (event.touches.length > 0) {
+              touchStart.current = null;
+              return;
+            }
             const start = touchStart.current;
             const touch = event.changedTouches[0];
             touchStart.current = null;
@@ -244,7 +275,7 @@ function MountedScreenLightbox({ rows, plantName }: { rows: ExhibitionRow[]; pla
 
           {/* What a screen-reader visitor hears on each step. The counter above
               is hidden from them because "2 slash 5" says it worse. */}
-          <p className="sr-only" aria-live="polite">
+          <p id={announcementId} className="sr-only" aria-live="polite">
             {many ? `Screen ${index + 1} of ${rows.length}: ${caption}` : caption}
           </p>
         </DialogPopup>
