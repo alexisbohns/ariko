@@ -87,12 +87,24 @@ export function resolvesDark(theme: Theme, prefersDark: boolean): boolean {
  * No nonce — `next.config.ts`'s CSP is one directive plus `object-src` and
  * carries no `script-src`, which is why REGISTER_SW needs none either.
  *
+ * Plain `+` between quoted strings, and NO template literal — issue #112.
+ * Built from `${}` templates, this read correctly in source and shipped broken:
+ * SWC's production compressor inlines the constants, folds the `+`-joined
+ * templates into one string, and drops the text after a template's last `${}`
+ * whenever the next operand is another such template. www.ariko.app served
+ * `…||"systemvar d=…`, which does not parse, so the theme was not applied
+ * until the preferences menu hydrated — the flash this script exists to
+ * prevent. Going back to templates brings that back, and nothing but
+ * `lib/theme-script.test.ts` will say so.
+ *
  * `lib/theme-script.test.ts` is what keeps this string honest, because nothing
- * else can: the compiler cannot see inside it.
+ * else can: the compiler cannot see inside it, and the minifier can rewrite it.
+ * That file runs the script, and runs this module through the production
+ * minifier.
  */
 export const THEME_SCRIPT =
-  `(()=>{try{` +
-  `var t=localStorage.getItem("${THEME_STORAGE_KEY}")||"${DEFAULT_THEME}";` +
-  `var d=t==="dark"||(t!=="light"&&matchMedia("${MEDIA_DARK}").matches);` +
-  `document.documentElement.classList.toggle("${DARK_CLASS}",d);` +
-  `}catch(e){}})()`;
+  "(()=>{try{" +
+  'var t=localStorage.getItem("' + THEME_STORAGE_KEY + '")||"' + DEFAULT_THEME + '";' +
+  'var d=t==="dark"||(t!=="light"&&matchMedia("' + MEDIA_DARK + '").matches);' +
+  'document.documentElement.classList.toggle("' + DARK_CLASS + '",d);' +
+  "}catch(e){}})()";

@@ -135,7 +135,12 @@ root layout's head. It is a STRING and not a component on purpose (it must run
 before first paint, in both zones), which means the compiler cannot see inside
 it: rename the storage key or change the `dark` class and `tsc`, `npm test` and
 `npm run build` all pass while the theme silently stops working.
-`lib/theme-script.test.ts` is the only thing that reports it. The theme is
+`lib/theme-script.test.ts` is the only thing that reports it. The minifier can
+break it too, with the source still correct. Built from `${}` templates, the
+string shipped unparseable, because SWC's compressor folds `+`-joined templates
+and drops text between them (#112). So it is plain `+` between quoted strings,
+and that test runs it through the production minifier as well as executing it.
+The theme is
 localStorage and never a cookie, which is why a theme choice costs no
 navigation and why the server can never name one.
 
