@@ -4,11 +4,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import { ScreenStrip } from "./screen-strip";
 import type { ExhibitionRow } from "@/lib/exhibition";
+import { SCREEN_ANCHOR_ATTR } from "@/lib/screen-lightbox";
 
 /**
  * renderToStaticMarkup, no jsdom — components/bean-cover.test.tsx's route, and
  * for its reason: the strip is a server component and the static markup IS its
- * output. It is also exactly what PR 2's island must add nothing to.
+ * output. It is also exactly what the lightbox island must add nothing to.
  */
 const row = (slug: string, legend = ""): ExhibitionRow => ({
   slug,
@@ -40,6 +41,17 @@ test("every screen is a REAL anchor to the full image", () => {
   const markup = html([row("one"), row("two")]);
   assert.match(markup, /<a[^>]+href="https:\/\/res\.cloudinary\.com\/demo\/image\/upload\/v1\/one\.png"/);
   assert.match(markup, /<a[^>]+href="https:\/\/res\.cloudinary\.com\/demo\/image\/upload\/v1\/two\.png"/);
+});
+
+test("every anchor names its screen for the lightbox, with the SHARED constant", () => {
+  // The island finds the anchors by this attribute and nothing else. Rename it
+  // on one side only and the lightbox intercepts nothing — every screen falls
+  // back to opening the bare image, which is SAFE and therefore silent. This
+  // is the half of that contract the strip owns; the island imports the same
+  // constant (lib/screen-lightbox-mount.test.ts checks that half).
+  const markup = html([row("one"), row("two")]);
+  assert.match(markup, new RegExp(`<a[^>]+${SCREEN_ANCHOR_ATTR}="one"`));
+  assert.match(markup, new RegExp(`<a[^>]+${SCREEN_ANCHOR_ATTR}="two"`));
 });
 
 test("the href is the FULL image, never a derivative", () => {

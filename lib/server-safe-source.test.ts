@@ -49,6 +49,11 @@ const SERVER_SAFE = [
   "components/bean-cover.tsx",
   "components/phone-frame.tsx",
   "components/screen-strip.tsx",
+  // The lightbox's shared name and arithmetic. The strip imports it for the
+  // anchor attribute, so it is on the plant page's server path exactly as the
+  // strip is — and the island imports it too, which is the whole reason it is
+  // one file.
+  "lib/screen-lightbox.ts",
   // The shared entity head. CLAUDE.md names it as one of the four shared
   // surfaces and its own docblock claims server-safety; until the sprout's
   // edition slice nothing checked either. It is rendered by

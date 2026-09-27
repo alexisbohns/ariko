@@ -66,6 +66,17 @@ import { cloudinaryFit, cloudinaryThumb } from "@/lib/image-url";
  * `width` (and `height` when it is given) are the DERIVATIVE's, not the box's —
  * every caller asks Cloudinary for roughly twice the pixels it paints, so the
  * screen stays sharp on a retina display.
+ *
+ * The `<img>` carries the image's STORED dimensions as its intrinsic size, in
+ * the uncropped shape only. There, `c_limit` keeps the source's ratio exactly,
+ * so the stored `width`/`height` are the drawn ratio and the browser can
+ * reserve the phone's box before a byte arrives. Without them an unloaded
+ * image is zero pixels tall and the bezel draws as a dark bar — which is what
+ * the lightbox showed for as long as its screen took to load, and what the
+ * strip's lazy phones did as they scrolled in. In the cropped shape the drawn
+ * ratio is the CALLER's box, not the image's, so the stored dimensions would
+ * reserve the wrong height and are left off. An image stored without both
+ * dimensions keeps today's behaviour: it sizes itself when it arrives.
  */
 export function PhoneFrame({
   image,
@@ -86,6 +97,10 @@ export function PhoneFrame({
   className?: string;
 }) {
   const bottomless = height !== undefined;
+  const intrinsic =
+    !bottomless && image.width && image.height
+      ? { width: image.width, height: image.height }
+      : {};
   return (
     <span
       className={`block rounded-2xl bg-neutral-900 shadow-lg ${
@@ -100,6 +115,7 @@ export function PhoneFrame({
             : cloudinaryThumb(image.url, { width, height })
         }
         alt={alt}
+        {...intrinsic}
         loading="lazy"
         decoding="async"
         className={`block w-full ${bottomless ? "rounded-t-xl" : "rounded-xl"}`}
