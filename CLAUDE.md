@@ -88,11 +88,27 @@ for twenty slices. `components/public-icons.tsx` is the way around lucide in
 the chrome; `components/chrome.tsx` does its hover labels in CSS for the same
 reason, with the accessible name on the control's `aria-label`.
 
-Today the public zone has TWO islands. `components/toc-rail.tsx` (1.2 kB) is
+Today the public zone has THREE islands. `components/toc-rail.tsx` (1.2 kB) is
 the mild one — `lib/toc-mount.test.ts` pins that it renders nothing until it
 mounts, so script-off the page is byte-for-byte what it was.
 
-`app/(public)/_components/preferences-menu.tsx` is the other, and it is the one
+`app/(public)/_components/screen-lightbox.tsx` is built to the same standard,
+on the plant page only: it opens an exhibited screen large, with its legend,
+arrow keys, prev/next and a swipe. Script-off it costs **nothing but itself** —
+every screen in `components/screen-strip.tsx` is already a real `<a href>` to
+the full image, server-rendered by the gallery, and the island only
+INTERCEPTS a plain left click on one (a modified click still opens the image
+the way the visitor asked). It finds those anchors by `SCREEN_ANCHOR_ATTR`
+from `lib/screen-lightbox.ts`, which both sides import, so the island supplies
+no destination of its own. Rename the attribute on one side and every screen
+quietly falls back to the bare image — safe, and therefore silent, which is
+why `lib/screen-lightbox-mount.test.ts` (nothing rendered, no `href`, the
+shared constant) and `components/screen-strip.test.tsx` (the attribute is on
+every anchor) pin the two halves. Base UI's Dialog does the focus trap and
+Escape. It adds about 7 kB gzipped over the public chrome layout. Next's rounded first-load figure for `/plant/[slug]` moves
+from 103 kB to 144 kB, because it counts chunks the layout already loaded.
+
+`app/(public)/_components/preferences-menu.tsx` is the third, and it is the one
 that COSTS something: it replaced the language pill, so **a visitor with
 scripting off no longer has a language switch**. That is a real narrowing of
 this zone's promise and is written here rather than discovered. It was taken
@@ -308,8 +324,8 @@ while quietly becoming false.
   would put a client boundary under every public page — the
   `components/ui/table.tsx` regression again, arriving by a door neither the
   `"use client"` check nor the `lucide-react` check watches.
-  `lib/server-safe-source.test.ts` now watches it for all fifteen server-safe
-  files. The admin's hard navigations were a POC-era fossil and cost 284–358 ms
+  `lib/server-safe-source.test.ts` now watches it for every server-safe file
+  on its list. The admin's hard navigations were a POC-era fossil and cost 284–358 ms
   of visibly broken chrome per click: a white frame, the plant switcher's logo
   flashing its monogram (Base UI's `Avatar.Image` starts `idle` and only calls
   `new Image()` from a layout effect, so the `<img>` is never in the server
