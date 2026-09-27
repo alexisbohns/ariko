@@ -1,6 +1,7 @@
 import { seq } from "@/components/reveal";
 import type { ExhibitionRow } from "@/lib/exhibition";
 import { PhoneFrame } from "@/components/phone-frame";
+import { SCREEN_ANCHOR_ATTR } from "@/lib/screen-lightbox";
 
 /**
  * The plant's exhibition — a rank of phones the visitor swipes, with the
@@ -19,11 +20,14 @@ import { PhoneFrame } from "@/components/phone-frame";
  * `tabIndex={0}` is what makes that last one true.
  *
  * EVERY PHONE IS A REAL ANCHOR to the full Cloudinary image, and that is not
- * decoration: it costs this slice nothing (the URL is already on the page) and
- * it is the thing the lightbox slice intercepts. An island that adds behaviour
- * to a link that already works is an enhancement whose absence costs nothing;
- * one that supplies the only route to the image is a seventh exception of a
- * much more expensive kind.
+ * decoration: it is the thing the lightbox
+ * (`app/(public)/_components/screen-lightbox.tsx`) intercepts. An island that
+ * adds behaviour to a link that already works is an enhancement whose absence
+ * costs nothing; one that supplies the only route to the image would be an
+ * island of a much more expensive kind. The anchor carries its slug in
+ * `SCREEN_ANCHOR_ATTR` so the island can tell which screen was clicked — the
+ * one thing this file renders on the island's behalf, and it is a name, not a
+ * destination.
  *
  * NOTHING IS CROPPED. Every phone shows the shot as it was taken, at its own
  * ratio — `PhoneFrame` without a `height`, which asks Cloudinary for `c_limit`
@@ -102,6 +106,7 @@ export function ScreenStrip({
             <a
               // The FULL image, not a derivative. See the docblock.
               href={row.image.url}
+              {...{ [SCREEN_ANCHOR_ATTR]: row.slug }}
               className="block rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             >
               <PhoneFrame

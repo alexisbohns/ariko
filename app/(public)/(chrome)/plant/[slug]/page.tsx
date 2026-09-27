@@ -9,6 +9,7 @@ import { ProfanePreload } from "@/components/brand/profane-preload";
 import { Prose } from "@/components/markdown";
 import { LinkRow } from "@/components/link-row";
 import { ScreenStrip } from "@/components/screen-strip";
+import { ScreenLightbox } from "@/app/(public)/_components/screen-lightbox";
 import type { ExhibitionRow } from "@/lib/exhibition";
 
 export const dynamic = "force-dynamic";
@@ -33,8 +34,7 @@ export default async function PlantPage({ params }: { params: Promise<{ slug: st
 
   // The exhibition, with both Texts resolved HERE rather than in the strip —
   // which is what keeps components/screen-strip.tsx isomorphic instead of
-  // server-only, and what will let the lightbox slice hand the same rows to a
-  // client island.
+  // server-only, and what lets the lightbox receive the very same rows.
   const screens: ExhibitionRow[] = data.exhibitionForPlant(slug).map((screen) => ({
     slug: screen.slug,
     name: resolveText(screen.name, lang),
@@ -80,6 +80,15 @@ export default async function PlantPage({ params }: { params: Promise<{ slug: st
           the flex item, which is the shape the links block above could not
           take (a centring wrapper around null is still an item). */}
       <ScreenStrip index={6} rows={screens} plantName={resolveText(plant.name, lang)} />
+
+      {/* The lightbox — the public zone's third client island. It renders
+          nothing until it mounts and then only a closed Dialog, whose portal
+          puts nothing in this column, so it is never a flex item and never
+          adds a gap. Guarded anyway: with no screens there is nothing to
+          intercept, so there is nothing to hydrate. */}
+      {screens.length > 0 ? (
+        <ScreenLightbox rows={screens} plantName={resolveText(plant.name, lang)} />
+      ) : null}
 
       {/* The narrative — where the argument lives. Its entity refs resolve
           against the public dataset, so anything hidden renders as nothing. */}
