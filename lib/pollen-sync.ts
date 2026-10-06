@@ -99,19 +99,33 @@ export function lastEnvelopeId(envelopes: unknown[]): string | null {
 // One page from a transport. done:true ends the loop after processing (file
 // transport is single-page); http transports set done when the page is empty
 // ("empty array ⇒ caught up"). "gone" = upstream 410 / vanished file cursor.
+// `etag` is the read validator the server stamped on this page (HTTP
+// transports only; `null` when it sent none, absent for the file transport).
 export type FeedPage =
-  | { envelopes: unknown[]; extraRefusals?: StoredRefusal[]; done: boolean }
+  | { envelopes: unknown[]; extraRefusals?: StoredRefusal[]; done: boolean; etag?: string | null }
   | "gone";
 
+// What the consumer keeps per feed between runs: the last processed envelope
+// id, and the validator of the page that was answered FOR THAT CURSOR — the
+// two travel together because the tag is only meaningful beside the `after`
+// it was earned with (arkaik hashes the page parameters into it, so a
+// mismatched pair is a harmless 200, never a wrong 304).
+export interface CursorState {
+  cursor: string | null;
+  etag: string | null;
+}
+
 export interface FeedTransport {
-  fetchPage(cursor: string | null): Promise<FeedPage>;
+  // `etag` is sent as If-None-Match when non-null; a 304 comes back as an
+  // empty, done page carrying the same tag.
+  fetchPage(cursor: string | null, etag: string | null): Promise<FeedPage>;
 }
 
 export type SyncStatus = "ok" | "rebuilding" | "error";
 
 export interface PollenSink {
-  getCursor(feedId: string): Promise<string | null>;
-  setCursor(feedId: string, cursor: string | null, status: SyncStatus, error?: string): Promise<void>;
+  getCursor(feedId: string): Promise<CursorState>;
+  setCursor(feedId: string, state: CursorState, status: SyncStatus, error?: string): Promise<void>;
   insertNew(feedId: string, envelopes: Pollen[]): Promise<number>; // write-once; returns newly stored
   // MUST dedupe by content: id-less refusals (malformed feed-file lines) sit
   // past the cursor and are re-presented on every run.
@@ -140,15 +154,16 @@ export async function syncFeed(
   let stored = 0;
   let refused = 0;
   try {
-    let cursor = await sink.getCursor(feedId);
+    let { cursor, etag } = await sink.getCursor(feedId);
     let rebuilt = false;
     for (;;) {
-      const page = await transport.fetchPage(cursor);
+      const page = await transport.fetchPage(cursor, etag);
       if (page === "gone") {
         if (rebuilt) throw new Error("cursor gone again after rebuild");
         rebuilt = true;
         cursor = null;
-        await sink.setCursor(feedId, null, "rebuilding");
+        etag = null;
+        await sink.setCursor(feedId, { cursor, etag }, "rebuilding");
         continue;
       }
       const { valid, refusals, warnings } = processEnvelopes(page.envelopes);
@@ -167,7 +182,13 @@ export async function syncFeed(
         throw new Error("cursor failed to advance — page carries no usable id");
       }
       cursor = next;
-      await sink.setCursor(feedId, cursor, "ok");
+      // A tag pairs with the page it was earned for (`after` = the cursor the
+      // request carried). Only a caught-up page leaves the cursor where it
+      // was, so only its tag is worth keeping: the next run asks for the same
+      // page and may collect a 304. A non-empty page's tag names a page we
+      // will never ask for again.
+      etag = page.envelopes.length === 0 ? (page.etag ?? null) : null;
+      await sink.setCursor(feedId, { cursor, etag }, "ok");
       if (page.done || page.envelopes.length === 0) break;
     }
     return { feedId, stored, refused, status: "ok" };
