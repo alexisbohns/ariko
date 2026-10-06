@@ -176,6 +176,7 @@ async function main() {
     properties: {
       feedId: { bsonType: "string" },
       cursor: { bsonType: ["string", "null"] },
+      etag: { bsonType: ["string", "null"] },
       lastSyncAt: { bsonType: "string" },
       lastStatus: { bsonType: "string" },
     },

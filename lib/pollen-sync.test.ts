@@ -12,6 +12,7 @@ import {
   type FeedTransport,
   type PollenSink,
   type PollenDoc,
+  type CursorState,
 } from "./pollen-sync";
 import { mergeBeanstalk } from "./beanstalk";
 
@@ -90,20 +91,22 @@ test("lastEnvelopeId takes the last string id, skipping junk", () => {
 });
 
 // In-memory sink capturing every call — no DB in unit tests, house style.
-function memorySink(initialCursor: string | null = null) {
+function memorySink(initialCursor: string | null = null, initialEtag: string | null = null) {
   const calls = {
     inserted: [] as string[],
     refused: [] as string[],
     cursors: [] as (string | null)[],
+    etags: [] as (string | null)[],
     statuses: [] as string[],
     projected: 0,
   };
-  let cursor = initialCursor;
+  let state: CursorState = { cursor: initialCursor, etag: initialEtag };
   const sink: PollenSink = {
-    getCursor: async () => cursor,
-    setCursor: async (_feedId, c, status) => {
-      cursor = c;
-      calls.cursors.push(c);
+    getCursor: async () => state,
+    setCursor: async (_feedId, next, status) => {
+      state = next;
+      calls.cursors.push(next.cursor);
+      calls.etags.push(next.etag);
       calls.statuses.push(status);
     },
     insertNew: async (_feedId, envelopes) => {
@@ -188,6 +191,69 @@ test("a non-empty page that cannot advance the cursor is an error", async () => 
   );
   assert.equal(result.status, "error");
   assert.match(result.error ?? "", /failed to advance/);
+});
+
+// --- the conditional poll (arkaik#490) --------------------------------------
+//
+// A validator pairs with the page it was earned for: `after` = the cursor the
+// request carried. Only a caught-up page leaves the cursor where it was, so
+// only its tag is worth storing — a non-empty page's tag names a page the
+// next run will never ask for again.
+
+test("the caught-up page's tag is stored beside the cursor; a non-empty page's is dropped", async () => {
+  const { sink, calls } = memorySink();
+  const result = await syncFeed(
+    "f1",
+    pageTransport([
+      { envelopes: [envelope({ id: "a:1" })], done: false, etag: 'W/"page-0"' },
+      { envelopes: [], done: true, etag: 'W/"caught-up"' },
+    ]),
+    sink,
+  );
+  assert.equal(result.status, "ok");
+  assert.deepEqual(calls.cursors, ["a:1", "a:1"]);
+  assert.deepEqual(calls.etags, [null, 'W/"caught-up"']);
+});
+
+test("the next run sends the stored tag with the stored cursor, and a 304 keeps both", async () => {
+  const { sink, calls } = memorySink("a:1", 'W/"caught-up"');
+  const asked: [string | null, string | null][] = [];
+  const transport: FeedTransport = {
+    fetchPage: async (cursor, etag) => {
+      asked.push([cursor, etag]);
+      return { envelopes: [], done: true, etag };
+    },
+  };
+  const result = await syncFeed("f1", transport, sink);
+  assert.equal(result.status, "ok");
+  assert.deepEqual(asked, [["a:1", 'W/"caught-up"']]);
+  assert.deepEqual(calls.cursors, ["a:1"]);
+  assert.deepEqual(calls.etags, ['W/"caught-up"']);
+});
+
+test("gone drops the tag with the cursor, and the replay asks unconditionally", async () => {
+  const { sink, calls } = memorySink("a:9", 'W/"stale"');
+  const asked: [string | null, string | null][] = [];
+  const pages: FeedPage[] = ["gone", { envelopes: [envelope({ id: "a:1" })], done: true }];
+  let i = 0;
+  const transport: FeedTransport = {
+    fetchPage: async (cursor, etag) => {
+      asked.push([cursor, etag]);
+      return pages[Math.min(i++, pages.length - 1)];
+    },
+  };
+  const result = await syncFeed("f1", transport, sink);
+  assert.equal(result.status, "ok");
+  assert.deepEqual(asked, [["a:9", 'W/"stale"'], [null, null]]);
+  assert.deepEqual(calls.cursors, [null, "a:1"]);
+  assert.deepEqual(calls.etags, [null, null]);
+});
+
+test("a page without a tag (an older server) stores null, never the tag it was sent", async () => {
+  const { sink, calls } = memorySink("a:1", 'W/"old"');
+  const result = await syncFeed("f1", pageTransport([{ envelopes: [], done: true }]), sink);
+  assert.equal(result.status, "ok");
+  assert.deepEqual(calls.etags, [null]);
 });
 
 test("a transport throw becomes an error result, never an exception", async () => {

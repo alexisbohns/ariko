@@ -11,6 +11,10 @@ import { deriveProjectedBeans } from "./projected-beans";
 export interface CursorDoc {
   feedId: string;
   cursor: string | null;
+  // The read validator of the page answered for `cursor` — sent back as
+  // If-None-Match so a six-hourly "nothing new" is a 304 (arkaik#490).
+  // Absent on docs written before it existed; read as null.
+  etag?: string | null;
   lastSyncAt: string;
   lastStatus: "ok" | "rebuilding" | "error";
   lastError?: string;
@@ -41,13 +45,14 @@ export function makeSink(exhibit: string[]): PollenSink {
     async getCursor(feedId) {
       const db = await getDb();
       const doc = await db.collection<CursorDoc>("pollen_cursors").findOne({ feedId });
-      return doc?.cursor ?? null;
+      return { cursor: doc?.cursor ?? null, etag: doc?.etag ?? null };
     },
-    async setCursor(feedId, cursor, status, error) {
+    async setCursor(feedId, { cursor, etag }, status, error) {
       const db = await getDb();
       const update: UpdateFilter<CursorDoc> = {
         $set: {
           cursor,
+          etag,
           lastSyncAt: new Date().toISOString(),
           lastStatus: status,
           ...(error ? { lastError: error } : {}),

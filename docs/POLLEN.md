@@ -89,6 +89,14 @@ the last id it processed. Unknown `after` ⇒ **410 Gone** ⇒ the consumer
 discards its cursor and rebuilds from the start. Auth (bearer token or
 public) is per-adapter, outside this contract.
 
+*Optional, conditional:* a server MAY stamp each page with an `ETag` and
+answer a matching `If-None-Match` with a bodiless **304** — "nothing new
+since that tag". A consumer stores the tag of its caught-up page beside the
+cursor and sends it back with the same `after`; a tag is only meaningful for
+the page it was earned with. 410 wins over 304: an unknown `after` is Gone
+whatever the header says. A server that sends no `ETag` is simply polled
+unconditionally.
+
 **Committed feed file** (unhosted sources): `pollen/feed.ndjson` in the
 source repo — one envelope per line, UTF-8, append-only, blank lines
 ignored. RSS, literally. The source's bee entry in the garden points at
