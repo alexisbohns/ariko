@@ -18,7 +18,7 @@ beans:
     cover: shots/ledger.png
     sprouts:
       - slug: first-entry
-        type: note
+        kind: log
         date: 2026-09-13
         name: { en: First entry }
         description: { en: The first entry. }
@@ -80,7 +80,7 @@ test("assetsNeeded: everything on a fresh garden, nothing on a plain re-plant", 
   const existing = {
     pods: [{ slug: "krabs", name: "Krabs", parents: [], description: "x" }],
     beans: [{ slug: "ledger", name: "Ledger", parents: ["pod:krabs"], cover: stored } as Bean, { slug: "bare", name: "Bare", parents: ["pod:krabs"] } as Bean],
-    sprouts: [{ slug: "first-entry", name: "x", type: "note", date: "2026-09-13", description: "x", parents: ["bean:ledger"], media: [stored] } as Sprout],
+    sprouts: [{ slug: "first-entry", name: "x", kind: "log", date: "2026-09-13", description: "x", about: ["bean:ledger"], media: [stored] } as Sprout],
   };
   assert.deepEqual(assetsNeeded(planGarden(m, existing, { update: false }), existing), []);
 });
@@ -92,7 +92,7 @@ test("assetsNeeded on --update: only where the stored entity has no image", () =
   const garden = {
     pods: [{ slug: "krabs", name: "Krabs", parents: [], description: "x" }],
     beans: [{ slug: "ledger", name: "Ledger", parents: ["pod:krabs"], cover: stored } as Bean],
-    sprouts: [{ slug: "first-entry", name: "x", type: "note", date: "2026-09-13", description: "x", parents: ["bean:ledger"], media: [] } as Sprout],
+    sprouts: [{ slug: "first-entry", name: "x", kind: "log", date: "2026-09-13", description: "x", about: ["bean:ledger"], media: [] } as Sprout],
   };
   const needed = assetsNeeded(planGarden(m, garden, { update: true }), garden);
   // The sprout's media names ledger.png too, so it is still needed — for the

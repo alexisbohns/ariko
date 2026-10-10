@@ -10,7 +10,7 @@
 import { load } from "js-yaml";
 import { composeText, type Text } from "./data";
 import { isTimelineDate } from "./sprout-date";
-import { isSproutType } from "./sprout-type";
+import { isSproutKind, SPROUT_KINDS, type SproutKind } from "./sprout-kind";
 import { MAX_CONTENT_BYTES } from "./content-edit";
 
 /**
@@ -114,7 +114,8 @@ export interface ManifestImage {
 
 export interface ManifestSprout {
   slug: string;
-  type: string;
+  /** A member of `SPROUT_KINDS` — never the free string `type` used to be. */
+  kind: SproutKind;
   date: string;
   name: Text;
   description: Text;
@@ -151,7 +152,7 @@ export type ParseResult =
   | { ok: true; manifest: GardenManifest }
   | { ok: false; error: string };
 
-/** A value that is a string, or "" — the coercion every slug/type field shares. */
+/** A value that is a string, or "" — the coercion every slug/kind field shares. */
 function str(v: unknown): string {
   return typeof v === "string" ? v : "";
 }
@@ -288,9 +289,19 @@ function buildSprout(raw: Record<string, unknown>, where: string): SproutResult 
   const forbiddenError = checkForbiddenKeys(raw, where, "sprout");
   if (forbiddenError) return { ok: false, error: forbiddenError };
 
-  const type = str(raw.type);
-  if (!isSproutType(type)) {
-    return { ok: false, error: `${where}.type must be non-blank with no surrounding whitespace (got "${type}")` };
+  // The pre-journal key, refused BY NAME before `kind` is read: a manifest
+  // written against the old shape would otherwise read `kind` as "" and fail
+  // on a message about a key the author never typed. Same reasoning as the
+  // misplaced image keys — say where the thing belongs.
+  if ("type" in raw) {
+    return {
+      ok: false,
+      error: `${where}.type is not a key any more — a sprout's kind is \`kind:\`, one of ${SPROUT_KINDS.join(", ")}`,
+    };
+  }
+  const kind = str(raw.kind);
+  if (!isSproutKind(kind)) {
+    return { ok: false, error: `${where}.kind must be one of ${SPROUT_KINDS.join(", ")} (got "${kind}")` };
   }
 
   // A YAML date scalar parses to a Date; force the authored text back.
@@ -301,7 +312,7 @@ function buildSprout(raw: Record<string, unknown>, where: string): SproutResult 
 
   const sprout: ManifestSprout = {
     slug: str(raw.slug),
-    type,
+    kind,
     date,
     name: name.text,
     description: description.text,

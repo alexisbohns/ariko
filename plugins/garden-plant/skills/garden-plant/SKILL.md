@@ -36,10 +36,15 @@ reaching for a database, you have left the skill.
 | **Plant** | A whole practice or brand — the root. | yes (`content`) |
 | **Pod** | One project. Usually one repo. | yes (`content`) |
 | **Bean** | One feature, theme or strand of the project. | yes (`content`) |
-| **Sprout** | One dated thing that happened: a release, a note, a milestone. | yes (`content`) |
+| **Sprout** | One dated entry in a bean's journal: a log, a milestone, a release. | yes (`content`) |
 
 A manifest writes **one pod, its beans, and their sprouts**. It never creates a
 plant — it may only point at one that already exists.
+
+A sprout nested under a bean is **about** that bean — it is a journal entry, not
+a child. Its plant is **derived**: from the bean, through the pod, to the plant
+the pod points at. You never write a sprout's plant, and the manifest refuses
+`parents` on it.
 
 **Small project? Skip the plant.** `plant: null` makes a standalone pod, and
 that is the normal case for a side project.
@@ -52,10 +57,22 @@ it got there. It is bilingual like a pod's, under the same rules, and it is
 describes the feature as it stands, rather than appending a paragraph that
 begins "and then".
 
-A **sprout** is a dated piece of work: a release, a note, a milestone — one
-entry in the bean's journal. It keeps its date, so the timeline can order it
-and the publish cascade can find it, and it is never rewritten to say what the
+A **sprout** is a dated piece of work — one entry in the bean's journal, with a
+`kind` from a closed list. It keeps its date, so the timeline can order it and
+the publish cascade can find it, and it is never rewritten to say what the
 feature later became.
+
+| `kind` | What it is |
+|---|---|
+| `log` | A dated note on work done — the default; when unsure, it is a log. |
+| `milestone` | A state reached: a first user, a hundredth entry, a thing that now works. |
+| `release` | A tagged version shipped. |
+| `essay` | A retrospective, a reflection, a learning — prose about the work rather than the work. |
+| `decision` | A choice made, and why. |
+| `digest` | Machine-written — Ariko's weekly wrap. **Not for manifests.** |
+
+Sub-species — a retrospective, an experiment, a learning — are **tags**, not
+kinds: the kind says what an entry *is*, a tag says what it is *about*.
 
 So: "Ledger import" is a bean, and its `content` says what import can do today.
 "Ledger import now reads OFX" on 2026-08-14 is a sprout hanging from it.
@@ -110,7 +127,7 @@ beans:
         CSV, et mal les dates ; l'OFX a réglé ça pour la plupart des banques.
     sprouts:
       - slug: krabs-ofx-import
-        type: release
+        kind: release
         date: 2026-08-14
         name:
           en: Your bank's own file, straight in
@@ -137,7 +154,7 @@ beans:
       fr: Ce qui fait tourner Krabs, et pourquoi ça reste léger.
     sprouts:
       - slug: krabs-offline-first
-        type: note
+        kind: log
         date: 2026-09-02
         name:
           en: It works on the train
@@ -203,12 +220,13 @@ stops the run with nothing touched.
   by comparing the date **string**, raw — nothing anywhere parses it into a
   date. So `09/12/2026` does not fail; it sorts above every date starting with
   a `2` and quietly misfiles the sprout at the top of the timeline forever.
-- **Types are non-blank, with no surrounding whitespace.** There is no list of
-  allowed types — pick a word that fits (`release`, `note`, `milestone`,
-  `essay`). The whitespace rule is the sharp one: three places in the garden
-  compare a type against a bare literal with `===` and none of them trims, so a
-  stored `"digest "` draws identically to `"digest"` everywhere and matches
-  none of the three.
+- **`kind` is one of the six words above**, exactly — `log`, `milestone`,
+  `release`, `essay`, `decision`, `digest`. Anything else is refused with the
+  whole list, and so is `"log "` with a trailing space: the admin draws the
+  field as a list of radios, and a value it cannot draw is a sprout with no
+  kind on every table. Pick `log` when unsure.
+- **`type:` is not a key any more.** A sprout written against the old shape
+  is refused by name, with a message that says the key is now `kind:`.
 - **Every bilingual pair needs a non-blank `en`.** `fr` may be omitted.
 - **`content` is capped at 512 KiB per language.** Room for a long essay; still not a book.
 
@@ -225,11 +243,12 @@ Each of these is a **hard error**, not a field quietly dropped:
 | Key | Why |
 |---|---|
 | `visibility` | Publishing is a deliberate act in the Ariko admin. |
-| `state` | Same — and a sprout's state cascades upward through its bean and pod. |
+| `state` | Same — and publishing a sprout flips its derived plant public with it. |
 | `exhibited` | Same. |
 | `order` | Same. |
 | `relations` | Derived from the prose's own references, never authored. |
-| `parents` | Containment; re-homing an entity is a privacy decision. |
+| `parents` | Containment; re-homing a pod or bean is a privacy decision — and a sprout has none: it is *about* the bean it is nested under, and its plant is derived. |
+| `type` on a sprout | Not a key any more — a sprout's kind is `kind:`, one of the six words above. |
 | `cover` on a pod or sprout, `media` on a bean | A cover is a bean's; media is a sprout's. |
 
 **Everything a manifest creates is private.** Sprouts land as drafts. The
@@ -271,4 +290,5 @@ of images it would upload — and writes nothing.
 **Re-running is safe.** A slug that already exists is skipped, so planting the
 same file twice changes nothing. `--update` opts into rewriting names,
 descriptions and narratives from the file for entities that already exist, and
-touches nothing else — no visibility, no state, no parentage.
+touches nothing else — no visibility, no state, no parentage, and not which
+bean a sprout is about.

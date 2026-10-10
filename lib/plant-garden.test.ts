@@ -46,7 +46,7 @@ beans:
     description: { en: Bringing data in., fr: Faire entrer les données. }
     sprouts:
       - slug: test-krabs-import-intro
-        type: note
+        kind: log
         date: 2026-09-13
         name: { en: Intro, fr: Intro }
         description: { en: First note., fr: Première note. }
@@ -90,7 +90,16 @@ test("planting creates the tree private, parented upward, bilingual", { skip: !h
   // nothing anywhere reporting it.
   assert.deepEqual(pod.parents, []);
   assert.deepEqual(bean.parents, ["pod:test-krabs"]);
-  assert.deepEqual(sprout.parents, ["bean:test-krabs-import"]);
+
+  // A sprout is not CONTAINED by its bean, it is ABOUT it: the manifest's
+  // nesting becomes `about`, its `kind` is the vocabulary member the file
+  // named, and it carries no `parents` — its plant is derived from the bean
+  // through the pod. A sprout written with both `about` and `parents` is the
+  // shape every write-side validator refuses, and one written with `parents`
+  // alone would be read as a plant-level entry about nothing.
+  assert.equal(sprout.kind, "log");
+  assert.deepEqual(sprout.about, ["bean:test-krabs-import"]);
+  assert.equal(sprout.parents, undefined);
 
   // THE MOST IMPORTANT ASSERTION IN THIS FILE. A manifest is a text file in
   // ANOTHER repo; it must not be able to publish. A sprout's `state` cascades
