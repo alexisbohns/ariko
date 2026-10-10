@@ -4,17 +4,26 @@
 // Usage: npm run migrate:journal            (dry run — the default)
 //        npm run migrate:journal -- --apply (writes, and DELETES sprouts)
 // Operator sequence: run it bare, read the plan, re-run with `-- --apply`,
-// then bare again expecting "0 fold(s)". The backup under data/retired/ is
-// NOT committed: it is a pre-image to restore from, not history to keep.
+// then bare again expecting "0 fold(s)".
 //
 // The script refuses to write while ANY fold is refused, because a half-folded
 // garden — some beans carrying content, some articles still sprouts — renders
 // two ways at once. No revalidateGarden(): a CLI has no request store (the
 // garden-plant rule), and the next admin write invalidates.
 //
-// Idempotent: a folded article is gone, so a re-run plans 0 folds and writes
-// nothing — not even the backup.
-import { mkdirSync, writeFileSync } from "node:fs";
+// Re-runs: after a clean run the next run plans 0 folds and writes nothing. A
+// crash BETWEEN a bean's update and its sprout's delete leaves that bean with
+// content and its sprout still present, which the next run REFUSES ("already
+// carries a content field — … interrupted fold"); the operator finishes it by
+// deleting that sprout by slug, and re-runs for the rest.
+//
+// Backup: the dry run deliberately writes none — its listing already names
+// every slug, and a read-only mode must leave the tree as it found it. The
+// live run writes the pre-image of every sprout it deletes to data/retired/,
+// refusing if the file exists (a second file would be a second run, and the
+// first one's pre-image must not be clobbered). It is NOT committed
+// (.gitignore): mongodump is the pre-image of record, and this repo is public.
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { getDb, closeDb } from "../lib/db";
 import { ARTICLE_TYPE, planArticleFold } from "../lib/journal-migration";
@@ -64,22 +73,28 @@ async function main() {
 
   // Pre-image of every sprout about to be deleted, written before the first
   // write. `articles` IS the set being folded: with zero refusals, every
-  // article read is in the plan.
+  // article read is in the plan. Only sprouts are backed up: the update filter
+  // below IS the bean pre-image — `content` and `relations` both absent, by
+  // construction — so there is nothing of the bean's to restore.
+  if (existsSync(BACKUP)) throw new Error(`${BACKUP} exists — move it aside before re-running`);
   mkdirSync(BACKUP_DIR, { recursive: true });
   writeFileSync(BACKUP, JSON.stringify({ sprouts: articles }, null, 2) + "\n", "utf8");
   console.log(`backup written: ${BACKUP}`);
 
   for (const f of plan.folds) {
-    // `content: { $exists: false }` re-checks the plan's rule at write time, so
-    // a bean given content between the read and this write is not overwritten.
+    // The filter re-checks the plan's rule at write time, so a bean given
+    // content or relations between the read and this write is not overwritten.
     const r = await beansCol.updateOne(
-      { slug: f.beanSlug, content: { $exists: false } },
+      { slug: f.beanSlug, content: { $exists: false }, relations: { $exists: false } },
       { $set: { content: f.content, ...(f.relations ? { relations: f.relations } : {}) } },
     );
     if (r.matchedCount !== 1) {
       throw new Error(`bean ${f.beanSlug} changed under us — stopping before the delete`);
     }
-    await sproutsCol.deleteOne({ slug: f.sproutSlug, type: ARTICLE_TYPE });
+    const d = await sproutsCol.deleteOne({ slug: f.sproutSlug, type: ARTICLE_TYPE });
+    if (d.deletedCount !== 1) {
+      console.warn(`WARN sprout ${f.sproutSlug}: deletedCount=${d.deletedCount} — the bean is folded, delete it by hand`);
+    }
     console.log(`folded ${f.sproutSlug}`);
   }
 }
