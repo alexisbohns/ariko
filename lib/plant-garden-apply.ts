@@ -134,8 +134,9 @@ export async function applyPlan(
           await updateBeanCover(bean.slug, uploadedFor(assets, bean.cover));
         }
       }
-      // A bean's narrative, like a pod's, is a second write on create and on
-      // --update: the manifest is the author's current text for both.
+      // A bean's narrative, like a pod's, is the one field the creator has no
+      // slot for, so it is a second write on create and on --update: the
+      // manifest is the author's current text for both.
       if (bean.content !== undefined) {
         const existing =
           action.action === "create" ? undefined : garden.beans.find((b) => b.slug === bean.slug)?.relations;

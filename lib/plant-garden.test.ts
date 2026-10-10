@@ -231,16 +231,29 @@ test("a bean's narrative is written at creation and rewritten on --update", { sk
 
   // A bean's narrative is what the feature is NOW, rewritten in place — so,
   // like a pod's, it is a second write on create and the manifest's text wins
-  // on `--update`. `relations` is an array because the content door mirrors the
-  // body's refs; a bean written through `createBean` alone would have none.
+  // on `--update`.
   await plant(withBeanContent("x", "ix"), false);
   let { bean } = await readTree();
   assert.deepEqual(bean?.content, { en: "x", fr: "ix" });
-  assert.ok(Array.isArray(bean?.relations), "the content write mirrored relations");
+
+  // The same trap the pod test above pins, on the bean's own branch: the
+  // applier must merge against the BEAN's stored relations, not `undefined`
+  // and not another tier's. Looking the bean up in `garden.pods` would find
+  // nothing, pass `undefined`, and delete this relation with nothing failing.
+  // The content carries no entity directives, so the expected list is exactly
+  // the hand-authored one.
+  const db = await getDb();
+  await db
+    .collection("beans")
+    .updateOne(
+      { slug: "test-krabs-import" },
+      { $set: { relations: [{ kind: "evolves-from", ref: "bean:test-krabs-something" }] } },
+    );
 
   await plant(withBeanContent("y", "igrec"), true);
   ({ bean } = await readTree());
   assert.deepEqual(bean?.content, { en: "y", fr: "igrec" });
+  assert.deepEqual(bean?.relations, [{ kind: "evolves-from", ref: "bean:test-krabs-something" }]);
 });
 
 // The house pattern for a DB-backed file: the pooled client is a live handle,

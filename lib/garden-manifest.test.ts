@@ -411,11 +411,12 @@ beans:
   assert.match(result.error, CAP);
 });
 
-// Every other `content` test here asserts a REJECTION, which left the two
-// success branches (`pod.content = content.text` and the sprout's equivalent)
-// unexercised: deleting either assignment would drop every narrative the
-// manifest carries and keep all 34 tests green, while planting printed the same
-// plan and wrote a pod and a sprout with no prose in them.
+// The bean's acceptance test above covers its own `bean.content = content.text`;
+// every other `content` test here asserts a REJECTION, which would leave the
+// pod's and the sprout's success branches unexercised: deleting either
+// assignment would drop the narrative the manifest carries for that tier and
+// keep every other test green, while planting printed the same plan and wrote
+// a pod or a sprout with no prose in it.
 test("a valid bilingual content lands on both the pod and the sprout", () => {
   const result = parseManifest(`
 pod:
