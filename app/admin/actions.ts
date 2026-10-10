@@ -206,13 +206,21 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
     beanChoice.mode !== "none" ? [`${BEAN_PREFIX}${beanChoice.slug}`]
     : podChoice.mode !== "none" ? [`${POD_PREFIX}${podChoice.slug}`]
     : [];
+  const raw = await loadRawGarden();
   let anchor: SproutAnchor;
   if (podChoice.mode === "create" || beanChoice.mode === "create") {
-    // The one created shape that needs no plant is a new bean under an
-    // EXISTING pod — the pod is already rooted. Every other creation roots
-    // under the plant select, and a blank one would plant a parent nowhere,
-    // which the derivation would then read as a sprout of no plant.
-    if (!plantSlug && !(beanChoice.mode === "create" && podChoice.mode === "existing")) {
+    if (beanChoice.mode === "create" && podChoice.mode === "existing") {
+      // The one created shape that needs no plant pick: a new bean under an
+      // EXISTING pod. The pod is checked to exist and to roll up to the picked
+      // plant (when one is picked) — a pod with no plant, a slug that names
+      // nothing, or a pick that disagrees with the pod's plant would otherwise
+      // pass straight into a bean, and a sprout, of no plant or the wrong one.
+      const check = resolveAnchor([`${POD_PREFIX}${podChoice.slug}`], plantSlug, raw);
+      if (!check.ok) redirect(`/admin/triage/${seedId}?error=${encodeURIComponent(check.error)}`);
+    } else if (!plantSlug) {
+      // Every other creation roots under the plant select, and a blank one
+      // would plant a parent nowhere, which the derivation would then read as
+      // a sprout of no plant.
       redirect(
         `/admin/triage/${seedId}?error=${encodeURIComponent(
           "pick a plant to root the new pod or bean under",
@@ -221,7 +229,7 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
     }
     anchor = { about: aboutRefs };
   } else {
-    const resolved = resolveAnchor(aboutRefs, plantSlug, await loadRawGarden());
+    const resolved = resolveAnchor(aboutRefs, plantSlug, raw);
     if (!resolved.ok) {
       redirect(`/admin/triage/${seedId}?error=${encodeURIComponent(resolved.error)}`);
     }
@@ -570,8 +578,9 @@ export async function setSproutKindAction(formData: FormData): Promise<void> {
  * Where a sprout hangs — the about panel's one write. `about` arrives as
  * checkbox values (getAll), `plant` as the page's statement of the sprout's
  * CURRENT derived plant: the panel offers that plant's pods and beans and
- * nothing else, and `resolveAnchor` refuses a ref that would move the sprout to
- * another plant — moving a sprout between plants is not this slice's feature.
+ * nothing else, and `resolveAnchor` refuses a ref that disagrees with the plant
+ * the page stated, so the panel's checkboxes cannot move the sprout; only a
+ * hand-written payload naming both could, and that is the author's own garden.
  * Nothing checked files the entry under the plant itself (`parents`).
  *
  * The write unsets the field it does not set (`updateSproutAnchor`), so the

@@ -1,5 +1,5 @@
 import type { Seed, Media, Relation, Source, Text, SproutState } from "./data";
-import { composeText, resolveText } from "./data";
+import { composeText, resolveText, PLANT_PREFIX } from "./data";
 import { extractRefs, mergeMirrored } from "./entity-refs";
 import { SPROUT_KINDS, isSproutKind, type SproutKind } from "./sprout-kind";
 import type { SproutAnchor } from "./sprout-anchor";
@@ -88,7 +88,7 @@ export function buildSproutInput(
     description: composeText(get("description"), get("descriptionFr")),
     state,
     ...(anchor && "about" in anchor ? { about: anchor.about } : {}),
-    ...(anchor && "plant" in anchor ? { parents: [`plant:${anchor.plant}`] } : {}),
+    ...(anchor && "plant" in anchor ? { parents: [`${PLANT_PREFIX}${anchor.plant}`] } : {}),
     media: seed.media,
     source: seed.source,
     // The inbox has always accepted a body; until now promote dropped it on the
