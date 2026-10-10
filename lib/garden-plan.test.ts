@@ -17,7 +17,7 @@ beans:
     description: { en: First bean }
     sprouts:
       - slug: sprout-a
-        type: note
+        kind: log
         date: "2026-01-01"
         name: { en: Sprout A }
         description: { en: First sprout }
@@ -35,7 +35,7 @@ beans:
     description: { en: First bean }
     sprouts:
       - slug: sprout-a
-        type: note
+        kind: log
         date: "2026-01-01"
         name: { en: Sprout A }
         description: { en: First sprout }
@@ -44,7 +44,7 @@ beans:
     description: { en: Second bean }
     sprouts:
       - slug: sprout-b
-        type: note
+        kind: log
         date: "2026-01-02"
         name: { en: Sprout B }
         description: { en: Second sprout }
