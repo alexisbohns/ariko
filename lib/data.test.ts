@@ -10,6 +10,8 @@ import {
   getDataset,
   hasNarrative,
   publishCascade,
+  resolveSproutPlant,
+  resolveSproutPlants,
   textPart,
   unpublishCascade,
   unpublishCascadeForBeans,
@@ -33,10 +35,10 @@ const raw: RawGarden = {
     { slug: "a-dangling", name: "Dangling", parents: ["pod:nope"] },
   ],
   sprouts: [
-    { slug: "v-old", name: "Old", type: "song", date: "2020-01-01", description: "", parents: ["bean:a1"] },
-    { slug: "v-new", name: "New", type: "song", date: "2026-01-01", description: "", parents: ["bean:a1"] },
-    { slug: "v-mid", name: "Mid", type: "song", date: "2023-06-15", description: "", parents: ["bean:a1"] },
-    { slug: "v-orphan", name: "Orphan", type: "note", date: "2024-01-01", description: "", parents: ["bean:a-standalone"] },
+    { slug: "v-old", name: "Old", kind: "milestone", date: "2020-01-01", description: "", about: ["bean:a1"] },
+    { slug: "v-new", name: "New", kind: "milestone", date: "2026-01-01", description: "", about: ["bean:a1"] },
+    { slug: "v-mid", name: "Mid", kind: "milestone", date: "2023-06-15", description: "", about: ["bean:a1"] },
+    { slug: "v-orphan", name: "Orphan", kind: "log", date: "2024-01-01", description: "", about: ["bean:a-standalone"] },
   ],
 };
 
@@ -87,17 +89,17 @@ test("getDataset keeps sprout dates as plain YYYY-MM-DD strings", () => {
   assert.match(version.date, /^\d{4}-\d{2}-\d{2}$/);
 });
 
-const RAW = {
+const RAW: RawGarden = {
   pods: [{ slug: "m1", name: "M1", description: "" }],
   beans: [
     { slug: "a1", name: "A1", parents: ["pod:m1"] },
     { slug: "a2", name: "A2", parents: ["pod:m1", "pod:mX"] }, // mX dangling
   ],
   sprouts: [
-    { slug: "v1", name: "V1", type: "t", date: "2025-01-01", description: "", parents: ["bean:a1"] },
-    { slug: "v2", name: "V2", type: "t", date: "2025-01-01", description: "", parents: ["bean:a1", "bean:a2"] },
-    { slug: "v3", name: "V3", type: "t", date: "2025-01-01", description: "", parents: [] },
-    { slug: "v4", name: "V4", type: "t", date: "2025-01-01", description: "", parents: ["bean:ghost"] },
+    { slug: "v1", name: "V1", kind: "log", date: "2025-01-01", description: "", about: ["bean:a1"] },
+    { slug: "v2", name: "V2", kind: "log", date: "2025-01-01", description: "", about: ["bean:a1", "bean:a2"] },
+    { slug: "v3", name: "V3", kind: "log", date: "2025-01-01", description: "", parents: [] },
+    { slug: "v4", name: "V4", kind: "log", date: "2025-01-01", description: "", about: ["bean:ghost"] },
   ],
 };
 
@@ -126,10 +128,10 @@ test("an unknown sprout slug cascades nothing", () => {
 });
 
 test("parents are returned regardless of current visibility (idempotent flip)", () => {
-  const raw = {
+  const raw: RawGarden = {
     pods: [{ slug: "m1", name: "M1", description: "", visibility: "public" as const }],
     beans: [{ slug: "a1", name: "A1", parents: ["pod:m1"], visibility: "public" as const }],
-    sprouts: [{ slug: "v1", name: "V1", type: "t", date: "2025-01-01", description: "", parents: ["bean:a1"] }],
+    sprouts: [{ slug: "v1", name: "V1", kind: "log", date: "2025-01-01", description: "", about: ["bean:a1"] }],
   };
   const r = publishCascade(raw, "v1");
   assert.deepEqual(r.beanSlugs, ["a1"]);
@@ -137,14 +139,14 @@ test("parents are returned regardless of current visibility (idempotent flip)", 
 });
 
 test("an bean with two real pod parents cascades both pods", () => {
-  const raw = {
+  const raw: RawGarden = {
     pods: [
       { slug: "m1", name: "M1", description: "" },
       { slug: "m2", name: "M2", description: "" },
     ],
     beans: [{ slug: "a1", name: "A1", parents: ["pod:m1", "pod:m2"] }],
     sprouts: [
-      { slug: "v1", name: "V1", type: "t", date: "2025-01-01", description: "", parents: ["bean:a1"] },
+      { slug: "v1", name: "V1", kind: "log", date: "2025-01-01", description: "", about: ["bean:a1"] },
     ],
   };
   const r = publishCascade(raw, "v1");
@@ -155,8 +157,8 @@ test("an bean with two real pod parents cascades both pods", () => {
 // --- unpublishCascade: the downward inverse (roadmap A1). Fixtures are built per
 // test because the interesting variable is the surviving published/public siblings.
 
-function ver(slug: string, parents: string[], state: SproutState) {
-  return { slug, name: slug.toUpperCase(), type: "t", date: "2025-01-01", description: "", parents, state };
+function ver(slug: string, about: string[], state: SproutState) {
+  return { slug, name: slug.toUpperCase(), kind: "log" as const, date: "2025-01-01", description: "", about, state };
 }
 const mol = (slug: string, visibility: Visibility) => ({
   slug, name: slug.toUpperCase(), description: "", visibility,
@@ -448,8 +450,8 @@ const PLANTED: RawGarden = {
     { slug: "loose", name: "Loose", parents: [] },
   ],
   sprouts: [
-    { slug: "felina-0", name: "F0", type: "song", date: "2026-01-01", description: "", parents: ["bean:felina"] },
-    { slug: "webapp-0", name: "W0", type: "feature", date: "2026-01-02", description: "", parents: ["bean:pbbls-webapp"] },
+    { slug: "felina-0", name: "F0", kind: "milestone", date: "2026-01-01", description: "", about: ["bean:felina"] },
+    { slug: "webapp-0", name: "W0", kind: "milestone", date: "2026-01-02", description: "", about: ["bean:pbbls-webapp"] },
   ],
 };
 
@@ -517,8 +519,8 @@ const CASCADE_GARDEN: RawGarden = {
     { slug: "direct", name: "D", parents: ["plant:pl2"] },
   ],
   sprouts: [
-    { slug: "v1", name: "V1", type: "t", date: "2026-01-01", description: "", parents: ["bean:a1"], state: "published" },
-    { slug: "v-direct", name: "VD", type: "t", date: "2026-01-02", description: "", parents: ["bean:direct"], state: "published" },
+    { slug: "v1", name: "V1", kind: "log", date: "2026-01-01", description: "", about: ["bean:a1"], state: "published" },
+    { slug: "v-direct", name: "VD", kind: "log", date: "2026-01-02", description: "", about: ["bean:direct"], state: "published" },
   ],
 };
 
@@ -563,7 +565,7 @@ test("unpublishCascade honors a plant sheltered by a surviving public DIRECT bea
       { slug: "flipping", name: "F", parents: ["plant:pl"] },
       { slug: "shelter", name: "S", parents: ["plant:pl"] },
     ],
-    sprouts: [{ slug: "v", name: "V", type: "t", date: "2026-01-01", description: "", parents: ["bean:flipping"], state: "draft" }],
+    sprouts: [{ slug: "v", name: "V", kind: "log", date: "2026-01-01", description: "", about: ["bean:flipping"], state: "draft" }],
   };
   assert.deepEqual(unpublishCascade(raw, "v"), { plantSlugs: [], podSlugs: [], beanSlugs: ["flipping"] });
 });
@@ -573,7 +575,7 @@ test("unpublishCascade flips a plant reached only through a directly-parented be
     plants: [{ slug: "pl", name: "P", natures: ["work"], role: { kind: "owner" as const }, description: "" }],
     pods: [],
     beans: [{ slug: "b", name: "B", parents: ["plant:pl"] }],
-    sprouts: [{ slug: "v", name: "V", type: "t", date: "2026-01-01", description: "", parents: ["bean:b"], state: "draft" }],
+    sprouts: [{ slug: "v", name: "V", kind: "log", date: "2026-01-01", description: "", about: ["bean:b"], state: "draft" }],
   };
   assert.deepEqual(unpublishCascade(raw, "v"), { plantSlugs: ["pl"], podSlugs: [], beanSlugs: ["b"] });
 });
@@ -596,7 +598,7 @@ test("an explicitly-private direct bean does not shelter a plant", () => {
       { slug: "flipping", name: "F", parents: ["plant:pl"] },
       { slug: "shelter", name: "S", parents: ["plant:pl"], visibility: "private" },
     ],
-    sprouts: [{ slug: "v", name: "V", type: "t", date: "2026-01-01", description: "", parents: ["bean:flipping"], state: "draft" }],
+    sprouts: [{ slug: "v", name: "V", kind: "log", date: "2026-01-01", description: "", about: ["bean:flipping"], state: "draft" }],
   };
   assert.deepEqual(unpublishCascade(raw, "v"), { plantSlugs: ["pl"], podSlugs: [], beanSlugs: ["flipping"] });
 });
@@ -719,4 +721,115 @@ test("exhibitionForPlant lets a screen with two plant parents appear in both str
   const d = buildDataset(EXHIBITED);
   assert.equal(d.exhibitionForPlant("pl").some((s) => s.slug === "s-shared"), true);
   assert.equal(d.exhibitionForPlant("pl-other").some((s) => s.slug === "s-shared"), true);
+});
+
+// --- The journal model (spec 2026-10-10 §1.2): a sprout's plant is DERIVED
+// from `about`, and the dataset indexes entries by bean, pod and plant.
+
+const derivation: RawGarden = {
+  plants: [
+    { slug: "p1", name: "P1", natures: ["work"], role: { kind: "owner" }, description: "" },
+    { slug: "p2", name: "P2", natures: ["work"], role: { kind: "owner" }, description: "" },
+  ],
+  pods: [
+    { slug: "pod1", name: "Pod 1", description: "", parents: ["plant:p1"] },
+    { slug: "pod2", name: "Pod 2", description: "", parents: ["plant:p2"] },
+    { slug: "unrooted", name: "Unrooted", description: "", parents: [] },
+  ],
+  beans: [
+    { slug: "b-in-pod", name: "B", parents: ["pod:pod1"] },
+    { slug: "b-direct", name: "B", parents: ["plant:p1"] },
+    { slug: "b-other", name: "B", parents: ["pod:pod2"] },
+    { slug: "b-orphan", name: "B", parents: ["pod:unrooted"] },
+  ],
+  sprouts: [],
+};
+
+test("resolveSproutPlants follows bean → pod → plant and bean → plant", () => {
+  assert.deepEqual(resolveSproutPlants({ about: ["bean:b-in-pod"] }, derivation).map((p) => p.slug), ["p1"]);
+  assert.deepEqual(resolveSproutPlants({ about: ["bean:b-direct"] }, derivation).map((p) => p.slug), ["p1"]);
+  assert.deepEqual(resolveSproutPlants({ about: ["pod:pod2"] }, derivation).map((p) => p.slug), ["p2"]);
+});
+
+test("two refs under one plant resolve to that plant once; refs under two plants list both", () => {
+  assert.deepEqual(
+    resolveSproutPlants({ about: ["bean:b-in-pod", "bean:b-direct", "pod:pod1"] }, derivation).map((p) => p.slug),
+    ["p1"],
+  );
+  assert.deepEqual(
+    resolveSproutPlants({ about: ["bean:b-in-pod", "bean:b-other"] }, derivation).map((p) => p.slug),
+    ["p1", "p2"],
+  );
+});
+
+test("dangling and unrooted refs contribute nothing", () => {
+  assert.deepEqual(resolveSproutPlants({ about: ["bean:nope", "pod:nope"] }, derivation), []);
+  assert.deepEqual(resolveSproutPlants({ about: ["bean:b-orphan"] }, derivation), []);
+});
+
+test("with about empty, the sprout's own plant parent is the plant; with about present, parents are ignored", () => {
+  assert.deepEqual(resolveSproutPlants({ parents: ["plant:p2"] }, derivation).map((p) => p.slug), ["p2"]);
+  assert.deepEqual(resolveSproutPlants({ about: [], parents: ["plant:p2"] }, derivation).map((p) => p.slug), ["p2"]);
+  assert.deepEqual(
+    resolveSproutPlants({ about: ["bean:b-in-pod"], parents: ["plant:p2"] }, derivation).map((p) => p.slug),
+    ["p1"],
+  );
+  assert.deepEqual(resolveSproutPlants({ parents: ["plant:nope"] }, derivation), []);
+  assert.deepEqual(resolveSproutPlants({}, derivation), []);
+});
+
+test("resolveSproutPlant is the derivation when it names exactly one plant, else null (fail-closed)", () => {
+  assert.equal(resolveSproutPlant({ about: ["bean:b-in-pod"] }, derivation)?.slug, "p1");
+  assert.equal(resolveSproutPlant({ about: ["bean:b-in-pod", "bean:b-other"] }, derivation), null);
+  assert.equal(resolveSproutPlant({ about: ["bean:nope"] }, derivation), null);
+});
+
+test("a bean moved to another pod moves its sprouts with it", () => {
+  const sprout = { about: ["bean:b-in-pod"] };
+  assert.equal(resolveSproutPlant(sprout, derivation)?.slug, "p1");
+  const moved: RawGarden = {
+    ...derivation,
+    beans: derivation.beans!.map((b) => (b.slug === "b-in-pod" ? { ...b, parents: ["pod:pod2"] } : b)),
+  };
+  assert.equal(resolveSproutPlant(sprout, moved)?.slug, "p2");
+});
+
+const journal: RawGarden = {
+  ...derivation,
+  sprouts: [
+    { slug: "s-bean", name: "S", kind: "log", date: "2026-01-03", description: "", about: ["bean:b-in-pod"] },
+    { slug: "s-pod", name: "S", kind: "log", date: "2026-01-02", description: "", about: ["pod:pod1"] },
+    { slug: "s-plant", name: "S", kind: "log", date: "2026-01-04", description: "", parents: ["plant:p1"] },
+    { slug: "s-other", name: "S", kind: "log", date: "2026-01-01", description: "", about: ["bean:b-other"] },
+    { slug: "s-two", name: "S", kind: "log", date: "2026-01-05", description: "", about: ["bean:b-in-pod", "bean:b-direct"] },
+  ],
+};
+
+test("sproutsForBean lists the sprouts about that bean, newest first", () => {
+  const ds = buildDataset(journal);
+  assert.deepEqual(ds.sproutsForBean("b-in-pod").map((s) => s.slug), ["s-two", "s-bean"]);
+  assert.deepEqual(ds.sproutsForBean("b-direct").map((s) => s.slug), ["s-two"]);
+  assert.deepEqual(ds.sproutsForBean("nope"), []);
+});
+
+test("sproutsForPod lists sprouts about the pod OR about a bean inside it, newest first, once each", () => {
+  const ds = buildDataset(journal);
+  assert.deepEqual(ds.sproutsForPod("pod1").map((s) => s.slug), ["s-two", "s-bean", "s-pod"]);
+  assert.deepEqual(ds.sproutsForPod("pod2").map((s) => s.slug), ["s-other"]);
+});
+
+test("sproutsForPlant lists every sprout whose DERIVED plant is this one, newest first", () => {
+  const ds = buildDataset(journal);
+  assert.deepEqual(ds.sproutsForPlant("p1").map((s) => s.slug), ["s-two", "s-plant", "s-bean", "s-pod"]);
+  assert.deepEqual(ds.sproutsForPlant("p2").map((s) => s.slug), ["s-other"]);
+});
+
+test("timeline entries carry the first about-bean (or null) and the derived plant", () => {
+  const byslug = new Map(buildDataset(journal).timelineSprouts().map((e) => [e.sprout.slug, e]));
+  assert.equal(byslug.get("s-bean")!.bean?.slug, "b-in-pod");
+  assert.equal(byslug.get("s-bean")!.plant?.slug, "p1");
+  assert.equal(byslug.get("s-pod")!.bean, null);
+  assert.equal(byslug.get("s-pod")!.plant?.slug, "p1");
+  assert.equal(byslug.get("s-plant")!.bean, null);
+  assert.equal(byslug.get("s-plant")!.plant?.slug, "p1");
 });

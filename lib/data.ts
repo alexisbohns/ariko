@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import yaml from "js-yaml";
 import { exhibitionOrder } from "./exhibition";
+import type { SproutKind } from "./sprout-kind";
 
 export type Visibility = "private" | "public";
 export type SproutState = "draft" | "private" | "published";
@@ -268,13 +269,35 @@ export interface Screen {
   order?: number;
 }
 
+/**
+ * A dated journal entry about a plant and the things in it (spec 2026-10-10
+ * §1.2). NOT a version of a bean: a bean's story is its own `content`, and an
+ * entry is a dated record — of work done, a state reached, a release, an
+ * essay, a decision, or the weekly digest.
+ *
+ * Its plant is DERIVED, never stored: `about` names the pods and beans the
+ * entry is about, every one of which rolls up to a plant, and all of them must
+ * roll up to the SAME plant (the write doors refuse otherwise; the read side
+ * treats an ambiguous sprout as unresolvable, fail-closed). `parents` holds
+ * ONE `plant:` ref and only when `about` is empty — the plant-level entry with
+ * no feature to hang on, the exception rather than the rule. A sprout carries
+ * exactly one of the two, so a bean moved to another pod moves its entries
+ * with it and nothing drifts. `resolveSproutPlant` below is the one place the
+ * derivation is spelled; `filterPublic`, `buildDataset`, `publishCascade` and
+ * the admin all call it.
+ *
+ * `about` is a typed field and not a relation kind because it is authored,
+ * validated and rendered as doors, while `relations` is machine-mirrored from
+ * prose and scrubbed.
+ */
 export interface Sprout {
   slug: string;
   name: Text; // bilingual since B1; plain strings remain valid (no migration)
-  type: string;
+  kind: SproutKind;
   date: string;
   description: Text;
-  parents: string[]; // containment ONLY, e.g. ["bean:rom-win"] — drives the privacy cascades and timeline grouping; cross-links go in relations[]
+  about?: string[]; // "pod:…" / "bean:…" refs; see the docblock
+  parents?: string[]; // exactly one "plant:…" ref, ONLY when `about` is empty
   relations?: Relation[]; // non-containment edges (G2); scrubbed by filterPublic
   state?: SproutState; // absent => NOT published (safe default)
   content?: Text; // optional rich markdown, localizable
@@ -282,7 +305,6 @@ export interface Sprout {
   links?: PlatformLink[]; // destinations, never rendered inline — see PlatformLink
   source?: Source;
   tags?: string[];
-  [key: string]: unknown; // flexible per-type properties
 }
 
 export interface RawGarden {
@@ -321,7 +343,9 @@ export interface Seed {
 
 export interface TimelineEntry {
   sprout: Sprout;
+  /** The first EXISTING `bean:` ref in the sprout's `about`, or null. */
   bean: Bean | null;
+  /** The DERIVED plant (`resolveSproutPlant`), or null. */
   plant: Plant | null;
 }
 
@@ -340,7 +364,12 @@ export interface Dataset {
   getPlant(slug: string): Plant | undefined;
   getPod(slug: string): Pod | undefined;
   getBean(slug: string): Bean | undefined;
+  /** Entries about this bean, newest first. */
   sproutsForBean(slug: string): Sprout[];
+  /** Entries about this pod OR about a bean inside it, newest first, once each. */
+  sproutsForPod(slug: string): Sprout[];
+  /** Entries whose DERIVED plant is this one, newest first. */
+  sproutsForPlant(slug: string): Sprout[];
   timelineSprouts(): TimelineEntry[];
 }
 
@@ -363,6 +392,80 @@ export function parentsWithPrefix(parents: string[] | undefined, prefix: string)
 // it works from a RawGarden rather than a built Dataset.
 export function byDateDesc(a: { date: string }, b: { date: string }): number {
   return a.date < b.date ? 1 : a.date > b.date ? -1 : 0;
+}
+
+/**
+ * A sprout's `about` refs, read tolerantly — the ONE door through which the
+ * field is read. A document written before the field existed has none; a
+ * malformed one from a direct DB write is not an array or holds a non-string.
+ * Both read as "no refs" rather than throwing, for the reason scrubRelations
+ * gives below: one bad doc must not 500 every read.
+ */
+export function aboutRefs(sprout: Pick<Sprout, "about">): string[] {
+  return Array.isArray(sprout.about) ? sprout.about.filter((r) => typeof r === "string") : [];
+}
+
+/** The lookups the derivation needs — `RawGarden`'s three container tiers. */
+export interface SproutGarden {
+  plants?: Plant[];
+  pods?: Pod[];
+  beans?: Bean[];
+}
+
+/**
+ * Every plant a sprout's refs roll up to, deduped, in first-reached order. A
+ * bean contributes its direct `plant:` parents and the `plant:` parents of
+ * each of its `pod:` parents; a pod contributes its `plant:` parents. With
+ * `about` empty (or absent), the sprout's own `parents` `plant:` refs — and
+ * with `about` present, `parents` is NOT consulted, because a sprout carries
+ * one or the other and a stale `parents` must not become a second source of
+ * truth. Dangling refs are ignored, exactly as filterPublic ignores them.
+ */
+export function resolveSproutPlants(
+  sprout: Pick<Sprout, "about" | "parents">,
+  garden: SproutGarden,
+): Plant[] {
+  const plantBySlug = new Map((garden.plants ?? []).map((p) => [p.slug, p]));
+  const podBySlug = new Map((garden.pods ?? []).map((p) => [p.slug, p]));
+  const beanBySlug = new Map((garden.beans ?? []).map((b) => [b.slug, b]));
+  const found = new Map<string, Plant>();
+  const addPlant = (slug: string): void => {
+    const plant = plantBySlug.get(slug);
+    if (plant) found.set(slug, plant);
+  };
+  const addPod = (slug: string): void => {
+    const pod = podBySlug.get(slug);
+    if (pod) for (const p of parentsWithPrefix(pod.parents, PLANT_PREFIX)) addPlant(p);
+  };
+
+  const about = aboutRefs(sprout);
+  if (about.length === 0) {
+    for (const p of parentsWithPrefix(sprout.parents, PLANT_PREFIX)) addPlant(p);
+    return [...found.values()];
+  }
+  for (const ref of about) {
+    if (ref.startsWith(BEAN_PREFIX)) {
+      const bean = beanBySlug.get(ref.slice(BEAN_PREFIX.length));
+      if (!bean) continue;
+      for (const p of parentsWithPrefix(bean.parents, PLANT_PREFIX)) addPlant(p);
+      for (const p of parentsWithPrefix(bean.parents, POD_PREFIX)) addPod(p);
+    } else if (ref.startsWith(POD_PREFIX)) {
+      addPod(ref.slice(POD_PREFIX.length));
+    }
+  }
+  return [...found.values()];
+}
+
+/** The sprout's plant: the derivation when it names EXACTLY one plant, else
+ *  null. Zero is a dangling sprout; two is an ambiguous one, and the read side
+ *  treats both as unresolvable rather than picking — fail-closed, as every
+ *  privacy decision in this file is. */
+export function resolveSproutPlant(
+  sprout: Pick<Sprout, "about" | "parents">,
+  garden: SproutGarden,
+): Plant | null {
+  const plants = resolveSproutPlants(sprout, garden);
+  return plants.length === 1 ? plants[0] : null;
 }
 
 export function buildDataset(raw: RawGarden): Dataset {
@@ -439,18 +542,42 @@ export function buildDataset(raw: RawGarden): Dataset {
     list.sort(exhibitionOrder);
   }
 
-  // bean slug -> sprouts, sorted newest first.
+  // The journal indexes. One pass computes each sprout's derived plant and
+  // its about-refs; the three maps below are filled from that, and sorted
+  // once. `resolveSproutPlant` is the ONE derivation (see its docblock) —
+  // nothing here re-derives.
   const sproutsByBean = new Map<string, Sprout[]>();
+  const sproutsByPod = new Map<string, Sprout[]>();
+  const sproutsByPlant = new Map<string, Sprout[]>();
+  const push = (map: Map<string, Sprout[]>, key: string, sprout: Sprout): void => {
+    const list = map.get(key) ?? [];
+    if (!list.includes(sprout)) list.push(sprout);
+    map.set(key, list);
+  };
+  const timeline: TimelineEntry[] = [];
   for (const sprout of sprouts) {
-    for (const beanSlug of parentsWithPrefix(sprout.parents, BEAN_PREFIX)) {
-      const list = sproutsByBean.get(beanSlug) ?? [];
-      list.push(sprout);
-      sproutsByBean.set(beanSlug, list);
+    const about = aboutRefs(sprout);
+    let firstBean: Bean | null = null;
+    for (const beanSlug of parentsWithPrefix(about, BEAN_PREFIX)) {
+      const bean = beanBySlug.get(beanSlug);
+      if (!bean) continue;
+      firstBean ??= bean;
+      push(sproutsByBean, beanSlug, sprout);
+      for (const podSlug of parentsWithPrefix(bean.parents, POD_PREFIX)) {
+        if (podBySlug.has(podSlug)) push(sproutsByPod, podSlug, sprout);
+      }
     }
+    for (const podSlug of parentsWithPrefix(about, POD_PREFIX)) {
+      if (podBySlug.has(podSlug)) push(sproutsByPod, podSlug, sprout);
+    }
+    const plant = resolveSproutPlant(sprout, raw);
+    if (plant) push(sproutsByPlant, plant.slug, sprout);
+    timeline.push({ sprout, bean: firstBean, plant });
   }
-  for (const list of sproutsByBean.values()) {
-    list.sort(byDateDesc);
+  for (const map of [sproutsByBean, sproutsByPod, sproutsByPlant]) {
+    for (const list of map.values()) list.sort(byDateDesc);
   }
+  timeline.sort((a, b) => byDateDesc(a.sprout, b.sprout));
 
   function plantForBean(slug: string): Plant | null {
     const bean = beanBySlug.get(slug);
@@ -471,18 +598,6 @@ export function buildDataset(raw: RawGarden): Dataset {
     return null;
   }
 
-  const timeline: TimelineEntry[] = sprouts
-    .map((sprout) => {
-      const beanSlug = parentsWithPrefix(sprout.parents, BEAN_PREFIX)[0];
-      const bean = beanSlug ? (beanBySlug.get(beanSlug) ?? null) : null;
-      return {
-        sprout,
-        bean,
-        plant: bean ? plantForBean(bean.slug) : null,
-      };
-    })
-    .sort((a, b) => byDateDesc(a.sprout, b.sprout));
-
   return {
     getPlants: () => plants,
     podsForPlant: (slug) => podsByPlant.get(slug) ?? [],
@@ -497,6 +612,8 @@ export function buildDataset(raw: RawGarden): Dataset {
     getPod: (slug) => podBySlug.get(slug),
     getBean: (slug) => beanBySlug.get(slug),
     sproutsForBean: (slug) => sproutsByBean.get(slug) ?? [],
+    sproutsForPod: (slug) => sproutsByPod.get(slug) ?? [],
+    sproutsForPlant: (slug) => sproutsByPlant.get(slug) ?? [],
     timelineSprouts: () => timeline,
   };
 }
