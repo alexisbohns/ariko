@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
-import { Calendar, Tag } from "lucide-react";
+import { Calendar } from "lucide-react";
 import type { SproutState } from "@/lib/data";
 import type { Lang } from "@/lib/locale";
-import { SPROUT_STATE_ICONS } from "@/components/admin/glyphs";
-import { sproutStateLabel } from "@/lib/glyphs";
+import { SPROUT_KIND_ICONS, SPROUT_STATE_ICONS } from "@/components/admin/glyphs";
+import { sproutKindLabel, sproutStateLabel } from "@/lib/glyphs";
 import { SPROUT_STATES } from "@/lib/sprout-state";
-import { setSproutStateAction, setSproutDateAction, setSproutTypeAction } from "../actions";
+import { SPROUT_KINDS, type SproutKind } from "@/lib/sprout-kind";
+import { setSproutStateAction, setSproutDateAction, setSproutKindAction } from "../actions";
 import { FactPopover } from "./fact-popover";
 import { OverlaySheet } from "./overlay-sheet";
 import { sweepRejection } from "@/lib/sweep-rejection";
@@ -22,7 +23,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 /**
  * A sprout's head: the name, the one-line description, and the three things a
- * sprout IS — a state, a date, a type — as three icons under it.
+ * sprout IS — a state, a date, a kind — as three icons under it.
  *
  * `plant-hero.tsx`'s shape, on the entity one tier down, and deliberately beat
  * for beat: an author moving between a plant and a sprout should find the same
@@ -36,10 +37,14 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
  * field each to a one-field server action.
  *
  * NONE OF THE THREE WRITES ON THE CLICK THAT OPENS IT, and state earns that
- * harder than the plant's two enums do: publishing a sprout cascades upward
- * through its bean, pod and plant, and un-publishing runs the downward
- * recompute. A one-click flip is a mis-click away from publishing a project's
- * whole spine, and the undo is another mis-click on the same pixel.
+ * harder than the plant's two enums do: publishing a sprout makes its derived
+ * plant public with it (`publishCascade`, lib/data.ts — the bean and pod
+ * above it are not touched, and there is no unpublish cascade in the other
+ * direction). A one-click flip is a mis-click away from publishing a project,
+ * and the undo is another mis-click on the same pixel that does NOT take the
+ * plant back with it — which is why Save confirms. Kind is the second enum here
+ * (lib/sprout-kind.ts), and the same radios-plus-Save for the same reason: one
+ * of its members, `digest`, changes what publishing does.
  */
 
 export interface SproutHeroProps {
@@ -48,11 +53,11 @@ export interface SproutHeroProps {
   description: string;
   state: SproutState;
   date: string;
-  type: string;
+  kind: SproutKind;
   /**
    * The half being edited, from the page's `?lang=` (lib/edit-lang.ts). Each
    * of the three forms this component renders itself posts it as a hidden
-   * field — not to choose what gets written (none of state, date or type has
+   * field — not to choose what gets written (none of state, date or kind has
    * an fr/en half), but so `sproutHref`'s redirect (app/admin/actions.ts)
    * lands the author back on the half they were editing rather than on the
    * English editor.
@@ -85,7 +90,7 @@ export interface SproutHeroProps {
 
 /** The surfaces this head can open, one at a time — tracked in one place rather
  *  than in four independently uncontrolled primitives. */
-export type Surface = "meta" | "state" | "date" | "type";
+export type Surface = "meta" | "state" | "date" | "kind";
 
 export function SproutHero({
   slug,
@@ -93,7 +98,7 @@ export function SproutHero({
   description,
   state,
   date,
-  type,
+  kind,
   lang,
   error,
   errorForm,
@@ -180,11 +185,10 @@ export function SproutHero({
               <StateForm slug={slug} current={state} lang={lang} />
             </FactPopover>
 
-            {/* Date and type. NOT enums: `type` is free-form (lib/sprouts.ts
-                filters by state, plant and tag and never by type), so there is
-                no vocabulary to draw as radios. A text field's "differs from
-                stored" is what the author can already see in the field, so the
-                Save is a plain submit. */}
+            {/* Date. NOT an enum: there is no vocabulary to draw as radios, and
+                a field's "differs from stored" is what the author can already
+                see in the field, so the Save is a plain submit. The SHAPE is
+                still guarded — lib/sprout-date.ts, at the action. */}
             <FactPopover
               open={open === "date"}
               onOpenChange={(next) => surface(next ? "date" : null)}
@@ -204,23 +208,17 @@ export function SproutHero({
               />
             </FactPopover>
 
+            {/* Kind. The vocabulary that replaced the free string `type`
+                (spec 2026-10-10 §1.2), so it gets the enum rule: radios plus a
+                Save disabled until the pick differs. */}
             <FactPopover
-              open={open === "type"}
-              onOpenChange={(next) => surface(next ? "type" : null)}
-              error={errorForm === "type" ? error : undefined}
-              label={`Type: ${type}`}
-              icon={Tag}
+              open={open === "kind"}
+              onOpenChange={(next) => surface(next ? "kind" : null)}
+              error={errorForm === "kind" ? error : undefined}
+              label={`Kind: ${sproutKindLabel(kind)}`}
+              icon={SPROUT_KIND_ICONS[kind]}
             >
-              <FieldForm
-                slug={slug}
-                action={setSproutTypeAction}
-                field="type"
-                inputType="text"
-                current={type}
-                heading="Type"
-                hint="Free text. A type of “digest” exempts this sprout from the publish cascade."
-                lang={lang}
-              />
+              <KindForm slug={slug} current={kind} lang={lang} />
             </FactPopover>
           </div>
         }
@@ -316,7 +314,70 @@ const STATE_HINTS: Record<SproutState, string> = {
 };
 
 /**
- * One free-text or date field: an input and a Save.
+ * The kind vocabulary, drawn as native radios — `StateForm` over the other
+ * enum. The words are `lib/glyphs.ts`'s and the icons the admin tables' own,
+ * so a kind reads the same on `/admin/sprouts` as on this head; the hints are
+ * the only new prose, because what a kind MEANS is invisible from this page,
+ * and one of them (digest) changes what the state control does.
+ */
+function KindForm({ slug, current, lang }: { slug: string; current: SproutKind; lang: Lang }) {
+  const [picked, setPicked] = useState<SproutKind>(current);
+
+  return (
+    <form action={setSproutKindAction} className="flex flex-col gap-3">
+      <input type="hidden" name="slug" value={slug} />
+      <input type="hidden" name="lang" value={lang} />
+
+      <div className="flex flex-col gap-2">
+        {SPROUT_KINDS.map((option) => {
+          const Icon = SPROUT_KIND_ICONS[option];
+          const id = `kind-${option}`;
+          return (
+            <ChoiceLabel key={option} htmlFor={id} className="items-start gap-2.5">
+              <NativeRadio
+                id={id}
+                name="kind"
+                value={option}
+                checked={picked === option}
+                onChange={() => setPicked(option)}
+                className="mt-0.5"
+              />
+              <span className="flex min-w-0 flex-col gap-1">
+                <span className="flex items-center gap-1.5">
+                  <Icon className="size-3.5 text-muted-foreground" />
+                  {sproutKindLabel(option)}
+                </span>
+                <span className="text-xs leading-snug text-muted-foreground">
+                  {KIND_HINTS[option]}
+                </span>
+              </span>
+            </ChoiceLabel>
+          );
+        })}
+      </div>
+
+      <div className="flex justify-end">
+        {/* Disabled until the pick differs, for StateForm's reason. */}
+        <Button type="submit" size="sm" disabled={picked === current}>
+          Save
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+const KIND_HINTS: Record<SproutKind, string> = {
+  log: "A dated note on work done — the default.",
+  milestone: "A state reached: shipped, launched, recorded.",
+  release: "A tagged version, usually mirrored from a feed.",
+  essay: "A retrospective, a reflection, a learning.",
+  decision: "A choice made, and why.",
+  digest: "The machine-written weekly wrap. Publishing one marks review, and does not make its plant public.",
+};
+
+/**
+ * One date field: an input and a Save. Kept general (`field`, `inputType`) from
+ * when it also drew the free-text `type`; today `date` is its only caller.
  *
  * No disabled-until-changed guard, unlike `StateForm`. That guard exists to
  * make a second click a confirmation of a choice the author might not have
@@ -334,7 +395,7 @@ function FieldForm({
 }: {
   slug: string;
   action: (formData: FormData) => Promise<void>;
-  field: "date" | "type";
+  field: "date";
   inputType: "date" | "text";
   current: string;
   heading: string;

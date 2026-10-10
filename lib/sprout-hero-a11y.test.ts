@@ -5,10 +5,10 @@ import { join } from "node:path";
 import React from "react";
 
 /**
- * The sprout head's four editors are icon triggers — a title, a pencil, a
- * calendar, a tag. An icon is not a label, so the only place a reader (a screen
- * reader, or anyone hovering) learns what `state`, `date` and `type` currently
- * ARE is each trigger's accessible name.
+ * The sprout head's four editors are icon triggers — a title, a state glyph, a
+ * calendar, a kind glyph. An icon is not a label, so the only place a reader (a
+ * screen reader, or anyone hovering) learns what `state`, `date` and `kind`
+ * currently ARE is each trigger's accessible name.
  *
  * That is what this file pins, and it is easy to lose by accident: the
  * accessible name is set on the control, not on a visible span (the hover label
@@ -47,7 +47,7 @@ async function hero(overrides: Record<string, unknown> = {}): Promise<string> {
       description: "one line about it",
       state: "draft",
       date: "2026-09-12",
-      type: "article",
+      kind: "log",
       metaForm: React.createElement("div", null, "META FORM"),
       saved: "x",
       ...overrides,
@@ -61,10 +61,10 @@ test("the state trigger names the stored state", async () => {
   assert.match(await hero({ state: "published" }), /aria-label="State: Published"/);
 });
 
-test("the date and type triggers name their stored values", async () => {
-  const html = await hero({ date: "2026-09-12", type: "article" });
+test("the date and kind triggers name their stored values", async () => {
+  const html = await hero({ date: "2026-09-12", kind: "essay" });
   assert.match(html, /aria-label="Date: 2026-09-12"/);
-  assert.match(html, /aria-label="Type: article"/);
+  assert.match(html, /aria-label="Kind: Essay"/);
 });
 
 test("the name and the description are genuinely server-rendered", async () => {
