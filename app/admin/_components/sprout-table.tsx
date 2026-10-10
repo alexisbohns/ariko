@@ -7,15 +7,25 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { resolveText, type TimelineEntry } from "@/lib/data";
-import { SproutStateGlyph } from "@/components/admin/glyphs";
+import { SproutKindGlyph, SproutStateGlyph } from "@/components/admin/glyphs";
 import { stateOf } from "@/lib/sprout-state";
 import { MarkCell } from "./table-cells";
 
 /**
  * Sprout rows, wherever sprout rows are drawn — `/admin/sprouts` and a plant
  * hub's preview, out of one file. The table this draws is the one that lived
- * inside `/admin/sprouts`, lifted whole: the same six columns, the same Badge,
- * the same avatar in the plant cell.
+ * inside `/admin/sprouts`, lifted whole, and grown by one: seven columns —
+ * sprout, state, kind, plant, about, date, tags — the same glyphs the sprout's
+ * own head draws, the same avatar in the plant cell.
+ *
+ * The `about` column is the journal model's answer to what used to be the
+ * `bean` column (spec 2026-10-10 §1.2). A sprout is no longer contained by one
+ * bean; it is ABOUT one or more pods and beans, and its plant is derived from
+ * them. So the cell lists every `about` ref's slug, prefix stripped, in the
+ * order the author gave — not only the first existing bean the entry resolved
+ * — because a sprout about two beans is a fact the row should show rather than
+ * halve. An entry with no `about` is a plant-level sprout and draws the em
+ * dash, the same nothing the tags cell draws.
  *
  * It takes `TimelineEntry[]` rather than a prepared row type, unlike its three
  * siblings, for two reasons that do not expire. A timeline entry already
@@ -43,9 +53,12 @@ export function SproutTable({
   limit?: number;
   showPlant?: boolean;
   /**
-   * Drops the bean column, exactly as `showPlant` drops the plant one and for
+   * Drops the about column, exactly as `showPlant` drops the plant one and for
    * the identical reason: a column whose value is constant on the page drawing
-   * it is a column that says nothing. The bean's own page passes false for both.
+   * it is a column that says nothing. The bean's own page passes false for
+   * both, because every row there is about it. The flag keeps the name it had
+   * when the column was `bean`: what it means — "the page already answers which
+   * bean" — has not changed, only what the column spells.
    */
   showBean?: boolean;
 }) {
@@ -57,8 +70,9 @@ export function SproutTable({
         <TableRow>
           <TableHead>sprout</TableHead>
           <TableHead>state</TableHead>
+          <TableHead>kind</TableHead>
           {showPlant ? <TableHead>plant</TableHead> : null}
-          {showBean ? <TableHead>bean</TableHead> : null}
+          {showBean ? <TableHead>about</TableHead> : null}
           <TableHead>date</TableHead>
           <TableHead>tags</TableHead>
         </TableRow>
@@ -72,8 +86,8 @@ export function SproutTable({
                   `/admin/sprout/[slug]` existed, and it left the sprout page
                   reachable only from the palette and the bean's version list.
                   A sprout always has its own slug, so there is no case here
-                  where the name is not a link — the bean column is still the
-                  way to the bean. */}
+                  where the name is not a link — the about column still names
+                  what it hangs from. */}
               <a
                 href={`/admin/sprout/${encodeURIComponent(e.sprout.slug)}`}
                 className="underline-offset-4 transition-colors hover:underline"
@@ -90,6 +104,13 @@ export function SproutTable({
                   that has one by default. */}
               <SproutStateGlyph state={stateOf(e.sprout)} />
             </TableCell>
+            <TableCell>
+              {/* Same arrangement as the state: the glyph the sprout's kind
+                  popover draws, carrying its word in the accessible name.
+                  `kind` is required on a Sprout, so there is no absent case
+                  for `stateOf`'s sibling to normalise. */}
+              <SproutKindGlyph kind={e.sprout.kind} />
+            </TableCell>
             {showPlant ? (
               <MarkCell
                 mark={
@@ -104,7 +125,9 @@ export function SproutTable({
               />
             ) : null}
             {showBean ? (
-              <TableCell className="text-muted-foreground">{e.bean?.slug ?? "—"}</TableCell>
+              <TableCell className="text-muted-foreground">
+                {(e.sprout.about ?? []).map((r) => r.slice(r.indexOf(":") + 1)).join(", ") || "—"}
+              </TableCell>
             ) : null}
             <TableCell className="text-muted-foreground">{e.sprout.date}</TableCell>
             <TableCell className="text-muted-foreground">

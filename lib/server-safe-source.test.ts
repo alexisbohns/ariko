@@ -79,6 +79,11 @@ const SERVER_SAFE = [
   // "use client" here would put a client boundary above every public page,
   // which is the widest blast radius on this list.
   "lib/theme.ts",
+  // The glyph WORDS, never the icons. /beanstalk draws a sprout's kind as
+  // `sproutKindLabel(kind)`, so this file is on the public path from the
+  // journal slice on; it imports `./data` as a TYPE only, which is what keeps
+  // `node:fs` off that path — and the icon map stays in components/admin/.
+  "lib/glyphs.ts",
   // The registry primitives the public zone renders — all of them, which is
   // the whole point. This list used to stop at components/, so shadcn's stock
   // "use client" on table.tsx cost every prose page 8.5 kB of

@@ -3,6 +3,7 @@ import { loadRawGarden } from "@/lib/store";
 import { getFederation } from "@/lib/federation";
 import { countRefusalsByFeed, listCursors, listPollen, listRefusals } from "@/lib/pollen-store";
 import { mergeBeanstalk } from "@/lib/beanstalk";
+import { sproutKindLabel } from "@/lib/glyphs";
 import { syncNowAction } from "../../actions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -136,7 +137,7 @@ export default async function AdminBeanstalkPage({
                   <span className="flex flex-wrap items-center gap-2 font-heading text-xs text-muted-foreground">
                     <Badge variant="secondary">{e.entry.sprout.state ?? "draft"}</Badge>
                     <time dateTime={e.entry.sprout.date}>{e.date}</time>
-                    <span>{e.entry.sprout.type}</span>
+                    <span>{sproutKindLabel(e.entry.sprout.kind)}</span>
                     <span>authored</span>
                   </span>
                 </li>
