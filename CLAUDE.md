@@ -524,7 +524,7 @@ decision made while looking at a diff. An ingest route would put a bad payload
 one `curl` from production, and `plugins/garden-plant/` says so to the agent
 that would otherwise reach for one.
 
-Four rules the tests pin, each of which passes `tsc`, `npm test` **and**
+Five rules the tests pin, each of which passes `tsc`, `npm test` **and**
 `npm run build` while quietly becoming false:
 
 - **A manifest cannot publish.** `visibility`, `state`, `exhibited` and `order`
@@ -545,8 +545,8 @@ Four rules the tests pin, each of which passes `tsc`, `npm test` **and**
 - **An update preserves hand-authored relations.** `contentPatch` takes the
   stored `relations` as a REQUIRED parameter, never a defaulted one.
   `lib/content-edit.ts`'s §2.10 note already says that `articles-store.ts`'s
-  `undefined` is "right for a door that only writes unreviewed sprouts and wrong
-  for an edit path" — `--update` is an edit path, and passing `undefined` there
+  `undefined` is "right for a door that writes only unreviewed drafts … and
+  wrong for an edit path" — `--update` is an edit path, and passing `undefined` there
   deletes every non-mirrored kind with nothing failing anywhere. The parameter is
   required so no future call site can omit it back into the bug.
 - **An image is written only where there is none.** A bean's `cover:` and a

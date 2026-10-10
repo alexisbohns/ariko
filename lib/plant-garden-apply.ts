@@ -63,8 +63,9 @@ import type { GardenSlugs, PlanAction } from "./garden-plan";
  * for an entity that already exists deletes every hand-authored relation on it,
  * with nothing failing anywhere. `lib/content-edit.ts`'s §2.10 note states the
  * rule from the other side: `lib/articles-store.ts` passes `undefined` and is
- * right to, because that door only ever writes unreviewed sprouts — and it is
- * "wrong for an edit path". `--update` IS an edit path.
+ * right to, because that door writes only unreviewed drafts and refuses what a
+ * human has published — and it is "wrong for an edit path". `--update` IS an
+ * edit path.
  *
  * So: `undefined` on a `create`, where nothing exists yet and there is nothing
  * to preserve; the stored entity's `relations` on an `update`. A default

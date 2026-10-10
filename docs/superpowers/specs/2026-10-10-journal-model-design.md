@@ -145,7 +145,11 @@ plant/pod → parents) as well as into a sprout. `promotedTo` records either ref
   sprouts about this pod or about any bean inside it.
 - **`/bean/[id]`**: narrative first, then the journal filtered to sprouts about
   it. `articleFor` and the one-article rendering are deleted. The related-beans
-  rail stays.
+  rail stays — and when slice two deletes `narrativeFor`'s sprout fallback it
+  must give the rail a date source of its own (the newest journal entry about
+  each bean), because today the rail is dated by that fallback's sprout: with
+  it gone every candidate is undated and the rail silently degrades to name
+  order.
 - **`/sprout/[slug]`** (new): kind badge, date, name, body with entity refs,
   media, links, and "about" doors. Progressively enhanced like every public
   page; added to `lib/server-safe-source.test.ts` the day it is written.
@@ -172,7 +176,10 @@ plant/pod → parents) as well as into a sprout. `promotedTo` records either ref
 ### Doors
 
 - **`/api/articles`** writes a bean with `content` directly, no companion sprout.
-  A container narrative still goes to the pod or plant.
+  A container narrative still goes to the pod or plant. In slice one
+  `ArticleInput.date` stays accepted and validated but is recorded nowhere — a
+  bean has no date — so an existing caller keeps working; slice two may turn it
+  into a milestone entry in the bean's journal.
 - **Garden manifest** (`lib/garden-manifest.ts`, `plugins/garden-plant/`):
   `bean.content` is accepted; `sprouts` move out of beans to a top-level list on
   the pod (or plant), each with `kind` and an `about: [slugs]` list resolved
@@ -193,7 +200,11 @@ production after a `mongodump`. It is idempotent: a sprout already carrying
    migration runs**; the script does not guess.
 2. **Article fold.** For each of the 17 `type: "article"` sprouts: copy
    `content` (both halves) into the bean's `content`, carry `relations` onto the
-   bean, delete the sprout. If a bean already has content, refuse.
+   bean, delete the sprout. If a bean already has content, refuse. The fold
+   finds its sprouts by querying `type: "article"`, so it MUST run before step 3
+   renames `type` to `kind` on the same database — run after, it reads zero
+   articles, reports a clean "0 fold(s)", and leaves every article sprout in
+   place with nothing failing.
 3. **Re-anchor.** Every remaining sprout: `about = ["bean:<old parent>"]`,
    `parents` unset, `type` → `kind` by the table below, `type` unset. Step 1's
    resolution is what guarantees the derived plant exists afterwards.

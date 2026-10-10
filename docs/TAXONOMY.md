@@ -462,7 +462,7 @@ a question two pages could otherwise answer differently.
 | **Entity refs in prose** | `::entity{ref=bean:karma}` (block) and `:entity[label]{ref=plant:paulopus}` (inline) are extracted at **write** time and mirrored into `relations[]` under the kinds `embeds` / `mentions` — derived state, re-derived on every write, so the graph reads stored refs and never parses prose | [`lib/entity-refs.ts`](../lib/entity-refs.ts) |
 | **The graph** | every species becomes a node (`kind:slug`); containment becomes `contains` edges, relations become their own kinds, a bee's `serves[]` becomes `serves` | [`lib/graph.ts`](../lib/graph.ts) |
 
-Two of these earn a note. `articleFor` and `coverFor` deliberately **do not
+Two of these earn a note. `narrativeFor` and `coverFor` deliberately **do not
 re-check state** — the public page hands them a `filterPublic`-projected dataset,
 so "published" is already enforced upstream: one projection, one place. And the
 rollup in `plant-hub.ts` exists so a plant's hub and its scoped section **report
