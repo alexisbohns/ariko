@@ -187,9 +187,13 @@ export default async function AdminSproutPage({
               sprout.date,
               sprout.kind,
               stateOf(sprout),
-              // The about panel's save also lands back here; the rail closes
-              // itself on its own signal, but the fingerprint is the page's
-              // one statement of "everything a save on this page can change".
+              // The anchor is here although nothing in the head draws it: a
+              // rail panel stays OPEN after a save by design (About, like Media
+              // and Delete — entity-rail.tsx changes `open` only on a click,
+              // Escape or `openOnError`), so this entry closes nothing. It is in
+              // the list because the fingerprint is the page's one statement of
+              // "everything a save on this page can change", and the About
+              // panel's save lands back here like every other.
               JSON.stringify(sprout.about ?? sprout.parents ?? []),
             ])}
           />
