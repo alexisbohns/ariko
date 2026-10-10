@@ -387,10 +387,10 @@ The ⌘K palette's index — every section, plant, pod, bean, sprout and inbox s
 ### `GET /api/graph`
 
 The graph playground's data contract (roadmap G1): the published-only dataset as JSON —
-`{ nodes: [{ id, kind, name, description?, natures?, cover?, type?, date?, status?, tags? }], edges: [{ source, target, kind }] }` — optional fields ride along only when the entity carries them (`natures` on plants, `cover` on beans, `type`/`date` on sprouts, `type`/`status` on bees).
+`{ nodes: [{ id, kind, name, description?, natures?, cover?, type?, date?, status?, tags? }], edges: [{ source, target, kind }] }` — optional fields ride along only when the entity carries them (`natures` on plants, `cover` on beans, `type`/`date` on sprouts — a sprout's `type` is its `kind`, one of the journal vocabulary — `type`/`status` on bees).
 
 * Node ids reuse the prefixed-ref grammar — `plant:<slug>`, `pod:<slug>`, `bean:<slug>`, `sprout:<slug>`, `bee:<slug>` — and slugs are immutable, so ids are stable across publishes.
 * Unauthenticated and `force-dynamic` — it is the data twin of the public pages and composes the same `filterPublic` projection, so it can never expose more than the public HTML does. A node carries its resolved `description` and, for a bean, the cover image (explicit or derived — the picture only, never the phone treatment, and only when its URL is http(s)); `content`, raw `media` and `source` stay out.
-* Edges: containment (from `parents[]`, kind `contains`) plus non-containment relations (from `relations[]`, per-relation kind, plus a bee's `serves` refs); an edge is emitted only when both ends survive the projection.
+* Edges: containment (from `parents[]`, kind `contains` — plant→pod, plant→bean, pod→bean, and plant→sprout for a plant-level entry), a sprout's `about` edges (from `about[]`, kind `about`, pod→sprout or bean→sprout — an entry is about the things it names, and is contained by nothing but the plant they derive), plus non-containment relations (from `relations[]`, per-relation kind, plus a bee's `serves` refs); an edge is emitted only when both ends survive the projection.
 
 See `docs/superpowers/specs/` and `docs/superpowers/plans/` for the design and implementation plans.
