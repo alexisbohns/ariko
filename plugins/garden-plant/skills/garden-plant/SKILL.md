@@ -35,7 +35,7 @@ reaching for a database, you have left the skill.
 |---|---|---|
 | **Plant** | A whole practice or brand — the root. | yes (`content`) |
 | **Pod** | One project. Usually one repo. | yes (`content`) |
-| **Bean** | One feature, theme or strand of the project. | **no** |
+| **Bean** | One feature, theme or strand of the project. | yes (`content`) |
 | **Sprout** | One dated thing that happened: a release, a note, a milestone. | yes (`content`) |
 
 A manifest writes **one pod, its beans, and their sprouts**. It never creates a
@@ -44,25 +44,21 @@ plant — it may only point at one that already exists.
 **Small project? Skip the plant.** `plant: null` makes a standalone pod, and
 that is the normal case for a side project.
 
-### A bean has no prose, and that is the design
+### A bean's narrative and a sprout's entry are different kinds of prose
 
-This is the mistake everyone makes once. There is no `content` on a bean. Not a
-shorter one, not an undocumented one — the field does not exist, and the
-validator rejects the key by name:
+A bean carries `content`: its **narrative** — what the feature is *now* and how
+it got there. It is bilingual like a pod's, under the same rules, and it is
+**rewritten in place**: when the feature changes, you edit the narrative so it
+describes the feature as it stands, rather than appending a paragraph that
+begins "and then".
 
-```
-beans[0].content: a bean has no content field — put this in one of its sprouts instead
-```
+A **sprout** is a dated piece of work: a release, a note, a milestone — one
+entry in the bean's journal. It keeps its date, so the timeline can order it
+and the publish cascade can find it, and it is never rewritten to say what the
+feature later became.
 
-Do not route around it. The bean **is** the feature: a durable name, a
-description, a place things hang from. What you want to *say* about that
-feature on a given day is a **sprout** — dated, and therefore something the
-timeline can order and the publish cascade can find. Prose stuffed into a bean
-would have no date, appear in no timeline, and be publishable only by
-publishing the whole bean.
-
-So: "Ledger import" is a bean. "Ledger import now reads OFX" on 2026-08-14 is a
-sprout hanging from it.
+So: "Ledger import" is a bean, and its `content` says what import can do today.
+"Ledger import now reads OFX" on 2026-08-14 is a sprout hanging from it.
 
 ## The file
 
@@ -103,6 +99,15 @@ beans:
     description:
       en: Drop in a bank export and Krabs sorts it out.
       fr: Dépose un export bancaire, Krabs s'occupe du tri.
+    content:
+      en: |
+        Import takes the file your bank already gives you — CSV or OFX — and
+        turns it into entries you recognise. It started out CSV-only and
+        fussy about dates; OFX made most banks work with no fixing up.
+      fr: |
+        L'import prend le fichier que ta banque te donne déjà — CSV ou OFX —
+        et en fait des lignes que tu reconnais. Au départ il ne lisait que le
+        CSV, et mal les dates ; l'OFX a réglé ça pour la plupart des banques.
     sprouts:
       - slug: krabs-ofx-import
         type: release
@@ -147,7 +152,8 @@ Notes on the shape:
 - Every human-readable field is a `{ en, fr }` pair. `en` is required; `fr` is
   recommended and should be a real **adaptation**, not a literal translation.
 - `content` uses a block scalar (`|`), which lets you write paragraphs of
-  Markdown without quoting anything.
+  Markdown without quoting anything. A pod's and a bean's `content` is a
+  narrative, kept current; a sprout's is an entry, dated and left as written.
 - `beans` may be omitted or empty — a pod on its own is a valid manifest.
 - `sprouts` may be omitted on a bean.
 - `plant:` is either `null` or the slug of a plant that already exists in the
@@ -224,7 +230,6 @@ Each of these is a **hard error**, not a field quietly dropped:
 | `order` | Same. |
 | `relations` | Derived from the prose's own references, never authored. |
 | `parents` | Containment; re-homing an entity is a privacy decision. |
-| `content` on a bean | A bean has no such field — use a sprout. |
 | `cover` on a pod or sprout, `media` on a bean | A cover is a bean's; media is a sprout's. |
 
 **Everything a manifest creates is private.** Sprouts land as drafts. The

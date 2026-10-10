@@ -368,7 +368,10 @@ beans:
   });
 }
 
-test("rejects content on a bean, naming the field and pointing at a sprout", () => {
+// A bean carries its narrative — what the feature is NOW and how it got there
+// — under the same rules as a pod's. The manifest used to refuse this key by
+// name; the journal model made the bean the thing that has a narrative.
+test("accepts content on a bean, bilingual, under a pod's rules", () => {
   const result = parseManifest(`
 pod:
   slug: krabs
@@ -380,13 +383,32 @@ beans:
     name: { en: Ledger }
     description: { en: The ledger bean. }
     sprouts: []
-    content: { en: This should not be here. }
+    content: { en: now, fr: maintenant }
+`);
+  assert.equal(result.ok, true, result.ok ? "" : result.error);
+  if (!result.ok) return;
+  assert.deepEqual(result.manifest.beans[0].content, { en: "now", fr: "maintenant" });
+});
+
+test("rejects a bean content over the cap, the way a pod's is", () => {
+  const big = "a".repeat(MAX_CONTENT_BYTES + 1);
+  const result = parseManifest(`
+pod:
+  slug: krabs
+  name: { en: Krabs }
+  plant: null
+  description: { en: A small ledger. }
+beans:
+  - slug: ledger
+    name: { en: Ledger }
+    description: { en: The ledger bean. }
+    sprouts: []
+    content: { en: "${big}" }
 `);
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.match(result.error, /beans\[0\]\.content/);
-  assert.match(result.error, /has no content/i);
-  assert.match(result.error, /sprout/i);
+  assert.match(result.error, /beans\[0\]\.content\.en/);
+  assert.match(result.error, CAP);
 });
 
 // Every other `content` test here asserts a REJECTION, which left the two

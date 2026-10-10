@@ -218,6 +218,31 @@ test("a manifest cover and media are written at creation and never replaced on -
   assert.deepEqual(sprout?.media, [second]);
 });
 
+test("a bean's narrative is written at creation and rewritten on --update", { skip: !hasDb }, async (t) => {
+  await ensureBotanicalIndexes();
+  await cleanup();
+  t.after(cleanup);
+
+  // Bilingual, like every narrative in this file: `composeText` folds an
+  // en-only pair down to a bare string, so an `{ en }`-only fixture would store
+  // "x" and say nothing about the fr half surviving the write.
+  const withBeanContent = (en: string, fr: string) =>
+    manifestYaml("The narrative.", "Le récit.").replace("    sprouts:", `    content: { en: ${en}, fr: ${fr} }\n    sprouts:`);
+
+  // A bean's narrative is what the feature is NOW, rewritten in place — so,
+  // like a pod's, it is a second write on create and the manifest's text wins
+  // on `--update`. `relations` is an array because the content door mirrors the
+  // body's refs; a bean written through `createBean` alone would have none.
+  await plant(withBeanContent("x", "ix"), false);
+  let { bean } = await readTree();
+  assert.deepEqual(bean?.content, { en: "x", fr: "ix" });
+  assert.ok(Array.isArray(bean?.relations), "the content write mirrored relations");
+
+  await plant(withBeanContent("y", "igrec"), true);
+  ({ bean } = await readTree());
+  assert.deepEqual(bean?.content, { en: "y", fr: "igrec" });
+});
+
 // The house pattern for a DB-backed file: the pooled client is a live handle,
 // so without this the runner reports four passes and then never exits —
 // hanging `npm run test:db`, which runs these files serially.

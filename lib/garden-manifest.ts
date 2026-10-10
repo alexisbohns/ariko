@@ -128,6 +128,8 @@ export interface ManifestBean {
   name: Text;
   description: Text;
   sprouts: ManifestSprout[];
+  /** The bean's narrative — what it is now and how it got there — same rules as a pod's. */
+  content?: Text;
   /** The one image on the bean's card and page head. */
   cover?: ManifestImage;
 }
@@ -338,18 +340,6 @@ function buildBean(raw: Record<string, unknown>, where: string): BeanResult {
   const forbiddenError = checkForbiddenKeys(raw, where, "bean");
   if (forbiddenError) return { ok: false, error: forbiddenError };
 
-  // A `Bean` has no `content` field at all — only `Pod` and `Plant` carry
-  // narrative markdown (see the `Bean` and `Pod` interfaces in lib/data.ts).
-  // A bean's prose belongs in a SPROUT hanging from it. Without this check
-  // the key would parse, write nothing, and lose the author's prose in
-  // silence — the mistake this message exists to head off.
-  if (raw.content !== undefined) {
-    return {
-      ok: false,
-      error: `${where}.content: a bean has no content field — put this in one of its sprouts instead`,
-    };
-  }
-
   const sproutsRaw = raw.sprouts ?? [];
   if (!Array.isArray(sproutsRaw)) return { ok: false, error: `${where}.sprouts must be a list` };
 
@@ -364,6 +354,15 @@ function buildBean(raw: Record<string, unknown>, where: string): BeanResult {
   }
 
   const bean: ManifestBean = { slug: str(raw.slug), name: name.text, description: description.text, sprouts };
+  // A bean's narrative is read exactly as a pod's: what the feature is now and
+  // how it got there, rewritten in place. A dated piece of work is a sprout.
+  if (raw.content !== undefined) {
+    const content = readText(raw.content, `${where}.content`);
+    if (!content.ok) return { ok: false, error: content.error };
+    const sizeError = checkContentSize(content.text, `${where}.content`);
+    if (sizeError) return { ok: false, error: sizeError };
+    bean.content = content.text;
+  }
   if (raw.cover !== undefined) {
     const cover = readImage(raw.cover, `${where}.cover`);
     if (!cover.ok) return { ok: false, error: cover.error };

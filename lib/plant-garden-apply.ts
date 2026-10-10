@@ -36,7 +36,7 @@
  *    `updateSproutMeta`, the two content writers) rather than re-running a
  *    creator: a creator would re-assert every field, parentage included.
  */
-import { createPod, createBean, createSprout, updatePodContent, updateBeanMeta, updateBeanCover, updateSproutMeta, updateSproutContent, updateSproutMedia } from "./botanical";
+import { createPod, createBean, createSprout, updatePodContent, updateBeanMeta, updateBeanContent, updateBeanCover, updateSproutMeta, updateSproutContent, updateSproutMedia } from "./botanical";
 import { uploadedFor, type UploadedAssets } from "./garden-assets";
 import { extractRefs, mergeMirrored } from "./entity-refs";
 import type { Relation, Text } from "./data";
@@ -133,6 +133,13 @@ export async function applyPlan(
         if (bean.cover && !existing?.cover) {
           await updateBeanCover(bean.slug, uploadedFor(assets, bean.cover));
         }
+      }
+      // A bean's narrative, like a pod's, is a second write on create and on
+      // --update: the manifest is the author's current text for both.
+      if (bean.content !== undefined) {
+        const existing =
+          action.action === "create" ? undefined : garden.beans.find((b) => b.slug === bean.slug)?.relations;
+        await updateBeanContent(bean.slug, contentPatch(bean.content, existing));
       }
       continue;
     }
