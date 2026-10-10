@@ -5,11 +5,11 @@ import { loadRawGarden } from "./store";
 import { extractRefs, mergeMirrored } from "./entity-refs";
 import { listPollen } from "./pollen-store";
 import {
-  DIGEST_TYPE,
   refusedOverwrites,
   type DraftSprout,
   type WindowSprout,
 } from "./synthesis";
+import { DIGEST_KIND } from "./sprout-kind";
 
 // Mongo glue for the synthesis doors (slice 5 spec §4). Reads reuse the
 // slice-4 stores; the only write is the draft upsert below.
@@ -26,7 +26,7 @@ export async function loadWeekMaterial(): Promise<WeekMaterial> {
   const dataset = buildDataset(raw);
   const sprouts: WindowSprout[] = dataset.timelineSprouts().map((e) => ({
     slug: e.sprout.slug,
-    type: e.sprout.type,
+    kind: e.sprout.kind,
     date: e.sprout.date,
     plantSlug: e.plant?.slug ?? null,
     name: resolveText(e.sprout.name),
@@ -82,16 +82,23 @@ export async function upsertDigestDrafts(
       {
         $set: {
           name: d.name,
-          type: DIGEST_TYPE,
+          kind: DIGEST_KIND,
           date: d.date,
-          parents: d.parents,
+          // `parents` on the wire is `about` in the store (spec 2026-10-10
+          // §1.2): the sprout is ABOUT its digest bean, and its plant is
+          // derived from that bean rather than written here.
+          about: d.parents,
           content: d.content,
           // Derived on every draft write (slice 3): the digest bee's prose can
           // embed entities, and the graph must see those edges without parsing.
           relations: mergeMirrored(undefined, extractRefs(d.content)),
           description: d.description ?? "",
         },
-        $unset: { state: "" },
+        // `type` and `parents` are the pre-journal shape. A draft written before
+        // the migration and re-posted after this deploy loses both in the same
+        // write that gives it `kind` and `about` — so no digest ever carries
+        // both shapes at once, whichever side of the migration it was born on.
+        $unset: { state: "", type: "", parents: "" },
       },
       { upsert: true },
     );

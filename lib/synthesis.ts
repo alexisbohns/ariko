@@ -102,11 +102,16 @@ export function bucketWeek(
   return { plants, quiet };
 }
 
+// The WIRE shape of one sprout in a POST /api/synthesis batch. `parents` is on
+// the WIRE — the arkaik routine posts it, and the "parents must be exactly one
+// bean ref" refusal is part of that contract — but it is STORED as `about`
+// (spec 2026-10-10 §1.2): the store writes `kind: "digest"` and
+// `about: parents`, and the sprout's plant is derived from the bean.
 export interface DraftSprout {
   slug: string;
   name: string;
   date: string;
-  parents: string[]; // exactly one "bean:digest-…" / "bean:weekly-wrap" ref
+  parents: string[]; // exactly one "bean:digest-…" / "bean:weekly-wrap" ref; stored as `about`
   content: string;
   description?: string;
 }
