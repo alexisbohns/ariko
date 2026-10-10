@@ -158,3 +158,35 @@ test("every fact popover is handed the message a rejection from it would carry",
     "FactPopover must render the error it receives",
   );
 });
+
+test("both radio forms keep their Save disabled until the pick differs from what is stored", () => {
+  // CLAUDE.md, "No enum writes on the click that opens it": the icon opens the
+  // vocabulary as radios, the author picks, and a Save commits it — DISABLED
+  // until the pick differs, so the second click is a confirmation rather than
+  // a formality. This is the one place that rule becomes a failing test.
+  // Deleting the `disabled` from `KindForm` (or `StateForm`) keeps the form
+  // posting, passes tsc, eslint and every render test, and leaves a Save that
+  // writes the stored value back — two clicks meaning exactly what one meant,
+  // on the control whose mis-click publishes a project.
+  //
+  // Read from source, for the reason the test above gives: the popovers are
+  // portalled, so an open one renders zero bytes here. The region is the two
+  // radio forms and nothing else — `FieldForm` after them is the date field,
+  // whose Save is a plain submit on purpose (its docblock argues it).
+  const text = readFileSync(join(process.cwd(), HERO), "utf8");
+  const start = text.indexOf("function StateForm");
+  const end = text.indexOf("function FieldForm");
+  assert.notEqual(start, -1, `${HERO} must still draw StateForm`);
+  assert.notEqual(end, -1, `${HERO} must still draw FieldForm after the radio forms`);
+  assert.ok(start < end, "StateForm and KindForm must come before FieldForm");
+  const region = text.slice(start, end);
+  assert.ok(region.includes("function KindForm"), `${HERO} must draw KindForm between StateForm and FieldForm`);
+
+  const guards = [...region.matchAll(/disabled=\{([^}]*)\}/g)].map((m) => m[1].trim());
+  assert.deepEqual(
+    guards,
+    ["picked === current", "picked === current"],
+    `StateForm and KindForm must each guard their Save with \`disabled={picked === current}\` ` +
+      `(found: ${JSON.stringify(guards)})`,
+  );
+});
