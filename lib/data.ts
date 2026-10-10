@@ -553,7 +553,7 @@ export function composeText(en: string, fr: string): Text {
 //    shelters it), and a Sprout whose every EXISTING bean parent was filtered
 //    out is dropped. Dangling (nonexistent) parent refs are ignored, so
 //    standalone-by-dangling items are preserved (matches buildDataset);
-//  - each kept Sprout's, Plant's, AND Pod's relations[] is scrubbed to refs
+//  - each kept Sprout's, Plant's, Pod's AND Bean's relations[] is scrubbed to refs
 //    whose TARGET survives this same projection (kept sprout/bean/pod/plant)
 //    — draft, private, cascaded-out, dangling, and unknown-prefix targets all
 //    drop, so a hidden slug can never leak through a property dump or the
@@ -697,11 +697,11 @@ function allExistingParentsFiltered(
   return existing > 0;
 }
 
-// Shared relations scrub for kept sprouts and plants. Tolerates malformed
-// shapes from direct DB writes (the validator's "moderate" level never
-// re-checks pre-existing docs): a non-array field and non-{kind,ref}-string
-// entries drop fail-closed instead of throwing — one bad doc must not 500
-// every public read.
+// Shared relations scrub for every kept item that carries relations[]
+// (sprouts, plants, pods, beans, screens). Tolerates malformed shapes from
+// direct DB writes (the validator's "moderate" level never re-checks
+// pre-existing docs): a non-array field and non-{kind,ref}-string entries drop
+// fail-closed instead of throwing — one bad doc must not 500 every public read.
 function scrubRelations<T extends { relations?: Relation[] }>(
   item: T,
   refSurvives: (ref: string) => boolean,
