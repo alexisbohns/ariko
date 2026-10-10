@@ -122,6 +122,7 @@ export default async function AdminPlantPage({
       name: resolveText(bean.name),
       visibility: bean.visibility ?? "public",
       sproutCount: dataset.sproutsForBean(bean.slug).length,
+      hasNarrative: hasNarrative(bean.content),
       ...(podSlug ? { pod: podSlug } : {}),
     };
   });

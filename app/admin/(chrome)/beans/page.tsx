@@ -1,7 +1,7 @@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { filterValue } from "@/lib/admin-filters";
 import { plantFilterGroup, resolveScope } from "@/lib/admin-scope";
-import { POD_PREFIX, buildDataset, parentsWithPrefix, resolveText } from "@/lib/data";
+import { POD_PREFIX, buildDataset, hasNarrative, parentsWithPrefix, resolveText } from "@/lib/data";
 import { byResolvedName } from "@/lib/name-order";
 import { beansForPlantDeep } from "@/lib/plant-hub";
 import { loadRawGarden } from "@/lib/store";
@@ -77,6 +77,7 @@ export default async function AdminBeansPage({
           name: resolveText(bean.name),
           visibility: bean.visibility ?? "public",
           sproutCount: dataset.sproutsForBean(bean.slug).length,
+          hasNarrative: hasNarrative(bean.content),
           podSlugs,
           ...(podSlugs[0] ? { pod: podSlugs[0] } : {}),
           ...(plant
