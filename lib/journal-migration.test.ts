@@ -1,10 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { planArticleFold } from "./journal-migration";
-import type { Bean, Sprout } from "./data";
+import { planArticleFold, planReanchor, type LegacySprout } from "./journal-migration";
+import type { Bean } from "./data";
 
 const bean = (slug: string, extra: Partial<Bean> = {}): Bean => ({ slug, name: slug, parents: ["plant:p"], ...extra });
-const article = (slug: string, bean: string, extra: Partial<Sprout> = {}): Sprout => ({
+// The fold reads LEGACY documents — `type` and `parents` are what it keys on —
+// so its fixtures are typed as the migration finds them, not as the model now is.
+const article = (slug: string, bean: string, extra: Partial<LegacySprout> = {}): LegacySprout => ({
   slug,
   name: slug,
   type: "article",
@@ -67,4 +69,63 @@ test("an article whose bean is missing, or with no content, is refused", () => {
 test("non-article sprouts are untouched", () => {
   const plan = planArticleFold([bean("b")], [article("n", "b", { type: "note" })]);
   assert.deepEqual(plan, { folds: [], refusals: [] });
+});
+
+const garden = {
+  plants: [{ slug: "p", name: "P", natures: ["work"] as ["work"], role: { kind: "owner" as const }, description: "" }],
+  pods: [
+    { slug: "pod", name: "Pod", description: "", parents: ["plant:p"] },
+    { slug: "krabs", name: "Krabs", description: "", parents: [] },
+  ],
+  beans: [
+    { slug: "b", name: "B", parents: ["pod:pod"] },
+    { slug: "kb", name: "KB", parents: ["pod:krabs"] },
+  ],
+};
+const legacy = (over: Partial<LegacySprout>): LegacySprout => ({
+  slug: "s", name: "S", date: "2026-01-01", description: "", type: "note", parents: ["bean:b"], ...over,
+});
+
+test("planReanchor maps type to kind by the table and parents to about", () => {
+  const plan = planReanchor([legacy({ type: "note" }), legacy({ slug: "m", type: "song" }), legacy({ slug: "d", type: "digest" })], garden);
+  assert.deepEqual(plan.refusals, []);
+  assert.deepEqual(plan.moves, [
+    { slug: "s", type: "note", kind: "log", about: ["bean:b"] },
+    { slug: "m", type: "song", kind: "milestone", about: ["bean:b"] },
+    { slug: "d", type: "digest", kind: "digest", about: ["bean:b"] },
+  ]);
+});
+
+test("a sprout already carrying kind and no type is skipped (idempotent)", () => {
+  const plan = planReanchor([legacy({ type: undefined, kind: "log", parents: undefined, about: ["bean:b"] })], garden);
+  assert.deepEqual(plan, { moves: [], refusals: [] });
+});
+
+test("refusals: unknown type, article, no bean parent, dangling bean, unrooted plant", () => {
+  const plan = planReanchor(
+    [
+      legacy({ slug: "bla", type: "bla" }),
+      legacy({ slug: "art", type: "article" }),
+      legacy({ slug: "none", parents: [] }),
+      legacy({ slug: "dangling", parents: ["bean:nope"] }),
+      legacy({ slug: "krabs-1", parents: ["bean:kb"] }),
+    ],
+    garden,
+  );
+  assert.deepEqual(plan.moves, []);
+  assert.deepEqual(plan.refusals, [
+    'bla: type "bla" has no kind — retype or delete it in the admin',
+    "art: an article folds, it does not re-anchor — run the fold first",
+    "none: no bean: parent to derive a plant from — re-anchor it by hand",
+    "dangling: bean nope not found — re-anchor it by hand",
+    "krabs-1: rolls up to no plant (bean kb) — root the pod under a plant in the admin first",
+  ]);
+});
+
+test("a sprout with two bean parents under one plant keeps both as about; under two plants it is refused", () => {
+  const twoPlants = { ...garden, plants: [...garden.plants, { ...garden.plants[0], slug: "p2" }], pods: [...garden.pods, { slug: "pod2", name: "P2", description: "", parents: ["plant:p2"] }], beans: [...garden.beans, { slug: "b2", name: "B2", parents: ["pod:pod2"] }] };
+  assert.deepEqual(planReanchor([legacy({ parents: ["bean:b", "bean:b"] })], twoPlants).moves[0].about, ["bean:b"]);
+  assert.deepEqual(planReanchor([legacy({ parents: ["bean:b", "bean:b2"] })], twoPlants).refusals, [
+    "s: rolls up to two plants (p, p2) — a sprout belongs to one; split it in the admin",
+  ]);
 });
