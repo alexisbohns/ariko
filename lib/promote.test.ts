@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { resolveParentChoice, buildSproutInput, buildNewBean, validateSproutInput } from "./promote";
 import type { Seed } from "./data";
+import { SPROUT_KINDS, type SproutKind } from "./sprout-kind";
 
 const seed: Seed = {
   id: "c1",
@@ -37,54 +38,107 @@ test("buildSproutInput is WYSIWYG: blank boxes store blank (nothing resurrected 
   // The triage PAGE prefills the boxes (name from seed.title, descriptions per
   // language via textPart) — the builder itself never falls back, so clearing a
   // box genuinely clears that content and a blank name fails validation.
-  const v = buildSproutInput(form([["sproutSlug", "v1"], ["type", "demo"], ["date", "2025-02-02"]]), seed, "a1");
+  const v = buildSproutInput(form([["sproutSlug", "v1"], ["kind", "log"], ["date", "2025-02-02"]]), seed, { about: ["bean:a1"] });
   assert.equal(v.slug, "v1");
   assert.equal(v.name, "");
   assert.equal(v.description, "");
   assert.equal(validateSproutInput(v).ok, false);
-  assert.equal(v.type, "demo");
+  assert.equal(v.kind, "log");
   assert.equal(v.date, "2025-02-02");
   assert.equal(v.state, "draft"); // default
-  assert.deepEqual(v.parents, ["bean:a1"]);
+  assert.deepEqual(v.about, ["bean:a1"]);
+  assert.equal("parents" in v, false);
   assert.deepEqual(v.media, seed.media);
   assert.deepEqual(v.source, seed.source);
 });
 
 test("buildSproutInput uses provided fields over prefill and parses state", () => {
   const v = buildSproutInput(
-    form([["sproutSlug", "v1"], ["sproutName", "Live cut"], ["type", "live"], ["date", "2025-02-02"], ["description", "at the club"], ["state", "published"]]),
+    form([["sproutSlug", "v1"], ["sproutName", "Live cut"], ["kind", "log"], ["date", "2025-02-02"], ["description", "at the club"], ["state", "published"]]),
     seed,
-    "a1",
+    { about: ["bean:a1"] },
   );
   assert.equal(v.name, "Live cut");
   assert.equal(v.description, "at the club");
   assert.equal(v.state, "published");
 });
 
-test("buildSproutInput yields a parentless sprout when beanParentSlug is null", () => {
-  const v = buildSproutInput(form([["sproutSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), seed, null);
-  assert.deepEqual(v.parents, []);
+// --- The anchor (spec 2026-10-10 §1.2): exactly one of about / parents, from
+// whichever the action resolved; null spreads neither, which is what the
+// precheck passes so the sprout's own fields are judged before any parent is
+// created.
+
+test("buildSproutInput spreads an about anchor as `about` and no `parents`", () => {
+  const v = buildSproutInput(
+    form([["sproutSlug", "v1"], ["kind", "log"], ["date", "2025-02-02"]]),
+    seed,
+    { about: ["pod:krabs", "bean:a1"] },
+  );
+  assert.deepEqual(v.about, ["pod:krabs", "bean:a1"]);
+  assert.equal("parents" in v, false);
+});
+
+test("buildSproutInput spreads a plant anchor as one `plant:` parent and no `about`", () => {
+  const v = buildSproutInput(
+    form([["sproutSlug", "v1"], ["kind", "log"], ["date", "2025-02-02"]]),
+    seed,
+    { plant: "ariko" },
+  );
+  assert.deepEqual(v.parents, ["plant:ariko"]);
+  assert.equal("about" in v, false);
+});
+
+test("buildSproutInput with a null anchor spreads neither about nor parents", () => {
+  const v = buildSproutInput(form([["sproutSlug", "v1"], ["kind", "log"], ["date", "2025-02-02"]]), seed, null);
+  assert.equal("about" in v, false);
+  assert.equal("parents" in v, false);
+});
+
+// --- kind is a vocabulary (lib/sprout-kind.ts): the builder reads the form's
+// value raw and the validator is what refuses a non-member — so a triage form
+// posting a legacy free-text `type`, or nothing at all, cannot create a sprout
+// of no kind.
+
+test("buildSproutInput carries each member of the kind vocabulary through", () => {
+  for (const kind of SPROUT_KINDS) {
+    const v = buildSproutInput(form([["sproutSlug", "v1"], ["sproutName", "n"], ["kind", kind], ["date", "2025-02-02"]]), seed, null);
+    assert.equal(v.kind, kind);
+    assert.equal(validateSproutInput(v).ok, true);
+  }
+});
+
+test("validateSproutInput refuses a kind outside the vocabulary, naming the members", () => {
+  const v = buildSproutInput(form([["sproutSlug", "v1"], ["sproutName", "n"], ["kind", "note"], ["date", "2025-02-02"]]), seed, null);
+  assert.deepEqual(validateSproutInput(v), {
+    ok: false,
+    error: "sprout kind must be one of log, milestone, release, essay, decision, digest",
+  });
+});
+
+test("validateSproutInput refuses a missing kind (no radio posted)", () => {
+  const v = buildSproutInput(form([["sproutSlug", "v1"], ["sproutName", "n"], ["date", "2025-02-02"]]), seed, null);
+  assert.equal(validateSproutInput(v).ok, false);
 });
 
 test("buildSproutInput coerces an unexpected state to draft", () => {
-  const v = buildSproutInput(form([["sproutSlug", "v1"], ["type", "t"], ["date", "2025-02-02"], ["state", "bogus"]]), seed, null);
+  const v = buildSproutInput(form([["sproutSlug", "v1"], ["kind", "log"], ["date", "2025-02-02"], ["state", "bogus"]]), seed, null);
   assert.equal(v.state, "draft");
 });
 
 test("validateSproutInput rejects missing required fields", () => {
   const base = buildSproutInput(
-    form([["sproutSlug", "v1"], ["sproutName", "n"], ["type", "t"], ["date", "2025-02-02"]]),
+    form([["sproutSlug", "v1"], ["sproutName", "n"], ["kind", "log"], ["date", "2025-02-02"]]),
     seed,
     null,
   );
   assert.equal(validateSproutInput(base).ok, true);
   assert.equal(validateSproutInput({ ...base, slug: "" }).ok, false);
-  assert.equal(validateSproutInput({ ...base, type: "" }).ok, false);
+  assert.equal(validateSproutInput({ ...base, kind: "" as SproutKind }).ok, false);
   assert.equal(validateSproutInput({ ...base, date: "" }).ok, false);
 });
 
 test("validateSproutInput rejects a name cleared in both languages", () => {
-  const v = buildSproutInput(form([["sproutSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), seed, null);
+  const v = buildSproutInput(form([["sproutSlug", "v1"], ["kind", "log"], ["date", "2025-02-02"]]), seed, null);
   assert.equal(v.name, "");
   assert.equal(validateSproutInput(v).ok, false);
 });
@@ -95,7 +149,7 @@ test("validateSproutInput rejects a name cleared in both languages", () => {
 
 test("buildSproutInput composes a bilingual name from the paired fields", () => {
   const v = buildSproutInput(
-    form([["sproutSlug", "v1"], ["sproutName", "Live cut"], ["sproutNameFr", "Prise live"], ["type", "t"], ["date", "2025-02-02"]]),
+    form([["sproutSlug", "v1"], ["sproutName", "Live cut"], ["sproutNameFr", "Prise live"], ["kind", "log"], ["date", "2025-02-02"]]),
     seed,
     null,
   );
@@ -104,7 +158,7 @@ test("buildSproutInput composes a bilingual name from the paired fields", () => 
 
 test("buildSproutInput keeps an fr-only name (no seed-title fallback, no en borrowed)", () => {
   const v = buildSproutInput(
-    form([["sproutSlug", "v1"], ["sproutNameFr", "Prise live"], ["type", "t"], ["date", "2025-02-02"]]),
+    form([["sproutSlug", "v1"], ["sproutNameFr", "Prise live"], ["kind", "log"], ["date", "2025-02-02"]]),
     seed,
     null,
   );
@@ -113,7 +167,7 @@ test("buildSproutInput keeps an fr-only name (no seed-title fallback, no en borr
 
 test("buildSproutInput composes a bilingual description — a typed pair wins over the note", () => {
   const v = buildSproutInput(
-    form([["sproutSlug", "v1"], ["type", "t"], ["date", "2025-02-02"], ["description", "at the club"], ["descriptionFr", "au club"]]),
+    form([["sproutSlug", "v1"], ["kind", "log"], ["date", "2025-02-02"], ["description", "at the club"], ["descriptionFr", "au club"]]),
     seed,
     null,
   );
@@ -122,7 +176,7 @@ test("buildSproutInput composes a bilingual description — a typed pair wins ov
 
 test("buildSproutInput: an fr-only typed description also wins over the note", () => {
   const v = buildSproutInput(
-    form([["sproutSlug", "v1"], ["type", "t"], ["date", "2025-02-02"], ["descriptionFr", "au club"]]),
+    form([["sproutSlug", "v1"], ["kind", "log"], ["date", "2025-02-02"], ["descriptionFr", "au club"]]),
     seed,
     null,
   );
@@ -131,7 +185,7 @@ test("buildSproutInput: an fr-only typed description also wins over the note", (
 
 test("buildSproutInput: blank description fields and no seed body yield an empty string", () => {
   const v = buildSproutInput(
-    form([["sproutSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]),
+    form([["sproutSlug", "v1"], ["kind", "log"], ["date", "2025-02-02"]]),
     { ...seed, body: undefined },
     null,
   );
@@ -139,12 +193,12 @@ test("buildSproutInput: blank description fields and no seed body yield an empty
 });
 
 test("validateSproutInput accepts an fr-only name", () => {
-  const base = buildSproutInput(form([["sproutSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), seed, null);
+  const base = buildSproutInput(form([["sproutSlug", "v1"], ["kind", "log"], ["date", "2025-02-02"]]), seed, null);
   assert.equal(validateSproutInput({ ...base, name: { fr: "Nom" } }).ok, true);
 });
 
 test("validateSproutInput rejects a name with no language present, message unchanged", () => {
-  const base = buildSproutInput(form([["sproutSlug", "v1"], ["type", "t"], ["date", "2025-02-02"]]), seed, null);
+  const base = buildSproutInput(form([["sproutSlug", "v1"], ["kind", "log"], ["date", "2025-02-02"]]), seed, null);
   assert.deepEqual(validateSproutInput({ ...base, name: {} }), { ok: false, error: "sprout name is required" });
 });
 
@@ -177,7 +231,7 @@ test("buildSproutInput carries the seed's captured body", () => {
   const form = new FormData();
   form.set("sproutSlug", "s");
   form.set("sproutName", "S");
-  form.set("type", "note");
+  form.set("kind", "log");
   form.set("date", "2026-08-22");
   assert.deepEqual(buildSproutInput(form, withBody, null).content, { en: "# A captured body" });
 });
@@ -186,7 +240,7 @@ test("buildSproutInput omits content when the seed has none", () => {
   const form = new FormData();
   form.set("sproutSlug", "s");
   form.set("sproutName", "S");
-  form.set("type", "note");
+  form.set("kind", "log");
   form.set("date", "2026-08-22");
   assert.equal("content" in buildSproutInput(form, seed, null), false);
 });
@@ -196,7 +250,7 @@ test("buildSproutInput mirrors entity refs from the carried body", () => {
   const form = new FormData();
   form.set("sproutSlug", "s");
   form.set("sproutName", "S");
-  form.set("type", "note");
+  form.set("kind", "log");
   form.set("date", "2026-08-22");
   assert.deepEqual(buildSproutInput(form, withRefs, null).relations, [
     { kind: "embeds", ref: "bean:karma" },

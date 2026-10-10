@@ -33,7 +33,8 @@ import { shouldCascadePublish } from "@/lib/sprout-edit";
 import { buildSproutMetaPatch, BlankSproutNameError, type SproutMetaPatch } from "@/lib/sprout-meta";
 import { isSproutState } from "@/lib/sprout-state";
 import { isTimelineDate } from "@/lib/sprout-date";
-import { isSproutType } from "@/lib/sprout-type";
+import { isSproutKind } from "@/lib/sprout-kind";
+import { resolveAnchor, type SproutAnchor } from "@/lib/sprout-anchor";
 import { buildContentPatch } from "@/lib/content-edit";
 import { editLang, parseEditLangField, withEditLang } from "@/lib/edit-lang";
 import { buildMediaPatch } from "@/lib/media-edit";
@@ -65,7 +66,8 @@ import {
   updateSproutMeta,
   updateSproutState,
   updateSproutDate,
-  updateSproutType,
+  updateSproutKind,
+  updateSproutAnchor,
   updatePlantRole,
   updatePlantMeta,
   updatePlantLogo,
@@ -195,6 +197,37 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
     );
   }
 
+  // Where the sprout hangs (spec 2026-10-10 §1.2). A created parent is rooted
+  // by construction — a new bean under the chosen pod or plant, a new pod under
+  // the chosen plant — so the anchor is composed directly; EXISTING refs go
+  // through resolveAnchor against the live garden, which is also what refuses
+  // a pod or bean that rolls up to a different plant than the one picked.
+  const aboutRefs =
+    beanChoice.mode !== "none" ? [`${BEAN_PREFIX}${beanChoice.slug}`]
+    : podChoice.mode !== "none" ? [`${POD_PREFIX}${podChoice.slug}`]
+    : [];
+  let anchor: SproutAnchor;
+  if (podChoice.mode === "create" || beanChoice.mode === "create") {
+    // The one created shape that needs no plant is a new bean under an
+    // EXISTING pod — the pod is already rooted. Every other creation roots
+    // under the plant select, and a blank one would plant a parent nowhere,
+    // which the derivation would then read as a sprout of no plant.
+    if (!plantSlug && !(beanChoice.mode === "create" && podChoice.mode === "existing")) {
+      redirect(
+        `/admin/triage/${seedId}?error=${encodeURIComponent(
+          "pick a plant to root the new pod or bean under",
+        )}`,
+      );
+    }
+    anchor = { about: aboutRefs };
+  } else {
+    const resolved = resolveAnchor(aboutRefs, plantSlug, await loadRawGarden());
+    if (!resolved.ok) {
+      redirect(`/admin/triage/${seedId}?error=${encodeURIComponent(resolved.error)}`);
+    }
+    anchor = resolved.anchor;
+  }
+
   // Create parents, then the version. Only slug collisions are recoverable;
   // anything else propagates. redirect() stays OUT of the try (it throws to control flow).
   let slugError: string | null = null;
@@ -224,7 +257,7 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
       beanSlug = beanChoice.slug;
     }
 
-    const input = buildSproutInput(formData, seed, beanSlug);
+    const input = buildSproutInput(formData, seed, anchor);
     await createSprout(input);
 
     if (input.state === "published") {
@@ -506,30 +539,15 @@ export async function setSproutDateAction(formData: FormData): Promise<void> {
 }
 
 /**
- * A sprout's type — and nothing else.
- *
- * `lib/sprout-type.ts` holds the rule and its reasons; this is only the door
- * that applies it, exactly as `setSproutDateAction` is for the date. What that
- * guard is NOT is a vocabulary: nothing in the garden validates a sprout's type
- * against a list, because there isn't one — `lib/sprouts.ts` filters by state,
- * plant and tag and never by type, and the seed-promotion path writes whatever
- * the source carried. If a vocabulary is ever wanted it joins that module and
- * this action validates against it; inventing one here would make the UI the
- * definition.
- *
- * One consequence worth naming rather than hiding: `shouldCascadePublish` is
- * consulted at publish time only, so moving a published sprout off `digest`
- * HERE does not re-cascade — it stays published with its bean and plant still
- * private, and the author's next act on the state control is what settles it.
- * `setSproutStateAction` reads `existing.type`, so the gap lives between two
- * actions rather than inside one, which is at least a gap that can be seen.
- *
- * It is a NEW gap, not an inherited one, and saying so is the honest version:
- * the whole-form path this replaced evaluated the digest exemption against the
- * type being SAVED, so one submit that changed the type and published at once
- * cascaded on the new value. Splitting the fields is what split that.
+ * A sprout's kind — and nothing else. A NAMED MEMBER of `lib/sprout-kind.ts`,
+ * re-validated here rather than trusted (the rule `flipPlantField` states for
+ * the plant's two enums). One consequence worth naming: `shouldCascadePublish`
+ * is consulted at publish time only, so moving a published sprout off `digest`
+ * HERE does not flip its plant — the author's next act on the state control is
+ * what settles it. `setSproutStateAction` reads `existing.kind`, so the gap
+ * lives between two actions rather than inside one.
  */
-export async function setSproutTypeAction(formData: FormData): Promise<void> {
+export async function setSproutKindAction(formData: FormData): Promise<void> {
   await requireSession();
   const slug = String(formData.get("slug") ?? "");
   const lang = editLang(formData.get("lang"));
@@ -537,12 +555,44 @@ export async function setSproutTypeAction(formData: FormData): Promise<void> {
   const existing = await getSprout(slug);
   if (!existing) redirect("/admin/sprouts");
 
-  const type = String(formData.get("type") ?? "").trim();
-  if (!isSproutType(type)) {
-    redirect(withEditLang(sproutHref(slug, "could not save: a sprout needs a type", "type"), lang));
+  const kind = String(formData.get("kind") ?? "").trim();
+  if (!isSproutKind(kind)) {
+    redirect(withEditLang(sproutHref(slug, `unknown kind: ${kind || "(blank)"}`, "kind"), lang));
   }
 
-  await updateSproutType(slug, type);
+  await updateSproutKind(slug, kind);
+
+  revalidateGarden();
+  redirect(withEditLang(sproutHref(slug), lang));
+}
+
+/**
+ * Where a sprout hangs — the about panel's one write. `about` arrives as
+ * checkbox values (getAll), `plant` as the page's statement of the sprout's
+ * CURRENT derived plant: the panel offers that plant's pods and beans and
+ * nothing else, and `resolveAnchor` refuses a ref that would move the sprout to
+ * another plant — moving a sprout between plants is not this slice's feature.
+ * Nothing checked files the entry under the plant itself (`parents`).
+ *
+ * The write unsets the field it does not set (`updateSproutAnchor`), so the
+ * derivation never meets a sprout carrying both.
+ */
+export async function setSproutAboutAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+  const lang = editLang(formData.get("lang"));
+
+  const existing = await getSprout(slug);
+  if (!existing) redirect("/admin/sprouts");
+
+  const refs = formData.getAll("about").map((v) => String(v));
+  const plant = String(formData.get("plant") ?? "").trim() || null;
+  const resolved = resolveAnchor(refs, plant, await loadRawGarden());
+  if (!resolved.ok) {
+    redirect(withEditLang(sproutHref(slug, `could not save: ${resolved.error}`, "about"), lang));
+  }
+
+  await updateSproutAnchor(slug, resolved.anchor);
 
   revalidateGarden();
   redirect(withEditLang(sproutHref(slug), lang));
