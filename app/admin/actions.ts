@@ -609,6 +609,9 @@ export async function editContainerContentAction(formData: FormData): Promise<vo
       : `/admin/bean/${encodeURIComponent(slug)}`;
   // A projected bean is machine-owned end to end (lib/projected-beans.ts); every
   // other bean action in this file bounces on the flag, and so does this one.
+  // The one redirect here that skips withEditLang, on purpose: `lang` is not
+  // parsed yet, and the page draws no editor for a projected bean, so a post
+  // reaching this line was hand-crafted and has no half to land back on.
   if (isBean && "projected" in existing && existing.projected) redirect(back);
   const field = parseEditLangField(formData.get("lang"));
   if (!field.ok) {

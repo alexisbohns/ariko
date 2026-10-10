@@ -139,9 +139,9 @@ export default async function AdminBeanPage({
      lib/pollen-store.ts's deleteFeedData deletes the whole document on a full
      rebuild — an authored cover, keyword or tag list with it. The head states its
      facts as words instead of triggers, and the rail loses its one panel. All
-     FIVE of the actions that can touch a bean — meta, visibility, keyword, tags
-     and cover — re-check this server-side, because a rendered gate is not a
-     guarantee. */
+     SIX of the actions that can touch a bean — meta, visibility, keyword, tags,
+     cover and the narrative — re-check this server-side, because a rendered
+     gate is not a guarantee. */
   const readOnly = Boolean(bean.projected);
 
   const railItems: RailItem[] = readOnly
