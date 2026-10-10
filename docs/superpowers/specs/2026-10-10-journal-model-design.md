@@ -72,19 +72,25 @@ type Sprout = {
   kind: SproutKind;            // replaces `type`
   date: string;                // YYYY-MM-DD, unchanged
   description: Text;
-  parents: [string];           // EXACTLY one "plant:…" ref
-  about?: string[];            // "pod:…" / "bean:…" refs within that plant
+  about?: string[];            // "pod:…" / "bean:…" refs — the plant is DERIVED from them
+  parents?: [string];          // one "plant:…" ref, ONLY when `about` is empty
   relations?: Relation[];      // unchanged: embeds/mentions mirrored from prose
   state?: SproutState;         // unchanged
   content?: Text; media?; links?; source?; tags?;  // unchanged
 };
 ```
 
-`parents` is still containment only, and a sprout is now contained by its
-**plant**. `about` is a new typed field — not a relation kind — because it is
-authored, validated and rendered as doors, while `relations` is machine-mirrored
-from prose and scrubbed. Every `about` ref must resolve to a pod or bean whose
-plant is the sprout's plant; the action refuses otherwise.
+A sprout's plant is **derived, not stored**. `about` is a new typed field — not
+a relation kind — because it is authored, validated and rendered as doors, while
+`relations` is machine-mirrored from prose and scrubbed. Every `about` ref rolls
+up to a plant (bean → pod → plant, bean → plant, pod → plant), and all of a
+sprout's refs must roll up to the **same** plant or the action refuses. `parents`
+is written only when `about` is empty: a plant-level entry with no feature to
+hang on — the exception, not the rule. A sprout carries exactly one of the two,
+never both, so there is no second source of truth to drift when a bean moves.
+`resolveSproutPlant(sprout, garden)` in `lib/data.ts` is the one place that
+spells the derivation; `filterPublic`, the timelines and the admin tables all
+call it.
 
 `kind` is a closed vocabulary in `lib/sprout-kind.ts`, which replaces
 `lib/sprout-type.ts` and follows `lib/sprout-state.ts`'s pattern (named members,
@@ -121,8 +127,8 @@ plant/pod → parents) as well as into a sprout. `promotedTo` records either ref
   go.
 - `filterPublic` scrubs `about` refs to private entities exactly as it scrubs
   `relations`, fail-closed: a public sprout about a private bean shows the
-  sprout and not the door. A sprout whose plant is private is dropped, as today
-  via `allExistingParentsFiltered` on the `plant:` prefix.
+  sprout and not the door. A sprout whose **derived** plant is private, or
+  cannot be derived (every ref dangling), is dropped.
 - Machine doors (`/api/articles`, `/api/synthesis`, `/api/pollen/sync`,
   `garden:plant`) still never publish; the garden rule in CLAUDE.md is
   unchanged.
@@ -188,9 +194,9 @@ production after a `mongodump`. It is idempotent: a sprout already carrying
 2. **Article fold.** For each of the 17 `type: "article"` sprouts: copy
    `content` (both halves) into the bean's `content`, carry `relations` onto the
    bean, delete the sprout. If a bean already has content, refuse.
-3. **Re-anchor.** Every remaining sprout: `parents = ["plant:<resolved>"]`,
-   `about = ["bean:<old parent>"]`, `type` → `kind` by the table below, `type`
-   unset.
+3. **Re-anchor.** Every remaining sprout: `about = ["bean:<old parent>"]`,
+   `parents` unset, `type` → `kind` by the table below, `type` unset. Step 1's
+   resolution is what guarantees the derived plant exists afterwards.
 4. **Delete** the one `type: "bla"` test sprout (`Tentative`).
 5. **Leave alone** the 29 empty Pebbles stub beans and the three empty
    `digest-*` beans. Deleting content is editorial.
@@ -218,7 +224,7 @@ state renders:
    page reads `content` before falling back to `articleFor`. `/api/articles`
    and the manifest accept `content`. The article fold (migration step 2) ships
    here.
-2. **The journal.** `kind` vocabulary, `parents` → plant, `about`, the sprout
+2. **The journal.** `kind` vocabulary, `about` with the derived plant, the sprout
    admin changes, `/sprout/[slug]`, the plant/pod/bean journals, cascade
    changes, `articleFor` deleted. Migration steps 1, 3, 4 ship here.
 3. **Seeds grow into beans.** `promoteSeedToBeanAction` and the overlay action.
@@ -230,7 +236,10 @@ state renders:
 Each of these passes `tsc`, `npm test` and `npm run build` while silently false,
 so each gets a source or behaviour test on the day it lands:
 
-- A sprout action refuses an `about` ref outside the sprout's plant.
+- A sprout action refuses `about` refs that roll up to two plants, and refuses
+  a sprout carrying both `about` and `parents`.
+- `resolveSproutPlant` follows bean → pod → plant and bean → plant, and a bean
+  moved to another pod moves its sprouts with it (a behaviour test).
 - `filterPublic` scrubs `about` to private refs and drops a sprout under a
   private plant.
 - `publishCascade` flips the plant and **not** the beans in `about`.
