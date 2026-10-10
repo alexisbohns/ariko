@@ -2,8 +2,9 @@ import type { Bean, RawGarden } from "./data";
 
 // Issue #54 / spec 2026-09-04-pbbls-legacy-bean-retirement-design.
 //
-// A pure, idempotent transform over a RawGarden, in the shape lib/retier.ts
-// established: the catalogs below are the single definition of "migrated".
+// A pure, idempotent transform over a RawGarden, in the shape the slice-1
+// re-tiering (lib/retier.ts, since deleted with its script for the same reason
+// as below) established: the catalogs are the single definition of "migrated".
 // The Mongo half ran in September 2026 (scripts/migrate-pbbls-legacy.ts, since
 // deleted: it wrote `parents` and `type`, two fields a sprout no longer has, and
 // cannot be expressed against the journal shape). What remains is the YAML
@@ -12,8 +13,8 @@ import type { Bean, RawGarden } from "./data";
 // from its bean through `about`, and the twelve changelog entries are `kind:
 // milestone`.
 //
-// The YAML half is NOT written by a script, deliberately. migrate-retier.ts
-// ends with yaml.dump, which erases comments; garden.yml's comments are
+// The YAML half is NOT written by a script, deliberately. The retier script
+// ended with yaml.dump, which erases comments; garden.yml's comments are
 // load-bearing and one of them is the warning this very work adds. So the file
 // is edited by hand and the suite asserts it is already a fixed point here.
 

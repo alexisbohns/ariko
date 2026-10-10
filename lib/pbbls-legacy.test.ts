@@ -142,9 +142,9 @@ test("retireLegacyBeans is idempotent", () => {
 test("retireLegacyBeans handles an empty garden, and stays idempotent on it", () => {
   const once = retireLegacyBeans({});
   assert.equal(once.beans?.length, STUB_BEANS.length, "every stub is seeded from nothing");
-  // `sprouts: []` where the input had no key at all. Pinned, not fixed:
-  // retierGarden normalises the same way, and both migrations write the two
-  // collections unconditionally.
+  // `sprouts: []` where the input had no key at all. Pinned, not fixed: the
+  // slice-1 retier transform normalised the same way, and both migrations
+  // wrote the two collections unconditionally.
   assert.deepEqual(once.sprouts, []);
   assert.deepStrictEqual(retireLegacyBeans(once), once);
 });
