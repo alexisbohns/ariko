@@ -28,21 +28,21 @@ export async function POST(request: Request): Promise<Response> {
   try {
     result = await writeArticles(body as ArticlesPayload);
   } catch (err) {
-    // writeArticles's sprout upsert filters on `state: { $exists: false }`; if
-    // a human publishes that exact sprout in the gap between its pre-check
+    // writeArticles's bean upsert filters on `visibility: { $ne: "public" }`;
+    // if a human publishes that exact bean in the gap between its pre-check
     // read and this write, the filter stops matching and the upsert attempts
-    // an INSERT that collides on the sprouts.slug unique index (Mongo 11000).
+    // an INSERT that collides on the beans.slug unique index (Mongo 11000).
     // That is a DIFFERENT situation from the pre-check `refused` array below
-    // (which means "we read the state before writing and it was already
-    // set") — this means "it was set DURING this very write" — so the error
-    // text is deliberately distinct, though the status code and door
+    // (which means "we read the visibility before writing and it was already
+    // public") — this means "it went public DURING this very write" — so the
+    // error text is deliberately distinct, though the status code and door
     // semantics (nothing clobbered, safe to re-read and retry) match.
     // Untested: reproducing this deterministically requires a write to land
     // inside writeArticles's own gap between its read and its upsert, which
     // this route's tests cannot force without faking the race.
     if (isDuplicateKeyError(err)) {
       return Response.json(
-        { error: "refused: a sprout was reviewed mid-write; nothing clobbered — re-read and retry" },
+        { error: "refused: a bean was published mid-write; nothing clobbered — re-read and retry" },
         { status: 409 },
       );
     }

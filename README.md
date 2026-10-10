@@ -145,18 +145,23 @@ Body: `{ container, narrative?, articles?: [{ slug, name, description?, date, co
   `narrative` only: a bean holds no beans, so `articles` under one are refused (post them under
   its pod). A projected bean (one derived from a pollen feed) is refused too.
 * `narrative` and each article's `content` are capped at **512 KiB** per language part.
-* Sprout slugs are derived as `<article-slug>-0`, so re-posting an unreviewed article corrects it
-  in place.
+* Each article is written as a **bean**: its `content` is the bean's narrative, and no companion
+  sprout is created (since the journal model, `docs/superpowers/specs/2026-10-10-journal-model-design.md`
+  §3). Re-posting an article whose bean is still private rewrites that bean in place — a correction
+  to an unreviewed draft is simply a re-post.
+* `date` is still required and validated (`YYYY-MM-DD`) but **recorded nowhere**: a bean has no
+  date, and a dated record is a sprout, which this door no longer writes. It stays accepted so an
+  existing caller does not break; slice two may turn it into a journal entry.
 
 **The door structurally cannot publish.** Any `state` key on an article is refused whatever its
 value, beans are created private, and no visibility is ever changed — publication stays a human
 act in the admin.
 
 Three refusals, all pre-checked before anything is written and any one aborting the whole
-batch: an article whose stored sprout already carries any `state` (a human has reviewed it), a
-container that is already public **and** carries non-blank prose, and a `bean:` container that is
-projected — machine-owned, rebuilt from its pollen feed, so prose written onto it would survive
-no rebuild.
+batch: an article whose bean is already **public** (a human has published it — this door never
+does, so a public bean is reviewed work) or projected, a container that is already public **and**
+carries non-blank prose, and a `bean:` container that is projected — machine-owned, rebuilt from
+its pollen feed, so prose written onto it would survive no rebuild.
 
 * `401` when the bearer token is missing, wrong, or `ARTICLES_TOKEN` is unset.
 * `400` on malformed JSON or a payload that fails validation (the validator's message is returned).

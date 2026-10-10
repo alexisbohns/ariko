@@ -5,6 +5,12 @@
 // needs the database: locating the container, refusing to clobber reviewed
 // work, and the actual upserts. Same discipline as upsertDigestDrafts in
 // synthesis-store.ts — pre-check every refusal before writing anything.
+//
+// Since the journal model (spec 2026-10-10-journal-model §3 "Doors") an
+// article IS a bean: its `content` is written onto the bean directly, and no
+// companion sprout is created. The old shape — a private bean plus a
+// `type:"article"` sprout `<slug>-0` under it — is exactly what
+// scripts/migrate-journal.ts folds away, so this door must not recreate it.
 
 import { getDb } from "./db";
 import {
@@ -15,10 +21,9 @@ import {
   type Bean,
   type Plant,
   type Pod,
-  type Sprout,
 } from "./data";
 import { extractRefs, mergeMirrored } from "./entity-refs";
-import { sproutSlugFor, type ArticlesPayload } from "./articles";
+import type { ArticlesPayload } from "./articles";
 
 export type WriteResult =
   | { ok: true; written: number; narrative: boolean }
@@ -70,7 +75,7 @@ export async function writeArticles(payload: ArticlesPayload): Promise<WriteResu
   // Refusal pre-checks happen before any write — an all-or-nothing batch, like
   // upsertDigestDrafts. Every check below runs regardless of whether an
   // earlier one already failed: a caller with, say, a missing container AND
-  // a pre-published sprout in the same batch must see BOTH reasons in one
+  // a published bean in the same batch must see BOTH reasons in one
   // response, not retry after fixing the first only to hit the second.
 
   if (payload.narrative !== undefined) {
@@ -107,28 +112,29 @@ export async function writeArticles(payload: ArticlesPayload): Promise<WriteResu
     const beanSlugs = articles.map((a) => a.slug);
     const existingBeans = await db
       .collection<Bean>("beans")
-      .find({ slug: { $in: beanSlugs } }, { projection: { _id: 0, slug: 1, visibility: 1 } })
+      .find(
+        { slug: { $in: beanSlugs } },
+        { projection: { _id: 0, slug: 1, visibility: 1, projected: 1 } },
+      )
       .toArray();
-    const visibilityBySlug = new Map(existingBeans.map((b) => [b.slug, b.visibility]));
+    const bySlug = new Map(existingBeans.map((b) => [b.slug, b]));
     for (const slug of beanSlugs) {
-      // Same proxy as the container rule: a bean this door creates is always
-      // private ($setOnInsert below), so an existing bean that is PUBLIC can
-      // only have gotten that way through a human act (the admin's
-      // publishCascade, or a hand-authored bean promoted public). Refuse
-      // rather than silently rewrite its name/description — the same
-      // "existence + public = reviewed" signal the container check already
-      // uses, since beans, like containers, carry visibility but no state.
-      if (visibilityBySlug.get(slug) === "public") refused.push(`bean:${slug}`);
-    }
-
-    const sproutSlugs = articles.map((a) => sproutSlugFor(a.slug));
-    const existing = await db
-      .collection<Sprout>("sprouts")
-      .find({ slug: { $in: sproutSlugs } }, { projection: { _id: 0, slug: 1, state: 1 } })
-      .toArray();
-    const stateBySlug = new Map(existing.map((s) => [s.slug, s.state]));
-    for (const s of sproutSlugs) {
-      if (stateBySlug.get(s) !== undefined) refused.push(s);
+      const stored = bySlug.get(slug);
+      if (stored === undefined) continue;
+      // A bean this door creates is always private ($setOnInsert below), so
+      // an existing bean that is PUBLIC can only have gotten that way through
+      // a human act (the admin's publishCascade, or a hand-authored bean
+      // promoted public). Refuse rather than silently rewrite its name,
+      // description or — since an article IS the bean's narrative — its
+      // content. STRICTER than the container rule on purpose: a container is
+      // refused only when public AND carrying prose, because a blank public
+      // plant is still waiting for its first narrative; a public bean is
+      // refused on visibility alone, because this door never made it public
+      // and so has no claim on anything about it any more.
+      if (stored.visibility === "public") refused.push(`bean:${slug}`);
+      // Same rule as the bean: container above — a projected bean is rebuilt
+      // from its pollen feed, so a narrative written onto it survives nothing.
+      else if (stored.projected) refused.push(`bean:${slug} (projected)`);
     }
   }
 
@@ -141,13 +147,13 @@ export async function writeArticles(payload: ArticlesPayload): Promise<WriteResu
     // container into a refusal, so by construction this container exists and
     // was writable at read time. But a human can publish it (flip to public
     // AND give it prose) in the gap between that read and this write — the
-    // exact same race the sprout path closes with `state: { $exists: false }`
+    // same race the bean upsert below closes with `visibility: { $ne: "public" }`
     // in its filter. containerStillWritableFilter() re-asserts the identical
     // "not public-with-prose" condition in the filter itself, so if the race
     // fires the update simply fails to match (matchedCount 0) instead of
     // silently overwriting prose that just went live. Never touch visibility
     // here either way — this door cannot publish a container any more than it
-    // can publish a sprout. Note that `relations` is replaced wholesale
+    // can publish a bean. Note that `relations` is replaced wholesale
     // (mergeMirrored over `undefined`, not over the stored list): a relation
     // hand-authored on a still-private container is lost on the next post,
     // which the public-with-prose refusal covers for the common case — once
@@ -167,47 +173,43 @@ export async function writeArticles(payload: ArticlesPayload): Promise<WriteResu
   }
 
   for (const a of articles) {
-    // Bean upsert: the pre-check above already refused any existing PUBLIC
-    // bean, so every bean reaching this write is either brand new or private
-    // — this door's own earlier draft, or an unpublished hand-authored one —
-    // and updating its name/description in place is correct, not a clobber.
+    // Bean upsert — the article's whole write. The pre-check above already
+    // refused any existing PUBLIC or projected bean, so every bean reaching
+    // this write is either brand new or private — this door's own earlier
+    // draft, or an unpublished hand-authored one — and rewriting its name,
+    // description and narrative in place is the "re-post corrects an
+    // unreviewed draft" case the door exists for, not a clobber.
     // parents/visibility are $setOnInsert only regardless: set once at
     // creation and never re-asserted, so a later re-post can't undo a human
     // re-parenting or publishing the bean that happens after this write.
-    const beanSet: Record<string, unknown> = { name: a.name };
+    //
+    // The filter's `visibility: { $ne: "public" }` is load-bearing, not
+    // decorative. The pre-check read visibilities once, before any write in
+    // this batch began; if a human publishes this exact bean in the gap
+    // between that read and this write, re-asserting not-public in the filter
+    // means the upsert can't match the now-public doc and instead tries to
+    // INSERT a duplicate slug, which collides on the beans.slug unique index
+    // and throws — aborting the batch loudly instead of silently overwriting
+    // reviewed work. The same guard covers `projected`.
+    //
+    // `relations` is replaced wholesale, exactly as the container narrative's
+    // is above and for the same reason: the door writes unreviewed drafts,
+    // and once a human has published the bean it no longer writes it at all.
+    // `a.date` is validated on the route and recorded NOWHERE here — a bean
+    // has no date; see ArticleInput's docblock.
+    const beanSet: Record<string, unknown> = {
+      name: a.name,
+      content: a.content,
+      relations: mergeMirrored(undefined, extractRefs(a.content)),
+    };
     // Blank means blank in EVERY language: resolveText falls back across parts,
     // so { fr: "…" } is non-blank here and correctly reaches the bean.
     if (resolveText(a.description ?? "").trim() !== "") beanSet.description = a.description;
     await db.collection("beans").updateOne(
-      { slug: a.slug },
+      { slug: a.slug, visibility: { $ne: "public" }, projected: { $exists: false } },
       {
         $set: beanSet,
         $setOnInsert: { parents: [payload.container], visibility: "private" },
-      },
-      { upsert: true },
-    );
-
-    // Sprout upsert: the filter's `state: { $exists: false }` is load-bearing,
-    // not decorative. The refusal pre-check above read stored states once,
-    // before any write in this batch began; if a human publishes this exact
-    // sprout in the gap between that read and this write, re-asserting
-    // state-absence in the filter here means the upsert can't match the
-    // now-published doc and instead tries to INSERT a duplicate slug, which
-    // collides on the sprouts.slug unique index and throws — aborting the
-    // batch loudly instead of silently overwriting reviewed work.
-    await db.collection("sprouts").updateOne(
-      { slug: sproutSlugFor(a.slug), state: { $exists: false } },
-      {
-        $set: {
-          name: a.name,
-          type: "article",
-          date: a.date,
-          description: a.description ?? "",
-          parents: [`bean:${a.slug}`],
-          content: a.content,
-          relations: mergeMirrored(undefined, extractRefs(a.content)),
-        },
-        $unset: { state: "" },
       },
       { upsert: true },
     );

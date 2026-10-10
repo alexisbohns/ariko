@@ -6,8 +6,12 @@
 // like validateDigestBatch in synthesis.ts: the first failure names the
 // offender and refuses the whole payload. `state` is refused on the RAW
 // article object whatever its value — this door is structurally incapable of
-// publishing. DB-dependent refusals (an already-reviewed sprout, a published
-// container) belong in the store, not here.
+// publishing. DB-dependent refusals (a published bean, a published container)
+// belong in the store, not here.
+//
+// Since the journal model an article IS a bean: the store writes `content`
+// onto the bean itself and creates no companion sprout (see
+// lib/articles-store.ts). Nothing in the shape changed for callers.
 
 import { BEAN_PREFIX, PLANT_PREFIX, POD_PREFIX, type Text } from "./data";
 
@@ -15,6 +19,16 @@ export interface ArticleInput {
   slug: string;
   name: Text;
   description?: Text;
+  /**
+   * Still REQUIRED and validated as `YYYY-MM-DD`, and since the journal model
+   * RECORDED NOWHERE by this door. An article is written as a bean's
+   * narrative, and a bean has no date — a dated record in Ariko is a sprout,
+   * which this door no longer creates. The field stays accepted so a sibling
+   * CI that already posts it does not break on the day the companion sprout
+   * went away; slice two may turn it into a milestone entry in the bean's
+   * journal (spec 2026-10-10-journal-model §3 "Doors"). Until then a caller
+   * should know the value is checked and then dropped.
+   */
   date: string;
   content: Text;
 }
@@ -151,11 +165,4 @@ export function validateArticlesPayload(body: unknown): { ok: true } | { ok: fal
   }
 
   return { ok: true };
-}
-
-// The garden's existing sprout-naming convention (wait-for-the-sun-0):
-// re-posting an unreviewed article updates that same sprout in place, so a
-// correction to a draft is simply a re-post, not a new sprout.
-export function sproutSlugFor(articleSlug: string): string {
-  return `${articleSlug}-0`;
 }

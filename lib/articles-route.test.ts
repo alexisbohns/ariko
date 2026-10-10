@@ -171,6 +171,13 @@ test(
     assert.equal(res.status, 200);
     const body = await res.json();
     assert.deepEqual(body, { ok: true, written: 1, narrative: true });
+
+    // Through the real route: the article is the bean's narrative, private,
+    // and no companion sprout exists.
+    const bean = await db.collection("beans").findOne({ slug: `${TEST_PREFIX}a` });
+    assert.equal(bean?.content, "body");
+    assert.equal(bean?.visibility, "private");
+    assert.equal(await db.collection("sprouts").findOne({ slug: `${TEST_PREFIX}a-0` }), null);
   },
 );
 
@@ -204,7 +211,7 @@ test(
 );
 
 test(
-  "write door: a payload whose sprout has already been published is refused with 409",
+  "write door: a payload whose bean has already been published is refused with 409",
   { skip: !hasDb },
   async (t) => {
     t.after(cleanup);
@@ -220,15 +227,13 @@ test(
       description: "",
       visibility: "private",
     });
-    await db.collection("sprouts").insertOne({
-      slug: `${TEST_PREFIX}a-0`,
+    await db.collection("beans").insertOne({
+      slug: `${TEST_PREFIX}a`,
       name: "A",
-      type: "article",
-      date: "2026-07-24",
       description: "",
-      parents: [`bean:${TEST_PREFIX}a`],
+      parents: [`plant:${TEST_PREFIX}p`],
       content: "reviewed content",
-      state: "published",
+      visibility: "public",
     });
 
     const res = await POST(
@@ -249,10 +254,11 @@ test(
     );
     assert.equal(res.status, 409);
     const body = await res.json();
-    assert.deepEqual(body.refused, [`${TEST_PREFIX}a-0`]);
+    assert.deepEqual(body.refused, [`bean:${TEST_PREFIX}a`]);
 
-    const sprout = await db.collection("sprouts").findOne({ slug: `${TEST_PREFIX}a-0` });
-    assert.equal(sprout?.content, "reviewed content");
+    const bean = await db.collection("beans").findOne({ slug: `${TEST_PREFIX}a` });
+    assert.equal(bean?.content, "reviewed content");
+    assert.equal(bean?.visibility, "public");
   },
 );
 

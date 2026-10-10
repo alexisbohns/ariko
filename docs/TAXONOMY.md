@@ -234,7 +234,10 @@ Two types carry behaviour:
   from the upward publish cascade
   ([`lib/sprout-edit.ts`](../lib/sprout-edit.ts)) and it is excluded from its own
   bucketing so the digest never narrates itself.
-- **`article`** — what `POST /api/articles` writes.
+- **`article`** — what `POST /api/articles` USED to write, as a companion to each
+  bean it created. Since the journal model the door writes the bean's `content`
+  directly and creates no sprout; the 17 existing article sprouts are folded into
+  their beans by `npm run migrate:journal` (spec 2026-10-10-journal-model §4).
 
 ### 3.5 Screen — one captured view
 
@@ -478,7 +481,7 @@ Nine doors, and the taxonomy is partly *defined* by which of them may publish.
 | The admin editors (`/admin/plant/[slug]`, `/pod/…`, `/bean/…`, `/sprout/…`, `/screens/…`) | every species, every field | **yes** — this is the only place |
 | `/admin/triage/[id]` | a seed → a sprout, optionally creating its bean | yes, via the enum rule |
 | `POST /api/inbox` | a **seed** (dedup on `source.externalId`) | no — seeds are never public |
-| `POST /api/articles` | a **private bean** per article + a **state-less (draft) sprout** under it, plus an optional container narrative | no — `state` is refused on the raw object, whatever its value |
+| `POST /api/articles` | a **private bean** per article carrying its `content` as the bean's narrative (no companion sprout), plus an optional container narrative | no — `state` is refused on the raw object, whatever its value, and a public bean is refused |
 | `POST /api/synthesis` | `digest`-type draft sprouts under curated `digest-*` / `weekly-wrap` beans that must already exist | no |
 | `POST /api/pollen/sync` | pollen docs, cursors, refusals — and **projected beans** | no — an envelope's `"public"` is a hint, `"private"` is binding |
 | `npm run garden:plant` | a pod, its beans and their sprouts, from a sibling repo's `garden.yml` | **no, by refusal** — `visibility`, `state`, `exhibited` and `order` are *refused* keys, not ignored ones |
@@ -488,10 +491,11 @@ Nine doors, and the taxonomy is partly *defined* by which of them may publish.
 Two properties of that table are the design rather than a coincidence:
 
 - **Machine-written material is private and draft by construction**, so review is
-  a gate rather than a cleanup. `/api/articles` and `/api/synthesis` both refuse
-  to overwrite a sprout that already has a `state` — the reviewed work is safe
-  from a re-post, and a human publish landing mid-batch makes the write collide
-  loudly on the unique slug index instead of silently clobbering.
+  a gate rather than a cleanup. `/api/synthesis` refuses to overwrite a sprout
+  that already has a `state`, and `/api/articles` refuses a bean that is already
+  public — the reviewed work is safe from a re-post, and a human publish landing
+  mid-batch makes the write collide loudly on the unique slug index instead of
+  silently clobbering.
 - **There is no HTTP door for planting a project.** A sibling agent writes a
   `garden.yml` and stops; the credential never leaves this repo and the write is
   a human decision made while looking at a diff. `lib/garden-manifest.ts`
