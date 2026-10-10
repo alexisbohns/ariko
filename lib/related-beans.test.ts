@@ -242,3 +242,31 @@ test("the plant tier is built by CALLING beansForPlantDeep, not by composing it"
       "plant contains, which the plant hub and /admin/beans already share",
   );
 });
+
+// --- The bean's OWN narrative admits it, exactly as the bean page reads it.
+
+test("a sibling with a narrative of its own and no sprouts appears in the rail", () => {
+  const raw: RawGarden = {
+    ...garden,
+    beans: [...garden.beans!, { slug: "written", name: "Written", parents: ["pod:karma"], content: "prose" }],
+  };
+  // `written` has no sprout at all — previously grounds for exclusion — and is
+  // admitted by its `content`, the same `narrativeFor` the destination renders.
+  assert.ok(slugsFor(raw, "here").includes("written"));
+});
+
+test("within a tier an undated narrative sorts after a dated article; two undated sort by name", () => {
+  const raw: RawGarden = {
+    ...garden,
+    beans: [
+      { slug: "here", name: "Here", parents: ["pod:karma"] },
+      // Dated by its sprout, and OLD — still ahead of every bean-only narrative.
+      { slug: "sib-old", name: "Sib Old", parents: ["pod:karma"] },
+      // Listed Z before A so that garden order disagrees with name order.
+      { slug: "zed", name: "Zed", parents: ["pod:karma"], content: "prose" },
+      { slug: "ann", name: "Ann", parents: ["pod:karma"], content: { en: "prose" } },
+    ],
+    sprouts: [written("s-here", "here", "2026-01-01"), written("s-sib-old", "sib-old", "2020-01-01")],
+  };
+  assert.deepEqual(slugsFor(raw, "here"), ["sib-old", "ann", "zed"]);
+});
