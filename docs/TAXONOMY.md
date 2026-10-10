@@ -173,9 +173,10 @@ A pod with no resolvable plant parent is **unrooted** — not an error, a state.
 `Dataset.unrootedPods()` returns them and the landing page groups them under
 their own heading.
 
-The retired `domain` field (`music | design | podcast`) is gone; the
-re-tiering transform in [`lib/retier.ts`](../lib/retier.ts) strips it from any
-document that still carries it. Plants replaced what it was doing.
+The retired `domain` field (`music | design | podcast`) is gone: the slice-1
+re-tiering migration stripped it from every document that still carried it,
+and that migration is itself retired now (its script and `lib/retier.ts` are
+deleted). Plants replaced what it was doing.
 
 ### 3.3 Bean — the unit of work
 
