@@ -3,6 +3,7 @@
 // synthesis-store.ts, the doors in app/api/synthesis/.
 
 import type { PollenDoc } from "./pollen-sync";
+import { DIGEST_KIND, type SproutKind } from "./sprout-kind";
 import { BEAN_PREFIX, PLANT_PREFIX } from "./data";
 
 const WEEK_RE = /^(\d{4})-W(\d{2})$/;
@@ -59,12 +60,10 @@ export function wrapSlug(week: string): string {
   return `weekly-wrap-${week.toLowerCase()}`;
 }
 
-export const DIGEST_TYPE = "digest";
-
 // The store's flattening of a TimelineEntry — just what narration needs.
 export interface WindowSprout {
   slug: string;
-  type: string;
+  kind: SproutKind;
   date: string;
   plantSlug: string | null;
   name: string;
@@ -78,7 +77,7 @@ export interface WeekBuckets {
 
 // Pure. Date-part comparison on both sides (pollen `at` is a timestamp,
 // sprout dates are date-only — same convention as mergeBeanstalk). Sprouts
-// of DIGEST_TYPE are excluded: the digest never narrates itself (spec §4).
+// of DIGEST_KIND are excluded: the digest never narrates itself (spec §4).
 export function bucketWeek(
   pollen: PollenDoc[],
   sprouts: WindowSprout[],
@@ -95,7 +94,7 @@ export function bucketWeek(
     bucket(p.anchors.plant.slice(PLANT_PREFIX.length)).envelopes.push(p);
   }
   for (const s of sprouts) {
-    if (s.type === DIGEST_TYPE) continue;
+    if (s.kind === DIGEST_KIND) continue;
     if (!s.plantSlug || !inWindow(s.date.slice(0, 10))) continue;
     bucket(s.plantSlug).sprouts.push(s);
   }
