@@ -226,10 +226,10 @@ export default async function TriagePage({
               </div>
             </div>
             {/* The kind is a vocabulary (lib/sprout-kind.ts), drawn as radios with its
-                words; a lab note's suggested.type only picks the default. */}
-            <div className="flex flex-col gap-2">
-              <span className="text-sm font-medium">Kind</span>
-              <div className="flex flex-wrap items-center gap-4 pt-1">
+                words under a legend that names the group; a lab note's
+                suggested.type only picks the default. */}
+            <Fieldset legend="Kind">
+              <div className="flex flex-wrap items-center gap-4">
                 {SPROUT_KINDS.map((kind) => (
                   <ChoiceLabel key={kind}>
                     <NativeRadio
@@ -241,7 +241,7 @@ export default async function TriagePage({
                   </ChoiceLabel>
                 ))}
               </div>
-            </div>
+            </Fieldset>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-2">
                 <Label htmlFor="description">Description</Label>
