@@ -10,7 +10,7 @@
 import { load } from "js-yaml";
 import { composeText, type Text } from "./data";
 import { isTimelineDate } from "./sprout-date";
-import { isSproutKind, SPROUT_KINDS, type SproutKind } from "./sprout-kind";
+import { DIGEST_KIND, isSproutKind, SPROUT_KINDS, type SproutKind } from "./sprout-kind";
 import { MAX_CONTENT_BYTES } from "./content-edit";
 
 /**
@@ -292,16 +292,35 @@ function buildSprout(raw: Record<string, unknown>, where: string): SproutResult 
   // The pre-journal key, refused BY NAME before `kind` is read: a manifest
   // written against the old shape would otherwise read `kind` as "" and fail
   // on a message about a key the author never typed. Same reasoning as the
-  // misplaced image keys — say where the thing belongs.
+  // misplaced image keys — say where the thing belongs. Deliberately `in`,
+  // stricter than `checkForbiddenKeys`'s `!== undefined`: a `type:` with a
+  // null value is still the old key, typed by an author who meant it.
   if ("type" in raw) {
     return {
       ok: false,
       error: `${where}.type is not a key any more — a sprout's kind is \`kind:\`, one of ${SPROUT_KINDS.join(", ")}`,
     };
   }
+  if (raw.kind !== undefined && typeof raw.kind !== "string") {
+    return { ok: false, error: `${where}.kind must be a string (got ${JSON.stringify(raw.kind)})` };
+  }
   const kind = str(raw.kind);
   if (!isSproutKind(kind)) {
     return { ok: false, error: `${where}.kind must be one of ${SPROUT_KINDS.join(", ")} (got "${kind}")` };
+  }
+  // A member the admin's radios offer and the manifest does not. A digest is
+  // MACHINE-WRITTEN — the weekly wrap — and the one kind with behaviour:
+  // exempt from the publish cascade (`shouldCascadePublish`), skipped by
+  // `bucketWeek`; `source: { kind: "manifest" }` beside `kind: "digest"` is a
+  // contradiction. The manifest is stricter than the admin for the reason
+  // `state` already is: there a human is looking at the record, here it is
+  // a file in another repo and nothing anywhere would look wrong.
+  if (kind === DIGEST_KIND) {
+    const authored = SPROUT_KINDS.filter((k) => k !== DIGEST_KIND).join(", ");
+    return {
+      ok: false,
+      error: `${where}.kind "${DIGEST_KIND}" is machine-written (the weekly wrap) and cannot be authored in a manifest — pick one of ${authored}`,
+    };
   }
 
   // A YAML date scalar parses to a Date; force the authored text back.

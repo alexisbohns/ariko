@@ -167,6 +167,29 @@ test("a sprout's kind is a member of the vocabulary", () => {
   assert.ok(!bad.ok);
   if (bad.ok) return;
   assert.match(bad.error, /kind must be one of log, milestone, release, essay, decision, digest \(got "note"\)/);
+  // `isSproutKind` is exact; this pins that a future `.trim()` cannot pass
+  // silently — `lib/sprout-type.ts` existed for exactly the `"digest "` bug.
+  const spaced = parseManifest(withSprout({ slug: "s", name: "S", kind: "log ", date: "2026-01-01", description: "" }));
+  assert.ok(!spaced.ok);
+  if (spaced.ok) return;
+  assert.match(spaced.error, /kind must be one of .* \(got "log "\)/);
+});
+
+test("a non-string kind reports what was there, not 'got \"\"'", () => {
+  const r = parseManifest(withSprout({ slug: "s", name: "S", date: "2026-01-01", description: "" }).replace("date:", "kind: 3\n        date:"));
+  assert.ok(!r.ok);
+  if (r.ok) return;
+  assert.match(r.error, /sprouts\[0\]\.kind must be a string \(got 3\)/);
+});
+
+// A digest is the one member the manifest refuses: machine-written, cascade-
+// exempt, skipped by the weekly wrap — a file in another repo authoring one
+// would be a contradiction nothing anywhere reports.
+test("kind: digest is refused by name — machine-written, not authored", () => {
+  const r = parseManifest(withSprout({ slug: "s", name: "S", kind: "digest", date: "2026-01-01", description: "" }));
+  assert.ok(!r.ok);
+  if (r.ok) return;
+  assert.match(r.error, /sprouts\[0\]\.kind "digest" is machine-written \(the weekly wrap\) and cannot be authored in a manifest — pick one of log, milestone, release, essay, decision$/);
 });
 
 // The pre-journal key is refused BY NAME, the way a bean's `content` once was
