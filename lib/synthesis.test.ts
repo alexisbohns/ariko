@@ -7,13 +7,13 @@ import {
   wrapSlug,
   isValidWeekId,
   bucketWeek,
-  DIGEST_TYPE,
   validateDigestBatch,
   refusedOverwrites,
   type WindowSprout,
   type DraftSprout,
 } from "./synthesis";
 import type { PollenDoc } from "./pollen-sync";
+import { DIGEST_KIND, type SproutKind } from "./sprout-kind";
 
 test("isoWeekId: maps dates to ISO weeks incl. year boundaries", () => {
   assert.equal(isoWeekId("2026-08-17"), "2026-W34"); // a Monday
@@ -68,8 +68,8 @@ function env(id: string, at: string, plant: string): PollenDoc {
     title: `t-${id}`,
   } as PollenDoc;
 }
-function ws(slug: string, date: string, plant: string | null, type = "note"): WindowSprout {
-  return { slug, type, date, plantSlug: plant, name: slug, description: "" };
+function ws(slug: string, date: string, plant: string | null, kind: SproutKind = "log"): WindowSprout {
+  return { slug, kind, date, plantSlug: plant, name: slug, description: "" };
 }
 
 test("bucketWeek: window-filters, groups per plant, derives quiet", () => {
@@ -99,7 +99,7 @@ test("bucketWeek: digest sprouts never narrate themselves", () => {
   const bounds = { start: "2026-08-17", end: "2026-08-23" };
   const out = bucketWeek(
     [],
-    [ws("digest-pbbls-2026-w33", "2026-08-17", "pbbls", DIGEST_TYPE)],
+    [ws("digest-pbbls-2026-w33", "2026-08-17", "pbbls", DIGEST_KIND)],
     ["pbbls"],
     bounds,
   );
