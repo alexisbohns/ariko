@@ -12,8 +12,8 @@ const SEED: RawGarden = {
     { slug: "dangler", name: "Dangler", parents: ["pod:ghost"] },
   ],
   sprouts: [
-    { slug: "win-v1", name: "Win v1", type: "t", date: "2025-01-01", description: "", parents: ["bean:rom-win"], state: "draft" },
-    { slug: "win-v2", name: "Win v2", type: "t", date: "2025-03-01", description: "", parents: ["bean:rom-win"], state: "published" },
+    { slug: "win-v1", name: "Win v1", kind: "log", date: "2025-01-01", description: "", about: ["bean:rom-win"], state: "draft" },
+    { slug: "win-v2", name: "Win v2", kind: "log", date: "2025-03-01", description: "", about: ["bean:rom-win"], state: "published" },
   ],
 };
 const DATASET = buildDataset(SEED);
@@ -58,7 +58,7 @@ test("localized bean/sprout text resolves to display strings at build time (B1)"
   const seed: RawGarden = {
     beans: [{ slug: "bi", name: { en: "Win", fr: "Victoire" }, parents: [] }],
     sprouts: [
-      { slug: "bi-v1", name: { fr: "Prise une" }, type: "t", date: "2025-01-01", description: { en: "first", fr: "première" }, parents: ["bean:bi"] },
+      { slug: "bi-v1", name: { fr: "Prise une" }, kind: "log", date: "2025-01-01", description: { en: "first", fr: "première" }, about: ["bean:bi"] },
     ],
   };
   const view = beanDetail(buildDataset(seed), "bi")!;

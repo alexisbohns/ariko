@@ -40,7 +40,19 @@ test("loadRawGarden returns documents without Mongo _id", { skip: !hasDb }, asyn
 // absent" assertion can't pass vacuously.
 test("public dataset includes published but excludes drafted sprouts", { skip: !hasDb }, async () => {
   const db = await getDb();
-  const base = { type: "note", date: "2099-01-01", description: "leak probe", parents: [] };
+  // A sprout's plant is derived, and a sprout with no plant is dropped by
+  // `filterPublic` whatever its state — so both probes hang from a public
+  // probe plant, or the "published" assertion would fail for the wrong reason.
+  const plant = {
+    slug: "__leak_probe_plant__",
+    name: "Probe Plant",
+    natures: ["work"],
+    role: { kind: "owner" },
+    description: "leak probe",
+    visibility: "public",
+  };
+  await db.collection("plants").updateOne({ slug: plant.slug }, { $set: plant }, { upsert: true });
+  const base = { kind: "log", date: "2099-01-01", description: "leak probe", parents: [`plant:${plant.slug}`] };
   const published = { ...base, slug: "__leak_probe_published__", name: "Published Probe", state: "published" as const };
   const draft = { ...base, slug: "__leak_probe_draft__", name: "Draft Probe", state: "draft" as const };
   await db.collection("sprouts").updateOne({ slug: published.slug }, { $set: published }, { upsert: true });
@@ -52,5 +64,6 @@ test("public dataset includes published but excludes drafted sprouts", { skip: !
     assert.equal(slugs.has(draft.slug), false, "draft version leaked into the public dataset");
   } finally {
     await db.collection("sprouts").deleteMany({ slug: { $in: [published.slug, draft.slug] } });
+    await db.collection("plants").deleteOne({ slug: plant.slug });
   }
 });

@@ -33,10 +33,10 @@ const GARDEN: RawGarden = {
     {
       slug: "digest-4",
       name: "Digest #4",
-      type: "note",
+      kind: "log",
       date: "2026-01-01",
       description: "",
-      parents: ["bean:digest"],
+      about: ["bean:digest"],
     },
   ],
 };
@@ -111,6 +111,17 @@ test("the sublabel names the containing thing, across tiers", () => {
   assert.equal(byId(items, "sprout:digest-4").sublabel, "Digest");
   // A plant contains nothing above it, so it carries no sublabel at all.
   assert.equal(byId(items, "plant:pebbles").sublabel, undefined);
+});
+
+test("a plant-level entry's sublabel names its plant — the one case a sprout's `parents` is read", () => {
+  const items = buildPaletteIndex({
+    garden: {
+      ...GARDEN,
+      sprouts: [{ slug: "aside", name: "Aside", kind: "log", date: "2026-01-01", description: "", parents: ["plant:pebbles"] }],
+    },
+    seeds: [],
+  });
+  assert.equal(byId(items, "sprout:aside").sublabel, "Pebbles");
 });
 
 test("an unresolvable parent ref yields no sublabel rather than a raw ref", () => {
@@ -216,7 +227,7 @@ test("ids stay unique when a slug is reused across tiers", () => {
       ],
       pods: [{ slug: "same", name: "Q", description: "" }],
       beans: [{ slug: "same", name: "R", parents: [] }],
-      sprouts: [{ slug: "same", name: "S", type: "note", date: "2026-01-01", description: "", parents: [] }],
+      sprouts: [{ slug: "same", name: "S", kind: "log", date: "2026-01-01", description: "", parents: [] }],
     },
     seeds: [],
   });

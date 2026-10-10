@@ -54,21 +54,21 @@ test("createBean with no pod is parentless", { skip: !hasDb }, async (t) => {
   assert.deepEqual(a.parents, []);
 });
 
-test("createSprout writes parents/state/media/source", { skip: !hasDb }, async (t) => {
+test("createSprout writes about/state/media/source", { skip: !hasDb }, async (t) => {
   t.after(cleanup);
   const v = await createSprout({
     slug: "__test__v",
     name: "V",
-    type: "demo",
+    kind: "log",
     date: "2025-01-01",
     description: "d",
     state: "draft",
-    parents: ["bean:__test__a"],
+    about: ["bean:__test__a"],
     media: [{ kind: "embed", provider: "youtube", url: "https://youtu.be/x", embedId: "x" }],
     source: { kind: "manual" },
   });
   assert.equal(v.state, "draft");
-  assert.deepEqual(v.parents, ["bean:__test__a"]);
+  assert.deepEqual(v.about, ["bean:__test__a"]);
 });
 
 test("setPublic flips the named plants public — and only plants", { skip: !hasDb }, async (t) => {
@@ -93,7 +93,7 @@ test("deleteSprout removes only the targeted sprout doc", { skip: !hasDb }, asyn
   t.after(cleanup);
   const base = {
     name: "Del",
-    type: "demo",
+    kind: "log" as const,
     date: "2025-01-01",
     description: "",
     state: "draft" as const,

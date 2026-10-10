@@ -2,25 +2,25 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { buildDataset, type RawGarden, type Bean } from "./data";
+import { buildDataset, type RawGarden, type Bean, type Sprout } from "./data";
 import { relatedBeans } from "./related-beans";
 
 /** A sprout carrying real content, so `articleFor` answers for its bean. */
-function written(slug: string, bean: string, date: string) {
+function written(slug: string, bean: string, date: string): Sprout {
   return {
     slug,
     name: slug,
-    type: "note",
+    kind: "log",
     date,
     description: "",
-    parents: [`bean:${bean}`],
+    about: [`bean:${bean}`],
     content: `# ${slug}\n\nBody.`,
   };
 }
 
 /** A sprout with NO content — present, dated, and invisible to `articleFor`. */
-function blank(slug: string, bean: string, date: string) {
-  return { slug, name: slug, type: "note", date, description: "", parents: [`bean:${bean}`] };
+function blank(slug: string, bean: string, date: string): Sprout {
+  return { slug, name: slug, kind: "log", date, description: "", about: [`bean:${bean}`] };
 }
 
 const garden: RawGarden = {

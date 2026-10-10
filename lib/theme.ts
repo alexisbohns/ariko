@@ -3,8 +3,9 @@
 // A named vocabulary, declared once, exactly as `lib/locale.ts`,
 // `lib/plant-status.ts` and `lib/sprout-state.ts` are — so that nothing
 // downstream compares a stored value against a bare literal. CLAUDE.md's
-// argument for `lib/sprout-type.ts` applies here even though there is no write
-// path: a stored `"Dark"` draws identically to nothing at all.
+// argument for a shape module (`lib/sprout-date.ts`, `lib/bean-tags.ts`)
+// applies here even though there is no write path: a stored `"Dark"` draws
+// identically to nothing at all.
 //
 // SERVER-SAFE, and that is load-bearing: `app/layout.tsx` imports it, and the
 // root layout is the one layout BOTH zones enter. No `"use client"`, no

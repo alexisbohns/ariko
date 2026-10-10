@@ -168,7 +168,8 @@ test("a sprout's kind is a member of the vocabulary", () => {
   if (bad.ok) return;
   assert.match(bad.error, /kind must be one of log, milestone, release, essay, decision, digest \(got "note"\)/);
   // `isSproutKind` is exact; this pins that a future `.trim()` cannot pass
-  // silently — `lib/sprout-type.ts` existed for exactly the `"digest "` bug.
+  // silently — the since-deleted `lib/sprout-type.ts` existed for exactly the
+  // `"digest "` bug, and a closed vocabulary must not reopen it.
   const spaced = parseManifest(withSprout({ slug: "s", name: "S", kind: "log ", date: "2026-01-01", description: "" }));
   assert.ok(!spaced.ok);
   if (spaced.ok) return;

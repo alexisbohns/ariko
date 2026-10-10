@@ -1,8 +1,8 @@
 /**
- * A bean's tags as a SHAPE — the sibling of `lib/sprout-type.ts`, which does the
+ * A bean's tags as a SHAPE — the sibling of `lib/sprout-date.ts`, which does the
  * same job for the other free-form field a head can write.
  *
- * **Client-safe, and it imports nothing at all**, for `lib/sprout-type.ts`'s
+ * **Client-safe, and it imports nothing at all**, for `lib/sprout-date.ts`'s
  * reason: the tags editor lives in the bean's head, which is a client island,
  * and a value import from `lib/data.ts` (which opens with `node:fs`) fails
  * `npm run build` four modules downstream.
@@ -15,7 +15,8 @@
  * compares tags with `===` and does not trim, so a stored `" ariko"` draws
  * identically to `"ariko"` in every badge that renders it and matches NOTHING.
  * The tag would exist, look right, and filter to an empty list. That is the same
- * class of silent bad output `isSproutType` rejects whitespace to avoid.
+ * class of silent bad output `isTimelineDate` exists to refuse: a value that
+ * looks right everywhere it is drawn and is wrong everywhere it is compared.
  *
  * Dedupe is CASE-SENSITIVE on purpose. Nothing in the garden lowercases a tag on
  * read, so `Ariko` and `ariko` are two live filter keys today; folding them here

@@ -6,10 +6,10 @@ import { coverFor } from "./cover";
 const sprout = (slug: string, date: string, media?: Sprout["media"]): Sprout => ({
   slug,
   name: slug,
-  type: "release",
+  kind: "release",
   date,
   description: "",
-  parents: ["bean:x"],
+  about: ["bean:x"],
   ...(media ? { media } : {}),
 });
 
