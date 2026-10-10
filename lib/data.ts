@@ -374,9 +374,10 @@ export interface Dataset {
 }
 
 // The prefixed-ref grammar, shared with the graph serializer (lib/graph.ts).
-// parents[] uses plant:/pod:/bean: only; sprout: and bee: appear in
-// relations[] refs (and as graph node ids) — nothing is ever contained BY a
-// sprout or a bee.
+// parents[] uses plant:/pod:/bean: only; a sprout's about[] uses pod:/bean:
+// only, and a sprout's parents[] uses plant: only (the plant-level entry, see
+// Sprout); sprout: and bee: appear in relations[] refs (and as graph node ids)
+// — nothing is ever contained BY a sprout or a bee.
 export const PLANT_PREFIX = "plant:";
 export const POD_PREFIX = "pod:";
 export const BEAN_PREFIX = "bean:";
@@ -661,15 +662,22 @@ export function composeText(en: string, fr: string): Text {
 }
 
 // Public projection of the vault. The security-sensitive rules live here:
-//  - a Sprout is public ONLY when state === "published" (missing state hides it);
+//  - a Sprout is public ONLY when state === "published" (missing state hides
+//    it) AND its DERIVED plant (resolveSproutPlant, against the RAW garden)
+//    survives this projection. A sprout whose refs all dangle, or roll up to
+//    two plants, has no plant and drops — fail-closed. A private bean or pod
+//    does NOT take its sprouts with it: the sprout keeps its place in the
+//    plant's journal and its `about` is scrubbed like `relations` (below), so
+//    the visitor sees the entry and not the door (spec 2026-10-10 §2);
 //  - a Plant/Pod/Bean is visible unless explicitly visibility === "private";
-//  - privacy cascades DOWNWARD, fail-closed, from the plant tier all the way
-//    down (plant → pod → bean → sprout): a Pod whose every EXISTING plant
-//    parent was filtered out is dropped, a Bean whose every EXISTING pod AND
-//    plant parent was filtered out is dropped (a kept parent in EITHER tier
-//    shelters it), and a Sprout whose every EXISTING bean parent was filtered
-//    out is dropped. Dangling (nonexistent) parent refs are ignored, so
+//  - privacy cascades DOWNWARD, fail-closed, from the plant tier through the
+//    containers (plant → pod → bean): a Pod whose every EXISTING plant parent
+//    was filtered out is dropped, a Bean whose every EXISTING pod AND plant
+//    parent was filtered out is dropped (a kept parent in EITHER tier shelters
+//    it). Dangling (nonexistent) parent refs are ignored, so
 //    standalone-by-dangling items are preserved (matches buildDataset);
+//  - each kept Sprout's `about` is scrubbed to refs whose target survives,
+//    exactly as relations[] is — absent stays absent, a non-array becomes [];
 //  - each kept Sprout's, Plant's, Pod's AND Bean's relations[] is scrubbed to refs
 //    whose TARGET survives this same projection (kept sprout/bean/pod/plant)
 //    — draft, private, cascaded-out, dangling, and unknown-prefix targets all
@@ -711,7 +719,6 @@ export function filterPublic(raw: RawGarden): RawGarden {
         [PLANT_PREFIX, plantExists, plantKept],
       ]),
   );
-  const beanExists = new Set(rawBeans.map((b) => b.slug));
   const beanKept = new Set(keptBeans.map((b) => b.slug));
 
   // Screens sit BESIDE beans rather than under them: the plant is the only tier
@@ -729,11 +736,17 @@ export function filterPublic(raw: RawGarden): RawGarden {
       !allExistingParentsFiltered(s.parents, [[PLANT_PREFIX, plantExists, plantKept]]),
   );
 
-  const keptSprouts = rawSprouts.filter(
-    (s) =>
-      s.state === "published" &&
-      !allExistingParentsFiltered(s.parents, [[BEAN_PREFIX, beanExists, beanKept]]),
-  );
+  // A sprout is public ONLY when published AND its DERIVED plant survived
+  // above. The derivation runs against the RAW garden — a sprout about a
+  // private bean under a public plant still has a plant, and keeps its place
+  // in the plant's journal with the door to the bean scrubbed below. A sprout
+  // whose refs all dangle, or roll up to two plants, has no plant and drops:
+  // fail-closed, like every other decision here (spec 2026-10-10 §2).
+  const keptSprouts = rawSprouts.filter((s) => {
+    if (s.state !== "published") return false;
+    const plant = resolveSproutPlant(s, raw);
+    return plant !== null && plantKept.has(plant.slug);
+  });
 
   // Relations may point at sprouts, so the kept-sprout set must exist BEFORE
   // any relation (on sprouts OR plants) is judged.
@@ -747,7 +760,7 @@ export function filterPublic(raw: RawGarden): RawGarden {
           ? podKept.has(ref.slice(POD_PREFIX.length))
           : ref.startsWith(PLANT_PREFIX) && plantKept.has(ref.slice(PLANT_PREFIX.length));
 
-  const sprouts = keptSprouts.map((s) => scrubRelations(s, refSurvives));
+  const sprouts = keptSprouts.map((s) => scrubAbout(scrubRelations(s, refSurvives), refSurvives));
   // `links` needs no scrub and gets none. PlatformLink holds a URL, a derived
   // platform word and an optional label — no entity refs — so there is nothing
   // in it that could name a private slug. Same property PlantRole has, stated
@@ -833,6 +846,17 @@ function scrubRelations<T extends { relations?: Relation[] }>(
       refSurvives(rel.ref),
   );
   return scrubbed.length === item.relations.length ? item : { ...item, relations: scrubbed };
+}
+
+// The `about` scrub — the relations scrub's rule applied to the authored
+// field: absent stays absent, a non-array (a direct DB write) becomes [], and
+// every ref whose target did not survive this projection drops. A public
+// sprout about a private bean shows the sprout and not the door.
+function scrubAbout<T extends { about?: string[] }>(item: T, refSurvives: (ref: string) => boolean): T {
+  if (item.about === undefined) return item;
+  if (!Array.isArray(item.about)) return { ...item, about: [] };
+  const scrubbed = item.about.filter((ref) => typeof ref === "string" && refSurvives(ref));
+  return scrubbed.length === item.about.length ? item : { ...item, about: scrubbed };
 }
 
 // Upward publish cascade — the write-time mirror of filterPublic's downward

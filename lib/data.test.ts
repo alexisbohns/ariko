@@ -778,6 +778,19 @@ test("with about empty, the sprout's own plant parent is the plant; with about p
   assert.deepEqual(resolveSproutPlants({}, derivation), []);
 });
 
+test("a non-array about (a direct DB write) reads as no refs, in the derivation and in the dataset", () => {
+  // aboutRefs is the ONE door both read the field through: a malformed doc
+  // must not throw on every read, and must not be mistaken for an anchor.
+  const junk = { about: "bean:b-in-pod" as unknown as string[] };
+  assert.deepEqual(resolveSproutPlants(junk, derivation), []);
+  const ds = buildDataset({
+    ...derivation,
+    sprouts: [{ slug: "junk", name: "S", kind: "log", date: "2026-01-01", description: "", ...junk }],
+  });
+  assert.deepEqual(ds.sproutsForBean("b-in-pod"), []);
+  assert.equal(ds.timelineSprouts()[0]?.plant, null);
+});
+
 test("resolveSproutPlant is the derivation when it names exactly one plant, else null (fail-closed)", () => {
   assert.equal(resolveSproutPlant({ about: ["bean:b-in-pod"] }, derivation)?.slug, "p1");
   assert.equal(resolveSproutPlant({ about: ["bean:b-in-pod", "bean:b-other"] }, derivation), null);
