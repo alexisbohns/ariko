@@ -69,7 +69,7 @@ feature later became.
 | `release` | A tagged version shipped. |
 | `essay` | A retrospective, a reflection, a learning — prose about the work rather than the work. |
 | `decision` | A choice made, and why. |
-| `digest` | Machine-written — Ariko's weekly wrap. **Not for manifests.** |
+| `digest` | **Refused** — machine-written, Ariko's weekly wrap. A manifest cannot author one. |
 
 Sub-species — a retrospective, an experiment, a learning — are **tags**, not
 kinds: the kind says what an entry *is*, a tag says what it is *about*.
@@ -220,11 +220,11 @@ stops the run with nothing touched.
   by comparing the date **string**, raw — nothing anywhere parses it into a
   date. So `09/12/2026` does not fail; it sorts above every date starting with
   a `2` and quietly misfiles the sprout at the top of the timeline forever.
-- **`kind` is one of the six words above**, exactly — `log`, `milestone`,
-  `release`, `essay`, `decision`, `digest`. Anything else is refused with the
-  whole list, and so is `"log "` with a trailing space: the admin draws the
-  field as a list of radios, and a value it cannot draw is a sprout with no
-  kind on every table. Pick `log` when unsure.
+- **`kind` is one of five words**, exactly — `log`, `milestone`, `release`,
+  `essay`, `decision`. Anything else is refused with the list, and so is
+  `"log "` with a trailing space: the admin draws the field as a list of
+  radios, and a value it cannot draw is a sprout with no kind on every table.
+  `digest` is refused by name — it is machine-written. Pick `log` when unsure.
 - **`type:` is not a key any more.** A sprout written against the old shape
   is refused by name, with a message that says the key is now `kind:`.
 - **Every bilingual pair needs a non-blank `en`.** `fr` may be omitted.
