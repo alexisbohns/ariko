@@ -48,10 +48,13 @@
 // every slug, and a read-only mode must leave the tree as it found it. The live
 // run writes a pre-image per phase to data/retired/ before that phase's first
 // write — the whole sprout for every fold (it is deleted), and exactly the two
-// fields unset (`type`, `parents`, by slug) for every move — refusing if the
-// file exists (a second file would be a second run, and the first one's
-// pre-image must not be clobbered). Neither is committed (.gitignore):
-// mongodump is the pre-image of record, and this repo is public.
+// fields unset (`type`, `parents`, by slug) for every move. BOTH paths are
+// checked for existence before the FIRST write of EITHER phase (a second file
+// would be a second run, and the first one's pre-image must not be clobbered):
+// checked only at its own phase, a stale re-anchor file would stop the run
+// after the fold had already written — the "between phases" state by another
+// door. Neither is committed (.gitignore): mongodump is the pre-image of
+// record, and this repo is public.
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { getDb, closeDb } from "../lib/db";
@@ -70,8 +73,12 @@ const BACKUP_DIR = join(process.cwd(), "data", "retired");
 const FOLD_BACKUP = join(BACKUP_DIR, "2026-10-10-article-sprouts.json");
 const REANCHOR_BACKUP = join(BACKUP_DIR, "2026-10-10-journal-reanchor.json");
 
-function writeBackup(path: string, body: unknown): void {
+function refuseIfExists(path: string): void {
   if (existsSync(path)) throw new Error(`${path} exists — move it aside before re-running`);
+}
+
+function writeBackup(path: string, body: unknown): void {
+  refuseIfExists(path);
   mkdirSync(BACKUP_DIR, { recursive: true });
   writeFileSync(path, JSON.stringify(body, null, 2) + "\n", "utf8");
   console.log(`backup written: ${path}`);
@@ -114,7 +121,10 @@ async function main() {
   const foldedSlugs = new Set(fold.folds.map((f) => f.sproutSlug));
   const remaining = sprouts.filter((s) => !foldedSlugs.has(s.slug));
   const reanchor = planReanchor(remaining, { plants, pods, beans });
-  for (const m of reanchor.moves) console.log(`${p()}move  ${m.slug}  ${m.type} -> ${m.kind}  about ${m.about.join(", ")}`);
+  for (const m of reanchor.moves) {
+    console.log(`${p()}move  ${m.slug}  ${m.type} -> ${m.kind}  about ${m.about.join(", ")}`);
+    for (const ref of m.dropped) console.log(`note  ${m.slug}: dropping ${ref} (not a bean)`);
+  }
   for (const r of reanchor.refusals) console.log(`REFUSED ${r}`);
   console.log(`${reanchor.moves.length} move(s), ${reanchor.refusals.length} refusal(s), ${remaining.length} sprout(s) read`);
 
@@ -124,6 +134,11 @@ async function main() {
     return;
   }
   if (DRY) return;
+
+  // Both backups' exists-checks BEFORE the first write of either phase, so a
+  // stale file stops the run with the database untouched, never between phases.
+  refuseIfExists(FOLD_BACKUP);
+  refuseIfExists(REANCHOR_BACKUP);
 
   // ---- Apply phase one.
   if (fold.folds.length > 0) {

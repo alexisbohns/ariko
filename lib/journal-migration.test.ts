@@ -90,9 +90,9 @@ test("planReanchor maps type to kind by the table and parents to about", () => {
   const plan = planReanchor([legacy({ type: "note" }), legacy({ slug: "m", type: "song" }), legacy({ slug: "d", type: "digest" })], garden);
   assert.deepEqual(plan.refusals, []);
   assert.deepEqual(plan.moves, [
-    { slug: "s", type: "note", kind: "log", about: ["bean:b"] },
-    { slug: "m", type: "song", kind: "milestone", about: ["bean:b"] },
-    { slug: "d", type: "digest", kind: "digest", about: ["bean:b"] },
+    { slug: "s", type: "note", kind: "log", about: ["bean:b"], dropped: [] },
+    { slug: "m", type: "song", kind: "milestone", about: ["bean:b"], dropped: [] },
+    { slug: "d", type: "digest", kind: "digest", about: ["bean:b"], dropped: [] },
   ]);
 });
 
@@ -105,6 +105,7 @@ test("refusals: unknown type, article, no bean parent, dangling bean, unrooted p
   const plan = planReanchor(
     [
       legacy({ slug: "bla", type: "bla" }),
+      legacy({ slug: "proto", type: "constructor" }),
       legacy({ slug: "art", type: "article" }),
       legacy({ slug: "none", parents: [] }),
       legacy({ slug: "dangling", parents: ["bean:nope"] }),
@@ -115,6 +116,7 @@ test("refusals: unknown type, article, no bean parent, dangling bean, unrooted p
   assert.deepEqual(plan.moves, []);
   assert.deepEqual(plan.refusals, [
     'bla: type "bla" has no kind — retype or delete it in the admin',
+    'proto: type "constructor" has no kind — retype or delete it in the admin',
     "art: an article folds, it does not re-anchor — run the fold first",
     "none: no bean: parent to derive a plant from — re-anchor it by hand",
     "dangling: bean nope not found — re-anchor it by hand",
@@ -128,4 +130,18 @@ test("a sprout with two bean parents under one plant keeps both as about; under 
   assert.deepEqual(planReanchor([legacy({ parents: ["bean:b", "bean:b2"] })], twoPlants).refusals, [
     "s: rolls up to two plants (p, p2) — a sprout belongs to one; split it in the admin",
   ]);
+});
+
+test("a sprout carrying both type and kind is refused — the move's filter could not match it", () => {
+  const plan = planReanchor([legacy({ type: "note", kind: "log" })], garden);
+  assert.deepEqual(plan.moves, []);
+  assert.deepEqual(plan.refusals, [
+    "s: carries both type and kind — unset one by hand (an interrupted write; its pre-image is in the backup)",
+  ]);
+});
+
+test("a move lists the non-bean parents it drops, and about keeps only the beans", () => {
+  const plan = planReanchor([legacy({ parents: ["plant:p", "bean:b", "pod:pod"] })], garden);
+  assert.deepEqual(plan.refusals, []);
+  assert.deepEqual(plan.moves, [{ slug: "s", type: "note", kind: "log", about: ["bean:b"], dropped: ["plant:p", "pod:pod"] }]);
 });
