@@ -11,7 +11,6 @@ import {
   getScreen,
   listScreensForPlant,
   setPublic,
-  setPrivate,
   listPods,
   listBeans,
   updateBeanCover,
@@ -28,6 +27,7 @@ const hasDb = Boolean(process.env.MONGODB_URI);
 
 async function cleanup() {
   const db = await getDb();
+  await db.collection("plants").deleteMany({ slug: /^__test__/ });
   await db.collection("pods").deleteMany({ slug: /^__test__/ });
   await db.collection("beans").deleteMany({ slug: /^__test__/ });
   await db.collection("sprouts").deleteMany({ slug: /^__test__/ });
@@ -71,37 +71,22 @@ test("createSprout writes parents/state/media/source", { skip: !hasDb }, async (
   assert.deepEqual(v.parents, ["bean:__test__a"]);
 });
 
-test("setPublic flips visibility to public", { skip: !hasDb }, async (t) => {
+test("setPublic flips the named plants public — and only plants", { skip: !hasDb }, async (t) => {
   t.after(cleanup);
-  await createPod({ slug: "__test__pm", name: "M", plantSlug: null, description: "" });
-  await createBean({ slug: "__test__pa", name: "A", description: "", podSlug: "__test__pm", plantSlug: null });
-  await setPublic([], ["__test__pm"], ["__test__pa"]);
   const db = await getDb();
+  await db.collection("plants").insertOne({
+    slug: "__test__pp", name: "P", natures: ["work"], role: { kind: "owner" }, description: "", visibility: "private",
+  });
+  await createPod({ slug: "__test__pm", name: "M", plantSlug: "__test__pp", description: "" });
+  await setPublic(["__test__pp"]);
+  const p = await db.collection("plants").findOne({ slug: "__test__pp" });
   const m = await db.collection("pods").findOne({ slug: "__test__pm" });
-  const a = await db.collection("beans").findOne({ slug: "__test__pa" });
-  assert.equal(m?.visibility, "public");
-  assert.equal(a?.visibility, "public");
+  assert.equal(p?.visibility, "public");
+  assert.equal(m?.visibility, "private"); // the pod beneath is not touched
 });
 
-test("setPublic is a no-op on empty arrays", { skip: !hasDb }, async () => {
-  await setPublic([], [], []); // must not throw
-});
-
-test("setPrivate flips visibility back to private", { skip: !hasDb }, async (t) => {
-  t.after(cleanup);
-  await createPod({ slug: "__test__qm", name: "M", plantSlug: null, description: "" });
-  await createBean({ slug: "__test__qa", name: "A", description: "", podSlug: "__test__qm", plantSlug: null });
-  await setPublic([], ["__test__qm"], ["__test__qa"]);
-  await setPrivate([], ["__test__qm"], ["__test__qa"]);
-  const db = await getDb();
-  const m = await db.collection("pods").findOne({ slug: "__test__qm" });
-  const a = await db.collection("beans").findOne({ slug: "__test__qa" });
-  assert.equal(m?.visibility, "private");
-  assert.equal(a?.visibility, "private");
-});
-
-test("setPrivate is a no-op on empty arrays", { skip: !hasDb }, async () => {
-  await setPrivate([], [], []); // must not throw
+test("setPublic is a no-op on an empty array", { skip: !hasDb }, async () => {
+  await setPublic([]); // must not throw
 });
 
 test("deleteSprout removes only the targeted sprout doc", { skip: !hasDb }, async (t) => {

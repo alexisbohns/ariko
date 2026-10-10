@@ -97,7 +97,6 @@ const GARDEN_WRITERS = new Set([
   "updateSproutDate",
   "updateSproutType",
   "setPublic",
-  "setPrivate",
   "updateSproutContent",
   "updatePlantContent",
   "updatePodContent",

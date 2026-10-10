@@ -385,10 +385,10 @@ export async function getSprout(slug: string): Promise<Sprout | null> {
 }
 
 // Hard delete (roadmap A2). Idempotent — deleting a missing slug is a no-op
-// (deleteOne matches 0). Callers needing the visibility recompute must seed the
-// sprout's bean parents and state BEFORE calling this; afterwards the sprout no
-// longer exists for unpublishCascade to find. Dangling refs to the deleted slug
-// (seed promotedTo, future relations[]) are tolerated on all read paths.
+// (deleteOne matches 0). A delete changes no visibility: there is no unpublish
+// cascade since the journal model, so nothing has to be captured before the
+// row goes. Dangling refs to the deleted slug (seed promotedTo, future
+// relations[]) are tolerated on all read paths.
 //
 // Named `deleteSprout` since the sprout's edition slice: the botanical rename
 // (#88) never reached this file's write path, and "version" is a word the
@@ -398,33 +398,21 @@ export async function deleteSprout(slug: string): Promise<void> {
   await db.collection<Sprout>("sprouts").deleteOne({ slug });
 }
 
-// Shared write half of the visibility cascades. No-op on empty arrays.
-async function setVisibility(
-  plantSlugs: string[],
-  podSlugs: string[],
-  beanSlugs: string[],
-  visibility: Visibility,
-): Promise<void> {
+// Write half of the publish cascade. Plants only, since the journal model
+// (spec 2026-10-10 §2): `publishCascade` names the sprout's DERIVED plant and
+// nothing beneath it, so the pod and bean branches this once had were dead
+// code reading as a live rule. No-op on an empty array.
+async function setVisibility(plantSlugs: string[], visibility: Visibility): Promise<void> {
+  if (plantSlugs.length === 0) return;
   const db = await getDb();
-  if (plantSlugs.length > 0) {
-    await db.collection("plants").updateMany({ slug: { $in: plantSlugs } }, { $set: { visibility } });
-  }
-  if (podSlugs.length > 0) {
-    await db.collection("pods").updateMany({ slug: { $in: podSlugs } }, { $set: { visibility } });
-  }
-  if (beanSlugs.length > 0) {
-    await db.collection("beans").updateMany({ slug: { $in: beanSlugs } }, { $set: { visibility } });
-  }
+  await db.collection("plants").updateMany({ slug: { $in: plantSlugs } }, { $set: { visibility } });
 }
 
-// The write half of the publish cascade — spans all three content tiers (plants included).
-export async function setPublic(plantSlugs: string[], podSlugs: string[], beanSlugs: string[]): Promise<void> {
-  return setVisibility(plantSlugs, podSlugs, beanSlugs, "public");
-}
-
-// The write half of the un-publish cascade — the exact mirror of setPublic.
-export async function setPrivate(plantSlugs: string[], podSlugs: string[], beanSlugs: string[]): Promise<void> {
-  return setVisibility(plantSlugs, podSlugs, beanSlugs, "private");
+// The write half of the publish cascade — the plants `publishCascade` named.
+// It has no private-flipping mirror any more: an unpublish flips nothing, and
+// a plant stays public once chosen.
+export async function setPublic(plantSlugs: string[]): Promise<void> {
+  return setVisibility(plantSlugs, "public");
 }
 
 /**
@@ -634,13 +622,13 @@ export async function updatePlantStatus(slug: string, status: PlantStatus): Prom
 /**
  * Writes a plant's visibility — and nothing else.
  *
- * Deliberately NOT setPublic/setPrivate: those two are the write halves of the
- * sprout-driven cascades and take three tiers of slugs. This flips one plant
- * and touches nothing beneath it, which is correct in both directions.
- * Downward privacy is a READ-time projection (filterPublic drops a private
- * plant's whole subtree), so going private needs no cascade; and going public
- * must not silently republish pods and beans that were made private on their
- * own terms.
+ * Deliberately NOT setPublic: that one is the write half of the sprout-driven
+ * publish cascade and flips only toward public. This is the author's own
+ * choice for one plant, in either direction, and it touches nothing beneath
+ * it, which is correct both ways. Downward privacy is a READ-time projection
+ * (filterPublic drops a private plant's whole subtree), so going private needs
+ * no cascade; and going public must not silently republish pods and beans
+ * that were made private on their own terms.
  */
 export async function updatePlantVisibility(slug: string, visibility: Visibility): Promise<void> {
   const db = await getDb();
