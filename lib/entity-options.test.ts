@@ -12,7 +12,7 @@ const garden: RawGarden = {
     { slug: "karma", name: { en: "Karma", fr: "Karma FR" }, parents: [], description: "Synopsis." },
     { slug: "anatomy", name: "Anatomy", parents: [] },
   ],
-  sprouts: [{ slug: "karma-0", name: "K0", type: "article", date: "2026-07-24", description: "", parents: [] }],
+  sprouts: [{ slug: "karma-0", name: "K0", kind: "log", date: "2026-07-24", description: "", parents: [] }],
 };
 
 test("offers plants, pods and beans, sorted by name", () => {

@@ -29,28 +29,31 @@ test("toGraph maps an bean to exactly {id, kind, name} — no visibility/parents
 });
 
 test("toGraph maps a sprout to exactly {id, kind, name, type, date} — no content leakage", () => {
+  const stray = { bpm: 128 } as Record<string, unknown>;
   const seed: RawGarden = {
     sprouts: [
       {
         slug: "v",
         name: "V",
-        type: "song",
+        kind: "milestone",
         date: "2026-01-01",
         description: "secret",
-        parents: [],
+        about: ["bean:ghost"],
         state: "published",
         content: { en: "secret body" },
         media: [{ kind: "embed", provider: "soundcloud", url: "https://example.com" }],
         source: { kind: "manual" },
-        bpm: 128, // flexible per-type property must not leak either
+        ...stray, // a stored property the model does not declare must not leak either
       },
     ],
   };
   const { nodes } = toGraph(seed);
+  // `type` on the node IS the sprout's kind — the field was renamed in the
+  // model (journal, spec 2026-10-10 §1.2), the wire kept its name.
   assert.deepEqual(nodes, [
-    { id: "sprout:v", kind: "sprout", name: "V", description: "secret", type: "song", date: "2026-01-01" },
+    { id: "sprout:v", kind: "sprout", name: "V", description: "secret", type: "milestone", date: "2026-01-01" },
   ]);
-  for (const key of ["content", "media", "source", "state", "parents", "bpm"]) {
+  for (const key of ["content", "media", "source", "state", "about", "parents", "bpm"]) {
     assert.equal(key in nodes[0], false, `${key} must not leak into the node`);
   }
 });
@@ -60,7 +63,7 @@ test("toGraph resolves a localized name to a plain string — GraphNode.name sta
     pods: [{ slug: "m", name: { en: "M en", fr: "M fr" }, description: { fr: "notes" } }],
     beans: [{ slug: "a", name: { fr: "A fr" }, parents: ["pod:m"] }],
     sprouts: [
-      { slug: "v", name: { en: "V en", fr: "V fr" }, type: "song", date: "2026-01-01", description: "", parents: ["bean:a"], state: "published" },
+      { slug: "v", name: { en: "V en", fr: "V fr" }, kind: "milestone", date: "2026-01-01", description: "", about: ["bean:a"], state: "published" },
     ],
   };
   const byId = new Map(toGraph(seed).nodes.map((n) => [n.id, n]));
@@ -72,7 +75,7 @@ test("toGraph resolves a localized name to a plain string — GraphNode.name sta
     id: "sprout:v",
     kind: "sprout",
     name: "V en",
-    type: "song",
+    type: "milestone",
     date: "2026-01-01",
   });
 });
@@ -82,11 +85,11 @@ test("toGraph includes tags only when non-empty", () => {
     pods: [{ slug: "m", name: "M", description: "", tags: ["x", "y"] }],
     beans: [{ slug: "a-empty", name: "A", parents: [], tags: [] }],
     sprouts: [
-      { slug: "v-none", name: "V", type: "song", date: "2026-01-01", description: "", parents: [] },
+      { slug: "v-none", name: "V", kind: "milestone", date: "2026-01-01", description: "", parents: [] },
       {
         slug: "v-tagged",
         name: "T",
-        type: "song",
+        kind: "milestone",
         date: "2026-01-02",
         description: "",
         parents: [],
@@ -102,7 +105,7 @@ test("toGraph includes tags only when non-empty", () => {
   assert.deepEqual(byId.get("sprout:v-tagged")?.tags, ["z"]);
 });
 
-test("toGraph emits containment edges pod→atom and bean→sprout, in child input order", () => {
+test("toGraph emits containment edges pod→bean and about edges bean→sprout, in child input order", () => {
   const seed: RawGarden = {
     pods: [{ slug: "m", name: "M", description: "" }],
     beans: [
@@ -110,8 +113,8 @@ test("toGraph emits containment edges pod→atom and bean→sprout, in child inp
       { slug: "a2", name: "A2", parents: ["pod:m"] },
     ],
     sprouts: [
-      { slug: "v1", name: "V1", type: "song", date: "2026-01-01", description: "", parents: ["bean:a2"], state: "published" },
-      { slug: "v2", name: "V2", type: "song", date: "2026-01-02", description: "", parents: ["bean:a1"], state: "published" },
+      { slug: "v1", name: "V1", kind: "milestone", date: "2026-01-01", description: "", about: ["bean:a2"], state: "published" },
+      { slug: "v2", name: "V2", kind: "milestone", date: "2026-01-02", description: "", about: ["bean:a1"], state: "published" },
     ],
   };
   const graph = toGraph(seed);
@@ -122,8 +125,8 @@ test("toGraph emits containment edges pod→atom and bean→sprout, in child inp
   assert.deepEqual(graph.edges, [
     { source: "pod:m", target: "bean:a1", kind: "contains" },
     { source: "pod:m", target: "bean:a2", kind: "contains" },
-    { source: "bean:a2", target: "sprout:v1", kind: "contains" },
-    { source: "bean:a1", target: "sprout:v2", kind: "contains" },
+    { source: "bean:a2", target: "sprout:v1", kind: "about" },
+    { source: "bean:a1", target: "sprout:v2", kind: "about" },
   ]);
 });
 
@@ -141,19 +144,19 @@ test("toGraph emits one edge per existing parent for a multi-parent bean", () =>
   ]);
 });
 
-test("toGraph emits one edge per existing bean parent for a multi-parent sprout", () => {
+test("toGraph emits one about edge per existing bean ref for a sprout about two beans", () => {
   const seed: RawGarden = {
     beans: [
       { slug: "a1", name: "A1", parents: [] },
       { slug: "a2", name: "A2", parents: [] },
     ],
     sprouts: [
-      { slug: "v", name: "V", type: "song", date: "2026-01-01", description: "", parents: ["bean:a1", "bean:a2"], state: "published" },
+      { slug: "v", name: "V", kind: "milestone", date: "2026-01-01", description: "", about: ["bean:a1", "bean:a2"], state: "published" },
     ],
   };
   assert.deepEqual(toGraph(seed).edges, [
-    { source: "bean:a1", target: "sprout:v", kind: "contains" },
-    { source: "bean:a2", target: "sprout:v", kind: "contains" },
+    { source: "bean:a1", target: "sprout:v", kind: "about" },
+    { source: "bean:a2", target: "sprout:v", kind: "about" },
   ]);
 });
 
@@ -162,20 +165,20 @@ test("toGraph dedupes duplicate (source, target) pairs", () => {
     pods: [{ slug: "m", name: "M", description: "" }],
     beans: [{ slug: "a", name: "A", parents: ["pod:m", "pod:m"] }],
     sprouts: [
-      { slug: "v", name: "V", type: "song", date: "2026-01-01", description: "", parents: ["bean:a", "bean:a"], state: "published" },
+      { slug: "v", name: "V", kind: "milestone", date: "2026-01-01", description: "", about: ["bean:a", "bean:a"], state: "published" },
     ],
   };
   assert.deepEqual(toGraph(seed).edges, [
     { source: "pod:m", target: "bean:a", kind: "contains" },
-    { source: "bean:a", target: "sprout:v", kind: "contains" },
+    { source: "bean:a", target: "sprout:v", kind: "about" },
   ]);
 });
 
-test("toGraph emits no edge for a dangling parent ref but keeps the node", () => {
+test("toGraph emits no edge for a dangling parent or about ref but keeps the node", () => {
   const seed: RawGarden = {
     beans: [{ slug: "a", name: "A", parents: ["pod:ghost"] }],
     sprouts: [
-      { slug: "v", name: "V", type: "song", date: "2026-01-01", description: "", parents: ["bean:ghost"], state: "published" },
+      { slug: "v", name: "V", kind: "milestone", date: "2026-01-01", description: "", about: ["bean:ghost"], state: "published" },
     ],
   };
   const graph = toGraph(seed);
@@ -186,15 +189,46 @@ test("toGraph emits no edge for a dangling parent ref but keeps the node", () =>
   assert.deepEqual(graph.edges, []);
 });
 
-test("toGraph ignores parent refs outside the containment grammar", () => {
+test("toGraph ignores refs outside the grammar: a sprout's parents hold plants only, its about holds pods and beans only", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "m", name: "M", description: "" }],
+    plants: [{ slug: "p", name: "P", natures: ["work"], role: { kind: "owner" as const }, description: "" }],
+    pods: [{ slug: "m", name: "M", description: "", parents: ["plant:p"] }],
+    beans: [{ slug: "a", name: "A", parents: ["pod:m"] }],
     sprouts: [
-      // "pod:" is not a valid container for a version — no edge even though both nodes exist.
-      { slug: "v", name: "V", type: "song", date: "2026-01-01", description: "", parents: ["pod:m"], state: "published" },
+      // The pre-journal shape: a pod or a bean in `parents` is not a container
+      // any more — no edge even though both nodes exist.
+      { slug: "v-pod", name: "V", kind: "milestone", date: "2026-01-01", description: "", parents: ["pod:m"], state: "published" },
+      { slug: "v-bean", name: "V", kind: "milestone", date: "2026-01-02", description: "", parents: ["bean:a"], state: "published" },
+      // A plant is never what an entry is ABOUT — it is derived from the refs.
+      { slug: "v-plant", name: "V", kind: "milestone", date: "2026-01-03", description: "", about: ["plant:p"], state: "published" },
+      // `parents` is read ONLY when `about` is empty, matching the derivation:
+      // a stale plant ref beside a real about must not become a second edge.
+      { slug: "v-both", name: "V", kind: "milestone", date: "2026-01-04", description: "", about: ["bean:a"], parents: ["plant:p"], state: "published" },
     ],
   };
-  assert.deepEqual(toGraph(seed).edges, []);
+  assert.deepEqual(
+    toGraph(seed).edges.filter((e) => e.target.startsWith("sprout:")),
+    [{ source: "bean:a", target: "sprout:v-both", kind: "about" }],
+  );
+});
+
+test("a sprout's about refs become `about` edges from the pod or bean to the sprout; a plant-level sprout is contained by its plant", () => {
+  const g = toGraph({
+    plants: [{ slug: "p", name: "P", natures: ["work"], role: { kind: "owner" as const }, description: "" }],
+    pods: [{ slug: "pod", name: "Pod", description: "", parents: ["plant:p"] }],
+    beans: [{ slug: "b", name: "B", parents: ["pod:pod"] }],
+    sprouts: [
+      { slug: "s", name: "S", kind: "essay", date: "2026-01-01", description: "", about: ["bean:b", "pod:pod", "bean:gone"] },
+      { slug: "s-plant", name: "S", kind: "log", date: "2026-01-02", description: "", parents: ["plant:p"] },
+    ],
+  });
+  const edges = g.edges.filter((e) => e.target.startsWith("sprout:"));
+  assert.deepEqual(edges, [
+    { source: "bean:b", target: "sprout:s", kind: "about" },
+    { source: "pod:pod", target: "sprout:s", kind: "about" },
+    { source: "plant:p", target: "sprout:s-plant", kind: "contains" },
+  ]);
+  assert.equal(g.nodes.find((n) => n.id === "sprout:s")!.type, "essay");
 });
 
 test("toGraph returns an empty graph for empty or absent collections", () => {
@@ -203,11 +237,14 @@ test("toGraph returns an empty graph for empty or absent collections", () => {
 });
 
 // Projection composition — the exact pipeline the route runs. Draft/stateless
-// versions and privacy cascades must yield neither nodes nor edges.
+// sprouts and privacy cascades must yield neither nodes nor edges. The plant
+// is load-bearing: filterPublic keeps a sprout by its DERIVED plant, so a
+// garden with no plant publishes no sprout at all.
 const mixed: RawGarden = {
+  plants: [{ slug: "p", name: "P", natures: ["work"], role: { kind: "owner" as const }, description: "" }],
   pods: [
-    { slug: "m-pub", name: "Pub", description: "" },
-    { slug: "m-priv", name: "Priv", description: "", visibility: "private" },
+    { slug: "m-pub", name: "Pub", description: "", parents: ["plant:p"] },
+    { slug: "m-priv", name: "Priv", description: "", visibility: "private", parents: ["plant:p"] },
   ],
   beans: [
     { slug: "a-pub", name: "A pub", parents: ["pod:m-pub"] },
@@ -215,11 +252,18 @@ const mixed: RawGarden = {
     { slug: "a-under-priv", name: "A cascaded", parents: ["pod:m-priv"] },
   ],
   sprouts: [
-    { slug: "v-published", name: "Published", type: "song", date: "2026-01-01", description: "", parents: ["bean:a-pub"], state: "published" },
-    { slug: "v-draft", name: "Draft", type: "song", date: "2026-01-02", description: "", parents: ["bean:a-pub"], state: "draft" },
-    { slug: "v-nostate", name: "No state", type: "song", date: "2026-01-03", description: "", parents: ["bean:a-pub"] },
-    // Published, but its only atom parent is private — cascades out with it.
-    { slug: "v-under-priv", name: "Hidden", type: "song", date: "2026-01-04", description: "", parents: ["bean:a-priv"], state: "published" },
+    { slug: "v-published", name: "Published", kind: "milestone", date: "2026-01-01", description: "", about: ["bean:a-pub"], state: "published" },
+    { slug: "v-draft", name: "Draft", kind: "milestone", date: "2026-01-02", description: "", about: ["bean:a-pub"], state: "draft" },
+    { slug: "v-nostate", name: "No state", kind: "milestone", date: "2026-01-03", description: "", about: ["bean:a-pub"] },
+    // Published and about a private bean under a public plant. The journal
+    // model keeps it (its derived plant is public) and scrubs the door: the
+    // sprout is re-anchored on the plant, and the bean's slug never appears.
+    { slug: "v-about-priv", name: "Re-anchored", kind: "milestone", date: "2026-01-04", description: "", about: ["bean:a-priv"], state: "published" },
+    // Published, about a bean under a private pod — the bean cascades out, the
+    // sprout keeps its plant and is re-anchored the same way.
+    { slug: "v-under-priv", name: "Re-anchored too", kind: "milestone", date: "2026-01-05", description: "", about: ["bean:a-under-priv"], state: "published" },
+    // Published, about a dangling bean — no plant to derive, so it drops.
+    { slug: "v-dangling", name: "Dangling", kind: "milestone", date: "2026-01-06", description: "", about: ["bean:ghost"], state: "published" },
   ],
 };
 
@@ -227,11 +271,14 @@ test("toGraph(filterPublic(raw)) emits only published content", () => {
   const graph = toGraph(filterPublic(mixed));
   assert.deepEqual(
     graph.nodes.map((n) => n.id),
-    ["pod:m-pub", "bean:a-pub", "sprout:v-published"],
+    ["plant:p", "pod:m-pub", "bean:a-pub", "sprout:v-published", "sprout:v-about-priv", "sprout:v-under-priv"],
   );
   assert.deepEqual(graph.edges, [
+    { source: "plant:p", target: "pod:m-pub", kind: "contains" },
     { source: "pod:m-pub", target: "bean:a-pub", kind: "contains" },
-    { source: "bean:a-pub", target: "sprout:v-published", kind: "contains" },
+    { source: "bean:a-pub", target: "sprout:v-published", kind: "about" },
+    { source: "plant:p", target: "sprout:v-about-priv", kind: "contains" },
+    { source: "plant:p", target: "sprout:v-under-priv", kind: "contains" },
   ]);
 });
 
@@ -242,14 +289,14 @@ test("toGraph emits relation edges with their kind, after containment edges", ()
     pods: [{ slug: "m", name: "M", description: "" }],
     beans: [{ slug: "a", name: "A", parents: ["pod:m"] }],
     sprouts: [
-      { slug: "v0", name: "V0", type: "song", date: "2026-01-01", description: "", parents: ["bean:a"], state: "published" },
+      { slug: "v0", name: "V0", kind: "milestone", date: "2026-01-01", description: "", about: ["bean:a"], state: "published" },
       {
         slug: "v1",
         name: "V1",
-        type: "song",
+        kind: "milestone",
         date: "2026-01-02",
         description: "",
-        parents: ["bean:a"],
+        about: ["bean:a"],
         state: "published",
         relations: [
           { kind: "evolves-from", ref: "sprout:v0" },
@@ -261,8 +308,8 @@ test("toGraph emits relation edges with their kind, after containment edges", ()
   };
   assert.deepEqual(toGraph(seed).edges, [
     { source: "pod:m", target: "bean:a", kind: "contains" },
-    { source: "bean:a", target: "sprout:v0", kind: "contains" },
-    { source: "bean:a", target: "sprout:v1", kind: "contains" },
+    { source: "bean:a", target: "sprout:v0", kind: "about" },
+    { source: "bean:a", target: "sprout:v1", kind: "about" },
     { source: "sprout:v1", target: "sprout:v0", kind: "evolves-from" },
     { source: "sprout:v1", target: "bean:a", kind: "related-to" },
     { source: "sprout:v1", target: "pod:m", kind: "featured-in" },
@@ -275,7 +322,7 @@ test("toGraph emits no relation edge when the target is not a node (both-ends pr
       {
         slug: "v",
         name: "V",
-        type: "song",
+        kind: "milestone",
         date: "2026-01-01",
         description: "",
         parents: [],
@@ -296,11 +343,11 @@ test("toGraph emits no relation edge when the target is not a node (both-ends pr
 test("toGraph dedupes relation edges on (source, target, kind) — same pair, two kinds → two edges", () => {
   const seed: RawGarden = {
     sprouts: [
-      { slug: "v0", name: "V0", type: "song", date: "2026-01-01", description: "", parents: [], state: "published" },
+      { slug: "v0", name: "V0", kind: "milestone", date: "2026-01-01", description: "", parents: [], state: "published" },
       {
         slug: "v1",
         name: "V1",
-        type: "song",
+        kind: "milestone",
         date: "2026-01-02",
         description: "",
         parents: [],
@@ -324,21 +371,22 @@ test("toGraph dedupes relation edges on (source, target, kind) — same pair, tw
 // the serialized JSON.
 test("toGraph(filterPublic(raw)) keeps only relation edges to surviving targets, leaking no slug", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "g-m", name: "M", description: "" }],
+    plants: [{ slug: "g-p", name: "P", natures: ["work"], role: { kind: "owner" as const }, description: "" }],
+    pods: [{ slug: "g-m", name: "M", description: "", parents: ["plant:g-p"] }],
     beans: [
       { slug: "g-a", name: "A", parents: ["pod:g-m"] },
       { slug: "g-a-hidden", name: "A hidden", parents: ["pod:g-m"], visibility: "private" },
     ],
     sprouts: [
-      { slug: "g-v-unpub", name: "Draft", type: "song", date: "2026-01-01", description: "", parents: ["bean:g-a"], state: "draft" },
-      { slug: "g-v-sibling", name: "Sibling", type: "song", date: "2026-01-02", description: "", parents: ["bean:g-a"], state: "published" },
+      { slug: "g-v-unpub", name: "Draft", kind: "milestone", date: "2026-01-01", description: "", about: ["bean:g-a"], state: "draft" },
+      { slug: "g-v-sibling", name: "Sibling", kind: "milestone", date: "2026-01-02", description: "", about: ["bean:g-a"], state: "published" },
       {
         slug: "g-v-main",
         name: "Main",
-        type: "song",
+        kind: "milestone",
         date: "2026-01-03",
         description: "",
-        parents: ["bean:g-a"],
+        about: ["bean:g-a"],
         state: "published",
         relations: [
           { kind: "evolves-from", ref: "sprout:g-v-unpub" },
@@ -350,7 +398,7 @@ test("toGraph(filterPublic(raw)) keeps only relation edges to surviving targets,
   };
   const graph = toGraph(filterPublic(seed));
   assert.deepEqual(
-    graph.edges.filter((e) => e.kind !== "contains"),
+    graph.edges.filter((e) => e.kind !== "contains" && e.kind !== "about"),
     [{ source: "sprout:g-v-main", target: "sprout:g-v-sibling", kind: "evolves-from" }],
   );
   const json = JSON.stringify(graph);
@@ -373,9 +421,15 @@ test("toGraph(filterPublic(raw)) never emits a filtered id as a node OR an edge 
     "bean:a-under-priv",
     "sprout:v-draft",
     "sprout:v-nostate",
-    "sprout:v-under-priv",
+    "sprout:v-dangling",
   ]) {
     assert.equal(emitted.has(filtered), false, `${filtered} must not be public`);
+  }
+  // The two re-anchored sprouts are public, but the beans they were about are
+  // not: the scrub must leave no trace of either slug anywhere in the payload.
+  const json = JSON.stringify(graph);
+  for (const scrubbed of ["a-priv", "a-under-priv", "m-priv"]) {
+    assert.equal(json.includes(scrubbed), false, `${scrubbed} must not appear anywhere in the graph JSON`);
   }
 });
 
@@ -500,14 +554,14 @@ test("a bean node carries the cover derived from its newest sprout with an image
   const graph = toGraph({
     beans: [{ slug: "b", name: "B", parents: [] }],
     sprouts: [
-      { slug: "newer", name: "N", type: "t", date: "2026-06-01", description: "", parents: ["bean:b"] },
+      { slug: "newer", name: "N", kind: "log", date: "2026-06-01", description: "", about: ["bean:b"] },
       {
         slug: "older",
         name: "O",
-        type: "t",
+        kind: "log",
         date: "2026-01-01",
         description: "",
-        parents: ["bean:b"],
+        about: ["bean:b"],
         media: [
           { kind: "image", storageKey: "k", url: "https://cdn/x.jpg", alt: "a cat", width: 8, height: 6 },
         ],
@@ -527,10 +581,10 @@ test("the graph's cover omits storageKey", () => {
       {
         slug: "s",
         name: "S",
-        type: "t",
+        kind: "log",
         date: "2026-01-01",
         description: "",
-        parents: ["bean:b"],
+        about: ["bean:b"],
         media: [{ kind: "image", storageKey: "secret", url: "https://cdn/x.jpg" }],
       },
     ],
@@ -552,10 +606,10 @@ test("a cover whose URL is not http(s) is not emitted at all", () => {
         {
           slug: "s",
           name: "S",
-          type: "t",
+          kind: "log",
           date: "2026-01-01",
           description: "",
-          parents: ["bean:b"],
+          about: ["bean:b"],
           media: [{ kind: "image", storageKey: "k", url }],
         },
       ],
@@ -591,10 +645,10 @@ test("non-bean nodes never carry a cover", () => {
       {
         slug: "s",
         name: "S",
-        type: "t",
+        kind: "log",
         date: "2026-01-01",
         description: "",
-        parents: ["bean:b"],
+        about: ["bean:b"],
         media: [{ kind: "image", storageKey: "k", url: "https://cdn/x.jpg" }],
       },
     ],
@@ -613,19 +667,19 @@ test("the cover follows sprout DATE, not the order sprouts appear in the raw gar
       {
         slug: "older",
         name: "O",
-        type: "t",
+        kind: "log",
         date: "2020-01-01",
         description: "",
-        parents: ["bean:b"],
+        about: ["bean:b"],
         media: [{ kind: "image", storageKey: "old", url: "https://cdn/old.jpg" }],
       },
       {
         slug: "newer",
         name: "N",
-        type: "t",
+        kind: "log",
         date: "2026-01-01",
         description: "",
-        parents: ["bean:b"],
+        about: ["bean:b"],
         media: [{ kind: "image", storageKey: "new", url: "https://cdn/new.jpg" }],
       },
     ],

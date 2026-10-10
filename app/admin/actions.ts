@@ -18,8 +18,6 @@ import { createOrUpdateSeed, getSeed, markSeedPromoted, discardSeed } from "@/li
 import { loadRawGarden } from "@/lib/store";
 import {
   publishCascade,
-  unpublishCascade,
-  unpublishCascadeForBeans,
   PLANT_PREFIX,
   POD_PREFIX,
   BEAN_PREFIX,
@@ -35,7 +33,8 @@ import { shouldCascadePublish } from "@/lib/sprout-edit";
 import { buildSproutMetaPatch, BlankSproutNameError, type SproutMetaPatch } from "@/lib/sprout-meta";
 import { isSproutState } from "@/lib/sprout-state";
 import { isTimelineDate } from "@/lib/sprout-date";
-import { isSproutType } from "@/lib/sprout-type";
+import { isSproutKind } from "@/lib/sprout-kind";
+import { resolveAnchor, type SproutAnchor } from "@/lib/sprout-anchor";
 import { buildContentPatch } from "@/lib/content-edit";
 import { editLang, parseEditLangField, withEditLang } from "@/lib/edit-lang";
 import { buildMediaPatch } from "@/lib/media-edit";
@@ -59,7 +58,6 @@ import {
   setPublic,
   SlugExistsError,
   getSprout,
-  setPrivate,
   updateSproutContent,
   updatePlantContent,
   updatePodContent,
@@ -68,7 +66,8 @@ import {
   updateSproutMeta,
   updateSproutState,
   updateSproutDate,
-  updateSproutType,
+  updateSproutKind,
+  updateSproutAnchor,
   updatePlantRole,
   updatePlantMeta,
   updatePlantLogo,
@@ -198,6 +197,45 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
     );
   }
 
+  // Where the sprout hangs (spec 2026-10-10 §1.2). A created parent is rooted
+  // by construction — a new bean under the chosen pod or plant, a new pod under
+  // the chosen plant — so the anchor is composed directly; EXISTING refs go
+  // through resolveAnchor against the live garden, which is also what refuses
+  // a pod or bean that rolls up to a different plant than the one picked.
+  const aboutRefs =
+    beanChoice.mode !== "none" ? [`${BEAN_PREFIX}${beanChoice.slug}`]
+    : podChoice.mode !== "none" ? [`${POD_PREFIX}${podChoice.slug}`]
+    : [];
+  const raw = await loadRawGarden();
+  let anchor: SproutAnchor;
+  if (podChoice.mode === "create" || beanChoice.mode === "create") {
+    if (beanChoice.mode === "create" && podChoice.mode === "existing") {
+      // The one created shape that needs no plant pick: a new bean under an
+      // EXISTING pod. The pod is checked to exist and to roll up to the picked
+      // plant (when one is picked) — a pod with no plant, a slug that names
+      // nothing, or a pick that disagrees with the pod's plant would otherwise
+      // pass straight into a bean, and a sprout, of no plant or the wrong one.
+      const check = resolveAnchor([`${POD_PREFIX}${podChoice.slug}`], plantSlug, raw);
+      if (!check.ok) redirect(`/admin/triage/${seedId}?error=${encodeURIComponent(check.error)}`);
+    } else if (!plantSlug) {
+      // Every other creation roots under the plant select, and a blank one
+      // would plant a parent nowhere, which the derivation would then read as
+      // a sprout of no plant.
+      redirect(
+        `/admin/triage/${seedId}?error=${encodeURIComponent(
+          "pick a plant to root the new pod or bean under",
+        )}`,
+      );
+    }
+    anchor = { about: aboutRefs };
+  } else {
+    const resolved = resolveAnchor(aboutRefs, plantSlug, raw);
+    if (!resolved.ok) {
+      redirect(`/admin/triage/${seedId}?error=${encodeURIComponent(resolved.error)}`);
+    }
+    anchor = resolved.anchor;
+  }
+
   // Create parents, then the version. Only slug collisions are recoverable;
   // anything else propagates. redirect() stays OUT of the try (it throws to control flow).
   let slugError: string | null = null;
@@ -227,12 +265,12 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
       beanSlug = beanChoice.slug;
     }
 
-    const input = buildSproutInput(formData, seed, beanSlug);
+    const input = buildSproutInput(formData, seed, anchor);
     await createSprout(input);
 
     if (input.state === "published") {
-      const { plantSlugs, podSlugs, beanSlugs } = publishCascade(await loadRawGarden(), input.slug);
-      await setPublic(plantSlugs, podSlugs, beanSlugs);
+      const { plantSlugs } = publishCascade(await loadRawGarden(), input.slug);
+      await setPublic(plantSlugs);
     }
 
     await markSeedPromoted(seedId, input.slug);
@@ -257,12 +295,11 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
   redirect("/admin/inbox");
 }
 
-// Hard delete (roadmap A2). The bean parents and published state are captured BEFORE
-// the delete — afterwards the version is gone from the dataset, so the slug-keyed
-// unpublishCascade would silently no-op. The recompute (only when the deleted version
-// WAS published; a draft/private delete cannot change the public projection) runs the
-// bean-keyed core against the dataset loaded AFTER the delete, so the deleted version
-// cannot shelter anything.
+// Hard delete (roadmap A2). A delete changes no visibility: there is no
+// unpublish cascade since the journal model (spec 2026-10-10 §2), so a plant
+// made public by this sprout stays public, and a bean left with no published
+// entry is simply a bean. The only thing read off the row before it goes is
+// the first bean it was about, so the redirect lands where the author was.
 export async function deleteSproutAction(formData: FormData): Promise<void> {
   await requireSession();
   const slug = String(formData.get("slug") ?? "");
@@ -277,23 +314,12 @@ export async function deleteSproutAction(formData: FormData): Promise<void> {
     redirect(sproutHref(slug, "could not delete: confirm the permanent deletion first", "delete"));
   }
 
-  const beanSlugs = (existing.parents ?? [])
-    .filter((p) => p.startsWith("bean:"))
-    .map((p) => p.slice("bean:".length));
-  const wasPublished = existing.state === "published";
+  const [beanSlug] = parentsWithPrefix(existing.about, BEAN_PREFIX);
 
   await deleteSprout(slug);
 
-  if (wasPublished) {
-    const { plantSlugs, podSlugs, beanSlugs: flipBeans } = unpublishCascadeForBeans(
-      await loadRawGarden(),
-      beanSlugs,
-    );
-    await setPrivate(plantSlugs, podSlugs, flipBeans);
-  }
-
   revalidateGarden();
-  redirect(beanSlugs[0] ? `/admin/bean/${beanSlugs[0]}` : "/admin/sprouts");
+  redirect(beanSlug ? `/admin/bean/${beanSlug}` : "/admin/sprouts");
 }
 
 // Prose only. Deliberately separate from the head's four writes: content
@@ -425,14 +451,17 @@ export async function editSproutMetaAction(formData: FormData): Promise<void> {
  * This is `editVersionAction`'s publish logic, moved verbatim to the one action
  * that can own it, and it is why state is a write of its own rather than a
  * field on the meta overlay: the transition, not the value, is what decides
- * whether the sprout's bean, pod and plant are flipped public or recomputed
- * private. `existing` is read BEFORE the write so `existing.state` is the
- * pre-save state the transition is measured against.
+ * whether the sprout's plant is flipped public. There is ONE cascade, and it
+ * runs upward, to the plant `resolveSproutPlant` derives (spec 2026-10-10
+ * §2) — the beans and pods the sprout is about are not touched, because a
+ * bean's visibility is editorial now. An unpublish flips nothing: a plant
+ * stays public once chosen. `existing` is read BEFORE the write so
+ * `existing.kind` is the stored kind the digest gate is measured against.
  *
- * Both cascade branches re-read with `loadRawGarden` AFTER `updateSproutState`,
- * never `loadCachedGarden`: the cascade has to see the just-saved state, and a
- * cached read here publishes the wrong parents — a published sprout whose bean
- * silently stays private, or an unpublish that leaves a parent public.
+ * The cascade re-reads with `loadRawGarden` AFTER `updateSproutState`, never
+ * `loadCachedGarden`: it has to see the just-saved sprout, and a cached read
+ * here derives the plant from a pre-write garden — a published sprout whose
+ * plant silently stays private.
  *
  * The digest gate (`shouldCascadePublish`) is unchanged: publishing a digest
  * marks review sign-off, not public exhibition, and flipping its curated
@@ -463,12 +492,9 @@ export async function setSproutStateAction(formData: FormData): Promise<void> {
   // a plain `(raw: string) => boolean` and there is no predicate to inherit.)
   await updateSproutState(slug, state);
 
-  if (state === "published" && shouldCascadePublish(existing.type)) {
-    const { plantSlugs, podSlugs, beanSlugs } = publishCascade(await loadRawGarden(), slug);
-    await setPublic(plantSlugs, podSlugs, beanSlugs);
-  } else if (existing.state === "published") {
-    const { plantSlugs, podSlugs, beanSlugs } = unpublishCascade(await loadRawGarden(), slug);
-    await setPrivate(plantSlugs, podSlugs, beanSlugs);
+  if (state === "published" && shouldCascadePublish(existing.kind)) {
+    const { plantSlugs } = publishCascade(await loadRawGarden(), slug);
+    await setPublic(plantSlugs);
   }
 
   revalidateGarden();
@@ -521,30 +547,15 @@ export async function setSproutDateAction(formData: FormData): Promise<void> {
 }
 
 /**
- * A sprout's type — and nothing else.
- *
- * `lib/sprout-type.ts` holds the rule and its reasons; this is only the door
- * that applies it, exactly as `setSproutDateAction` is for the date. What that
- * guard is NOT is a vocabulary: nothing in the garden validates a sprout's type
- * against a list, because there isn't one — `lib/sprouts.ts` filters by state,
- * plant and tag and never by type, and the seed-promotion path writes whatever
- * the source carried. If a vocabulary is ever wanted it joins that module and
- * this action validates against it; inventing one here would make the UI the
- * definition.
- *
- * One consequence worth naming rather than hiding: `shouldCascadePublish` is
- * consulted at publish time only, so moving a published sprout off `digest`
- * HERE does not re-cascade — it stays published with its bean and plant still
- * private, and the author's next act on the state control is what settles it.
- * `setSproutStateAction` reads `existing.type`, so the gap lives between two
- * actions rather than inside one, which is at least a gap that can be seen.
- *
- * It is a NEW gap, not an inherited one, and saying so is the honest version:
- * the whole-form path this replaced evaluated the digest exemption against the
- * type being SAVED, so one submit that changed the type and published at once
- * cascaded on the new value. Splitting the fields is what split that.
+ * A sprout's kind — and nothing else. A NAMED MEMBER of `lib/sprout-kind.ts`,
+ * re-validated here rather than trusted (the rule `flipPlantField` states for
+ * the plant's two enums). One consequence worth naming: `shouldCascadePublish`
+ * is consulted at publish time only, so moving a published sprout off `digest`
+ * HERE does not flip its plant — the author's next act on the state control is
+ * what settles it. `setSproutStateAction` reads `existing.kind`, so the gap
+ * lives between two actions rather than inside one.
  */
-export async function setSproutTypeAction(formData: FormData): Promise<void> {
+export async function setSproutKindAction(formData: FormData): Promise<void> {
   await requireSession();
   const slug = String(formData.get("slug") ?? "");
   const lang = editLang(formData.get("lang"));
@@ -552,12 +563,45 @@ export async function setSproutTypeAction(formData: FormData): Promise<void> {
   const existing = await getSprout(slug);
   if (!existing) redirect("/admin/sprouts");
 
-  const type = String(formData.get("type") ?? "").trim();
-  if (!isSproutType(type)) {
-    redirect(withEditLang(sproutHref(slug, "could not save: a sprout needs a type", "type"), lang));
+  const kind = String(formData.get("kind") ?? "").trim();
+  if (!isSproutKind(kind)) {
+    redirect(withEditLang(sproutHref(slug, `unknown kind: ${kind || "(blank)"}`, "kind"), lang));
   }
 
-  await updateSproutType(slug, type);
+  await updateSproutKind(slug, kind);
+
+  revalidateGarden();
+  redirect(withEditLang(sproutHref(slug), lang));
+}
+
+/**
+ * Where a sprout hangs — the about panel's one write. `about` arrives as
+ * checkbox values (getAll), `plant` as the page's statement of the sprout's
+ * CURRENT derived plant: the panel offers that plant's pods and beans and
+ * nothing else, and `resolveAnchor` refuses a ref that disagrees with the plant
+ * the page stated, so the panel's checkboxes cannot move the sprout; only a
+ * hand-written payload naming both could, and that is the author's own garden.
+ * Nothing checked files the entry under the plant itself (`parents`).
+ *
+ * The write unsets the field it does not set (`updateSproutAnchor`), so the
+ * derivation never meets a sprout carrying both.
+ */
+export async function setSproutAboutAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+  const lang = editLang(formData.get("lang"));
+
+  const existing = await getSprout(slug);
+  if (!existing) redirect("/admin/sprouts");
+
+  const refs = formData.getAll("about").map((v) => String(v));
+  const plant = String(formData.get("plant") ?? "").trim() || null;
+  const resolved = resolveAnchor(refs, plant, await loadRawGarden());
+  if (!resolved.ok) {
+    redirect(withEditLang(sproutHref(slug, `could not save: ${resolved.error}`, "about"), lang));
+  }
+
+  await updateSproutAnchor(slug, resolved.anchor);
 
   revalidateGarden();
   redirect(withEditLang(sproutHref(slug), lang));

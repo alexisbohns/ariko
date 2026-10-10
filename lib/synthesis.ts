@@ -3,6 +3,7 @@
 // synthesis-store.ts, the doors in app/api/synthesis/.
 
 import type { PollenDoc } from "./pollen-sync";
+import { DIGEST_KIND, type SproutKind } from "./sprout-kind";
 import { BEAN_PREFIX, PLANT_PREFIX } from "./data";
 
 const WEEK_RE = /^(\d{4})-W(\d{2})$/;
@@ -59,12 +60,10 @@ export function wrapSlug(week: string): string {
   return `weekly-wrap-${week.toLowerCase()}`;
 }
 
-export const DIGEST_TYPE = "digest";
-
 // The store's flattening of a TimelineEntry — just what narration needs.
 export interface WindowSprout {
   slug: string;
-  type: string;
+  kind: SproutKind;
   date: string;
   plantSlug: string | null;
   name: string;
@@ -78,7 +77,7 @@ export interface WeekBuckets {
 
 // Pure. Date-part comparison on both sides (pollen `at` is a timestamp,
 // sprout dates are date-only — same convention as mergeBeanstalk). Sprouts
-// of DIGEST_TYPE are excluded: the digest never narrates itself (spec §4).
+// of DIGEST_KIND are excluded: the digest never narrates itself (spec §4).
 export function bucketWeek(
   pollen: PollenDoc[],
   sprouts: WindowSprout[],
@@ -95,7 +94,7 @@ export function bucketWeek(
     bucket(p.anchors.plant.slice(PLANT_PREFIX.length)).envelopes.push(p);
   }
   for (const s of sprouts) {
-    if (s.type === DIGEST_TYPE) continue;
+    if (s.kind === DIGEST_KIND) continue;
     if (!s.plantSlug || !inWindow(s.date.slice(0, 10))) continue;
     bucket(s.plantSlug).sprouts.push(s);
   }
@@ -103,11 +102,16 @@ export function bucketWeek(
   return { plants, quiet };
 }
 
+// The WIRE shape of one sprout in a POST /api/synthesis batch. `parents` is on
+// the WIRE — the arkaik routine posts it, and the "parents must be exactly one
+// bean ref" refusal is part of that contract — but it is STORED as `about`
+// (spec 2026-10-10 §1.2): the store writes `kind: "digest"` and
+// `about: parents`, and the sprout's plant is derived from the bean.
 export interface DraftSprout {
   slug: string;
   name: string;
   date: string;
-  parents: string[]; // exactly one "bean:digest-…" / "bean:weekly-wrap" ref
+  parents: string[]; // exactly one "bean:digest-…" / "bean:weekly-wrap" ref; stored as `about`
   content: string;
   description?: string;
 }

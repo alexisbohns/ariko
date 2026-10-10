@@ -19,6 +19,8 @@ import {
 } from "./data";
 import type { SproutInput } from "./promote";
 import type { SproutMetaPatch } from "./sprout-meta";
+import type { SproutKind } from "./sprout-kind";
+import type { SproutAnchor } from "./sprout-anchor";
 import type { ContentPatch } from "./content-edit";
 import { plantMetaUpdate, type PlantMetaPatch } from "./plant-meta";
 import { screenMetaUpdate, type ScreenMetaPatch } from "./screen-edit";
@@ -385,10 +387,10 @@ export async function getSprout(slug: string): Promise<Sprout | null> {
 }
 
 // Hard delete (roadmap A2). Idempotent — deleting a missing slug is a no-op
-// (deleteOne matches 0). Callers needing the visibility recompute must seed the
-// sprout's bean parents and state BEFORE calling this; afterwards the sprout no
-// longer exists for unpublishCascade to find. Dangling refs to the deleted slug
-// (seed promotedTo, future relations[]) are tolerated on all read paths.
+// (deleteOne matches 0). A delete changes no visibility: there is no unpublish
+// cascade since the journal model, so nothing has to be captured before the
+// row goes. Dangling refs to the deleted slug (seed promotedTo, future
+// relations[]) are tolerated on all read paths.
 //
 // Named `deleteSprout` since the sprout's edition slice: the botanical rename
 // (#88) never reached this file's write path, and "version" is a word the
@@ -398,33 +400,21 @@ export async function deleteSprout(slug: string): Promise<void> {
   await db.collection<Sprout>("sprouts").deleteOne({ slug });
 }
 
-// Shared write half of the visibility cascades. No-op on empty arrays.
-async function setVisibility(
-  plantSlugs: string[],
-  podSlugs: string[],
-  beanSlugs: string[],
-  visibility: Visibility,
-): Promise<void> {
+// Write half of the publish cascade. Plants only, since the journal model
+// (spec 2026-10-10 §2): `publishCascade` names the sprout's DERIVED plant and
+// nothing beneath it, so the pod and bean branches this once had were dead
+// code reading as a live rule. No-op on an empty array.
+async function setVisibility(plantSlugs: string[], visibility: Visibility): Promise<void> {
+  if (plantSlugs.length === 0) return;
   const db = await getDb();
-  if (plantSlugs.length > 0) {
-    await db.collection("plants").updateMany({ slug: { $in: plantSlugs } }, { $set: { visibility } });
-  }
-  if (podSlugs.length > 0) {
-    await db.collection("pods").updateMany({ slug: { $in: podSlugs } }, { $set: { visibility } });
-  }
-  if (beanSlugs.length > 0) {
-    await db.collection("beans").updateMany({ slug: { $in: beanSlugs } }, { $set: { visibility } });
-  }
+  await db.collection("plants").updateMany({ slug: { $in: plantSlugs } }, { $set: { visibility } });
 }
 
-// The write half of the publish cascade — spans all three content tiers (plants included).
-export async function setPublic(plantSlugs: string[], podSlugs: string[], beanSlugs: string[]): Promise<void> {
-  return setVisibility(plantSlugs, podSlugs, beanSlugs, "public");
-}
-
-// The write half of the un-publish cascade — the exact mirror of setPublic.
-export async function setPrivate(plantSlugs: string[], podSlugs: string[], beanSlugs: string[]): Promise<void> {
-  return setVisibility(plantSlugs, podSlugs, beanSlugs, "private");
+// The write half of the publish cascade — the plants `publishCascade` named.
+// It has no private-flipping mirror any more: an unpublish flips nothing, and
+// a plant stays public once chosen.
+export async function setPublic(plantSlugs: string[]): Promise<void> {
+  return setVisibility(plantSlugs, "public");
 }
 
 /**
@@ -582,9 +572,10 @@ export async function updateBeanMeta(slug: string, patch: BeanMetaPatch): Promis
  * Writes a bean's visibility — and nothing else.
  *
  * NO CASCADE, in either direction, and that is `updatePlantVisibility`'s
- * argument one tier down. Downward privacy is a READ-time projection —
- * `filterPublic` drops a private bean's sprouts with it — so going private needs
- * no write beneath. And going public must not silently republish sprouts that
+ * argument one tier down. Going private needs no write beneath because a
+ * bean's sprouts are no longer tied to its visibility at all: they hang on the
+ * plant, and `filterPublic` scrubs the bean out of their `about` at read time
+ * (spec 2026-10-10 §2). And going public must not silently republish sprouts that
  * were held back on their own terms: a sprout's `state` is the thing that
  * cascades UPWARD, and this flip must not be able to run that machinery
  * backwards.
@@ -633,13 +624,13 @@ export async function updatePlantStatus(slug: string, status: PlantStatus): Prom
 /**
  * Writes a plant's visibility — and nothing else.
  *
- * Deliberately NOT setPublic/setPrivate: those two are the write halves of the
- * sprout-driven cascades and take three tiers of slugs. This flips one plant
- * and touches nothing beneath it, which is correct in both directions.
- * Downward privacy is a READ-time projection (filterPublic drops a private
- * plant's whole subtree), so going private needs no cascade; and going public
- * must not silently republish pods and beans that were made private on their
- * own terms.
+ * Deliberately NOT setPublic: that one is the write half of the sprout-driven
+ * publish cascade and flips only toward public. This is the author's own
+ * choice for one plant, in either direction, and it touches nothing beneath
+ * it, which is correct both ways. Downward privacy is a READ-time projection
+ * (filterPublic drops a private plant's whole subtree), so going private needs
+ * no cascade; and going public must not silently republish pods and beans
+ * that were made private on their own terms.
  */
 export async function updatePlantVisibility(slug: string, visibility: Visibility): Promise<void> {
   const db = await getDb();
@@ -692,7 +683,7 @@ export async function updateSproutMeta(slug: string, patch: SproutMetaPatch): Pr
  * The narrowest writer in this file, and the most consequential: it is the
  * field `filterPublic` reads to decide whether a sprout is on the public site
  * at all, and the field whose transition `setSproutStateAction` runs the
- * publish and unpublish cascades around. It writes one key so that the cascade
+ * publish cascade around. It writes one key so that the cascade
  * in the action above it is reasoning about exactly one change.
  */
 export async function updateSproutState(slug: string, state: SproutState): Promise<void> {
@@ -714,16 +705,28 @@ export async function updateSproutDate(slug: string, date: string): Promise<void
 }
 
 /**
- * A sprout's type — and nothing else. A sibling of `updateSproutState`.
- *
- * The value is free-form but not shapeless: nothing validates it against a
- * vocabulary, because there isn't one (`lib/sprouts.ts` filters by state, plant
- * and tag and never by type), while `lib/sprout-type.ts` records what renders
- * it and what three `===` comparisons do with a padded one, and
- * `setSproutTypeAction` is the door that enforces it. Nothing checks it here —
- * this writer is reached only through that action.
+ * A sprout's kind — and nothing else. A sibling of `updateSproutState`. The
+ * value is a NAMED MEMBER of `lib/sprout-kind.ts`, re-validated by
+ * `setSproutKindAction` before it reaches here; nothing checks it here.
  */
-export async function updateSproutType(slug: string, type: string): Promise<void> {
+export async function updateSproutKind(slug: string, kind: SproutKind): Promise<void> {
   const db = await getDb();
-  await db.collection<Sprout>("sprouts").updateOne({ slug }, { $set: { type } });
+  await db.collection<Sprout>("sprouts").updateOne({ slug }, { $set: { kind } });
+}
+
+/**
+ * Where a sprout hangs (`lib/sprout-anchor.ts`). ONE write that sets one field
+ * and unsets the other, so no sprout ever carries both `about` and `parents`
+ * — the invariant the derivation (`resolveSproutPlants`) relies on to ignore
+ * `parents` whenever `about` is present. Validation (every ref exists, all
+ * roll up to one plant) is `resolveAnchor`'s, at the door; nothing checks it
+ * here.
+ */
+export async function updateSproutAnchor(slug: string, anchor: SproutAnchor): Promise<void> {
+  const db = await getDb();
+  const update: UpdateFilter<Sprout> =
+    "about" in anchor
+      ? { $set: { about: anchor.about }, $unset: { parents: "" } }
+      : { $set: { parents: [`${PLANT_PREFIX}${anchor.plant}`] }, $unset: { about: "" } };
+  await db.collection<Sprout>("sprouts").updateOne({ slug }, update);
 }

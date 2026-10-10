@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import yaml from "js-yaml";
 import { exhibitionOrder } from "./exhibition";
+import type { SproutKind } from "./sprout-kind";
 
 export type Visibility = "private" | "public";
 export type SproutState = "draft" | "private" | "published";
@@ -268,13 +269,35 @@ export interface Screen {
   order?: number;
 }
 
+/**
+ * A dated journal entry about a plant and the things in it (spec 2026-10-10
+ * §1.2). NOT a version of a bean: a bean's story is its own `content`, and an
+ * entry is a dated record — of work done, a state reached, a release, an
+ * essay, a decision, or the weekly digest.
+ *
+ * Its plant is DERIVED, never stored: `about` names the pods and beans the
+ * entry is about, every one of which rolls up to a plant, and all of them must
+ * roll up to the SAME plant (the write doors refuse otherwise; the read side
+ * treats an ambiguous sprout as unresolvable, fail-closed). `parents` holds
+ * ONE `plant:` ref and only when `about` is empty — the plant-level entry with
+ * no feature to hang on, the exception rather than the rule. A sprout carries
+ * exactly one of the two, so a bean moved to another pod moves its entries
+ * with it and nothing drifts. `resolveSproutPlant` below is the one place the
+ * derivation is spelled; `filterPublic`, `buildDataset`, `publishCascade` and
+ * the admin all call it.
+ *
+ * `about` is a typed field and not a relation kind because it is authored,
+ * validated and rendered as doors, while `relations` is machine-mirrored from
+ * prose and scrubbed.
+ */
 export interface Sprout {
   slug: string;
   name: Text; // bilingual since B1; plain strings remain valid (no migration)
-  type: string;
+  kind: SproutKind;
   date: string;
   description: Text;
-  parents: string[]; // containment ONLY, e.g. ["bean:rom-win"] — drives the privacy cascades and timeline grouping; cross-links go in relations[]
+  about?: string[]; // "pod:…" / "bean:…" refs; see the docblock
+  parents?: string[]; // exactly one "plant:…" ref, ONLY when `about` is empty
   relations?: Relation[]; // non-containment edges (G2); scrubbed by filterPublic
   state?: SproutState; // absent => NOT published (safe default)
   content?: Text; // optional rich markdown, localizable
@@ -282,7 +305,6 @@ export interface Sprout {
   links?: PlatformLink[]; // destinations, never rendered inline — see PlatformLink
   source?: Source;
   tags?: string[];
-  [key: string]: unknown; // flexible per-type properties
 }
 
 export interface RawGarden {
@@ -321,7 +343,9 @@ export interface Seed {
 
 export interface TimelineEntry {
   sprout: Sprout;
+  /** The first EXISTING `bean:` ref in the sprout's `about`, or null. */
   bean: Bean | null;
+  /** The DERIVED plant (`resolveSproutPlant`), or null. */
   plant: Plant | null;
 }
 
@@ -340,14 +364,20 @@ export interface Dataset {
   getPlant(slug: string): Plant | undefined;
   getPod(slug: string): Pod | undefined;
   getBean(slug: string): Bean | undefined;
+  /** Entries about this bean, newest first. */
   sproutsForBean(slug: string): Sprout[];
+  /** Entries about this pod OR about a bean inside it, newest first, once each. */
+  sproutsForPod(slug: string): Sprout[];
+  /** Entries whose DERIVED plant is this one, newest first. */
+  sproutsForPlant(slug: string): Sprout[];
   timelineSprouts(): TimelineEntry[];
 }
 
 // The prefixed-ref grammar, shared with the graph serializer (lib/graph.ts).
-// parents[] uses plant:/pod:/bean: only; sprout: and bee: appear in
-// relations[] refs (and as graph node ids) — nothing is ever contained BY a
-// sprout or a bee.
+// parents[] uses plant:/pod:/bean: only; a sprout's about[] uses pod:/bean:
+// only, and a sprout's parents[] uses plant: only (the plant-level entry, see
+// Sprout); sprout: and bee: appear in relations[] refs (and as graph node ids)
+// — nothing is ever contained BY a sprout or a bee.
 export const PLANT_PREFIX = "plant:";
 export const POD_PREFIX = "pod:";
 export const BEAN_PREFIX = "bean:";
@@ -363,6 +393,80 @@ export function parentsWithPrefix(parents: string[] | undefined, prefix: string)
 // it works from a RawGarden rather than a built Dataset.
 export function byDateDesc(a: { date: string }, b: { date: string }): number {
   return a.date < b.date ? 1 : a.date > b.date ? -1 : 0;
+}
+
+/**
+ * A sprout's `about` refs, read tolerantly — the ONE door through which the
+ * field is read. A document written before the field existed has none; a
+ * malformed one from a direct DB write is not an array or holds a non-string.
+ * Both read as "no refs" rather than throwing, for the reason scrubRelations
+ * gives below: one bad doc must not 500 every read.
+ */
+export function aboutRefs(sprout: Pick<Sprout, "about">): string[] {
+  return Array.isArray(sprout.about) ? sprout.about.filter((r) => typeof r === "string") : [];
+}
+
+/** The lookups the derivation needs — `RawGarden`'s three container tiers. */
+export interface SproutGarden {
+  plants?: Plant[];
+  pods?: Pod[];
+  beans?: Bean[];
+}
+
+/**
+ * Every plant a sprout's refs roll up to, deduped, in first-reached order. A
+ * bean contributes its direct `plant:` parents and the `plant:` parents of
+ * each of its `pod:` parents; a pod contributes its `plant:` parents. With
+ * `about` empty (or absent), the sprout's own `parents` `plant:` refs — and
+ * with `about` present, `parents` is NOT consulted, because a sprout carries
+ * one or the other and a stale `parents` must not become a second source of
+ * truth. Dangling refs are ignored, exactly as filterPublic ignores them.
+ */
+export function resolveSproutPlants(
+  sprout: Pick<Sprout, "about" | "parents">,
+  garden: SproutGarden,
+): Plant[] {
+  const plantBySlug = new Map((garden.plants ?? []).map((p) => [p.slug, p]));
+  const podBySlug = new Map((garden.pods ?? []).map((p) => [p.slug, p]));
+  const beanBySlug = new Map((garden.beans ?? []).map((b) => [b.slug, b]));
+  const found = new Map<string, Plant>();
+  const addPlant = (slug: string): void => {
+    const plant = plantBySlug.get(slug);
+    if (plant) found.set(slug, plant);
+  };
+  const addPod = (slug: string): void => {
+    const pod = podBySlug.get(slug);
+    if (pod) for (const p of parentsWithPrefix(pod.parents, PLANT_PREFIX)) addPlant(p);
+  };
+
+  const about = aboutRefs(sprout);
+  if (about.length === 0) {
+    for (const p of parentsWithPrefix(sprout.parents, PLANT_PREFIX)) addPlant(p);
+    return [...found.values()];
+  }
+  for (const ref of about) {
+    if (ref.startsWith(BEAN_PREFIX)) {
+      const bean = beanBySlug.get(ref.slice(BEAN_PREFIX.length));
+      if (!bean) continue;
+      for (const p of parentsWithPrefix(bean.parents, PLANT_PREFIX)) addPlant(p);
+      for (const p of parentsWithPrefix(bean.parents, POD_PREFIX)) addPod(p);
+    } else if (ref.startsWith(POD_PREFIX)) {
+      addPod(ref.slice(POD_PREFIX.length));
+    }
+  }
+  return [...found.values()];
+}
+
+/** The sprout's plant: the derivation when it names EXACTLY one plant, else
+ *  null. Zero is a dangling sprout; two is an ambiguous one, and the read side
+ *  treats both as unresolvable rather than picking — fail-closed, as every
+ *  privacy decision in this file is. */
+export function resolveSproutPlant(
+  sprout: Pick<Sprout, "about" | "parents">,
+  garden: SproutGarden,
+): Plant | null {
+  const plants = resolveSproutPlants(sprout, garden);
+  return plants.length === 1 ? plants[0] : null;
 }
 
 export function buildDataset(raw: RawGarden): Dataset {
@@ -439,18 +543,42 @@ export function buildDataset(raw: RawGarden): Dataset {
     list.sort(exhibitionOrder);
   }
 
-  // bean slug -> sprouts, sorted newest first.
+  // The journal indexes. One pass computes each sprout's derived plant and
+  // its about-refs; the three maps below are filled from that, and sorted
+  // once. `resolveSproutPlant` is the ONE derivation (see its docblock) —
+  // nothing here re-derives.
   const sproutsByBean = new Map<string, Sprout[]>();
+  const sproutsByPod = new Map<string, Sprout[]>();
+  const sproutsByPlant = new Map<string, Sprout[]>();
+  const push = (map: Map<string, Sprout[]>, key: string, sprout: Sprout): void => {
+    const list = map.get(key) ?? [];
+    if (!list.includes(sprout)) list.push(sprout);
+    map.set(key, list);
+  };
+  const timeline: TimelineEntry[] = [];
   for (const sprout of sprouts) {
-    for (const beanSlug of parentsWithPrefix(sprout.parents, BEAN_PREFIX)) {
-      const list = sproutsByBean.get(beanSlug) ?? [];
-      list.push(sprout);
-      sproutsByBean.set(beanSlug, list);
+    const about = aboutRefs(sprout);
+    let firstBean: Bean | null = null;
+    for (const beanSlug of parentsWithPrefix(about, BEAN_PREFIX)) {
+      const bean = beanBySlug.get(beanSlug);
+      if (!bean) continue;
+      firstBean ??= bean;
+      push(sproutsByBean, beanSlug, sprout);
+      for (const podSlug of parentsWithPrefix(bean.parents, POD_PREFIX)) {
+        if (podBySlug.has(podSlug)) push(sproutsByPod, podSlug, sprout);
+      }
     }
+    for (const podSlug of parentsWithPrefix(about, POD_PREFIX)) {
+      if (podBySlug.has(podSlug)) push(sproutsByPod, podSlug, sprout);
+    }
+    const plant = resolveSproutPlant(sprout, raw);
+    if (plant) push(sproutsByPlant, plant.slug, sprout);
+    timeline.push({ sprout, bean: firstBean, plant });
   }
-  for (const list of sproutsByBean.values()) {
-    list.sort(byDateDesc);
+  for (const map of [sproutsByBean, sproutsByPod, sproutsByPlant]) {
+    for (const list of map.values()) list.sort(byDateDesc);
   }
+  timeline.sort((a, b) => byDateDesc(a.sprout, b.sprout));
 
   function plantForBean(slug: string): Plant | null {
     const bean = beanBySlug.get(slug);
@@ -471,18 +599,6 @@ export function buildDataset(raw: RawGarden): Dataset {
     return null;
   }
 
-  const timeline: TimelineEntry[] = sprouts
-    .map((sprout) => {
-      const beanSlug = parentsWithPrefix(sprout.parents, BEAN_PREFIX)[0];
-      const bean = beanSlug ? (beanBySlug.get(beanSlug) ?? null) : null;
-      return {
-        sprout,
-        bean,
-        plant: bean ? plantForBean(bean.slug) : null,
-      };
-    })
-    .sort((a, b) => byDateDesc(a.sprout, b.sprout));
-
   return {
     getPlants: () => plants,
     podsForPlant: (slug) => podsByPlant.get(slug) ?? [],
@@ -497,6 +613,8 @@ export function buildDataset(raw: RawGarden): Dataset {
     getPod: (slug) => podBySlug.get(slug),
     getBean: (slug) => beanBySlug.get(slug),
     sproutsForBean: (slug) => sproutsByBean.get(slug) ?? [],
+    sproutsForPod: (slug) => sproutsByPod.get(slug) ?? [],
+    sproutsForPlant: (slug) => sproutsByPlant.get(slug) ?? [],
     timelineSprouts: () => timeline,
   };
 }
@@ -544,15 +662,26 @@ export function composeText(en: string, fr: string): Text {
 }
 
 // Public projection of the vault. The security-sensitive rules live here:
-//  - a Sprout is public ONLY when state === "published" (missing state hides it);
+//  - a Sprout is public ONLY when state === "published" (missing state hides
+//    it) AND its DERIVED plant (resolveSproutPlant, against the RAW garden)
+//    survives this projection. A sprout whose refs all dangle, or roll up to
+//    two plants, has no plant and drops — fail-closed. A private bean or pod
+//    does NOT take its sprouts with it: the sprout keeps its place in the
+//    plant's journal and its `about` is scrubbed like `relations` (below), so
+//    the visitor sees the entry and not the door (spec 2026-10-10 §2). A
+//    sprout whose `about` scrubs to nothing is re-anchored on its derived
+//    plant (`parents: ["plant:…"]`, no `about`) so the public dataset still
+//    derives the plant it had — the plant is kept, so this names nothing
+//    private;
 //  - a Plant/Pod/Bean is visible unless explicitly visibility === "private";
-//  - privacy cascades DOWNWARD, fail-closed, from the plant tier all the way
-//    down (plant → pod → bean → sprout): a Pod whose every EXISTING plant
-//    parent was filtered out is dropped, a Bean whose every EXISTING pod AND
-//    plant parent was filtered out is dropped (a kept parent in EITHER tier
-//    shelters it), and a Sprout whose every EXISTING bean parent was filtered
-//    out is dropped. Dangling (nonexistent) parent refs are ignored, so
+//  - privacy cascades DOWNWARD, fail-closed, from the plant tier through the
+//    containers (plant → pod → bean): a Pod whose every EXISTING plant parent
+//    was filtered out is dropped, a Bean whose every EXISTING pod AND plant
+//    parent was filtered out is dropped (a kept parent in EITHER tier shelters
+//    it). Dangling (nonexistent) parent refs are ignored, so
 //    standalone-by-dangling items are preserved (matches buildDataset);
+//  - each kept Sprout's `about` is scrubbed to refs whose target survives,
+//    exactly as relations[] is — absent stays absent, a non-array becomes [];
 //  - each kept Sprout's, Plant's, Pod's AND Bean's relations[] is scrubbed to refs
 //    whose TARGET survives this same projection (kept sprout/bean/pod/plant)
 //    — draft, private, cascaded-out, dangling, and unknown-prefix targets all
@@ -594,7 +723,6 @@ export function filterPublic(raw: RawGarden): RawGarden {
         [PLANT_PREFIX, plantExists, plantKept],
       ]),
   );
-  const beanExists = new Set(rawBeans.map((b) => b.slug));
   const beanKept = new Set(keptBeans.map((b) => b.slug));
 
   // Screens sit BESIDE beans rather than under them: the plant is the only tier
@@ -612,15 +740,25 @@ export function filterPublic(raw: RawGarden): RawGarden {
       !allExistingParentsFiltered(s.parents, [[PLANT_PREFIX, plantExists, plantKept]]),
   );
 
-  const keptSprouts = rawSprouts.filter(
-    (s) =>
-      s.state === "published" &&
-      !allExistingParentsFiltered(s.parents, [[BEAN_PREFIX, beanExists, beanKept]]),
-  );
+  // A sprout is public ONLY when published AND its DERIVED plant survived
+  // above. The derivation runs against the RAW garden — a sprout about a
+  // private bean under a public plant still has a plant, and keeps its place
+  // in the plant's journal with the door to the bean scrubbed below. A sprout
+  // whose refs all dangle, or roll up to two plants, has no plant and drops:
+  // fail-closed, like every other decision here (spec 2026-10-10 §2). The
+  // plant is derived ONCE here and carried to the scrub: a sprout whose
+  // `about` scrubs to nothing is re-anchored on it below, and re-deriving
+  // from the scrubbed sprout would find no plant at all.
+  const keptSprouts: { sprout: Sprout; plant: Plant }[] = [];
+  for (const s of rawSprouts) {
+    if (s.state !== "published") continue;
+    const plant = resolveSproutPlant(s, raw);
+    if (plant !== null && plantKept.has(plant.slug)) keptSprouts.push({ sprout: s, plant });
+  }
 
   // Relations may point at sprouts, so the kept-sprout set must exist BEFORE
   // any relation (on sprouts OR plants) is judged.
-  const sproutKept = new Set(keptSprouts.map((s) => s.slug));
+  const sproutKept = new Set(keptSprouts.map(({ sprout }) => sprout.slug));
   const refSurvives = (ref: string): boolean =>
     ref.startsWith(SPROUT_PREFIX)
       ? sproutKept.has(ref.slice(SPROUT_PREFIX.length))
@@ -630,7 +768,9 @@ export function filterPublic(raw: RawGarden): RawGarden {
           ? podKept.has(ref.slice(POD_PREFIX.length))
           : ref.startsWith(PLANT_PREFIX) && plantKept.has(ref.slice(PLANT_PREFIX.length));
 
-  const sprouts = keptSprouts.map((s) => scrubRelations(s, refSurvives));
+  const sprouts = keptSprouts.map(({ sprout, plant }) =>
+    scrubAbout(scrubRelations(sprout, refSurvives), refSurvives, plant.slug),
+  );
   // `links` needs no scrub and gets none. PlatformLink holds a URL, a derived
   // platform word and an optional label — no entity refs — so there is nothing
   // in it that could name a private slug. Same property PlantRole has, stated
@@ -718,145 +858,53 @@ function scrubRelations<T extends { relations?: Relation[] }>(
   return scrubbed.length === item.relations.length ? item : { ...item, relations: scrubbed };
 }
 
-// Upward publish cascade — the write-time mirror of filterPublic's downward
-// projection (spec §6.2). For the given sprout, returns the EXISTING bean parents
-// and their EXISTING pod parents that must be made public so a published
-// sprout never dangles under a private parent. The cascade now climbs one tier
-// further — through pod parents to their plants, and through a bean's direct
-// plant parents. Dangling refs are ignored, exactly
-// as filterPublic ignores them. Pure; visibility is not consulted (idempotent flip).
-export function publishCascade(
-  raw: RawGarden,
-  sproutSlug: string,
-): { plantSlugs: string[]; podSlugs: string[]; beanSlugs: string[] } {
-  const plants = raw.plants ?? [];
-  const pods = raw.pods ?? [];
-  const beans = raw.beans ?? [];
-  const sprouts = raw.sprouts ?? [];
-
-  const sprout = sprouts.find((s) => s.slug === sproutSlug);
-  if (!sprout) return { plantSlugs: [], podSlugs: [], beanSlugs: [] };
-
-  const beanBySlug = new Map(beans.map((b) => [b.slug, b]));
-  const podBySlug = new Map(pods.map((p) => [p.slug, p]));
-  const plantExists = new Set(plants.map((p) => p.slug));
-
-  const beanSlugs = [
-    ...new Set(parentsWithPrefix(sprout.parents, BEAN_PREFIX).filter((s) => beanBySlug.has(s))),
-  ];
-
-  const podSlugs = new Set<string>();
-  const plantSlugs = new Set<string>();
-  for (const beanSlug of beanSlugs) {
-    const bean = beanBySlug.get(beanSlug)!;
-    for (const p of parentsWithPrefix(bean.parents, PLANT_PREFIX)) {
-      if (plantExists.has(p)) plantSlugs.add(p);
-    }
-    for (const p of parentsWithPrefix(bean.parents, POD_PREFIX)) {
-      const pod = podBySlug.get(p);
-      if (!pod) continue;
-      podSlugs.add(p);
-      for (const pl of parentsWithPrefix(pod.parents, PLANT_PREFIX)) {
-        if (plantExists.has(pl)) plantSlugs.add(pl);
-      }
-    }
-  }
-
-  return { plantSlugs: [...plantSlugs], podSlugs: [...podSlugs], beanSlugs };
+// The `about` scrub — the relations scrub's rule applied to the authored
+// field: absent stays absent (the same falsy check scrubRelations uses, so the
+// two scrubs cannot disagree about what "absent" is), a non-array (a direct
+// DB write) becomes [], and every ref whose target did not survive this
+// projection drops. A public sprout about a private bean shows the sprout and
+// not the door.
+//
+// When every ref drops, the sprout is RE-ANCHORED rather than left with an
+// empty `about`: the key goes and `parents` names the plant the raw garden
+// derived for it — `plantSlug`, kept by construction, so it names nothing
+// private. Left as `about: []` with no `parents`, the public dataset would
+// derive no plant at all and the entry would fall out of the plant's journal,
+// which is the door taking the sprout with it by another route. The projected
+// sprout keeps the one-of-two invariant (`about` xor `parents`) and derives
+// the same plant on the public side as it did on the raw one.
+function scrubAbout<T extends { about?: string[]; parents?: string[] }>(
+  item: T,
+  refSurvives: (ref: string) => boolean,
+  plantSlug: string,
+): T {
+  if (!item.about) return item;
+  if (!Array.isArray(item.about)) return { ...item, about: [] };
+  const scrubbed = item.about.filter((ref) => typeof ref === "string" && refSurvives(ref));
+  if (scrubbed.length === item.about.length) return item;
+  if (scrubbed.length > 0) return { ...item, about: scrubbed };
+  const reanchored = { ...item, parents: [PLANT_PREFIX + plantSlug] };
+  delete reanchored.about;
+  return reanchored;
 }
 
-// Bean-level core of the downward recompute (roadmap A1/A2). Given candidate bean
-// slugs, returns the EXISTING beans left with NO published sprout, and their
-// EXISTING pod parents left with NO public bean once those beans flip. Callers
-// that still have the sprout (un-publish) adapt via unpublishCascade; callers that
-// no longer do (delete) pass the bean parents they captured BEFORE the write and
-// evaluate against the post-write dataset. One tier up, same shape: plant
-// candidates come from flipping pods and flipping directly-parented beans, and
-// a plant flips when no surviving public pod or surviving public direct bean
-// still points at it. Dangling/unknown slugs are ignored and
-// flip-target visibility is not consulted (idempotent flip), exactly as publishCascade.
-export function unpublishCascadeForBeans(
-  raw: RawGarden,
-  beanSlugs: string[],
-): { plantSlugs: string[]; podSlugs: string[]; beanSlugs: string[] } {
-  const plants = raw.plants ?? [];
-  const pods = raw.pods ?? [];
-  const beans = raw.beans ?? [];
-  const sprouts = raw.sprouts ?? [];
-
-  const beanBySlug = new Map(beans.map((b) => [b.slug, b]));
-  const podBySlug = new Map(pods.map((p) => [p.slug, p]));
-  const plantExists = new Set(plants.map((p) => p.slug));
-
-  // A bean is sheltered while ANY published sprout still points at it.
-  const shelteredBeans = new Set<string>();
-  for (const s of sprouts) {
-    if (s.state !== "published") continue;
-    for (const b of parentsWithPrefix(s.parents, BEAN_PREFIX)) shelteredBeans.add(b);
-  }
-
-  const flipping = new Set(
-    beanSlugs.filter((s) => beanBySlug.has(s) && !shelteredBeans.has(s)),
-  );
-
-  const podCandidates = new Set<string>();
-  for (const beanSlug of flipping) {
-    for (const p of parentsWithPrefix(beanBySlug.get(beanSlug)!.parents, POD_PREFIX)) {
-      if (podBySlug.has(p)) podCandidates.add(p);
-    }
-  }
-
-  // A pod is sheltered while any surviving public bean still points at it —
-  // the same "public unless explicitly private" rule filterPublic reads by.
-  const shelteredPods = new Set<string>();
-  for (const b of beans) {
-    if (flipping.has(b.slug) || b.visibility === "private") continue;
-    for (const p of parentsWithPrefix(b.parents, POD_PREFIX)) shelteredPods.add(p);
-  }
-  const flippingPods = new Set([...podCandidates].filter((p) => !shelteredPods.has(p)));
-
-  // One tier up, same shape: candidates come from flipping pods and flipping
-  // directly-parented beans; a plant is sheltered while any surviving public
-  // pod or surviving public direct bean still points at it.
-  const plantCandidates = new Set<string>();
-  for (const beanSlug of flipping) {
-    for (const pl of parentsWithPrefix(beanBySlug.get(beanSlug)!.parents, PLANT_PREFIX)) {
-      if (plantExists.has(pl)) plantCandidates.add(pl);
-    }
-  }
-  for (const podSlug of flippingPods) {
-    for (const pl of parentsWithPrefix(podBySlug.get(podSlug)!.parents, PLANT_PREFIX)) {
-      if (plantExists.has(pl)) plantCandidates.add(pl);
-    }
-  }
-  const shelteredPlants = new Set<string>();
-  for (const p of pods) {
-    if (flippingPods.has(p.slug) || p.visibility === "private") continue;
-    for (const pl of parentsWithPrefix(p.parents, PLANT_PREFIX)) shelteredPlants.add(pl);
-  }
-  for (const b of beans) {
-    if (flipping.has(b.slug) || b.visibility === "private") continue;
-    for (const pl of parentsWithPrefix(b.parents, PLANT_PREFIX)) shelteredPlants.add(pl);
-  }
-
-  return {
-    plantSlugs: [...plantCandidates].filter((p) => !shelteredPlants.has(p)),
-    podSlugs: [...flippingPods],
-    beanSlugs: [...flipping],
-  };
-}
-
-// Downward un-publish recompute — the inverse of publishCascade (roadmap A1). Thin
-// adapter over unpublishCascadeForBeans keyed by the sprout's bean parents, read
-// from the dataset (unknown sprout slug → no-op). Evaluate against a dataset loaded
-// AFTER the sprout's state was saved, so its own state counts (still-published → no-op).
-export function unpublishCascade(
-  raw: RawGarden,
-  sproutSlug: string,
-): { plantSlugs: string[]; podSlugs: string[]; beanSlugs: string[] } {
+/**
+ * The publish cascade (spec 2026-10-10 §2): publishing a sprout makes ITS
+ * PLANT public — the one `resolveSproutPlant` derives — and nothing else. The
+ * beans and pods it is about are not flipped: a bean's visibility is editorial
+ * now, and going public must not republish a feature held back on its own
+ * terms. Pure; the plant's current visibility is not consulted (idempotent
+ * flip). Unknown slug, dangling refs and an ambiguous derivation all name no
+ * plant — the last because a publish must never PICK one.
+ *
+ * There is no unpublish cascade any more. A plant stays public once chosen,
+ * and a bean with no published entry is simply a bean.
+ */
+export function publishCascade(raw: RawGarden, sproutSlug: string): { plantSlugs: string[] } {
   const sprout = (raw.sprouts ?? []).find((s) => s.slug === sproutSlug);
-  if (!sprout) return { plantSlugs: [], podSlugs: [], beanSlugs: [] };
-  return unpublishCascadeForBeans(raw, parentsWithPrefix(sprout.parents, BEAN_PREFIX));
+  if (!sprout) return { plantSlugs: [] };
+  const plant = resolveSproutPlant(sprout, raw);
+  return { plantSlugs: plant ? [plant.slug] : [] };
 }
 
 let cached: Dataset | null = null;

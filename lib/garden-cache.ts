@@ -15,10 +15,11 @@ import { loadRawGarden } from "./store";
  * re-read AFTER writing, on purpose, so `publishCascade` evaluates the
  * just-saved state (there is a comment in actions.ts saying so). Hand those a
  * cached read and the cascade computes against the pre-write garden: an author
- * publishes a sprout and its bean stays private, or an unpublish leaves a
- * parent public that should have been re-privatised. That is a PRIVACY
- * regression produced by a caching change, and it passes tsc, npm test and
- * npm run build. `lib/garden-cache-source.test.ts` is what stops it.
+ * publishes a sprout and the plant it is about stays private, because the
+ * cascade derived it from a garden that did not have the sprout yet. That is
+ * a PRIVACY regression produced by a caching change, and it passes tsc,
+ * npm test and npm run build. `lib/garden-cache-source.test.ts` is what
+ * stops it.
  *
  * The TTL is a backstop, not the mechanism. `revalidateGarden()` at the four
  * write doors is what makes a publish appear immediately; GARDEN_TTL exists so

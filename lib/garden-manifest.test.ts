@@ -61,7 +61,7 @@ beans:
     description: { en: The ledger bean. }
     sprouts:
       - slug: first-entry
-        type: note
+        kind: log
         date: 2026-09-13
         name: { en: First entry }
         description: { en: The first entry. }
@@ -71,7 +71,7 @@ beans:
   assert.equal(result.manifest.beans[0].slug, "ledger");
   const sprout = result.manifest.beans[0].sprouts[0];
   assert.equal(sprout.slug, "first-entry");
-  assert.equal(sprout.type, "note");
+  assert.equal(sprout.kind, "log");
   assert.equal(sprout.date, "2026-09-13");
 });
 
@@ -92,7 +92,7 @@ beans:
     description: { en: Another bean. }
     sprouts:
       - slug: missing-name
-        type: note
+        kind: log
         date: 2026-09-13
         description: { en: No name here. }
 `);
@@ -114,7 +114,7 @@ beans:
     description: { en: The ledger bean. }
     sprouts:
       - slug: first-entry
-        type: note
+        kind: log
         date: "09/12/2026"
         name: { en: First entry }
         description: { en: The first entry. }
@@ -125,8 +125,18 @@ beans:
   assert.match(result.error, /09\/12\/2026/);
 });
 
-test("rejects a sprout type with a trailing space", () => {
-  const result = parseManifest(`
+/**
+ * One sprout inside an otherwise valid manifest, so a test about the sprout's
+ * own keys reads as those keys and not as forty lines of pod. `slug`, `name`
+ * and `description` are placed; every OTHER key is emitted verbatim as a
+ * quoted scalar — `type` included, since that key's REFUSAL is under test.
+ */
+function withSprout(sprout: Record<string, string>): string {
+  const { slug, name, description, ...rest } = sprout;
+  const extra = Object.entries(rest)
+    .map(([key, value]) => `        ${key}: ${JSON.stringify(value)}`)
+    .join("\n");
+  return `
 pod:
   slug: krabs
   name: { en: Krabs }
@@ -137,16 +147,61 @@ beans:
     name: { en: Ledger }
     description: { en: The ledger bean. }
     sprouts:
-      - slug: first-entry
-        type: "digest "
-        date: 2026-09-13
-        name: { en: First entry }
-        description: { en: The first entry. }
-`);
-  assert.equal(result.ok, false);
-  if (result.ok) return;
-  assert.match(result.error, /beans\[0\]\.sprouts\[0\]\.type/);
-  assert.match(result.error, /"digest "/);
+      - slug: ${slug}
+        name: { en: ${name} }
+        description: { en: ${description || "An entry."} }
+${extra}
+`;
+}
+
+// `kind` is a vocabulary (`lib/sprout-kind.ts`), not the free string `type`
+// was: a word outside the six is refused, naming all six, because the admin
+// draws the field as radios and a stored member it cannot draw would be a
+// sprout with no kind on every table.
+test("a sprout's kind is a member of the vocabulary", () => {
+  const r = parseManifest(withSprout({ slug: "s", name: "S", kind: "essay", date: "2026-01-01", description: "" }));
+  assert.ok(r.ok, r.ok ? "" : r.error);
+  if (!r.ok) return;
+  assert.equal(r.manifest.beans[0].sprouts[0].kind, "essay");
+  const bad = parseManifest(withSprout({ slug: "s", name: "S", kind: "note", date: "2026-01-01", description: "" }));
+  assert.ok(!bad.ok);
+  if (bad.ok) return;
+  assert.match(bad.error, /kind must be one of log, milestone, release, essay, decision, digest \(got "note"\)/);
+  // `isSproutKind` is exact; this pins that a future `.trim()` cannot pass
+  // silently — the since-deleted `lib/sprout-type.ts` existed for exactly the
+  // `"digest "` bug, and a closed vocabulary must not reopen it.
+  const spaced = parseManifest(withSprout({ slug: "s", name: "S", kind: "log ", date: "2026-01-01", description: "" }));
+  assert.ok(!spaced.ok);
+  if (spaced.ok) return;
+  assert.match(spaced.error, /kind must be one of .* \(got "log "\)/);
+});
+
+test("a non-string kind reports what was there, not 'got \"\"'", () => {
+  const r = parseManifest(withSprout({ slug: "s", name: "S", date: "2026-01-01", description: "" }).replace("date:", "kind: 3\n        date:"));
+  assert.ok(!r.ok);
+  if (r.ok) return;
+  assert.match(r.error, /sprouts\[0\]\.kind must be a string \(got 3\)/);
+});
+
+// A digest is the one member the manifest refuses: machine-written, cascade-
+// exempt, skipped by the weekly wrap — a file in another repo authoring one
+// would be a contradiction nothing anywhere reports.
+test("kind: digest is refused by name — machine-written, not authored", () => {
+  const r = parseManifest(withSprout({ slug: "s", name: "S", kind: "digest", date: "2026-01-01", description: "" }));
+  assert.ok(!r.ok);
+  if (r.ok) return;
+  assert.match(r.error, /sprouts\[0\]\.kind "digest" is machine-written \(the weekly wrap\) and cannot be authored in a manifest — pick one of log, milestone, release, essay, decision$/);
+});
+
+// The pre-journal key is refused BY NAME, the way a bean's `content` once was
+// and a sprout's `cover` still is: a manifest written against the old shape
+// would otherwise parse, read `kind` as "", and fail on a message about a key
+// the author never typed.
+test("the old `type` key is refused BY NAME, naming `kind`", () => {
+  const r = parseManifest(withSprout({ slug: "s", name: "S", type: "note", date: "2026-01-01", description: "" }));
+  assert.ok(!r.ok);
+  if (r.ok) return;
+  assert.match(r.error, /sprouts\[0\]\.type is not a key any more — a sprout's kind is `kind:`/);
 });
 
 test("rejects a non-kebab-case slug", () => {
@@ -286,7 +341,7 @@ beans:
     description: { en: A bean. }
     sprouts:
       - slug: same-sprout
-        type: note
+        kind: log
         date: 2026-09-13
         name: { en: One }
         description: { en: First sprout. }
@@ -295,7 +350,7 @@ beans:
     description: { en: Another bean. }
     sprouts:
       - slug: same-sprout
-        type: note
+        kind: log
         date: 2026-09-13
         name: { en: Two }
         description: { en: Second sprout. }
@@ -356,7 +411,7 @@ beans:
     description: { en: The ledger bean. }
     sprouts:
       - slug: first-entry
-        type: note
+        kind: log
         date: 2026-09-13
         name: { en: First entry }
         description: { en: The first entry. }
@@ -431,7 +486,7 @@ beans:
     description: { en: The ledger bean., fr: Le haricot registre. }
     sprouts:
       - slug: first-entry
-        type: note
+        kind: log
         date: "2026-01-01"
         name: { en: First entry, fr: Première entrée }
         description: { en: The first entry., fr: La première entrée. }
@@ -459,7 +514,7 @@ beans:
     cover: ${cover}
     sprouts:
       - slug: first-entry
-        type: note
+        kind: log
         date: 2026-09-13
         name: { en: First entry }
         description: { en: The first entry. }

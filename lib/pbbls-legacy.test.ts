@@ -6,12 +6,12 @@ import yaml from "js-yaml";
 import {
   AUTHORED_BEANS,
   LEGACY_BEANS,
-  MILESTONE_TYPE,
+  MILESTONE_KIND,
   SPROUT_MAP,
   STUB_BEANS,
   retireLegacyBeans,
 } from "./pbbls-legacy";
-import type { RawGarden } from "./data";
+import type { RawGarden, Sprout } from "./data";
 
 // A miniature garden with one of everything the transform cares about: a
 // legacy bean with a mapped sprout, an authored bean whose slug is also in
@@ -34,19 +34,19 @@ function fixture(): RawGarden {
       {
         slug: "pbbls-webapp-emotion-pearl",
         name: "Emotion Pearl",
-        type: "feature",
+        kind: "milestone",
         date: "2026-03-29",
         description: "",
-        parents: ["bean:pbbls-webapp"],
+        about: ["bean:pbbls-webapp"],
         state: "published",
       },
       {
         slug: "untouched",
         name: "Untouched",
-        type: "song",
+        kind: "milestone",
         date: "2026-01-01",
         description: "",
-        parents: ["bean:unrelated"],
+        about: ["bean:unrelated"],
         state: "published",
       },
     ],
@@ -87,14 +87,41 @@ test("retireLegacyBeans never overwrites a bean that already exists", () => {
   assert.equal((out.beans ?? []).filter((b) => b.slug === "pbbls-valence").length, 1, "no duplicate");
 });
 
-test("retireLegacyBeans re-parents and retypes exactly the mapped sprouts", () => {
+test("retireLegacyBeans re-anchors and re-kinds exactly the mapped sprouts", () => {
   const out = retireLegacyBeans(fixture());
   const bySlug = new Map((out.sprouts ?? []).map((s) => [s.slug, s]));
   const pearl = bySlug.get("pbbls-webapp-emotion-pearl");
-  assert.deepEqual(pearl?.parents, ["bean:pbbls-valence"]);
-  assert.equal(pearl?.type, MILESTONE_TYPE);
+  assert.deepEqual(pearl?.about, ["bean:pbbls-valence"]);
+  assert.equal(pearl?.kind, MILESTONE_KIND);
   assert.equal(pearl?.date, "2026-03-29", "everything else is preserved");
   assert.equal(pearl?.state, "published");
+});
+
+test("retireLegacyBeans drops a legacy `parents` when it re-anchors", () => {
+  // A pre-journal document carries `type` and `parents: ["bean:…"]`. The
+  // transform must not leave that `parents` beside the new `about`: a sprout
+  // holds one or the other, and resolveSproutPlants would otherwise have two
+  // sources of truth for the plant it rolls up to.
+  const input = fixture();
+  // Cast through unknown: the pre-journal shape (`type`, no `kind`) is exactly
+  // what the Sprout interface no longer admits, and what a stored document
+  // from before the migration still looks like.
+  input.sprouts = [
+    {
+      slug: "pbbls-webapp-emotion-pearl",
+      name: "Emotion Pearl",
+      type: "feature",
+      date: "2026-03-29",
+      description: "",
+      parents: ["bean:pbbls-webapp"],
+      state: "published",
+    } as unknown as Sprout,
+  ];
+  const out = retireLegacyBeans(input);
+  const pearl = out.sprouts?.[0];
+  assert.deepEqual(pearl?.about, ["bean:pbbls-valence"]);
+  assert.equal(pearl?.kind, MILESTONE_KIND);
+  assert.equal("parents" in (pearl ?? {}), false, "the legacy key is gone, not undefined");
 });
 
 test("retireLegacyBeans leaves an unmapped sprout strictly untouched", () => {
@@ -115,9 +142,9 @@ test("retireLegacyBeans is idempotent", () => {
 test("retireLegacyBeans handles an empty garden, and stays idempotent on it", () => {
   const once = retireLegacyBeans({});
   assert.equal(once.beans?.length, STUB_BEANS.length, "every stub is seeded from nothing");
-  // `sprouts: []` where the input had no key at all. Pinned, not fixed:
-  // retierGarden normalises the same way, and both migrations write the two
-  // collections unconditionally.
+  // `sprouts: []` where the input had no key at all. Pinned, not fixed: the
+  // slice-1 retier transform normalised the same way, and both migrations
+  // wrote the two collections unconditionally.
   assert.deepEqual(once.sprouts, []);
   assert.deepStrictEqual(retireLegacyBeans(once), once);
 });
@@ -225,8 +252,9 @@ test("data/garden.yml files the twelve changelog sprouts as milestones", () => {
   for (const [slug, bean] of Object.entries(SPROUT_MAP)) {
     const s = bySlug.get(slug);
     assert.ok(s, `${slug} must still be in the seed`);
-    assert.deepEqual(s.parents, [`bean:${bean}`], `${slug} parents`);
-    assert.equal(s.type, MILESTONE_TYPE, `${slug} type`);
+    assert.deepEqual(s.about, [`bean:${bean}`], `${slug} about`);
+    assert.equal(s.kind, MILESTONE_KIND, `${slug} kind`);
+    assert.equal(s.parents, undefined, `${slug} carries no legacy parents`);
   }
 });
 
@@ -242,7 +270,7 @@ test("data/garden.yml's only dangling bean ref is pbbls-wallet, which is authore
   const raw = currentGarden();
   const seeded = new Set((raw.beans ?? []).map((b) => b.slug));
   const dangling = (raw.sprouts ?? []).flatMap((s) =>
-    (s.parents ?? [])
+    (s.about ?? [])
       .filter((p) => p.startsWith("bean:") && !seeded.has(p.slice("bean:".length)))
       .map((p) => `${s.slug} -> ${p.slice("bean:".length)}`),
   );

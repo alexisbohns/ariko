@@ -19,20 +19,24 @@ test("resolveText falls through blank parts (a hand-authored empty en never blan
   assert.equal(resolveText({ en: "", fr: "" }), "");
 });
 
+// Every fixture that expects a sprout to SURVIVE roots it under a public plant:
+// a sprout's plant is derived from its `about` (spec 2026-10-10 §1.2), and one
+// whose refs roll up to no plant drops, fail-closed.
 const raw: RawGarden = {
+  plants: [{ slug: "pl", name: "P", natures: ["work"], role: { kind: "owner" }, description: "" }],
   pods: [
-    { slug: "m-pub", name: "Pub", description: "" },
-    { slug: "m-priv", name: "Priv", description: "", visibility: "private" },
+    { slug: "m-pub", name: "Pub", description: "", parents: ["plant:pl"] },
+    { slug: "m-priv", name: "Priv", description: "", visibility: "private", parents: ["plant:pl"] },
   ],
   beans: [
     { slug: "a-pub", name: "A pub", parents: ["pod:m-pub"] },
     { slug: "a-priv", name: "A priv", parents: ["pod:m-pub"], visibility: "private" },
   ],
   sprouts: [
-    { slug: "v-published", name: "Published", type: "song", date: "2026-01-01", description: "", parents: ["bean:a-pub"], state: "published" },
-    { slug: "v-draft", name: "Draft", type: "song", date: "2026-01-02", description: "", parents: ["bean:a-pub"], state: "draft" },
-    { slug: "v-private", name: "Private", type: "song", date: "2026-01-03", description: "", parents: ["bean:a-pub"], state: "private" },
-    { slug: "v-nostate", name: "No state", type: "song", date: "2026-01-04", description: "", parents: ["bean:a-pub"] },
+    { slug: "v-published", name: "Published", kind: "milestone", date: "2026-01-01", description: "", about: ["bean:a-pub"], state: "published" },
+    { slug: "v-draft", name: "Draft", kind: "milestone", date: "2026-01-02", description: "", about: ["bean:a-pub"], state: "draft" },
+    { slug: "v-private", name: "Private", kind: "milestone", date: "2026-01-03", description: "", about: ["bean:a-pub"], state: "private" },
+    { slug: "v-nostate", name: "No state", kind: "milestone", date: "2026-01-04", description: "", about: ["bean:a-pub"] },
   ],
 };
 
@@ -54,17 +58,6 @@ test("filterPublic never leaks a draft, private, or stateless sprout", () => {
   }
 });
 
-test("filterPublic drops a published sprout whose only bean-parent is private", () => {
-  const seed: RawGarden = {
-    pods: [{ slug: "m", name: "M", description: "" }],
-    beans: [{ slug: "a-priv", name: "A", parents: ["pod:m"], visibility: "private" }],
-    sprouts: [{ slug: "v", name: "V", type: "song", date: "2026-01-01", description: "", parents: ["bean:a-priv"], state: "published" }],
-  };
-  const out = filterPublic(seed);
-  assert.deepEqual((out.beans ?? []).map((a) => a.slug), []);
-  assert.deepEqual((out.sprouts ?? []).map((v) => v.slug), []);
-});
-
 test("filterPublic drops an bean whose only pod-parent is private (no standalone leak)", () => {
   const seed: RawGarden = {
     pods: [{ slug: "m-priv", name: "M", description: "", visibility: "private" }],
@@ -74,15 +67,6 @@ test("filterPublic drops an bean whose only pod-parent is private (no standalone
   const out = filterPublic(seed);
   assert.deepEqual((out.pods ?? []).map((m) => m.slug), []);
   assert.deepEqual((out.beans ?? []).map((a) => a.slug), []);
-});
-
-test("filterPublic drops a published sprout transitively when its bean is cascaded out", () => {
-  const seed: RawGarden = {
-    pods: [{ slug: "m-priv", name: "M", description: "", visibility: "private" }],
-    beans: [{ slug: "a", name: "A", parents: ["pod:m-priv"] }],
-    sprouts: [{ slug: "v", name: "V", type: "song", date: "2026-01-01", description: "", parents: ["bean:a"], state: "published" }],
-  };
-  assert.deepEqual((filterPublic(seed).sprouts ?? []).map((v) => v.slug), []);
 });
 
 test("filterPublic keeps a multi-parent bean if at least one pod-parent is public", () => {
@@ -111,28 +95,33 @@ test("filterPublic keeps an bean whose only pod-parent is a dangling (nonexisten
 // draft/private/cascaded/dangling/unknown-prefix targets can never leak a slug.
 function relSeed(): RawGarden {
   return {
+    plants: [
+      { slug: "rp-pub", name: "P pub", natures: ["work"], role: { kind: "owner" }, description: "" },
+      { slug: "rp-priv", name: "P priv", natures: ["work"], role: { kind: "owner" }, description: "", visibility: "private" },
+    ],
     pods: [
-      { slug: "rm-pub", name: "M pub", description: "" },
-      { slug: "rm-priv", name: "M priv", description: "", visibility: "private" },
+      { slug: "rm-pub", name: "M pub", description: "", parents: ["plant:rp-pub"] },
+      { slug: "rm-priv", name: "M priv", description: "", visibility: "private", parents: ["plant:rp-pub"] },
     ],
     beans: [
       { slug: "ra-pub", name: "A pub", parents: ["pod:rm-pub"] },
       { slug: "ra-priv", name: "A priv", parents: ["pod:rm-pub"], visibility: "private" },
     ],
     sprouts: [
-      { slug: "rv-target", name: "Target", type: "song", date: "2026-01-01", description: "", parents: ["bean:ra-pub"], state: "published" },
-      { slug: "rv-draft", name: "Draft", type: "song", date: "2026-01-02", description: "", parents: ["bean:ra-pub"], state: "draft" },
-      { slug: "rv-nostate", name: "No state", type: "song", date: "2026-01-03", description: "", parents: ["bean:ra-pub"] },
-      // Published, but cascaded out with its private atom parent — a relation
-      // pointing here must drop even though the target's own state is "published".
-      { slug: "rv-under-priv", name: "Hidden", type: "song", date: "2026-01-04", description: "", parents: ["bean:ra-priv"], state: "published" },
+      { slug: "rv-target", name: "Target", kind: "milestone", date: "2026-01-01", description: "", about: ["bean:ra-pub"], state: "published" },
+      { slug: "rv-draft", name: "Draft", kind: "milestone", date: "2026-01-02", description: "", about: ["bean:ra-pub"], state: "draft" },
+      { slug: "rv-nostate", name: "No state", kind: "milestone", date: "2026-01-03", description: "", about: ["bean:ra-pub"] },
+      // Published, but its derived plant is private, so it is cascaded out — a
+      // relation pointing here must drop even though the target's own state is
+      // "published". (A private BEAN no longer cascades: see the `about` tests.)
+      { slug: "rv-under-priv", name: "Hidden", kind: "milestone", date: "2026-01-04", description: "", parents: ["plant:rp-priv"], state: "published" },
       {
         slug: "rv-main",
         name: "Main",
-        type: "song",
+        kind: "milestone",
         date: "2026-01-05",
         description: "",
-        parents: ["bean:ra-pub"],
+        about: ["bean:ra-pub"],
         state: "published",
         relations: [
           { kind: "evolves-from", ref: "sprout:rv-target" }, // kept: published sibling
@@ -154,12 +143,13 @@ function relSeed(): RawGarden {
 
 test("filterPublic tolerates malformed relations fail-closed (one bad doc must not 500 the public site)", () => {
   const seed: RawGarden = {
-    pods: [{ slug: "m", name: "M", description: "" }],
+    plants: [{ slug: "pl", name: "P", natures: ["work"], role: { kind: "owner" }, description: "" }],
+    pods: [{ slug: "m", name: "M", description: "", parents: ["plant:pl"] }],
     beans: [{ slug: "a", name: "A", parents: ["pod:m"] }],
     sprouts: [
-      { slug: "v-str", name: "V", type: "t", date: "2026-01-01", description: "", parents: ["bean:a"], state: "published", relations: "junk" as never },
+      { slug: "v-str", name: "V", kind: "milestone", date: "2026-01-01", description: "", about: ["bean:a"], state: "published", relations: "junk" as never },
       {
-        slug: "v-entries", name: "V2", type: "t", date: "2026-01-02", description: "", parents: ["bean:a"], state: "published",
+        slug: "v-entries", name: "V2", kind: "milestone", date: "2026-01-02", description: "", about: ["bean:a"], state: "published",
         relations: [null, "sprout:x", { kind: "k" }, { kind: 5, ref: "bean:a" }, { kind: "ok", ref: "bean:a" }] as never,
       },
     ],
@@ -189,10 +179,11 @@ test("filterPublic leaves an absent relations field absent (no materialized empt
 
 test("filterPublic keeps a present-but-empty relations array as-is", () => {
   const seed: RawGarden = {
+    plants: [{ slug: "pl", name: "P", natures: ["work"], role: { kind: "owner" }, description: "" }],
     pods: [],
-    beans: [{ slug: "a", name: "A", parents: [] }],
+    beans: [{ slug: "a", name: "A", parents: ["plant:pl"] }],
     sprouts: [
-      { slug: "v", name: "V", type: "song", date: "2026-01-01", description: "", parents: ["bean:a"], state: "published", relations: [] },
+      { slug: "v", name: "V", kind: "milestone", date: "2026-01-01", description: "", about: ["bean:a"], state: "published", relations: [] },
     ],
   };
   assert.deepEqual((filterPublic(seed).sprouts ?? [])[0]?.relations, []);
@@ -215,7 +206,7 @@ test("filterPublic drops a private plant and cascades out its pods, beans and sp
       { slug: "a", name: "A", parents: ["pod:m"] },
       { slug: "direct", name: "D", parents: ["plant:pl-priv"] },
     ],
-    sprouts: [{ slug: "v", name: "V", type: "song", date: "2026-01-01", description: "", parents: ["bean:a"], state: "published" }],
+    sprouts: [{ slug: "v", name: "V", kind: "milestone", date: "2026-01-01", description: "", about: ["bean:a"], state: "published" }],
   };
   const out = filterPublic(seed);
   assert.deepEqual((out.plants ?? []).map((p) => p.slug), []);
@@ -349,7 +340,7 @@ function screenSeed(): RawGarden {
       { slug: "b-priv", name: "B priv", parents: ["plant:pl-pub"], visibility: "private" },
     ],
     sprouts: [
-      { slug: "s-pub", name: "S", type: "note", date: "2026-01-01", description: "", parents: ["bean:b-pub"], state: "published" },
+      { slug: "s-pub", name: "S", kind: "milestone", date: "2026-01-01", description: "", about: ["bean:b-pub"], state: "published" },
     ],
     screens: [
       { slug: "sc-private", name: "Private", image: SCREEN_IMAGE, parents: ["plant:pl-pub"], visibility: "private" },
@@ -488,4 +479,109 @@ test("the exhibition is the seam: privacy drops a screen, the opt-in selects one
   // screen whose only plant parent was filtered out, AND buildDataset's index
   // refuses to file one under a plant that is not in the garden it was handed.
   assert.deepEqual(d.exhibitionForPlant("pl-priv"), []);
+});
+
+// --- The journal model (spec 2026-10-10 §2): a sprout's plant is DERIVED from
+// its `about`, the derivation decides whether it survives, and `about` is
+// scrubbed like `relations`. A private bean no longer takes its sprouts with
+// it — a published sprout about a private bean under a PUBLIC plant is kept
+// with the door scrubbed. With no public plant to roll up to, it drops,
+// fail-closed.
+
+test("filterPublic keeps a published sprout whose DERIVED plant is public, through a bean or a pod", () => {
+  const seed: RawGarden = {
+    plants: [{ slug: "p", name: "P", natures: ["work"], role: { kind: "owner" }, description: "" }],
+    pods: [{ slug: "pod", name: "Pod", description: "", parents: ["plant:p"] }],
+    beans: [{ slug: "b", name: "B", parents: ["pod:pod"] }],
+    sprouts: [
+      { slug: "via-bean", name: "S", kind: "log", date: "2026-01-01", description: "", about: ["bean:b"], state: "published" },
+      { slug: "via-pod", name: "S", kind: "log", date: "2026-01-02", description: "", about: ["pod:pod"], state: "published" },
+      { slug: "plant-level", name: "S", kind: "log", date: "2026-01-03", description: "", parents: ["plant:p"], state: "published" },
+    ],
+  };
+  assert.deepEqual((filterPublic(seed).sprouts ?? []).map((s) => s.slug).sort(), ["plant-level", "via-bean", "via-pod"]);
+});
+
+test("filterPublic drops a published sprout under a private plant, and one whose plant cannot be derived", () => {
+  const seed: RawGarden = {
+    plants: [
+      { slug: "pub", name: "P", natures: ["work"], role: { kind: "owner" }, description: "" },
+      { slug: "priv", name: "P", natures: ["work"], role: { kind: "owner" }, description: "", visibility: "private" },
+    ],
+    pods: [{ slug: "pod-priv", name: "Pod", description: "", parents: ["plant:priv"] }],
+    beans: [
+      { slug: "b-priv-plant", name: "B", parents: ["pod:pod-priv"] },
+      { slug: "b-pub", name: "B", parents: ["plant:pub"] },
+    ],
+    sprouts: [
+      { slug: "under-private-plant", name: "S", kind: "log", date: "2026-01-01", description: "", about: ["bean:b-priv-plant"], state: "published" },
+      { slug: "dangling", name: "S", kind: "log", date: "2026-01-02", description: "", about: ["bean:nope"], state: "published" },
+      { slug: "ambiguous", name: "S", kind: "log", date: "2026-01-03", description: "", about: ["bean:b-pub", "bean:b-priv-plant"], state: "published" },
+      { slug: "no-anchor", name: "S", kind: "log", date: "2026-01-04", description: "", state: "published" },
+    ],
+  };
+  assert.deepEqual(filterPublic(seed).sprouts, []);
+});
+
+test("filterPublic keeps a sprout about a PRIVATE bean under a PUBLIC plant, and scrubs the door", () => {
+  const seed: RawGarden = {
+    plants: [{ slug: "p", name: "P", natures: ["work"], role: { kind: "owner" }, description: "" }],
+    pods: [{ slug: "pod", name: "Pod", description: "", parents: ["plant:p"] }],
+    beans: [
+      { slug: "b-pub", name: "B", parents: ["pod:pod"] },
+      { slug: "b-priv", name: "B", parents: ["pod:pod"], visibility: "private" },
+    ],
+    sprouts: [
+      { slug: "s", name: "S", kind: "log", date: "2026-01-01", description: "", about: ["bean:b-priv", "bean:b-pub", "pod:pod", "bean:gone"], state: "published" },
+      { slug: "untouched", name: "S", kind: "log", date: "2026-01-02", description: "", about: ["bean:b-pub"], state: "published" },
+      { slug: "no-about", name: "S", kind: "log", date: "2026-01-03", description: "", parents: ["plant:p"], state: "published" },
+      { slug: "only-private", name: "S", kind: "log", date: "2026-01-04", description: "", about: ["bean:b-priv"], state: "published" },
+    ],
+  };
+  const out = filterPublic(seed).sprouts ?? [];
+  const s = out.find((x) => x.slug === "s")!;
+  assert.deepEqual(s.about, ["bean:b-pub", "pod:pod"]);
+  // Pure: the input is never mutated, and an unchanged array is the SAME array.
+  assert.deepEqual(seed.sprouts![0].about, ["bean:b-priv", "bean:b-pub", "pod:pod", "bean:gone"]);
+  assert.equal(out.find((x) => x.slug === "untouched")!.about, seed.sprouts![1].about);
+  // Absent stays absent — never materialize [].
+  assert.equal("about" in out.find((x) => x.slug === "no-about")!, false);
+});
+
+test("filterPublic re-anchors a sprout whose about scrubs to nothing on its derived plant, so the public dataset still files it", () => {
+  // The plant is derived against the RAW garden, once, and carried to the
+  // scrub. Left as `about: []` with no `parents`, the public dataset would
+  // derive no plant for this sprout and it would fall out of the plant's
+  // journal — the private door taking the entry with it by another route.
+  const seed: RawGarden = {
+    plants: [{ slug: "p", name: "P", natures: ["work"], role: { kind: "owner" }, description: "" }],
+    pods: [{ slug: "pod", name: "Pod", description: "", parents: ["plant:p"] }],
+    beans: [{ slug: "b-priv", name: "B", parents: ["pod:pod"], visibility: "private" }],
+    sprouts: [
+      { slug: "only-private", name: "S", kind: "log", date: "2026-01-04", description: "", about: ["bean:b-priv"], state: "published" },
+    ],
+  };
+  const pub = filterPublic(seed);
+  const s = (pub.sprouts ?? []).find((x) => x.slug === "only-private");
+  assert.ok(s, "kept: its derived plant is public");
+  assert.equal("about" in s, false);
+  assert.deepEqual(s.parents, ["plant:p"]);
+  assert.deepEqual(buildDataset(pub).sproutsForPlant("p").map((x) => x.slug), ["only-private"]);
+  assert.deepEqual(seed.sprouts![0].about, ["bean:b-priv"]); // pure
+});
+
+test("filterPublic tolerates a malformed about from a direct DB write (non-array → [], non-strings dropped)", () => {
+  const seed = {
+    plants: [{ slug: "p", name: "P", natures: ["work"], role: { kind: "owner" }, description: "" }],
+    beans: [{ slug: "b", name: "B", parents: ["plant:p"] }],
+    sprouts: [
+      { slug: "junk", name: "S", kind: "log", date: "2026-01-01", description: "", about: "bean:b", parents: ["plant:p"], state: "published" },
+      { slug: "mixed", name: "S", kind: "log", date: "2026-01-02", description: "", about: ["bean:b", 7, null], state: "published" },
+    ],
+  } as unknown as RawGarden;
+  const out = filterPublic(seed).sprouts ?? [];
+  // A non-array `about` is empty for derivation purposes (parents decide) and
+  // is scrubbed to [] rather than leaked as whatever string it was.
+  assert.deepEqual(out.find((x) => x.slug === "junk")!.about, []);
+  assert.deepEqual(out.find((x) => x.slug === "mixed")!.about, ["bean:b"]);
 });
