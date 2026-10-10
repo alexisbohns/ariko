@@ -45,6 +45,7 @@ const ENTITY_RAIL = "app/admin/_components/entity-rail.tsx";
 
 const RAIL_PANELS = [
   "app/admin/_components/sprout-media-form.tsx",
+  "app/admin/_components/sprout-about-form.tsx",
   "app/admin/_components/sprout-delete-form.tsx",
 ];
 
