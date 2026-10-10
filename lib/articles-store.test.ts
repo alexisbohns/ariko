@@ -460,6 +460,31 @@ test("a bean: container takes a narrative; public-with-prose and projected beans
   assert.equal(projected?.content, undefined);
 });
 
+test("the store refuses articles under a bean on its own, and writes nothing", { skip: !hasDb }, async (t) => {
+  t.after(cleanup);
+  const db = await getDb();
+  await db.collection("beans").insertOne({
+    slug: "__test__holder",
+    name: "Holder",
+    parents: ["plant:__test__p"],
+    visibility: "private",
+  });
+
+  // Bypasses validateArticlesPayload deliberately: the route would have
+  // refused this shape already, and the store must not depend on that.
+  const result = await writeArticles({
+    container: "bean:__test__holder",
+    narrative: "prose",
+    articles: [{ slug: "__test__under", name: "U", date: "2026-07-24", content: "body" }],
+  });
+  assert.deepEqual(result, { ok: false, refused: ["bean:__test__holder (a bean holds no beans)"] });
+
+  const holder = await db.collection("beans").findOne({ slug: "__test__holder" });
+  assert.equal(holder?.content, undefined);
+  assert.equal(await db.collection("beans").findOne({ slug: "__test__under" }), null);
+  assert.equal(await db.collection("sprouts").findOne({ slug: "__test__under-0" }), null);
+});
+
 test.after(async () => {
   if (hasDb) await closeDb();
 });

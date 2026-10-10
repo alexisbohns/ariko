@@ -152,9 +152,11 @@ Body: `{ container, narrative?, articles?: [{ slug, name, description?, date, co
 value, beans are created private, and no visibility is ever changed — publication stays a human
 act in the admin.
 
-Two refusals, both pre-checked before anything is written and either one aborting the whole
-batch: an article whose stored sprout already carries any `state` (a human has reviewed it), and
-a container that is already public **and** carries non-blank prose.
+Three refusals, all pre-checked before anything is written and any one aborting the whole
+batch: an article whose stored sprout already carries any `state` (a human has reviewed it), a
+container that is already public **and** carries non-blank prose, and a `bean:` container that is
+projected — machine-owned, rebuilt from its pollen feed, so prose written onto it would survive
+no rebuild.
 
 * `401` when the bearer token is missing, wrong, or `ARTICLES_TOKEN` is unset.
 * `400` on malformed JSON or a payload that fails validation (the validator's message is returned).

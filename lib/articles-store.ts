@@ -24,9 +24,12 @@ export type WriteResult =
   | { ok: true; written: number; narrative: boolean }
   | { ok: false; refused: string[] };
 
-// container ref -> { collection, slug }. Validated upstream by
-// validateArticlesPayload, so the prefix is guaranteed to be one of the three
-// (and a bean: container is guaranteed to carry no articles).
+// container ref -> { collection, slug }. validateArticlesPayload has already
+// checked the grammar on the route, but this module does not lean on that for
+// anything a write depends on: an unknown prefix falls through to "beans" and
+// is refused as unknown by the pre-check, and articles under a bean are
+// refused again below, so a caller that reaches writeArticles by another
+// path gets the same answer the route gives.
 function resolveContainer(ref: string): { collection: "plants" | "pods" | "beans"; slug: string } {
   if (ref.startsWith(PLANT_PREFIX)) return { collection: "plants", slug: ref.slice(PLANT_PREFIX.length) };
   if (ref.startsWith(POD_PREFIX)) return { collection: "pods", slug: ref.slice(POD_PREFIX.length) };
@@ -94,6 +97,12 @@ export async function writeArticles(payload: ArticlesPayload): Promise<WriteResu
     }
   }
 
+  // A bean holds no beans: an article posted under one would upsert a bean
+  // whose parent is a bean, which the garden's tree never reads. The validator
+  // refuses this shape at the route; the store refuses it again on its own.
+  if (collection === "beans" && articles.length > 0)
+    refused.push(`${payload.container} (a bean holds no beans)`);
+
   if (articles.length > 0) {
     const beanSlugs = articles.map((a) => a.slug);
     const existingBeans = await db
@@ -138,7 +147,11 @@ export async function writeArticles(payload: ArticlesPayload): Promise<WriteResu
     // fires the update simply fails to match (matchedCount 0) instead of
     // silently overwriting prose that just went live. Never touch visibility
     // here either way — this door cannot publish a container any more than it
-    // can publish a sprout.
+    // can publish a sprout. Note that `relations` is replaced wholesale
+    // (mergeMirrored over `undefined`, not over the stored list): a relation
+    // hand-authored on a still-private container is lost on the next post,
+    // which the public-with-prose refusal covers for the common case — once
+    // a human has published it, this door no longer writes it at all.
     const result = await db.collection(collection).updateOne(
       { slug: containerSlug, ...containerStillWritableFilter() },
       {

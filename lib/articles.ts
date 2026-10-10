@@ -2,12 +2,12 @@
 // container ref (a plant, a pod, or a bean) plus an optional narrative and/or
 // batch of articles, checks shape only — no I/O, no Mongo. A bean: container
 // takes a narrative only: a bean holds no beans, so articles under one are
-// refused with the message naming where they go (its pod). All-or-nothing, like validateDigestBatch in
-// synthesis.ts: the first failure names the offender and refuses the whole
-// payload. `state` is refused on the RAW article object whatever its value —
-// this door is structurally incapable of publishing. DB-dependent refusals
-// (an already-reviewed sprout, a published container) belong in the store,
-// not here.
+// refused with the message naming where they go (its pod). All-or-nothing,
+// like validateDigestBatch in synthesis.ts: the first failure names the
+// offender and refuses the whole payload. `state` is refused on the RAW
+// article object whatever its value — this door is structurally incapable of
+// publishing. DB-dependent refusals (an already-reviewed sprout, a published
+// container) belong in the store, not here.
 
 import { BEAN_PREFIX, PLANT_PREFIX, POD_PREFIX, type Text } from "./data";
 
