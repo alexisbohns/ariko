@@ -457,6 +457,10 @@ export function updatePodContent(slug: string, patch: ContentPatch): Promise<voi
   return writeContent("pods", slug, patch);
 }
 
+export function updateBeanContent(slug: string, patch: ContentPatch): Promise<void> {
+  return writeContent("beans", slug, patch);
+}
+
 /**
  * Writes a plant's role — and nothing else.
  *

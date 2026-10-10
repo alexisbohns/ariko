@@ -31,12 +31,21 @@
  *    `assets` map holds exactly what `assetsNeeded` (`lib/garden-assets.ts`)
  *    said would be needed; the applier asks it the same question, so a miss
  *    is a bug in the flow and throws rather than writing nothing quietly.
+ *  - A PUBLISHED NARRATIVE IS NOT REWRITTEN. On `--update`, a pod or bean whose
+ *    stored `visibility` is `"public"` keeps its `content`: the plan marks the
+ *    action `narrativeKept` (`keepsPublishedNarrative`, `lib/garden-plan.ts`)
+ *    and the dry-run tree prints it, so the decision is on the plan a human
+ *    reads rather than inside this loop. Same reasoning as the cover: a
+ *    narrative published in the admin is a decision, and a routine re-plant
+ *    must not undo it. It is also what makes the "no invalidation" rule true —
+ *    a published entity's content and images are never touched here, so the
+ *    cached public dataset's narratives are unchanged by construction.
  *  - `--update` TOUCHES `name`, `description` AND `content` ONLY. That is why
  *    the update branches call the narrow writers (`updateBeanMeta`,
  *    `updateSproutMeta`, the two content writers) rather than re-running a
  *    creator: a creator would re-assert every field, parentage included.
  */
-import { createPod, createBean, createSprout, updatePodContent, updateBeanMeta, updateBeanCover, updateSproutMeta, updateSproutContent, updateSproutMedia } from "./botanical";
+import { createPod, createBean, createSprout, updatePodContent, updateBeanMeta, updateBeanContent, updateBeanCover, updateSproutMeta, updateSproutContent, updateSproutMedia } from "./botanical";
 import { uploadedFor, type UploadedAssets } from "./garden-assets";
 import { extractRefs, mergeMirrored } from "./entity-refs";
 import type { Relation, Text } from "./data";
@@ -54,8 +63,9 @@ import type { GardenSlugs, PlanAction } from "./garden-plan";
  * for an entity that already exists deletes every hand-authored relation on it,
  * with nothing failing anywhere. `lib/content-edit.ts`'s §2.10 note states the
  * rule from the other side: `lib/articles-store.ts` passes `undefined` and is
- * right to, because that door only ever writes unreviewed sprouts — and it is
- * "wrong for an edit path". `--update` IS an edit path.
+ * right to, because that door writes only unreviewed drafts and refuses what a
+ * human has published — and it is "wrong for an edit path". `--update` IS an
+ * edit path.
  *
  * So: `undefined` on a `create`, where nothing exists yet and there is nothing
  * to preserve; the stored entity's `relations` on an `update`. A default
@@ -103,8 +113,9 @@ export async function applyPlan(
         });
       }
       // Whether just created or already there: a pod's narrative is the one
-      // field the creator has no slot for, so it is always a second write.
-      if (pod.content !== undefined) {
+      // field the creator has no slot for, so it is always a second write —
+      // unless the plan says the stored one is published (see the docblock).
+      if (pod.content !== undefined && !action.narrativeKept) {
         const existing =
           action.action === "create"
             ? undefined
@@ -133,6 +144,15 @@ export async function applyPlan(
         if (bean.cover && !existing?.cover) {
           await updateBeanCover(bean.slug, uploadedFor(assets, bean.cover));
         }
+      }
+      // A bean's narrative, like a pod's, is the one field the creator has no
+      // slot for, so it is a second write on create and on --update: the
+      // manifest is the author's current text for both — unless the stored
+      // bean is published, in which case the plan said so and we keep it.
+      if (bean.content !== undefined && !action.narrativeKept) {
+        const existing =
+          action.action === "create" ? undefined : garden.beans.find((b) => b.slug === bean.slug)?.relations;
+        await updateBeanContent(bean.slug, contentPatch(bean.content, existing));
       }
       continue;
     }

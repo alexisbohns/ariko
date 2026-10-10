@@ -6,7 +6,7 @@ import {
   type Dataset,
 } from "./data";
 import { beansForPlantDeep } from "./plant-hub";
-import { articleFor } from "./article";
+import { narrativeFor } from "./article";
 
 /**
  * What to read next, at the end of a bean — pod siblings first, topped up from
@@ -33,7 +33,9 @@ import { articleFor } from "./article";
  */
 interface Candidate {
   bean: Bean;
-  /** So `articleFor` runs once per bean rather than once per comparison. */
+  /** So `narrativeFor` runs once per bean rather than once per comparison.
+   *  `""` when the narrative is the bean's own and so undated — the smallest
+   *  string, which the descending compare below puts LAST within its tier. */
   date: string;
   /** So `resolveText` does too. */
   name: string;
@@ -89,16 +91,17 @@ export function relatedBeans(dataset: Dataset, bean: Bean, limit = 6): Bean[] {
   }
 
   // A candidate survives only if it has something to read — and the test is the
-  // SAME function the bean page renders by (`lib/article.ts`), not a second one
-  // that happens to agree. The rail therefore cannot promise a read the
-  // destination will not give.
+  // SAME function the bean page renders by (`narrativeFor`, `lib/article.ts`),
+  // not a second one that happens to agree. The rail therefore cannot promise a
+  // read the destination will not give. A bean's own narrative carries no date
+  // and sorts behind every dated article in its tier, then by name.
   const readable = (beans: Iterable<Bean>): Candidate[] => {
     const out: Candidate[] = [];
     for (const candidate of beans) {
       if (candidate.slug === bean.slug) continue;
-      const article = articleFor(dataset.sproutsForBean(candidate.slug));
-      if (article) {
-        out.push({ bean: candidate, date: article.date, name: resolveText(candidate.name) });
+      const narrative = narrativeFor(candidate, dataset.sproutsForBean(candidate.slug));
+      if (narrative) {
+        out.push({ bean: candidate, date: narrative.date ?? "", name: resolveText(candidate.name) });
       }
     }
     return out.sort(byNewestThenName);

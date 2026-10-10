@@ -4,6 +4,7 @@ import {
   updateSproutContent,
   updatePlantContent,
   updatePodContent,
+  updateBeanContent,
 } from "./botanical";
 import { closeDb, getDb } from "./db";
 
@@ -13,6 +14,7 @@ async function cleanup() {
   const db = await getDb();
   await db.collection("plants").deleteMany({ slug: /^__test__/ });
   await db.collection("pods").deleteMany({ slug: /^__test__/ });
+  await db.collection("beans").deleteMany({ slug: /^__test__/ });
   await db.collection("sprouts").deleteMany({ slug: /^__test__/ });
 }
 
@@ -47,6 +49,36 @@ test("a content write touches content and relations and NOTHING else", { skip: !
   assert.deepEqual(stored?.parents, ["bean:__test__b"]);
   assert.equal((stored?.media as unknown[])?.length, 1);
   assert.deepEqual(stored?.source, { kind: "manual" });
+});
+
+test("a bean content write touches content and relations and NOTHING else", { skip: !hasDb }, async (t) => {
+  t.after(cleanup);
+  const db = await getDb();
+  await db.collection("beans").insertOne({
+    slug: "__test__bean",
+    name: "B",
+    parents: ["plant:__test__p"],
+    description: "d",
+    visibility: "private",
+    cover: { url: "https://example.test/c.png", provider: "cloudinary" },
+    keyword: "k",
+    tags: ["t"],
+  });
+
+  await updateBeanContent("__test__bean", {
+    content: { en: "after" },
+    relations: [{ kind: "mentions", ref: "bean:x" }],
+  });
+
+  const stored = await db.collection("beans").findOne({ slug: "__test__bean" });
+  assert.deepEqual(stored?.content, { en: "after" });
+  assert.deepEqual(stored?.relations, [{ kind: "mentions", ref: "bean:x" }]);
+  // The fields a bean's content save must never disturb.
+  assert.equal(stored?.visibility, "private");
+  assert.equal(stored?.description, "d");
+  assert.equal(stored?.keyword, "k");
+  assert.deepEqual(stored?.tags, ["t"]);
+  assert.deepEqual(stored?.cover, { url: "https://example.test/c.png", provider: "cloudinary" });
 });
 
 test("the container writers reach plants and pods, leaving visibility alone", { skip: !hasDb }, async (t) => {

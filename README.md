@@ -25,7 +25,7 @@ visibility cascades, and what the model derives rather than stores — is
   It is a public credibility signal — there is no such thing as a private role. Authored through the
   role card on `/admin/plant/[slug]`; the vocabulary → label mapping lives once, in `lib/plant-role.ts`.
 * **Pod**: has a name, domain (`music | design | podcast`), and contains beans
-* **Bean**: has a name, an optional description (one bilingual line — what the Directory, the graph and future preview cards show), belongs to a pod (optional — can be standalone), and contains sprouts
+* **Bean**: has a name, an optional description (one bilingual line — what the Directory, the graph and future preview cards show), belongs to a pod (optional — can be standalone), and contains sprouts. It also carries `content`, its evolving narrative — what the feature is today and how it got there — rewritten in place rather than versioned; a different version of a feature is a sibling bean.
 * **Sprout**: has a name, type, date, description, state (`draft | private | published`), carried media/source, tags, and flexible per-type properties. `parents` refs (`pod:slug` / `bean:slug`) express **containment only** — future non-containment links (lineage, "featured in") will live in a separate `relations[]`.
 * **Bilingual (B1)**: `name`/`description` accept the `Text` type (`string | { en?, fr? }`); plain strings remain valid (no migration). Every surface renders via `resolveText` (en-first, blank parts fall through); the triage/edit forms author both languages via paired en/fr inputs (WYSIWYG — the boxes are prefilled per language and what they submit is what is stored).
 * **Relations (G2)**: sprouts carry optional non-containment edges `relations: [{ kind, ref }]` (`ref` in the prefixed grammar incl. `sprout:`; `kind` free, e.g. `evolves-from`, `featured-in`). `filterPublic` scrubs each published sprout's relations to targets that survive the projection (fail-closed, malformed shapes tolerated), so private/draft slugs can never leak; deletes need no cascade — hidden targets simply drop their edges. Authoring UI comes later; relations enter via seed or DB for now.
@@ -41,7 +41,7 @@ visibility cascades, and what the model derives rather than stores — is
 
 Sprouts carry optional markdown in `content` (localizable — `Text`, like `name`/`description`).
 
-* It renders as prose on `/bean/[id]` (the newest published sprout carrying content, `lib/article.ts`)
+* It renders as prose on `/bean/[id]` when the bean carries no narrative of its own (`narrativeFor`, `lib/article.ts` — bean content first, the newest published sprout carrying content as a fallback)
   and as a **Preview** card on `/admin/sprout/[slug]`, beside the raw source.
 * The pipeline is configured in exactly one place, `lib/markdown.ts`: `remark-gfm` for tables and
   fenced code, `rehype-sanitize` **last**. `rehype-raw` is deliberately absent, so HTML embedded in
@@ -140,20 +140,28 @@ Body: `{ container, narrative?, articles?: [{ slug, name, description?, date, co
 }
 ```
 
-* `container` is a `plant:`/`pod:` ref; a `bean:` ref is refused — a bean's narrative is its
-  sprout's content, not a field. `narrative` and `articles` are each optional on their own, but
-  the payload must carry at least one.
+* `container` is a `plant:`, `pod:` or `bean:` ref. `narrative` and `articles` are each optional
+  on their own, but the payload must carry at least one — and a `bean:` container takes a
+  `narrative` only: a bean holds no beans, so `articles` under one are refused (post them under
+  its pod). A projected bean (one derived from a pollen feed) is refused too.
 * `narrative` and each article's `content` are capped at **512 KiB** per language part.
-* Sprout slugs are derived as `<article-slug>-0`, so re-posting an unreviewed article corrects it
-  in place.
+* Each article is written as a **bean**: its `content` is the bean's narrative, and no companion
+  sprout is created (since the journal model, `docs/superpowers/specs/2026-10-10-journal-model-design.md`
+  §3). Re-posting an article whose bean is still private rewrites that bean in place — a correction
+  to an unreviewed draft is simply a re-post.
+* `date` is still required and validated (`YYYY-MM-DD`) but **recorded nowhere**: a bean has no
+  date, and a dated record is a sprout, which this door no longer writes. It stays accepted so an
+  existing caller does not break; slice two may turn it into a journal entry.
 
 **The door structurally cannot publish.** Any `state` key on an article is refused whatever its
 value, beans are created private, and no visibility is ever changed — publication stays a human
 act in the admin.
 
-Two refusals, both pre-checked before anything is written and either one aborting the whole
-batch: an article whose stored sprout already carries any `state` (a human has reviewed it), and
-a container that is already public **and** carries non-blank prose.
+Three refusals, all pre-checked before anything is written and any one aborting the whole
+batch: an article whose bean is already **public** (a human has published it — this door never
+does, so a public bean is reviewed work) or projected, a container that is already public **and**
+carries non-blank prose, and a `bean:` container that is projected — machine-owned, rebuilt from
+its pollen feed, so prose written onto it would survive no rebuild.
 
 * `401` when the bearer token is missing, wrong, or `ARTICLES_TOKEN` is unset.
 * `400` on malformed JSON or a payload that fails validation (the validator's message is returned).

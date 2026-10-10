@@ -1,18 +1,34 @@
 // Pure validation for the articles write door (POST /api/articles): given a
-// container ref plus an optional narrative and/or batch of articles, checks
-// shape only — no I/O, no Mongo. All-or-nothing, like validateDigestBatch in
-// synthesis.ts: the first failure names the offender and refuses the whole
-// payload. `state` is refused on the RAW article object whatever its value —
-// this door is structurally incapable of publishing. DB-dependent refusals
-// (an already-reviewed sprout, a published container) belong in the store,
-// not here.
+// container ref (a plant, a pod, or a bean) plus an optional narrative and/or
+// batch of articles, checks shape only — no I/O, no Mongo. A bean: container
+// takes a narrative only: a bean holds no beans, so articles under one are
+// refused with the message naming where they go (its pod). All-or-nothing,
+// like validateDigestBatch in synthesis.ts: the first failure names the
+// offender and refuses the whole payload. `state` is refused on the RAW
+// article object whatever its value — this door is structurally incapable of
+// publishing. DB-dependent refusals (a published bean, a published container)
+// belong in the store, not here.
+//
+// Since the journal model an article IS a bean: the store writes `content`
+// onto the bean itself and creates no companion sprout (see
+// lib/articles-store.ts). Nothing in the shape changed for callers.
 
-import { PLANT_PREFIX, POD_PREFIX, type Text } from "./data";
+import { BEAN_PREFIX, PLANT_PREFIX, POD_PREFIX, type Text } from "./data";
 
 export interface ArticleInput {
   slug: string;
   name: Text;
   description?: Text;
+  /**
+   * Still REQUIRED and validated as `YYYY-MM-DD`, and since the journal model
+   * RECORDED NOWHERE by this door. An article is written as a bean's
+   * narrative, and a bean has no date — a dated record in Ariko is a sprout,
+   * which this door no longer creates. The field stays accepted so a sibling
+   * CI that already posts it does not break on the day the companion sprout
+   * went away; slice two may turn it into a milestone entry in the bean's
+   * journal (spec 2026-10-10-journal-model §3 "Doors"). Until then a caller
+   * should know the value is checked and then dropped.
+   */
   date: string;
   content: Text;
 }
@@ -96,15 +112,22 @@ export function validateArticlesPayload(body: unknown): { ok: true } | { ok: fal
       ? container.slice(PLANT_PREFIX.length)
       : typeof container === "string" && container.startsWith(POD_PREFIX)
         ? container.slice(POD_PREFIX.length)
-        : null;
+        : typeof container === "string" && container.startsWith(BEAN_PREFIX)
+          ? container.slice(BEAN_PREFIX.length)
+          : null;
   if (containerRest === null || !SLUG.test(containerRest))
     return {
       ok: false,
-      error: `container must be a plant: or pod: ref, got ${container || "nothing"}`,
+      error: `container must be a plant:, pod: or bean: ref, got ${container || "nothing"}`,
     };
 
   if (narrative === undefined && articles === undefined)
     return { ok: false, error: "payload must carry narrative or articles (or both)" };
+
+  // Refused on presence, not on length: an empty `articles: []` under a bean
+  // is still a caller who thinks a bean has beans under it.
+  if (typeof container === "string" && container.startsWith(BEAN_PREFIX) && articles !== undefined)
+    return { ok: false, error: "a bean: container carries a narrative only — post articles under its pod" };
 
   if (narrative !== undefined) {
     const v = validateText(narrative, "narrative", { required: false });
@@ -142,11 +165,4 @@ export function validateArticlesPayload(body: unknown): { ok: true } | { ok: fal
   }
 
   return { ok: true };
-}
-
-// The garden's existing sprout-naming convention (wait-for-the-sun-0):
-// re-posting an unreviewed article updates that same sprout in place, so a
-// correction to a draft is simply a re-post, not a new sprout.
-export function sproutSlugFor(articleSlug: string): string {
-  return `${articleSlug}-0`;
 }

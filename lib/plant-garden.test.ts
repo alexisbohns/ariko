@@ -218,6 +218,76 @@ test("a manifest cover and media are written at creation and never replaced on -
   assert.deepEqual(sprout?.media, [second]);
 });
 
+test("a bean's narrative is written at creation and rewritten on --update", { skip: !hasDb }, async (t) => {
+  await ensureBotanicalIndexes();
+  await cleanup();
+  t.after(cleanup);
+
+  // Bilingual, like every narrative in this file: `composeText` folds an
+  // en-only pair down to a bare string, so an `{ en }`-only fixture would store
+  // "x" and say nothing about the fr half surviving the write.
+  const withBeanContent = (en: string, fr: string) =>
+    manifestYaml("The narrative.", "Le récit.").replace("    sprouts:", `    content: { en: ${en}, fr: ${fr} }\n    sprouts:`);
+
+  // A bean's narrative is what the feature is NOW, rewritten in place — so,
+  // like a pod's, it is a second write on create and the manifest's text wins
+  // on `--update`.
+  await plant(withBeanContent("x", "ix"), false);
+  let { bean } = await readTree();
+  assert.deepEqual(bean?.content, { en: "x", fr: "ix" });
+
+  // The same trap the pod test above pins, on the bean's own branch: the
+  // applier must merge against the BEAN's stored relations, not `undefined`
+  // and not another tier's. Looking the bean up in `garden.pods` would find
+  // nothing, pass `undefined`, and delete this relation with nothing failing.
+  // The content carries no entity directives, so the expected list is exactly
+  // the hand-authored one.
+  const db = await getDb();
+  await db
+    .collection("beans")
+    .updateOne(
+      { slug: "test-krabs-import" },
+      { $set: { relations: [{ kind: "evolves-from", ref: "bean:test-krabs-something" }] } },
+    );
+
+  await plant(withBeanContent("y", "igrec"), true);
+  ({ bean } = await readTree());
+  assert.deepEqual(bean?.content, { en: "y", fr: "igrec" });
+  assert.deepEqual(bean?.relations, [{ kind: "evolves-from", ref: "bean:test-krabs-something" }]);
+});
+
+test("--update never rewrites a PUBLISHED pod's or bean's narrative; a private one is rewritten", { skip: !hasDb }, async (t) => {
+  await ensureBotanicalIndexes();
+  await cleanup();
+  t.after(cleanup);
+
+  const withBeanContent = (podEn: string, beanEn: string) =>
+    manifestYaml(podEn, "Le récit.").replace("    sprouts:", `    content: { en: ${beanEn}, fr: ${beanEn} }\n    sprouts:`);
+
+  await plant(withBeanContent("First.", "x"), false);
+  const db = await getDb();
+  // A human publishes both in the admin. The manifest cannot do this (refused
+  // keys), which is precisely why a stored "public" is a decision to protect.
+  await db.collection("pods").updateOne({ slug: "test-krabs" }, { $set: { visibility: "public" } });
+  await db.collection("beans").updateOne({ slug: "test-krabs-import" }, { $set: { visibility: "public" } });
+
+  await plant(withBeanContent("Second.", "y"), true);
+  let { pod, bean } = await readTree();
+  assert.deepEqual(pod?.content, { en: "First.", fr: "Le récit." });
+  assert.deepEqual(bean?.content, { en: "x", fr: "x" });
+  // Name and description are still the manifest's — only the narrative is kept.
+  assert.deepEqual(bean?.name, { en: "Import", fr: "Import" });
+
+  // Withdrawn again, the manifest's text wins on the next re-plant: the rule
+  // is about publication, not about the entity having been touched once.
+  await db.collection("pods").updateOne({ slug: "test-krabs" }, { $set: { visibility: "private" } });
+  await db.collection("beans").updateOne({ slug: "test-krabs-import" }, { $set: { visibility: "private" } });
+  await plant(withBeanContent("Third.", "z"), true);
+  ({ pod, bean } = await readTree());
+  assert.deepEqual(pod?.content, { en: "Third.", fr: "Le récit." });
+  assert.deepEqual(bean?.content, { en: "z", fr: "z" });
+});
+
 // The house pattern for a DB-backed file: the pooled client is a live handle,
 // so without this the runner reports four passes and then never exits —
 // hanging `npm run test:db`, which runs these files serially.

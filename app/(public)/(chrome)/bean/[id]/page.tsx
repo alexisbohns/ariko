@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { resolveText } from "@/lib/data";
 import { currentLang } from "@/lib/locale-server";
 import { getPublicDataset } from "@/lib/garden-cache";
-import { articleFor } from "@/lib/article";
+import { narrativeFor } from "@/lib/article";
 import { Prose } from "@/components/markdown";
 import { seq } from "@/components/reveal";
 import { resolveEntity } from "@/lib/entity-resolve";
@@ -16,7 +16,10 @@ import { BeanCover } from "@/components/bean-cover";
 export const dynamic = "force-dynamic";
 
 /**
- * One bean, as a visitor reads it: its name, its description, and its article.
+ * One bean, as a visitor reads it: its name, its description, and its narrative
+ * — the bean's own `content` (journal model §1.1), falling back to the newest
+ * article sprout carrying prose until slice two folds the entries in, so no
+ * bean goes blank between the two slices.
  *
  * The per-sprout cards are GONE — the last property dump in the repo, retired
  * here the way the admin's was in the bean-edition slice. It had been marked for
@@ -43,8 +46,9 @@ export const dynamic = "force-dynamic";
  * while it waits. Putting a sprout's assets back on a page is then a rendering
  * decision, not a rebuild.
  *
- * `sproutsForBean` therefore survives for exactly one reader: `articleFor`,
- * which picks the newest published sprout carrying content (spec §4).
+ * `sproutsForBean` therefore survives for exactly one reader: `narrativeFor`,
+ * whose fallback picks the newest published sprout carrying content (spec §4)
+ * when the bean itself has written nothing.
  *
  * The rail beneath it is `lib/related-beans.ts` — pod siblings first, topped up
  * from the plant, and never a bean with nothing written under it. It draws
@@ -58,7 +62,7 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
   const bean = data.getBean(id);
   if (!bean) notFound();
 
-  const article = articleFor(data.sproutsForBean(bean.slug));
+  const narrative = narrativeFor(bean, data.sproutsForBean(bean.slug));
 
   // From the FILTERED dataset, so a private pod or plant is simply absent from
   // the trail — resolveLineage drops a ref it cannot resolve, which is the
@@ -88,11 +92,11 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
           </p>
         ) : null}
 
-        {article ? (
+        {narrative ? (
           <Prose
             reveal
             lang={lang}
-            content={article.content}
+            content={narrative.content}
             resolve={(ref) => resolveEntity(data, ref, lang)}
           />
         ) : null}
