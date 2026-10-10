@@ -3,6 +3,7 @@ import { loadCachedGarden } from "@/lib/garden-cache";
 import { getFederation } from "@/lib/federation";
 import { listPollen } from "@/lib/pollen-store";
 import { exhibitedPollen, mergeBeanstalk, plantSlugOf } from "@/lib/beanstalk";
+import { sproutKindLabel } from "@/lib/glyphs";
 import { Badge } from "@/components/ui/badge";
 import { seq } from "@/components/reveal";
 import { Separator } from "@/components/ui/separator";
@@ -82,7 +83,7 @@ export default async function BeanstalkPage({
               </span>
               <span className="flex flex-wrap items-center gap-2 font-heading text-xs text-muted-foreground">
                 <time dateTime={e.entry.sprout.date}>{e.date}</time>
-                <Badge variant="secondary">{e.entry.sprout.type}</Badge>
+                <Badge variant="secondary">{sproutKindLabel(e.entry.sprout.kind)}</Badge>
               </span>
             </li>
           ) : (
