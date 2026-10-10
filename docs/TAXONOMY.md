@@ -188,13 +188,15 @@ unrooted pod.
 | `keyword` | the one bilingual word the cover wears — "Timeline", "Karma" |
 | `tags[]` | the garden's filters compare with `===` and do not trim, hence [`lib/bean-tags.ts`](../lib/bean-tags.ts) |
 | `projected` | present ⇒ the bean was machine-created from a pollen feed (§6) |
+| `content` | optional markdown narrative, bilingual — see below |
 
-**A bean has no `content`.** Only `Pod.content` and `Plant.content` exist. A
-bean's prose is a *sprout* under it — which is how the timeline orders it, how
-the publish cascade finds it, and how it gets a date. The garden manifest
-validator refuses a `content` key on a bean **by name**, because it would
-otherwise parse, write nothing, and lose the author's paragraphs in silence
-([`lib/garden-manifest.ts`](../lib/garden-manifest.ts)).
+**A bean carries `content`, its evolving narrative — what the feature is today
+and how it got there — rewritten in place, never versioned or appended.** A
+different version of a feature is a sibling bean, not a second body. The sprouts
+beneath it stay the dated entries — how the timeline orders the work, how the
+publish cascade finds it — and the narrative is the one piece of prose that
+describes the bean itself. The garden manifest writes `content:` on a bean
+exactly as it does on a pod ([`lib/garden-manifest.ts`](../lib/garden-manifest.ts)).
 
 `keyword` is drawn only on the phone treatment ([`lib/bean-cover.ts`](../lib/bean-cover.ts)):
 a word floating over a photograph is a different design, and the same word on a
@@ -446,7 +448,7 @@ a question two pages could otherwise answer differently.
 |---|---|---|
 | **A bean's plant** | a direct `plant:` parent wins; otherwise the first resolvable pod's first plant | `Dataset.plantForBean` |
 | **A bean's cover** | explicit `Bean.cover` wins; otherwise the first `MediaImage` in the first sprout that has one (newest-first) | [`lib/bean-cover.ts`](../lib/bean-cover.ts) over [`lib/cover.ts`](../lib/cover.ts) |
-| **A bean's article** | the first sprout carrying non-blank `content`, newest-first — *not* strictly the newest sprout, so a text-only changelog entry does not cost a bean the cover and prose its last release earned | [`lib/article.ts`](../lib/article.ts) |
+| **A bean's narrative** | the bean's own `content` when it carries one; otherwise, until slice two of the journal model, the first sprout carrying non-blank `content`, newest-first | `narrativeFor`, [`lib/article.ts`](../lib/article.ts) |
 | **A pod's cover** | borrowed from its first bean that can offer one — the artwork, never the `keyword` | `podCoverFrom` |
 | **A plant's bean set** | beans parented directly to the plant **plus** the beans of each of its pods, deduped | [`lib/plant-hub.ts`](../lib/plant-hub.ts) |
 | **The timeline** | every sprout with its bean and that bean's plant, newest first | `Dataset.timelineSprouts` |
@@ -504,7 +506,7 @@ Two properties of that table are the design rather than a coincidence:
 |---|---|---|---|
 | **Plant** | `/` (grouped by status), `/plant/[slug]` — role badge, natures, narrative, links, screen strip, index of contents | `/admin/plant/[slug]` + `/narrative`, the chrome's plant switcher, the scope of every section | `/api/graph` |
 | **Pod** | `/` , `/pod/[slug]` — name, description, narrative, its beans | `/admin/pods`, `/admin/pod/[slug]` | `/api/graph` |
-| **Bean** | `/` (cards with covers), `/bean/[id]` — name, description, **its article**, a related-beans rail | `/admin/beans`, `/admin/bean/[id]` | `/api/graph` |
+| **Bean** | `/` (cards with covers), `/bean/[id]` — name, description, **its narrative**, a related-beans rail | `/admin/beans`, `/admin/bean/[id]` | `/api/graph` |
 | **Sprout** | **no page of its own** — a sprout reaches a visitor as its bean's article, or as a line on `/beanstalk` | `/admin/sprouts`, `/admin/sprout/[slug]` | `/api/graph` |
 | **Screen** | the strip on `/plant/[slug]` | `/admin/screens`, `/admin/screens/[slug]` (+ intercepted sheet), `/admin/screens/new` | — |
 | **Bee** | — | — | `/api/graph` (public only when explicitly public) |
@@ -513,7 +515,7 @@ Two properties of that table are the design rather than a coincidence:
 
 The sprout row is the one that surprises people. It is correct: the sprout is
 the unit of *work*, not the unit of *reading*. A visitor reads a bean, and the
-bean's newest sprout carrying prose is what they read there. The per-sprout
+bean's narrative is what they read there. The per-sprout
 property dump that used to exist on `/bean/[id]` was retired deliberately — and
 it took the sprout's `media[]` and `links[]` with it, so those leave the public
 site entirely rather than moving somewhere else.
@@ -527,8 +529,9 @@ propose, and each has an answer:
 
 - **Nothing is contained by a sprout.** Containment stops at the fourth tier. If
   a sprout needs to point at something, that is `relations[]`.
-- **A bean has no prose of its own.** Its prose is a sprout, which is how it gets
-  a date, a place in the timeline, and a state.
+- **A bean's narrative is not versioned.** A bean carries one `content`,
+  rewritten in place; a different version of a feature is a sibling bean, and
+  the dated, stateful record of the work is a sprout.
 - **A screen is not under a bean.** It hangs from the plant, beside the beans,
   because it is a capture of the *product*, not a version of a unit of work.
 - **A pod is never projected from a feed.** Projected beans exist; a dangling pod

@@ -534,11 +534,14 @@ Four rules the tests pin, each of which passes `tsc`, `npm test` **and**
   `--publish` flag here would run `publishCascade` from a CLI and flip the bean
   and the pod above it with no confirmation, which is the shape the rulebook
   rejected for a stray click on a globe.
-- **A bean has no `content`.** Only `Pod.content` and `Plant.content` exist
-  (`lib/data.ts:161`, `:129`); a bean's prose is a sprout under it, which is how
-  the timeline orders it and the cascade finds it. The validator refuses the key
-  BY NAME and says where the prose belongs, because it would otherwise parse,
-  write nothing, and lose the author's paragraphs in silence.
+- **A bean's `content` is its narrative, and a sprout is not a version of it.**
+  Since the journal model (`specs/2026-10-10-journal-model-design.md`) a bean
+  carries one body — what the feature is now and how it got there — rewritten
+  in place, never versioned or appended. `editContainerContentAction` takes a
+  `bean:` ref, `/api/articles` takes a `bean:` container for `narrative` only,
+  and the manifest's `content:` on a bean is a second write exactly as a pod's.
+  `narrativeFor` (`lib/article.ts`) is the one function the public bean page
+  and the related-beans rail read by; its sprout fallback goes with slice two.
 - **An update preserves hand-authored relations.** `contentPatch` takes the
   stored `relations` as a REQUIRED parameter, never a defaulted one.
   `lib/content-edit.ts`'s §2.10 note already says that `articles-store.ts`'s

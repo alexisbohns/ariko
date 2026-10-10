@@ -25,7 +25,7 @@ visibility cascades, and what the model derives rather than stores — is
   It is a public credibility signal — there is no such thing as a private role. Authored through the
   role card on `/admin/plant/[slug]`; the vocabulary → label mapping lives once, in `lib/plant-role.ts`.
 * **Pod**: has a name, domain (`music | design | podcast`), and contains beans
-* **Bean**: has a name, an optional description (one bilingual line — what the Directory, the graph and future preview cards show), belongs to a pod (optional — can be standalone), and contains sprouts
+* **Bean**: has a name, an optional description (one bilingual line — what the Directory, the graph and future preview cards show), belongs to a pod (optional — can be standalone), and contains sprouts. It also carries `content`, its evolving narrative — what the feature is today and how it got there — rewritten in place rather than versioned; a different version of a feature is a sibling bean.
 * **Sprout**: has a name, type, date, description, state (`draft | private | published`), carried media/source, tags, and flexible per-type properties. `parents` refs (`pod:slug` / `bean:slug`) express **containment only** — future non-containment links (lineage, "featured in") will live in a separate `relations[]`.
 * **Bilingual (B1)**: `name`/`description` accept the `Text` type (`string | { en?, fr? }`); plain strings remain valid (no migration). Every surface renders via `resolveText` (en-first, blank parts fall through); the triage/edit forms author both languages via paired en/fr inputs (WYSIWYG — the boxes are prefilled per language and what they submit is what is stored).
 * **Relations (G2)**: sprouts carry optional non-containment edges `relations: [{ kind, ref }]` (`ref` in the prefixed grammar incl. `sprout:`; `kind` free, e.g. `evolves-from`, `featured-in`). `filterPublic` scrubs each published sprout's relations to targets that survive the projection (fail-closed, malformed shapes tolerated), so private/draft slugs can never leak; deletes need no cascade — hidden targets simply drop their edges. Authoring UI comes later; relations enter via seed or DB for now.
@@ -41,7 +41,7 @@ visibility cascades, and what the model derives rather than stores — is
 
 Sprouts carry optional markdown in `content` (localizable — `Text`, like `name`/`description`).
 
-* It renders as prose on `/bean/[id]` (the newest published sprout carrying content, `lib/article.ts`)
+* It renders as prose on `/bean/[id]` when the bean carries no narrative of its own (`narrativeFor`, `lib/article.ts` — bean content first, the newest published sprout carrying content as a fallback)
   and as a **Preview** card on `/admin/sprout/[slug]`, beside the raw source.
 * The pipeline is configured in exactly one place, `lib/markdown.ts`: `remark-gfm` for tables and
   fenced code, `rehype-sanitize` **last**. `rehype-raw` is deliberately absent, so HTML embedded in
