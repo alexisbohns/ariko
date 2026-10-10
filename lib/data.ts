@@ -888,145 +888,23 @@ function scrubAbout<T extends { about?: string[]; parents?: string[] }>(
   return reanchored;
 }
 
-// Upward publish cascade — the write-time mirror of filterPublic's downward
-// projection (spec §6.2). For the given sprout, returns the EXISTING bean parents
-// and their EXISTING pod parents that must be made public so a published
-// sprout never dangles under a private parent. The cascade now climbs one tier
-// further — through pod parents to their plants, and through a bean's direct
-// plant parents. Dangling refs are ignored, exactly
-// as filterPublic ignores them. Pure; visibility is not consulted (idempotent flip).
-export function publishCascade(
-  raw: RawGarden,
-  sproutSlug: string,
-): { plantSlugs: string[]; podSlugs: string[]; beanSlugs: string[] } {
-  const plants = raw.plants ?? [];
-  const pods = raw.pods ?? [];
-  const beans = raw.beans ?? [];
-  const sprouts = raw.sprouts ?? [];
-
-  const sprout = sprouts.find((s) => s.slug === sproutSlug);
-  if (!sprout) return { plantSlugs: [], podSlugs: [], beanSlugs: [] };
-
-  const beanBySlug = new Map(beans.map((b) => [b.slug, b]));
-  const podBySlug = new Map(pods.map((p) => [p.slug, p]));
-  const plantExists = new Set(plants.map((p) => p.slug));
-
-  const beanSlugs = [
-    ...new Set(parentsWithPrefix(sprout.parents, BEAN_PREFIX).filter((s) => beanBySlug.has(s))),
-  ];
-
-  const podSlugs = new Set<string>();
-  const plantSlugs = new Set<string>();
-  for (const beanSlug of beanSlugs) {
-    const bean = beanBySlug.get(beanSlug)!;
-    for (const p of parentsWithPrefix(bean.parents, PLANT_PREFIX)) {
-      if (plantExists.has(p)) plantSlugs.add(p);
-    }
-    for (const p of parentsWithPrefix(bean.parents, POD_PREFIX)) {
-      const pod = podBySlug.get(p);
-      if (!pod) continue;
-      podSlugs.add(p);
-      for (const pl of parentsWithPrefix(pod.parents, PLANT_PREFIX)) {
-        if (plantExists.has(pl)) plantSlugs.add(pl);
-      }
-    }
-  }
-
-  return { plantSlugs: [...plantSlugs], podSlugs: [...podSlugs], beanSlugs };
-}
-
-// Bean-level core of the downward recompute (roadmap A1/A2). Given candidate bean
-// slugs, returns the EXISTING beans left with NO published sprout, and their
-// EXISTING pod parents left with NO public bean once those beans flip. Callers
-// that still have the sprout (un-publish) adapt via unpublishCascade; callers that
-// no longer do (delete) pass the bean parents they captured BEFORE the write and
-// evaluate against the post-write dataset. One tier up, same shape: plant
-// candidates come from flipping pods and flipping directly-parented beans, and
-// a plant flips when no surviving public pod or surviving public direct bean
-// still points at it. Dangling/unknown slugs are ignored and
-// flip-target visibility is not consulted (idempotent flip), exactly as publishCascade.
-export function unpublishCascadeForBeans(
-  raw: RawGarden,
-  beanSlugs: string[],
-): { plantSlugs: string[]; podSlugs: string[]; beanSlugs: string[] } {
-  const plants = raw.plants ?? [];
-  const pods = raw.pods ?? [];
-  const beans = raw.beans ?? [];
-  const sprouts = raw.sprouts ?? [];
-
-  const beanBySlug = new Map(beans.map((b) => [b.slug, b]));
-  const podBySlug = new Map(pods.map((p) => [p.slug, p]));
-  const plantExists = new Set(plants.map((p) => p.slug));
-
-  // A bean is sheltered while ANY published sprout still points at it.
-  const shelteredBeans = new Set<string>();
-  for (const s of sprouts) {
-    if (s.state !== "published") continue;
-    for (const b of parentsWithPrefix(s.parents, BEAN_PREFIX)) shelteredBeans.add(b);
-  }
-
-  const flipping = new Set(
-    beanSlugs.filter((s) => beanBySlug.has(s) && !shelteredBeans.has(s)),
-  );
-
-  const podCandidates = new Set<string>();
-  for (const beanSlug of flipping) {
-    for (const p of parentsWithPrefix(beanBySlug.get(beanSlug)!.parents, POD_PREFIX)) {
-      if (podBySlug.has(p)) podCandidates.add(p);
-    }
-  }
-
-  // A pod is sheltered while any surviving public bean still points at it —
-  // the same "public unless explicitly private" rule filterPublic reads by.
-  const shelteredPods = new Set<string>();
-  for (const b of beans) {
-    if (flipping.has(b.slug) || b.visibility === "private") continue;
-    for (const p of parentsWithPrefix(b.parents, POD_PREFIX)) shelteredPods.add(p);
-  }
-  const flippingPods = new Set([...podCandidates].filter((p) => !shelteredPods.has(p)));
-
-  // One tier up, same shape: candidates come from flipping pods and flipping
-  // directly-parented beans; a plant is sheltered while any surviving public
-  // pod or surviving public direct bean still points at it.
-  const plantCandidates = new Set<string>();
-  for (const beanSlug of flipping) {
-    for (const pl of parentsWithPrefix(beanBySlug.get(beanSlug)!.parents, PLANT_PREFIX)) {
-      if (plantExists.has(pl)) plantCandidates.add(pl);
-    }
-  }
-  for (const podSlug of flippingPods) {
-    for (const pl of parentsWithPrefix(podBySlug.get(podSlug)!.parents, PLANT_PREFIX)) {
-      if (plantExists.has(pl)) plantCandidates.add(pl);
-    }
-  }
-  const shelteredPlants = new Set<string>();
-  for (const p of pods) {
-    if (flippingPods.has(p.slug) || p.visibility === "private") continue;
-    for (const pl of parentsWithPrefix(p.parents, PLANT_PREFIX)) shelteredPlants.add(pl);
-  }
-  for (const b of beans) {
-    if (flipping.has(b.slug) || b.visibility === "private") continue;
-    for (const pl of parentsWithPrefix(b.parents, PLANT_PREFIX)) shelteredPlants.add(pl);
-  }
-
-  return {
-    plantSlugs: [...plantCandidates].filter((p) => !shelteredPlants.has(p)),
-    podSlugs: [...flippingPods],
-    beanSlugs: [...flipping],
-  };
-}
-
-// Downward un-publish recompute — the inverse of publishCascade (roadmap A1). Thin
-// adapter over unpublishCascadeForBeans keyed by the sprout's bean parents, read
-// from the dataset (unknown sprout slug → no-op). Evaluate against a dataset loaded
-// AFTER the sprout's state was saved, so its own state counts (still-published → no-op).
-export function unpublishCascade(
-  raw: RawGarden,
-  sproutSlug: string,
-): { plantSlugs: string[]; podSlugs: string[]; beanSlugs: string[] } {
+/**
+ * The publish cascade (spec 2026-10-10 §2): publishing a sprout makes ITS
+ * PLANT public — the one `resolveSproutPlant` derives — and nothing else. The
+ * beans and pods it is about are not flipped: a bean's visibility is editorial
+ * now, and going public must not republish a feature held back on its own
+ * terms. Pure; the plant's current visibility is not consulted (idempotent
+ * flip). Unknown slug, dangling refs and an ambiguous derivation all name no
+ * plant — the last because a publish must never PICK one.
+ *
+ * There is no unpublish cascade any more. A plant stays public once chosen,
+ * and a bean with no published entry is simply a bean.
+ */
+export function publishCascade(raw: RawGarden, sproutSlug: string): { plantSlugs: string[] } {
   const sprout = (raw.sprouts ?? []).find((s) => s.slug === sproutSlug);
-  if (!sprout) return { plantSlugs: [], podSlugs: [], beanSlugs: [] };
-  return unpublishCascadeForBeans(raw, parentsWithPrefix(sprout.parents, BEAN_PREFIX));
+  if (!sprout) return { plantSlugs: [] };
+  const plant = resolveSproutPlant(sprout, raw);
+  return { plantSlugs: plant ? [plant.slug] : [] };
 }
 
 let cached: Dataset | null = null;

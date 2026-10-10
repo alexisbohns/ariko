@@ -18,8 +18,6 @@ import { createOrUpdateSeed, getSeed, markSeedPromoted, discardSeed } from "@/li
 import { loadRawGarden } from "@/lib/store";
 import {
   publishCascade,
-  unpublishCascade,
-  unpublishCascadeForBeans,
   PLANT_PREFIX,
   POD_PREFIX,
   BEAN_PREFIX,
@@ -59,7 +57,6 @@ import {
   setPublic,
   SlugExistsError,
   getSprout,
-  setPrivate,
   updateSproutContent,
   updatePlantContent,
   updatePodContent,
@@ -231,8 +228,8 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
     await createSprout(input);
 
     if (input.state === "published") {
-      const { plantSlugs, podSlugs, beanSlugs } = publishCascade(await loadRawGarden(), input.slug);
-      await setPublic(plantSlugs, podSlugs, beanSlugs);
+      const { plantSlugs } = publishCascade(await loadRawGarden(), input.slug);
+      await setPublic(plantSlugs);
     }
 
     await markSeedPromoted(seedId, input.slug);
@@ -257,12 +254,11 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
   redirect("/admin/inbox");
 }
 
-// Hard delete (roadmap A2). The bean parents and published state are captured BEFORE
-// the delete — afterwards the version is gone from the dataset, so the slug-keyed
-// unpublishCascade would silently no-op. The recompute (only when the deleted version
-// WAS published; a draft/private delete cannot change the public projection) runs the
-// bean-keyed core against the dataset loaded AFTER the delete, so the deleted version
-// cannot shelter anything.
+// Hard delete (roadmap A2). A delete changes no visibility: there is no
+// unpublish cascade since the journal model (spec 2026-10-10 §2), so a plant
+// made public by this sprout stays public, and a bean left with no published
+// entry is simply a bean. The only thing read off the row before it goes is
+// the first bean it was about, so the redirect lands where the author was.
 export async function deleteSproutAction(formData: FormData): Promise<void> {
   await requireSession();
   const slug = String(formData.get("slug") ?? "");
@@ -277,23 +273,12 @@ export async function deleteSproutAction(formData: FormData): Promise<void> {
     redirect(sproutHref(slug, "could not delete: confirm the permanent deletion first", "delete"));
   }
 
-  const beanSlugs = (existing.parents ?? [])
-    .filter((p) => p.startsWith("bean:"))
-    .map((p) => p.slice("bean:".length));
-  const wasPublished = existing.state === "published";
+  const [beanSlug] = parentsWithPrefix(existing.about, BEAN_PREFIX);
 
   await deleteSprout(slug);
 
-  if (wasPublished) {
-    const { plantSlugs, podSlugs, beanSlugs: flipBeans } = unpublishCascadeForBeans(
-      await loadRawGarden(),
-      beanSlugs,
-    );
-    await setPrivate(plantSlugs, podSlugs, flipBeans);
-  }
-
   revalidateGarden();
-  redirect(beanSlugs[0] ? `/admin/bean/${beanSlugs[0]}` : "/admin/sprouts");
+  redirect(beanSlug ? `/admin/bean/${beanSlug}` : "/admin/sprouts");
 }
 
 // Prose only. Deliberately separate from the head's four writes: content
@@ -425,14 +410,17 @@ export async function editSproutMetaAction(formData: FormData): Promise<void> {
  * This is `editVersionAction`'s publish logic, moved verbatim to the one action
  * that can own it, and it is why state is a write of its own rather than a
  * field on the meta overlay: the transition, not the value, is what decides
- * whether the sprout's bean, pod and plant are flipped public or recomputed
- * private. `existing` is read BEFORE the write so `existing.state` is the
- * pre-save state the transition is measured against.
+ * whether the sprout's plant is flipped public. There is ONE cascade, and it
+ * runs upward, to the plant `resolveSproutPlant` derives (spec 2026-10-10
+ * §2) — the beans and pods the sprout is about are not touched, because a
+ * bean's visibility is editorial now. An unpublish flips nothing: a plant
+ * stays public once chosen. `existing` is read BEFORE the write so
+ * `existing.kind` is the stored kind the digest gate is measured against.
  *
- * Both cascade branches re-read with `loadRawGarden` AFTER `updateSproutState`,
- * never `loadCachedGarden`: the cascade has to see the just-saved state, and a
- * cached read here publishes the wrong parents — a published sprout whose bean
- * silently stays private, or an unpublish that leaves a parent public.
+ * The cascade re-reads with `loadRawGarden` AFTER `updateSproutState`, never
+ * `loadCachedGarden`: it has to see the just-saved sprout, and a cached read
+ * here derives the plant from a pre-write garden — a published sprout whose
+ * plant silently stays private.
  *
  * The digest gate (`shouldCascadePublish`) is unchanged: publishing a digest
  * marks review sign-off, not public exhibition, and flipping its curated
@@ -463,12 +451,9 @@ export async function setSproutStateAction(formData: FormData): Promise<void> {
   // a plain `(raw: string) => boolean` and there is no predicate to inherit.)
   await updateSproutState(slug, state);
 
-  if (state === "published" && shouldCascadePublish(existing.type)) {
-    const { plantSlugs, podSlugs, beanSlugs } = publishCascade(await loadRawGarden(), slug);
-    await setPublic(plantSlugs, podSlugs, beanSlugs);
-  } else if (existing.state === "published") {
-    const { plantSlugs, podSlugs, beanSlugs } = unpublishCascade(await loadRawGarden(), slug);
-    await setPrivate(plantSlugs, podSlugs, beanSlugs);
+  if (state === "published" && shouldCascadePublish(existing.kind)) {
+    const { plantSlugs } = publishCascade(await loadRawGarden(), slug);
+    await setPublic(plantSlugs);
   }
 
   revalidateGarden();

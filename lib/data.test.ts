@@ -13,11 +13,7 @@ import {
   resolveSproutPlant,
   resolveSproutPlants,
   textPart,
-  unpublishCascade,
-  unpublishCascadeForBeans,
   type RawGarden,
-  type SproutState,
-  type Visibility,
 } from "./data";
 
 // Synthetic seed exercising every edge case the directory/timeline must handle:
@@ -89,272 +85,36 @@ test("getDataset keeps sprout dates as plain YYYY-MM-DD strings", () => {
   assert.match(version.date, /^\d{4}-\d{2}-\d{2}$/);
 });
 
-const RAW: RawGarden = {
-  pods: [{ slug: "m1", name: "M1", description: "" }],
+// --- publishCascade: upward to the DERIVED plant, and nothing else (spec
+// 2026-10-10 §2). There is no unpublish cascade any more.
+
+const cascade: RawGarden = {
+  plants: [
+    { slug: "p1", name: "P", natures: ["work"], role: { kind: "owner" }, description: "", visibility: "private" },
+    { slug: "p2", name: "P", natures: ["work"], role: { kind: "owner" }, description: "" },
+  ],
+  pods: [{ slug: "pod", name: "Pod", description: "", parents: ["plant:p1"], visibility: "private" }],
   beans: [
-    { slug: "a1", name: "A1", parents: ["pod:m1"] },
-    { slug: "a2", name: "A2", parents: ["pod:m1", "pod:mX"] }, // mX dangling
+    { slug: "b", name: "B", parents: ["pod:pod"], visibility: "private" },
+    { slug: "b2", name: "B", parents: ["plant:p2"] },
   ],
   sprouts: [
-    { slug: "v1", name: "V1", kind: "log", date: "2025-01-01", description: "", about: ["bean:a1"] },
-    { slug: "v2", name: "V2", kind: "log", date: "2025-01-01", description: "", about: ["bean:a1", "bean:a2"] },
-    { slug: "v3", name: "V3", kind: "log", date: "2025-01-01", description: "", parents: [] },
-    { slug: "v4", name: "V4", kind: "log", date: "2025-01-01", description: "", about: ["bean:ghost"] },
+    { slug: "s", name: "S", kind: "log", date: "2026-01-01", description: "", about: ["bean:b"] },
+    { slug: "s-plant", name: "S", kind: "log", date: "2026-01-02", description: "", parents: ["plant:p1"] },
+    { slug: "s-two", name: "S", kind: "log", date: "2026-01-03", description: "", about: ["bean:b", "bean:b2"] },
+    { slug: "s-dangling", name: "S", kind: "log", date: "2026-01-04", description: "", about: ["bean:nope"] },
   ],
 };
 
-test("publishCascade returns the bean parent and its pod parent", () => {
-  const r = publishCascade(RAW, "v1");
-  assert.deepEqual(r.beanSlugs, ["a1"]);
-  assert.deepEqual(r.podSlugs, ["m1"]);
+test("publishCascade names the sprout's DERIVED plant and nothing else — the bean and pod stay as they are", () => {
+  assert.deepEqual(publishCascade(cascade, "s"), { plantSlugs: ["p1"] });
+  assert.deepEqual(publishCascade(cascade, "s-plant"), { plantSlugs: ["p1"] });
 });
 
-test("publishCascade unions multiple bean parents and their pods, ignoring dangling pod refs", () => {
-  const r = publishCascade(RAW, "v2");
-  assert.deepEqual([...r.beanSlugs].sort(), ["a1", "a2"]);
-  assert.deepEqual(r.podSlugs, ["m1"]); // mX is dangling → excluded
-});
-
-test("a parentless sprout cascades nothing", () => {
-  assert.deepEqual(publishCascade(RAW, "v3"), { plantSlugs: [], podSlugs: [], beanSlugs: [] });
-});
-
-test("a dangling bean parent is ignored", () => {
-  assert.deepEqual(publishCascade(RAW, "v4"), { plantSlugs: [], podSlugs: [], beanSlugs: [] });
-});
-
-test("an unknown sprout slug cascades nothing", () => {
-  assert.deepEqual(publishCascade(RAW, "nope"), { plantSlugs: [], podSlugs: [], beanSlugs: [] });
-});
-
-test("parents are returned regardless of current visibility (idempotent flip)", () => {
-  const raw: RawGarden = {
-    pods: [{ slug: "m1", name: "M1", description: "", visibility: "public" as const }],
-    beans: [{ slug: "a1", name: "A1", parents: ["pod:m1"], visibility: "public" as const }],
-    sprouts: [{ slug: "v1", name: "V1", kind: "log", date: "2025-01-01", description: "", about: ["bean:a1"] }],
-  };
-  const r = publishCascade(raw, "v1");
-  assert.deepEqual(r.beanSlugs, ["a1"]);
-  assert.deepEqual(r.podSlugs, ["m1"]);
-});
-
-test("an bean with two real pod parents cascades both pods", () => {
-  const raw: RawGarden = {
-    pods: [
-      { slug: "m1", name: "M1", description: "" },
-      { slug: "m2", name: "M2", description: "" },
-    ],
-    beans: [{ slug: "a1", name: "A1", parents: ["pod:m1", "pod:m2"] }],
-    sprouts: [
-      { slug: "v1", name: "V1", kind: "log", date: "2025-01-01", description: "", about: ["bean:a1"] },
-    ],
-  };
-  const r = publishCascade(raw, "v1");
-  assert.deepEqual(r.beanSlugs, ["a1"]);
-  assert.deepEqual([...r.podSlugs].sort(), ["m1", "m2"]);
-});
-
-// --- unpublishCascade: the downward inverse (roadmap A1). Fixtures are built per
-// test because the interesting variable is the surviving published/public siblings.
-
-function ver(slug: string, about: string[], state: SproutState) {
-  return { slug, name: slug.toUpperCase(), kind: "log" as const, date: "2025-01-01", description: "", about, state };
-}
-const mol = (slug: string, visibility: Visibility) => ({
-  slug, name: slug.toUpperCase(), description: "", visibility,
-});
-const atom = (slug: string, parents: string[], visibility: Visibility) => ({
-  slug, name: slug.toUpperCase(), parents, visibility,
-});
-
-test("unpublishCascade re-privatizes the bean and its pod when the last published sprout is pulled", () => {
-  const raw: RawGarden = {
-    pods: [mol("m1", "public")],
-    beans: [atom("a1", ["pod:m1"], "public")],
-    sprouts: [ver("v1", ["bean:a1"], "draft")], // just un-published
-  };
-  assert.deepEqual(unpublishCascade(raw, "v1"), { plantSlugs: [], podSlugs: ["m1"], beanSlugs: ["a1"] });
-});
-
-test("unpublishCascade keeps the whole lineage when a published sibling sprout remains", () => {
-  const raw: RawGarden = {
-    pods: [mol("m1", "public")],
-    beans: [atom("a1", ["pod:m1"], "public")],
-    sprouts: [ver("v1", ["bean:a1"], "draft"), ver("v2", ["bean:a1"], "published")],
-  };
-  assert.deepEqual(unpublishCascade(raw, "v1"), { plantSlugs: [], podSlugs: [], beanSlugs: [] });
-});
-
-test("unpublishCascade flips the atom but keeps a pod that still has another public bean", () => {
-  const raw: RawGarden = {
-    pods: [mol("m1", "public")],
-    beans: [atom("a1", ["pod:m1"], "public"), atom("a2", ["pod:m1"], "public")],
-    sprouts: [ver("v1", ["bean:a1"], "draft")],
-  };
-  assert.deepEqual(unpublishCascade(raw, "v1"), { plantSlugs: [], podSlugs: [], beanSlugs: ["a1"] });
-});
-
-test("unpublishCascade evaluates each bean parent of a multi-parent sprout independently", () => {
-  const raw: RawGarden = {
-    pods: [mol("m1", "public"), mol("m2", "public")],
-    beans: [atom("a1", ["pod:m1"], "public"), atom("a2", ["pod:m2"], "public")],
-    sprouts: [ver("v1", ["bean:a1", "bean:a2"], "draft"), ver("v2", ["bean:a2"], "published")],
-  };
-  // a2 keeps its published sibling; a1 empties, and with it m1.
-  assert.deepEqual(unpublishCascade(raw, "v1"), { plantSlugs: [], podSlugs: ["m1"], beanSlugs: ["a1"] });
-});
-
-test("unpublishCascade lists a pod shared by two flipped beans once", () => {
-  const raw: RawGarden = {
-    pods: [mol("m1", "public")],
-    beans: [atom("a1", ["pod:m1"], "public"), atom("a2", ["pod:m1"], "public")],
-    sprouts: [ver("v1", ["bean:a1", "bean:a2"], "draft")],
-  };
-  const r = unpublishCascade(raw, "v1");
-  assert.deepEqual([...r.beanSlugs].sort(), ["a1", "a2"]);
-  assert.deepEqual(r.podSlugs, ["m1"]);
-});
-
-test("unpublishCascade ignores dangling bean and pod refs", () => {
-  const raw: RawGarden = {
-    pods: [],
-    beans: [atom("a1", ["pod:ghost"], "public")],
-    sprouts: [ver("v1", ["bean:ghost", "bean:a1"], "draft")],
-  };
-  assert.deepEqual(unpublishCascade(raw, "v1"), { plantSlugs: [], podSlugs: [], beanSlugs: ["a1"] });
-});
-
-test("a parentless sprout un-cascades nothing", () => {
-  const raw: RawGarden = { pods: [], beans: [], sprouts: [ver("v1", [], "draft")] };
-  assert.deepEqual(unpublishCascade(raw, "v1"), { plantSlugs: [], podSlugs: [], beanSlugs: [] });
-});
-
-test("an unknown sprout slug un-cascades nothing", () => {
-  const raw: RawGarden = { pods: [], beans: [], sprouts: [] };
-  assert.deepEqual(unpublishCascade(raw, "nope"), { plantSlugs: [], podSlugs: [], beanSlugs: [] });
-});
-
-test("unpublishCascade is a no-op while the sprout is still published (its own state shelters its parents)", () => {
-  const raw: RawGarden = {
-    pods: [mol("m1", "public")],
-    beans: [atom("a1", ["pod:m1"], "public")],
-    sprouts: [ver("v1", ["bean:a1"], "published")],
-  };
-  assert.deepEqual(unpublishCascade(raw, "v1"), { plantSlugs: [], podSlugs: [], beanSlugs: [] });
-});
-
-test("an explicitly-private sibling bean does not count as remaining public for the pod rule", () => {
-  const raw: RawGarden = {
-    pods: [mol("m1", "public")],
-    beans: [atom("a1", ["pod:m1"], "public"), atom("a2", ["pod:m1"], "private")],
-    sprouts: [ver("v1", ["bean:a1"], "draft")],
-  };
-  assert.deepEqual(unpublishCascade(raw, "v1"), { plantSlugs: [], podSlugs: ["m1"], beanSlugs: ["a1"] });
-});
-
-test("flip targets are returned regardless of their current visibility (idempotent flip)", () => {
-  const raw: RawGarden = {
-    pods: [mol("m1", "private")],
-    beans: [atom("a1", ["pod:m1"], "private")],
-    sprouts: [ver("v1", ["bean:a1"], "draft")],
-  };
-  assert.deepEqual(unpublishCascade(raw, "v1"), { plantSlugs: [], podSlugs: ["m1"], beanSlugs: ["a1"] });
-});
-
-test("inverse symmetry: un-publish flips back exactly what publish flipped (single-sprout lineage)", () => {
-  const pods = [mol("m1", "public")];
-  const beans = [atom("a1", ["pod:m1"], "public")];
-  const published = publishCascade({ pods, beans, sprouts: [ver("v1", ["bean:a1"], "published")] }, "v1");
-  const unpublished = unpublishCascade({ pods, beans, sprouts: [ver("v1", ["bean:a1"], "draft")] }, "v1");
-  assert.deepEqual(unpublished, published);
-});
-
-// --- unpublishCascadeForBeans: the atom-keyed core (roadmap A2). The delete flow
-// seeds a version's atom parents BEFORE the delete and evaluates them against the
-// POST-delete dataset — where the version no longer exists to shelter anything.
-
-test("delete-shaped: last published sprout already gone from the dataset flips bean and pod", () => {
-  const raw: RawGarden = {
-    pods: [mol("m1", "public")],
-    beans: [atom("a1", ["pod:m1"], "public")],
-    sprouts: [], // the deleted version was a1's only version
-  };
-  assert.deepEqual(unpublishCascadeForBeans(raw, ["a1"]), { plantSlugs: [], podSlugs: ["m1"], beanSlugs: ["a1"] });
-});
-
-test("delete-shaped: a surviving published sibling shelters the bean (and pod)", () => {
-  const raw: RawGarden = {
-    pods: [mol("m1", "public")],
-    beans: [atom("a1", ["pod:m1"], "public")],
-    sprouts: [ver("v2", ["bean:a1"], "published")], // sibling of the deleted version
-  };
-  assert.deepEqual(unpublishCascadeForBeans(raw, ["a1"]), { plantSlugs: [], podSlugs: [], beanSlugs: [] });
-});
-
-test("delete-shaped: a surviving draft sibling does not shelter", () => {
-  const raw: RawGarden = {
-    pods: [mol("m1", "public")],
-    beans: [atom("a1", ["pod:m1"], "public")],
-    sprouts: [ver("v2", ["bean:a1"], "draft")],
-  };
-  assert.deepEqual(unpublishCascadeForBeans(raw, ["a1"]), { plantSlugs: [], podSlugs: ["m1"], beanSlugs: ["a1"] });
-});
-
-test("unpublishCascadeForBeans ignores unknown bean slugs", () => {
-  const raw: RawGarden = {
-    pods: [mol("m1", "public")],
-    beans: [atom("a1", ["pod:m1"], "public")],
-    sprouts: [],
-  };
-  const r = unpublishCascadeForBeans(raw, ["ghost", "a1"]);
-  assert.deepEqual(r, { plantSlugs: [], podSlugs: ["m1"], beanSlugs: ["a1"] });
-});
-
-test("unpublishCascadeForBeans ignores a flipped bean's dangling pod refs", () => {
-  const raw: RawGarden = {
-    pods: [],
-    beans: [atom("a1", ["pod:ghost"], "public")],
-    sprouts: [],
-  };
-  assert.deepEqual(unpublishCascadeForBeans(raw, ["a1"]), { plantSlugs: [], podSlugs: [], beanSlugs: ["a1"] });
-});
-
-test("unpublishCascadeForBeans on empty input flips nothing", () => {
-  const raw: RawGarden = {
-    pods: [mol("m1", "public")],
-    beans: [atom("a1", ["pod:m1"], "public")],
-    sprouts: [],
-  };
-  assert.deepEqual(unpublishCascadeForBeans(raw, []), { plantSlugs: [], podSlugs: [], beanSlugs: [] });
-});
-
-test("unpublishCascadeForBeans dedupes repeated bean slugs", () => {
-  const raw: RawGarden = {
-    pods: [mol("m1", "public")],
-    beans: [atom("a1", ["pod:m1"], "public")],
-    sprouts: [],
-  };
-  assert.deepEqual(unpublishCascadeForBeans(raw, ["a1", "a1"]), { plantSlugs: [], podSlugs: ["m1"], beanSlugs: ["a1"] });
-});
-
-test("delete-shaped: two flipped beans sharing one pod list it once", () => {
-  const raw: RawGarden = {
-    pods: [mol("m1", "public")],
-    beans: [atom("a1", ["pod:m1"], "public"), atom("a2", ["pod:m1"], "public")],
-    sprouts: [], // the deleted version was the only version of both atoms
-  };
-  const r = unpublishCascadeForBeans(raw, ["a1", "a2"]);
-  assert.deepEqual([...r.beanSlugs].sort(), ["a1", "a2"]);
-  assert.deepEqual(r.podSlugs, ["m1"]);
-});
-
-test("delete-shaped: already-private flip targets are still returned (idempotent flip)", () => {
-  const raw: RawGarden = {
-    pods: [mol("m1", "private")],
-    beans: [atom("a1", ["pod:m1"], "private")],
-    sprouts: [],
-  };
-  assert.deepEqual(unpublishCascadeForBeans(raw, ["a1"]), { plantSlugs: [], podSlugs: ["m1"], beanSlugs: ["a1"] });
+test("publishCascade is idempotent — the plant is named regardless of its current visibility", () => {
+  assert.deepEqual(publishCascade(cascade, "s-two" /* ambiguous */), { plantSlugs: [] });
+  assert.deepEqual(publishCascade(cascade, "s-dangling"), { plantSlugs: [] });
+  assert.deepEqual(publishCascade(cascade, "unknown"), { plantSlugs: [] });
 });
 
 // --- textPart / composeText: the strict-access and compose halves of the bilingual
@@ -419,18 +179,6 @@ test("composeText omits a blank en from the object", () => {
   const t = composeText("", "Salut");
   assert.deepEqual(t, { fr: "Salut" });
   assert.equal(typeof t === "object" && "en" in t, false, "blank en must be omitted, not empty");
-});
-
-test("adapter equivalence: unpublishCascade(slug) === unpublishCascadeForBeans(that sprout's bean refs)", () => {
-  const raw: RawGarden = {
-    pods: [mol("m1", "public"), mol("m2", "public")],
-    beans: [atom("a1", ["pod:m1"], "public"), atom("a2", ["pod:m2"], "public")],
-    sprouts: [ver("v1", ["bean:a1", "bean:a2", "bean:ghost"], "draft"), ver("v2", ["bean:a2"], "published")],
-  };
-  assert.deepEqual(
-    unpublishCascade(raw, "v1"),
-    unpublishCascadeForBeans(raw, ["a1", "a2", "ghost"]),
-  );
 });
 
 // --- Plant tier (slice 1 PR2): containment one tier up. ---
@@ -504,103 +252,6 @@ test("garden.yml parses into a garden with only botanical prefixes", () => {
   for (const ref of refs) {
     assert.match(ref, /^(plant|pod|bean|sprout):/, `legacy prefix survived: ${ref}`);
   }
-});
-
-// --- Cascades one tier up (PR2). Same idempotent-flip, dangling-tolerant rules. ---
-
-const CASCADE_GARDEN: RawGarden = {
-  plants: [
-    { slug: "pl1", name: "P1", natures: ["work"], role: { kind: "owner" as const }, description: "" },
-    { slug: "pl2", name: "P2", natures: ["work"], role: { kind: "owner" as const }, description: "" },
-  ],
-  pods: [{ slug: "m1", name: "M1", description: "", parents: ["plant:pl1", "plant:ghost"] }],
-  beans: [
-    { slug: "a1", name: "A1", parents: ["pod:m1"] },
-    { slug: "direct", name: "D", parents: ["plant:pl2"] },
-  ],
-  sprouts: [
-    { slug: "v1", name: "V1", kind: "log", date: "2026-01-01", description: "", about: ["bean:a1"], state: "published" },
-    { slug: "v-direct", name: "VD", kind: "log", date: "2026-01-02", description: "", about: ["bean:direct"], state: "published" },
-  ],
-};
-
-test("publishCascade climbs pod -> plant, ignoring dangling plant refs", () => {
-  assert.deepEqual(publishCascade(CASCADE_GARDEN, "v1"), {
-    plantSlugs: ["pl1"],
-    podSlugs: ["m1"],
-    beanSlugs: ["a1"],
-  });
-});
-
-test("publishCascade climbs a bean's DIRECT plant parent (no pod tier)", () => {
-  assert.deepEqual(publishCascade(CASCADE_GARDEN, "v-direct"), {
-    plantSlugs: ["pl2"],
-    podSlugs: [],
-    beanSlugs: ["direct"],
-  });
-});
-
-test("unpublishCascade flips the whole lineage up to the plant when nothing shelters it", () => {
-  const raw = structuredClone(CASCADE_GARDEN);
-  raw.sprouts![0].state = "draft"; // v1 just un-published
-  const r = unpublishCascade(raw, "v1");
-  assert.deepEqual(r, { plantSlugs: ["pl1"], podSlugs: ["m1"], beanSlugs: ["a1"] });
-});
-
-test("unpublishCascade honors a plant sheltered by a surviving public pod", () => {
-  const raw = structuredClone(CASCADE_GARDEN);
-  raw.pods!.push({ slug: "m2", name: "M2", description: "", parents: ["plant:pl1"] });
-  raw.beans!.push({ slug: "a2", name: "A2", parents: ["pod:m2"] });
-  raw.sprouts![0].state = "draft";
-  const r = unpublishCascade(raw, "v1");
-  // m2 is public (default) and points at pl1 -> the plant is sheltered.
-  assert.deepEqual(r, { plantSlugs: [], podSlugs: ["m1"], beanSlugs: ["a1"] });
-});
-
-test("unpublishCascade honors a plant sheltered by a surviving public DIRECT bean", () => {
-  const raw: RawGarden = {
-    plants: [{ slug: "pl", name: "P", natures: ["work"], role: { kind: "owner" as const }, description: "" }],
-    pods: [],
-    beans: [
-      { slug: "flipping", name: "F", parents: ["plant:pl"] },
-      { slug: "shelter", name: "S", parents: ["plant:pl"] },
-    ],
-    sprouts: [{ slug: "v", name: "V", kind: "log", date: "2026-01-01", description: "", about: ["bean:flipping"], state: "draft" }],
-  };
-  assert.deepEqual(unpublishCascade(raw, "v"), { plantSlugs: [], podSlugs: [], beanSlugs: ["flipping"] });
-});
-
-test("unpublishCascade flips a plant reached only through a directly-parented bean", () => {
-  const raw: RawGarden = {
-    plants: [{ slug: "pl", name: "P", natures: ["work"], role: { kind: "owner" as const }, description: "" }],
-    pods: [],
-    beans: [{ slug: "b", name: "B", parents: ["plant:pl"] }],
-    sprouts: [{ slug: "v", name: "V", kind: "log", date: "2026-01-01", description: "", about: ["bean:b"], state: "draft" }],
-  };
-  assert.deepEqual(unpublishCascade(raw, "v"), { plantSlugs: ["pl"], podSlugs: [], beanSlugs: ["b"] });
-});
-
-test("an explicitly-private pod does not shelter a plant", () => {
-  const raw = structuredClone(CASCADE_GARDEN);
-  raw.pods!.push({ slug: "m2", name: "M2", description: "", parents: ["plant:pl1"], visibility: "private" });
-  raw.beans!.push({ slug: "a2", name: "A2", parents: ["pod:m2"] });
-  raw.sprouts![0].state = "draft";
-  const r = unpublishCascade(raw, "v1");
-  // m2 points at pl1 but is private -> no shelter; the plant flips with its lineage.
-  assert.deepEqual(r, { plantSlugs: ["pl1"], podSlugs: ["m1"], beanSlugs: ["a1"] });
-});
-
-test("an explicitly-private direct bean does not shelter a plant", () => {
-  const raw: RawGarden = {
-    plants: [{ slug: "pl", name: "P", natures: ["work"], role: { kind: "owner" as const }, description: "" }],
-    pods: [],
-    beans: [
-      { slug: "flipping", name: "F", parents: ["plant:pl"] },
-      { slug: "shelter", name: "S", parents: ["plant:pl"], visibility: "private" },
-    ],
-    sprouts: [{ slug: "v", name: "V", kind: "log", date: "2026-01-01", description: "", about: ["bean:flipping"], state: "draft" }],
-  };
-  assert.deepEqual(unpublishCascade(raw, "v"), { plantSlugs: ["pl"], podSlugs: [], beanSlugs: ["flipping"] });
 });
 
 test("getPlant and getPod look a container up by slug", () => {

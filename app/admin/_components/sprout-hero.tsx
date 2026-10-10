@@ -309,10 +309,10 @@ function StateForm({ slug, current, lang }: { slug: string; current: SproutState
 }
 
 const STATE_HINTS: Record<SproutState, string> = {
-  draft: "Being written. Off the public site, and off it for its bean too.",
+  draft: "Being written. Off the public site.",
   private: "Finished but held back. Still off the public site.",
   published:
-    "On the public site — and its bean, pod and plant are made public with it, unless it is a digest.",
+    "On the public site — and its plant is made public with it, unless it is a digest. Its beans and pods are not touched.",
 };
 
 /**
