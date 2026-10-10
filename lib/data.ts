@@ -668,7 +668,11 @@ export function composeText(en: string, fr: string): Text {
 //    two plants, has no plant and drops — fail-closed. A private bean or pod
 //    does NOT take its sprouts with it: the sprout keeps its place in the
 //    plant's journal and its `about` is scrubbed like `relations` (below), so
-//    the visitor sees the entry and not the door (spec 2026-10-10 §2);
+//    the visitor sees the entry and not the door (spec 2026-10-10 §2). A
+//    sprout whose `about` scrubs to nothing is re-anchored on its derived
+//    plant (`parents: ["plant:…"]`, no `about`) so the public dataset still
+//    derives the plant it had — the plant is kept, so this names nothing
+//    private;
 //  - a Plant/Pod/Bean is visible unless explicitly visibility === "private";
 //  - privacy cascades DOWNWARD, fail-closed, from the plant tier through the
 //    containers (plant → pod → bean): a Pod whose every EXISTING plant parent
@@ -741,16 +745,20 @@ export function filterPublic(raw: RawGarden): RawGarden {
   // private bean under a public plant still has a plant, and keeps its place
   // in the plant's journal with the door to the bean scrubbed below. A sprout
   // whose refs all dangle, or roll up to two plants, has no plant and drops:
-  // fail-closed, like every other decision here (spec 2026-10-10 §2).
-  const keptSprouts = rawSprouts.filter((s) => {
-    if (s.state !== "published") return false;
+  // fail-closed, like every other decision here (spec 2026-10-10 §2). The
+  // plant is derived ONCE here and carried to the scrub: a sprout whose
+  // `about` scrubs to nothing is re-anchored on it below, and re-deriving
+  // from the scrubbed sprout would find no plant at all.
+  const keptSprouts: { sprout: Sprout; plant: Plant }[] = [];
+  for (const s of rawSprouts) {
+    if (s.state !== "published") continue;
     const plant = resolveSproutPlant(s, raw);
-    return plant !== null && plantKept.has(plant.slug);
-  });
+    if (plant !== null && plantKept.has(plant.slug)) keptSprouts.push({ sprout: s, plant });
+  }
 
   // Relations may point at sprouts, so the kept-sprout set must exist BEFORE
   // any relation (on sprouts OR plants) is judged.
-  const sproutKept = new Set(keptSprouts.map((s) => s.slug));
+  const sproutKept = new Set(keptSprouts.map(({ sprout }) => sprout.slug));
   const refSurvives = (ref: string): boolean =>
     ref.startsWith(SPROUT_PREFIX)
       ? sproutKept.has(ref.slice(SPROUT_PREFIX.length))
@@ -760,7 +768,9 @@ export function filterPublic(raw: RawGarden): RawGarden {
           ? podKept.has(ref.slice(POD_PREFIX.length))
           : ref.startsWith(PLANT_PREFIX) && plantKept.has(ref.slice(PLANT_PREFIX.length));
 
-  const sprouts = keptSprouts.map((s) => scrubAbout(scrubRelations(s, refSurvives), refSurvives));
+  const sprouts = keptSprouts.map(({ sprout, plant }) =>
+    scrubAbout(scrubRelations(sprout, refSurvives), refSurvives, plant.slug),
+  );
   // `links` needs no scrub and gets none. PlatformLink holds a URL, a derived
   // platform word and an optional label — no entity refs — so there is nothing
   // in it that could name a private slug. Same property PlantRole has, stated
@@ -849,14 +859,33 @@ function scrubRelations<T extends { relations?: Relation[] }>(
 }
 
 // The `about` scrub — the relations scrub's rule applied to the authored
-// field: absent stays absent, a non-array (a direct DB write) becomes [], and
-// every ref whose target did not survive this projection drops. A public
-// sprout about a private bean shows the sprout and not the door.
-function scrubAbout<T extends { about?: string[] }>(item: T, refSurvives: (ref: string) => boolean): T {
-  if (item.about === undefined) return item;
+// field: absent stays absent (the same falsy check scrubRelations uses, so the
+// two scrubs cannot disagree about what "absent" is), a non-array (a direct
+// DB write) becomes [], and every ref whose target did not survive this
+// projection drops. A public sprout about a private bean shows the sprout and
+// not the door.
+//
+// When every ref drops, the sprout is RE-ANCHORED rather than left with an
+// empty `about`: the key goes and `parents` names the plant the raw garden
+// derived for it — `plantSlug`, kept by construction, so it names nothing
+// private. Left as `about: []` with no `parents`, the public dataset would
+// derive no plant at all and the entry would fall out of the plant's journal,
+// which is the door taking the sprout with it by another route. The projected
+// sprout keeps the one-of-two invariant (`about` xor `parents`) and derives
+// the same plant on the public side as it did on the raw one.
+function scrubAbout<T extends { about?: string[]; parents?: string[] }>(
+  item: T,
+  refSurvives: (ref: string) => boolean,
+  plantSlug: string,
+): T {
+  if (!item.about) return item;
   if (!Array.isArray(item.about)) return { ...item, about: [] };
   const scrubbed = item.about.filter((ref) => typeof ref === "string" && refSurvives(ref));
-  return scrubbed.length === item.about.length ? item : { ...item, about: scrubbed };
+  if (scrubbed.length === item.about.length) return item;
+  if (scrubbed.length > 0) return { ...item, about: scrubbed };
+  const reanchored = { ...item, parents: [PLANT_PREFIX + plantSlug] };
+  delete reanchored.about;
+  return reanchored;
 }
 
 // Upward publish cascade — the write-time mirror of filterPublic's downward
