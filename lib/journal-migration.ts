@@ -22,7 +22,10 @@ import type { SproutKind } from "./sprout-kind";
  * Refusals are per sprout and never partial: a fold that cannot be made whole
  * is listed and skipped, and the script refuses to write while any remain.
  * Each message ends in the remedy, because the operator reading it is the one
- * who has to perform it.
+ * who has to perform it. The bean-side refusals mirror the script's write
+ * filter field for field — `content` and `relations` must both be ABSENT —
+ * because a plan the filter cannot match is not refused, it is reported as a
+ * concurrent change that never happened.
  */
 export const ARTICLE_TYPE = "article";
 
@@ -93,11 +96,19 @@ export function planArticleFold(beans: Bean[], sprouts: LegacySprout[]): FoldPla
       continue;
     }
     // PRESENT, not merely non-blank: the script's write filter is
-    // `content: { $exists: false }`, and the plan must agree with it exactly, or
-    // a blank-but-present field would plan a fold the write then cannot match.
+    // `content: { $exists: false }, relations: { $exists: false }`, and the plan
+    // must agree with it on BOTH fields exactly, or a blank-but-present field
+    // would plan a fold the write then cannot match — and report it as "changed
+    // under us" on every run, when nothing changed at all.
     if (bean.content !== undefined) {
       refusals.push(
         `${s.slug}: bean ${beanSlug} already carries a content field — clear it first, or if it equals the sprout's body this is an interrupted fold: delete the sprout by slug (its pre-image is in the backup) and re-run`,
+      );
+      continue;
+    }
+    if (bean.relations !== undefined) {
+      refusals.push(
+        `${s.slug}: bean ${beanSlug} already carries relations — the fold would overwrite them; clear them first, or fold by hand`,
       );
       continue;
     }
