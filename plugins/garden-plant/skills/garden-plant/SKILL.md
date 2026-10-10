@@ -220,11 +220,13 @@ stops the run with nothing touched.
   by comparing the date **string**, raw — nothing anywhere parses it into a
   date. So `09/12/2026` does not fail; it sorts above every date starting with
   a `2` and quietly misfiles the sprout at the top of the timeline forever.
-- **`kind` is one of five words**, exactly — `log`, `milestone`, `release`,
-  `essay`, `decision`. Anything else is refused with the list, and so is
-  `"log "` with a trailing space: the admin draws the field as a list of
+- **`kind` is one of five authorable members**, exactly — `log`, `milestone`,
+  `release`, `essay`, `decision`. Anything else is refused with the list, and
+  so is `"log "` with a trailing space: the admin draws the field as a list of
   radios, and a value it cannot draw is a sprout with no kind on every table.
-  `digest` is refused by name — it is machine-written. Pick `log` when unsure.
+  The vocabulary has a sixth member, `digest`, and a manifest may not write
+  it — it is refused by name, because it is machine-written. Pick `log` when
+  unsure.
 - **`type:` is not a key any more.** A sprout written against the old shape
   is refused by name, with a message that says the key is now `kind:`.
 - **Every bilingual pair needs a non-blank `en`.** `fr` may be omitted.
@@ -248,7 +250,7 @@ Each of these is a **hard error**, not a field quietly dropped:
 | `order` | Same. |
 | `relations` | Derived from the prose's own references, never authored. |
 | `parents` | Containment; re-homing a pod or bean is a privacy decision — and a sprout has none: it is *about* the bean it is nested under, and its plant is derived. |
-| `type` on a sprout | Not a key any more — a sprout's kind is `kind:`, one of the six words above. |
+| `type` on a sprout | Not a key any more — a sprout's kind is `kind:`, one of the five authorable members above (the sixth, `digest`, is refused by name). |
 | `cover` on a pod or sprout, `media` on a bean | A cover is a bean's; media is a sprout's. |
 
 **Everything a manifest creates is private.** Sprouts land as drafts. The

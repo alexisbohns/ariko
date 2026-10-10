@@ -37,6 +37,15 @@ test("a bean whose content field is present but blank is refused too — the wri
   assert.match(plan.refusals[0], /b-0.*already carries a content field.*interrupted fold/);
 });
 
+test("a bean that already carries relations is refused — the write filter requires both fields absent", () => {
+  const plan = planArticleFold(
+    [bean("b", { relations: [{ kind: "mentions", ref: "bean:z" }] })],
+    [article("b-0", "b")],
+  );
+  assert.deepEqual(plan.folds, []);
+  assert.match(plan.refusals[0], /b-0: bean b already carries relations.*clear them first, or fold by hand/);
+});
+
 test("an article with no bean: parent is refused by name", () => {
   const plan = planArticleFold([bean("b")], [article("loose", "b", { parents: ["plant:p"] })]);
   assert.equal(plan.folds.length, 0);
