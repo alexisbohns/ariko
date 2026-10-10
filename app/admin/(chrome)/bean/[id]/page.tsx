@@ -1,6 +1,9 @@
 import { notFound } from "next/navigation";
 import { resolveText, textPart } from "@/lib/data";
 import { getFullDataset, loadRawGarden } from "@/lib/store";
+import { editLang, editLangHrefs } from "@/lib/edit-lang";
+import { editContainerContentAction } from "@/app/admin/actions";
+import { ContentCard } from "@/app/admin/_components/content-card";
 import { beanDetail, type BeanDetailView } from "@/lib/bean-detail";
 import { beanCoverFor } from "@/lib/bean-cover";
 import { visibilityOf } from "@/lib/plant-visibility";
@@ -42,16 +45,24 @@ export const dynamic = "force-dynamic";
  * an fr name would prefill the en box and save back as en, the trap every meta
  * form in this repo documents. What the view model is still FOR here is the
  * sprout list and the parent slugs.
+ *
+ * The narrative is edited here too, through the same `ContentCard` the pod page
+ * mounts, one half at a time per `?lang=` (lib/edit-lang.ts). The bean's other
+ * actions (meta, visibility, tags, cover, keyword) redirect to the bare bean URL
+ * and drop `?lang=`; accepted for this slice — the editor reopens on English,
+ * the documented default, and nothing mis-saves.
  */
 export default async function AdminBeanPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; form?: string }>;
+  searchParams: Promise<{ error?: string; form?: string; lang?: string }>;
 }) {
   const { id } = await params;
-  const { error, form } = await searchParams;
+  const query = await searchParams;
+  const { error, form } = query;
+  const lang = editLang(query.lang);
 
   let view: BeanDetailView | null = null;
   let failed = false;
@@ -201,6 +212,20 @@ export default async function AdminBeanPage({
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           ) : null}
+
+          {/* A projected bean has no editor at all, not a disabled one: the action
+              bounces its ref anyway, and a surface that cannot save is noise. */}
+          {readOnly ? null : (
+            <ContentCard
+              raw={raw}
+              content={bean.content}
+              selfRef={`bean:${bean.slug}`}
+              action={editContainerContentAction}
+              hidden={{ ref: `bean:${bean.slug}` }}
+              lang={lang}
+              langHrefs={editLangHrefs(`/admin/bean/${encodeURIComponent(bean.slug)}`, query)}
+            />
+          )}
 
           <section className="flex flex-col gap-4">
             <h2 className="font-heading text-lg tracking-tight">
