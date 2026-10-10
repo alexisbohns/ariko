@@ -133,6 +133,10 @@ export interface Reanchor {
   type: string;
   kind: SproutKind;
   about: string[];
+  /** The `parents` refs the move discards — anything not `bean:`. The one
+   *  thing the migration throws away, so the script lists each one; the raw
+   *  value is in the backup regardless. */
+  dropped: string[];
 }
 
 export interface ReanchorPlan {
@@ -156,12 +160,20 @@ export function planReanchor(sprouts: LegacySprout[], garden: SproutGarden): Rea
   const beanSlugs = new Set((garden.beans ?? []).map((b) => b.slug));
   for (const s of sprouts) {
     if (s.type === undefined && s.kind !== undefined) continue; // already re-anchored
+    // Both present is a document no write of ours produces whole: the move's
+    // filter is `kind: { $exists: false }`, so planning it would throw mid-run.
+    if (s.kind !== undefined && s.type !== undefined) {
+      refusals.push(`${s.slug}: carries both type and kind — unset one by hand (an interrupted write; its pre-image is in the backup)`);
+      continue;
+    }
     const type = s.type ?? "";
     if (type === ARTICLE_TYPE) {
       refusals.push(`${s.slug}: an article folds, it does not re-anchor — run the fold first`);
       continue;
     }
-    const kind = KIND_FOR_TYPE[type];
+    // hasOwn, not a bare lookup: a plain object answers `"constructor"` with a
+    // prototype function, and that is not a kind.
+    const kind = Object.hasOwn(KIND_FOR_TYPE, type) ? KIND_FOR_TYPE[type] : undefined;
     if (!kind) {
       refusals.push(`${s.slug}: type "${type}" has no kind — retype or delete it in the admin`);
       continue;
@@ -188,7 +200,8 @@ export function planReanchor(sprouts: LegacySprout[], garden: SproutGarden): Rea
       refusals.push(`${s.slug}: rolls up to two plants (${plants.join(", ")}) — a sprout belongs to one; split it in the admin`);
       continue;
     }
-    moves.push({ slug: s.slug, type, kind, about });
+    const dropped = (s.parents ?? []).filter((ref) => !ref.startsWith(BEAN_PREFIX));
+    moves.push({ slug: s.slug, type, kind, about, dropped });
   }
   return { moves, refusals };
 }
