@@ -244,6 +244,7 @@ test("garden.yml parses into a garden with only botanical prefixes", () => {
     ...(raw.beans ?? []).flatMap((b) => b.parents ?? []),
     ...(raw.plants ?? []).flatMap((p) => (p.relations ?? []).map((r) => r.ref)),
     ...(raw.sprouts ?? []).flatMap((s) => [
+      ...(s.about ?? []),
       ...(s.parents ?? []),
       ...(s.relations ?? []).map((r) => r.ref),
     ]),
