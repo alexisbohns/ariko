@@ -73,7 +73,8 @@ type Sprout = {
   date: string;                // YYYY-MM-DD, unchanged
   description: Text;
   about?: string[];            // "pod:…" / "bean:…" refs — the plant is DERIVED from them
-  parents?: [string];          // one "plant:…" ref, ONLY when `about` is empty
+  parents?: string[];          // one "plant:…" ref, ONLY when `about` is empty — typed as
+                               // the other tiers' `parents`, held to one by the writer
   relations?: Relation[];      // unchanged: embeds/mentions mirrored from prose
   state?: SproutState;         // unchanged
   content?: Text; media?; links?; source?; tags?;  // unchanged
@@ -162,11 +163,15 @@ plant/pod → parents) as well as into a sprout. `promotedTo` records either ref
   `?lang=` rule (`lib/edit-lang.ts`, `editorHalves`, `buildContentPatch` with a
   required `lang`). The Meta sheet is unchanged.
 - **Sprout page**: the `type` popover becomes a `kind` popover drawn as native
-  radios under the enum rule (Save disabled until the pick differs). A new
-  `about` panel in the entity rail lists the plant's pods and beans as
-  checkboxes, server-rendered by the page and handed down as a `ReactNode`, per
-  the rail rule. The sprout's plant is shown, not edited: moving a sprout
-  between plants is not a slice-one feature.
+  radios under the enum rule (Save disabled until the pick differs;
+  `lib/sprout-hero-a11y.test.ts` pins it). A new **About** panel on the entity
+  rail (`app/admin/_components/sprout-about-form.tsx`, mounted exactly as the
+  Meta and Danger panels are) lists the plant's pods and beans as checkboxes,
+  server-rendered by the page and handed down as a `ReactNode`, per the rail
+  rule; it posts to `setSproutAboutAction`, which validates through
+  `resolveAnchor` and writes through `updateSproutAnchor`. The sprout's plant
+  is shown, not edited: moving a sprout between plants is not a slice-one
+  feature.
 - **Create sprout** asks for the plant first, then `about`, then kind.
 - **Seed overlay**: a "Grow into a bean" action beside "Promote", posting to a
   new `promoteSeedToBeanAction` that writes through `createBean`.
@@ -181,17 +186,26 @@ plant/pod → parents) as well as into a sprout. `promotedTo` records either ref
   bean has no date — so an existing caller keeps working; slice two may turn it
   into a milestone entry in the bean's journal.
 - **Garden manifest** (`lib/garden-manifest.ts`, `plugins/garden-plant/`):
-  `bean.content` is accepted; `sprouts` move out of beans to a top-level list on
-  the pod (or plant), each with `kind` and an `about: [slugs]` list resolved
-  against the same file. Refused keys stay refused.
+  `bean.content` is accepted; a sprout names its `kind` (`type` is refused by
+  name, and so is `kind: digest` — machine-written) and the applier writes a
+  nested sprout as `about: ["bean:…"]`, never `parents`. Moving `sprouts` out of
+  beans to a top-level list on the pod (or plant), each with its own
+  `about: [slugs]` resolved against the same file, is **slice four**; until
+  then nesting is the shorthand for one ref. Refused keys stay refused.
 - **`/api/synthesis`** writes `kind: "digest"`; `/api/pollen/sync` unchanged.
   Mapping pollen `anchors.bean` to `about` is a later, separate decision.
 
 ## 4. Migration
 
-One script, `scripts/migrate-journal.ts`, dry-run by default, run once against
-production after a `mongodump`. It is idempotent: a sprout already carrying
-`kind` and a `plant:` parent is skipped.
+One script, `scripts/migrate-journal.ts`, in **two phases over one read** —
+phase one the article fold (step 2), phase two the re-anchor (steps 1 and 3)
+— dry-run by default, run once against production after a `mongodump`. It is
+idempotent: a sprout already carrying `kind` and no `type` is skipped. It
+refuses to write while **either** phase has a refusal, because a half-migrated
+garden — some sprouts on `kind`, some on `type` — renders two ways at once; so
+the two operator pre-steps (step 1's rooting and step 4's deletion) gate the
+fold as well as the re-anchor. Every rule is in `lib/journal-migration.ts`
+with its own tests; the script applies two plans.
 
 1. **Precondition.** Every sprout must resolve to exactly one plant through
    `bean → pod → plant` or `bean → plant`. The script lists the failures and
@@ -208,7 +222,11 @@ production after a `mongodump`. It is idempotent: a sprout already carrying
 3. **Re-anchor.** Every remaining sprout: `about = ["bean:<old parent>"]`,
    `parents` unset, `type` → `kind` by the table below, `type` unset. Step 1's
    resolution is what guarantees the derived plant exists afterwards.
-4. **Delete** the one `type: "bla"` test sprout (`Tentative`).
+4. **Delete** the one `type: "bla"` test sprout (`Tentative`) — **an operator
+   act, in the admin, before the script runs.** An unknown `type` is refused
+   by name with the remedy spelled out, never mapped to a default: the script
+   retypes nothing it was not told how to, and a refusal here blocks the fold
+   too (above).
 5. **Leave alone** the 29 empty Pebbles stub beans and the three empty
    `digest-*` beans. Deleting content is editorial.
 
@@ -220,8 +238,8 @@ production after a `mongodump`. It is idempotent: a sprout already carrying
 | essay | essay |
 | decision | decision |
 | digest | digest |
-| article | folded (step 2) |
-| anything else | refuse, list |
+| article | folded (step 2); one reaching the re-anchor is a refusal |
+| anything else | refused, by name — the operator retypes or deletes it |
 
 The script does not call `revalidateGarden()` (no request store, per the
 garden-plant rule); the deploy that ships it invalidates on first write.
@@ -255,8 +273,24 @@ so each gets a source or behaviour test on the day it lands:
   private plant.
 - `publishCascade` flips the plant and **not** the beans in `about`.
 - `kind` is validated against `lib/sprout-kind.ts`; a free string is refused.
-- `/sprout/[slug]` is in `lib/server-safe-source.test.ts`.
+- `/sprout/[slug]` is in `lib/server-safe-source.test.ts` (Part B, below).
 - The migration refuses on an unrooted sprout and on a bean that already has
   content.
+- A manifest sprout nested under a bean is written `about` that bean, never
+  under it; the top-level `sprouts` list with its own `about` is slice four.
+
+## Part B — the public surfaces
+
+The plan that shipped this spec's model (`plans/2026-10-10-journal-model.md`)
+is **Part A**: the vocabulary, `about` and the derived plant, the cascade
+changes, the admin surfaces, the doors and the migration. The public zone
+still renders what it did — the bean page through `narrativeFor` and
+`sproutsForBean` (now by `about`), both beanstalks with `kind` — and a sprout
+still has no page of its own. The §3 Public surfaces are the **next plan**:
+`/sprout/[slug]` (added to `lib/server-safe-source.test.ts` the day it is
+written), the plant, pod and bean journals, and deleting `articleFor` with
+the related-beans rail given a date source of its own. The §3 Doors sentence
+about top-level manifest sprouts and §6's nested-manifest refusal are slice
+four.
 - The garden manifest refuses a sprout nested under a bean (the old shape) with
   a message naming the new one.

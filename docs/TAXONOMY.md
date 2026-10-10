@@ -33,13 +33,13 @@ accident, [`POLLEN.md`](POLLEN.md) for the federation contract.
 │  a podcast,  │                 │  feature, an │            │  hangs from  │
 │  a product   │                 │  episode     │            │  the PLANT,  │
 └──────────────┘                 └──────┬───────┘            │  beside the  │
-                                        │ contains           │  beans       │
+                                        │ entries ABOUT it   │  beans       │
        a bean may skip the pod tier     ▼                    └──────────────┘
        and hang straight off a   ┌──────────────┐
        plant                     │  SPROUT      │   the fundamental unit:
-                                 │  a demo, a   │   one act of making, dated
-                                 │  V2, a post, │
-                                 │  a release   │   nothing hangs below it
+                                 │  a log, a    │   one dated journal entry
+                                 │  milestone,  │   about a bean or a pod;
+                                 │  a release   │   its plant is derived
                                  └──────────────┘
 
    ┌───────────────┐   ┌───────────────┐   ┌──────────────────────────────┐
@@ -51,10 +51,11 @@ accident, [`POLLEN.md`](POLLEN.md) for the federation contract.
    └───────────────┘   └───────────────┘   └──────────────────────────────┘
 ```
 
-**The spine is four tiers: `Plant → Pod → Bean → Sprout`.** Read it as a
-sentence: a *plant* is a project, a *pod* is a body of work inside it, a *bean*
-is one unit of that work, and a *sprout* is one dated act of making on that
-unit. The insight the whole model exists for is the last step — a bean
+**The spine is three contained tiers, `Plant → Pod → Bean`, and a journal
+about them.** Read it as a sentence: a *plant* is a project, a *pod* is a body
+of work inside it, a *bean* is one unit of that work, and a *sprout* is one
+dated entry **about** a bean or a pod — not contained by it, but anchored to
+it, with its plant derived from what it is about (§3.4). The insight the whole model exists for is the last step — a bean
 **evolves**: a song has a demo, a studio take and a live version; a feature has
 a POC, an MVP and a V2. The portfolio tells the story of that evolution rather
 than only its final state.
@@ -86,13 +87,20 @@ Two arrays carry edges, and the split is load-bearing rather than tidy:
 | means | **containment only** — "I am inside this" | everything else — "I point at this" |
 | direction | child declares its container | the declaring entity points outward |
 | shape | `string[]` of prefixed refs | `{ kind, ref }[]`, `kind` a free string |
-| examples | `["bean:felina"]` | `{ kind: "evolves-from", ref: "sprout:felina-0" }` |
+| examples | `["pod:celesta"]` | `{ kind: "evolves-from", ref: "sprout:felina-0" }` |
 | drives | privacy cascades, timeline grouping, page trees | the graph's non-containment edges, entity cards |
 | may point at | `plant:` `pod:` `bean:` only | any prefix, including `sprout:` |
 
 Nothing is ever contained *by* a sprout or a bee: containment stops at the
-sprout, which is why `sprout:` and `bee:` appear only in `relations[]` and as
+bean, which is why `sprout:` and `bee:` appear only in `relations[]` and as
 graph node ids.
+
+A sprout adds a third array, **`about[]`** — `pod:` and `bean:` refs naming what
+the entry is about. It is neither containment (a sprout is not *inside* a bean)
+nor a relation (it is authored and validated at the write door, where
+`relations[]` is machine-mirrored from prose and scrubbed). Its plant is derived
+from it; a sprout's own `parents[]` holds one `plant:` ref only when `about` is
+empty (§3.4). The graph draws it as `about` edges.
 
 **There is no referential integrity, by design.** A dangling ref — one whose
 target does not exist — is ignored everywhere rather than being an error:
@@ -203,41 +211,53 @@ a word floating over a photograph is a different design, and the same word on a
 pod card would name the wrong thing, so a pod borrowing a bean's cover takes the
 artwork without the word.
 
-### 3.4 Sprout — the act of making
+### 3.4 Sprout — the journal entry
 
-The fundamental unit. One dated thing that happened to a bean.
+The fundamental unit. One dated entry about a plant and the things in it.
 
 | field | rule |
 |---|---|
-| `type` | **free string**, not an enum — `song`, `feature`, `episode`, `milestone`, `article`, `digest`, … |
+| `kind` | **closed vocabulary** — `log \| milestone \| release \| essay \| decision \| digest` ([`lib/sprout-kind.ts`](../lib/sprout-kind.ts)) |
 | `date` | `YYYY-MM-DD`, validated by shape ([`lib/sprout-date.ts`](../lib/sprout-date.ts)) |
 | `state` | `draft \| private \| published`; **absent ⇒ not published** |
-| `parents[]` | `bean:` refs only |
+| `about[]` | `pod:` / `bean:` refs — what the entry is about; **the plant is derived from them**, and all must roll up to the same one |
+| `parents[]` | exactly one `plant:` ref, and **only when `about` is empty** — the plant-level entry with nothing to be about |
 | `content` | optional markdown, bilingual |
 | `media[]` | assets rendered in the body: `MediaImage` or `MediaEmbed` |
 | `links[]` | destinations, never framed inline |
 | `source` | provenance: `{ kind, url?, externalId?, capturedAt? }` |
-| `[key: string]` | flexible per-type properties |
+| `tags[]` | free sub-species (retrospective, learning, experiment), trimmed by shape |
 
-`type` has no vocabulary, and that is deliberate — but it still goes through a
-shape module ([`lib/sprout-type.ts`](../lib/sprout-type.ts)) that rejects
-surrounding whitespace as well as blankness. Three places compare `type` against
-a bare literal and none of them trims, so a stored `"digest "` draws identically
-to `"digest"` everywhere and is exempt from none of the three. That is the
-argument for a module for a field with no vocabulary: **the shape is
-load-bearing even when the value is free-form.**
+`kind` is a vocabulary and not a free string, and that is deliberate. It used to
+be a free `type` behind a shape module that trimmed it, because three places
+compared it against a bare literal: a stored `"digest "` drew identically to
+`"digest"` everywhere and was exempt from none of the digest's exemptions, so
+publishing it flipped a curated private bean public with nothing looking wrong.
+A closed vocabulary ends that class of bug at the type level — `isSproutKind`
+is exact, `shouldCascadePublish` keys on a member, and the admin draws the
+members as radios under the enum rule (§8). Sub-species live in `tags`.
 
-Two types carry behaviour:
+A sprout's **plant is derived, never stored**: `resolveSproutPlant` in
+[`lib/data.ts`](../lib/data.ts) follows each `about` ref up (bean → pod → plant,
+bean → plant, pod → plant) and answers a plant only when every ref lands on the
+same one — ambiguity is unresolvable, fail-closed, on every read. With `about`
+empty it reads the one `plant:` parent instead, and never both: the writer
+(`updateSproutAnchor`) sets one field and unsets the other, and the validator
+(`resolveAnchor`, [`lib/sprout-anchor.ts`](../lib/sprout-anchor.ts)) refuses a
+ref that is not a pod or a bean, a dangling one, and a set that rolls up to two
+plants, at both write doors. Moving a bean to another pod moves its entries
+with it, because nothing about them was ever copied.
 
-- **`digest`** — a weekly narration, written by machine (§6). Publishing one
-  marks review sign-off, not public exhibition, so it is the single exemption
-  from the upward publish cascade
-  ([`lib/sprout-edit.ts`](../lib/sprout-edit.ts)) and it is excluded from its own
-  bucketing so the digest never narrates itself.
-- **`article`** — what `POST /api/articles` USED to write, as a companion to each
-  bean it created. Since the journal model the door writes the bean's `content`
-  directly and creates no sprout; the 17 existing article sprouts are folded into
-  their beans by `npm run migrate:journal` (spec 2026-10-10-journal-model §4).
+One kind carries behaviour. **`digest`** is a weekly narration, written by
+machine (§6). Publishing one marks review sign-off, not public exhibition, so it
+is the single exemption from the publish cascade
+([`lib/sprout-edit.ts`](../lib/sprout-edit.ts)), it is excluded from its own
+bucketing so the digest never narrates itself, and the garden manifest refuses
+it by name — a machine-written kind has no business in a hand-written file. The
+former `article` type — what `POST /api/articles` used to write beside each bean
+— is gone: the door writes the bean's `content` directly, and the existing
+article sprouts fold into their beans in `npm run migrate:journal`'s first
+phase (spec 2026-10-10-journal-model §4).
 
 ### 3.5 Screen — one captured view
 
@@ -343,7 +363,7 @@ and the plant survives `filterPublic` ([`lib/beanstalk.ts`](../lib/beanstalk.ts)
 
 ---
 
-## 4. Visibility: two vocabularies, three cascades
+## 4. Visibility: two vocabularies, one cascade each way
 
 This is the part of the taxonomy that is a **security boundary**, so it is
 written as rules rather than as behaviour.
@@ -394,30 +414,29 @@ fail-closed direction.
 
 ### Cascade 2 — upward, at write time: `publishCascade`
 
-The mirror image. Publishing a sprout makes its bean parents public, their pod
-parents public, and those pods' plants public — so **a published sprout never
-dangles under a private parent**.
+The mirror image, and a short one. Publishing a sprout makes **its derived
+plant** public — the one `resolveSproutPlant` answers — and nothing else, so
+**a published sprout never dangles under a private plant**.
 
 ```
-publish sprout ──▶ bean(s) public ──▶ pod(s) public ──▶ plant(s) public
-                        └──────────── direct plant parents ─────┘
+publish sprout ──▶ resolveSproutPlant ──▶ that plant public
+                   (beans and pods in `about` untouched)
 ```
 
-It is pure and idempotent (it never consults current visibility), it ignores
-dangling refs exactly as `filterPublic` does, and it has **one exemption**:
-a `digest` sprout does not cascade, because digest beans and plants are curated
-private containers and publishing one is review sign-off, not exhibition.
+The beans and pods the entry is about are not flipped: a bean's visibility is
+editorial, and going public must not republish a feature held back on its own
+terms. A public sprout about a private bean keeps its place in the plant's
+journal with the door to the bean scrubbed (Cascade 1). It is pure and
+idempotent (it never consults current visibility), it ignores dangling refs
+exactly as `filterPublic` does, an ambiguous derivation names no plant (a
+publish must never *pick* one), and it has **one exemption**: a `digest` does
+not cascade, because publishing one is review sign-off, not exhibition.
 
-### Cascade 3 — downward recompute, at write time: `unpublishCascade`
-
-Un-publishing or deleting a sprout runs the inverse: a bean with no published
-sprout left flips private, a pod with no surviving public bean flips private, a
-plant with no surviving public pod **or** direct bean flips private. "Sheltered"
-is the operative word — a single surviving public child keeps a parent public.
-
-Callers that still have the sprout adapt through `unpublishCascade`; callers
-that no longer do (a delete) capture the bean parents *before* the write and
-evaluate `unpublishCascadeForBeans` against the post-write dataset.
+**There is no downward recompute.** The former `unpublishCascade` — a bean with
+no published sprout flipping private, and its pod and plant after it — is
+deleted with the journal model. A plant stays public once chosen; a bean with
+no published entry is simply a bean; un-publishing or deleting a sprout
+changes nothing but the sprout.
 
 ### The two rules that are not cascades
 
@@ -436,8 +455,9 @@ decision: `loadRawGarden` ([`lib/store.ts`](../lib/store.ts)) is live;
 `loadCachedGarden` ([`lib/garden-cache.ts`](../lib/garden-cache.ts)) is behind
 Next's Data Cache under the `garden` tag. **Every server action reads live**,
 because it re-reads after writing so the cascade sees the just-saved state — a
-cached read there computes the cascade against the pre-write garden and produces
-a published sprout whose bean silently stays private.
+cached read there derives the sprout's plant from the pre-write garden, and a
+sprout just re-anchored and published flips the plant it left while the one it
+now belongs to silently stays private.
 
 ---
 
@@ -450,17 +470,18 @@ a question two pages could otherwise answer differently.
 | derivation | rule | where |
 |---|---|---|
 | **A bean's plant** | a direct `plant:` parent wins; otherwise the first resolvable pod's first plant | `Dataset.plantForBean` |
+| **A sprout's plant** | the one plant every `about` ref rolls up to (bean → pod → plant, bean → plant, pod → plant); with `about` empty, its one `plant:` parent; two plants or none ⇒ `null`, fail-closed | `resolveSproutPlant`, [`lib/data.ts`](../lib/data.ts) |
 | **A bean's cover** | explicit `Bean.cover` wins; otherwise the first `MediaImage` in the first sprout that has one (newest-first) | [`lib/bean-cover.ts`](../lib/bean-cover.ts) over [`lib/cover.ts`](../lib/cover.ts) |
 | **A bean's narrative** | the bean's own `content` when it carries one; otherwise, until slice two of the journal model, the first sprout carrying non-blank `content`, newest-first | `narrativeFor`, [`lib/article.ts`](../lib/article.ts) |
 | **A pod's cover** | borrowed from its first bean that can offer one — the artwork, never the `keyword` | `podCoverFrom` |
 | **A plant's bean set** | beans parented directly to the plant **plus** the beans of each of its pods, deduped | [`lib/plant-hub.ts`](../lib/plant-hub.ts) |
-| **The timeline** | every sprout with its bean and that bean's plant, newest first | `Dataset.timelineSprouts` |
+| **The timeline** | every sprout with the first bean it is about and its derived plant, newest first | `Dataset.timelineSprouts` |
 | **The beanstalk** | the timeline **unioned with exhibited pollen**, newest first by date part, authored material winning ties | [`lib/beanstalk.ts`](../lib/beanstalk.ts) |
 | **Lineage** | the climb from an entity to its plant, rendered as the parenting chrome; the garden is a *parameter*, never loaded inside | [`lib/lineage.ts`](../lib/lineage.ts) |
 | **Related beans** | pod siblings first, topped up from the plant, never a bean with nothing written under it | [`lib/related-beans.ts`](../lib/related-beans.ts) |
 | **The exhibition strip** | screens with `exhibited === true`, sorted once, `order` absent ⇒ last | `Dataset.exhibitionForPlant` |
 | **Entity refs in prose** | `::entity{ref=bean:karma}` (block) and `:entity[label]{ref=plant:paulopus}` (inline) are extracted at **write** time and mirrored into `relations[]` under the kinds `embeds` / `mentions` — derived state, re-derived on every write, so the graph reads stored refs and never parses prose | [`lib/entity-refs.ts`](../lib/entity-refs.ts) |
-| **The graph** | every species becomes a node (`kind:slug`); containment becomes `contains` edges, relations become their own kinds, a bee's `serves[]` becomes `serves` | [`lib/graph.ts`](../lib/graph.ts) |
+| **The graph** | every species becomes a node (`kind:slug`); containment becomes `contains` edges, a sprout's `about[]` becomes `about` edges, relations become their own kinds, a bee's `serves[]` becomes `serves` | [`lib/graph.ts`](../lib/graph.ts) |
 
 Two of these earn a note. `narrativeFor` and `coverFor` deliberately **do not
 re-check state** — the public page hands them a `filterPublic`-projected dataset,
@@ -482,9 +503,9 @@ Nine doors, and the taxonomy is partly *defined* by which of them may publish.
 | `/admin/triage/[id]` | a seed → a sprout, optionally creating its bean | yes, via the enum rule |
 | `POST /api/inbox` | a **seed** (dedup on `source.externalId`) | no — seeds are never public |
 | `POST /api/articles` | a **private bean** per article carrying its `content` as the bean's narrative (no companion sprout), plus an optional container narrative | no — `state` is refused on the raw object, whatever its value, and a public bean is refused |
-| `POST /api/synthesis` | `digest`-type draft sprouts under curated `digest-*` / `weekly-wrap` beans that must already exist | no |
+| `POST /api/synthesis` | draft sprouts of `kind: digest`, each `about` its curated `digest-*` / `weekly-wrap` bean, which must already exist (the wire still says `parents`) | no |
 | `POST /api/pollen/sync` | pollen docs, cursors, refusals — and **projected beans** | no — an envelope's `"public"` is a hint, `"private"` is binding |
-| `npm run garden:plant` | a pod, its beans and their sprouts, from a sibling repo's `garden.yml` | **no, by refusal** — `visibility`, `state`, `exhibited` and `order` are *refused* keys, not ignored ones |
+| `npm run garden:plant` | a pod, its beans and the entries about them, from a sibling repo's `garden.yml` — a nested sprout is written `about` its bean, with its `kind:` a member of the vocabulary | **no, by refusal** — `visibility`, `state`, `exhibited` and `order` are *refused* keys, not ignored ones; so are `type` (not a key any more) and `kind: digest` (machine-written) |
 | `npm run migrate` | the whole garden from [`data/garden.yml`](../data/garden.yml) | seed data, as authored |
 | `npm run import:screens` / `import:casa` | screens and media, skipping what already exists | no — screens are private at birth |
 
@@ -531,8 +552,13 @@ site entirely rather than moving somewhere else.
 Stated positively, because each of these is a thing someone will reasonably
 propose, and each has an answer:
 
-- **Nothing is contained by a sprout.** Containment stops at the fourth tier. If
-  a sprout needs to point at something, that is `relations[]`.
+- **Nothing is contained by a sprout, and a sprout is contained by nothing but
+  its plant.** Containment stops at the bean; an entry is *about* a bean or a
+  pod (`about[]`), and if it needs to point at anything else, that is
+  `relations[]`.
+- **A sprout's plant is never written.** It is derived from `about` on every
+  read, and a sprout that would resolve to two plants is refused at the door
+  rather than stored and guessed at later.
 - **A bean's narrative is not versioned.** A bean carries one `content`,
   rewritten in place; a different version of a feature is a sibling bean, and
   the dated, stateful record of the work is a sprout.
@@ -547,7 +573,7 @@ propose, and each has an answer:
   would not: a manifest is prose plus references, and a bare mention of a name
   two entities answer to is ambiguous to whoever edits the file next.
 - **No enum is written by the click that opens it.** A plant's `status` and
-  `visibility`, a sprout's `state` and a bean's `visibility` each open as a list
+  `visibility`, a sprout's `state` and `kind`, and a bean's `visibility` each open as a list
   of native radios with a Save button disabled until the pick differs from what
   is stored. A one-click flip was the first shape tried and the wrong one: a
   stray click on the globe unpublishes a project, and the undo is another stray
@@ -555,6 +581,6 @@ propose, and each has an answer:
 
 ---
 
-*Types: [`lib/data.ts`](../lib/data.ts). Projection and cascades: same file,
-`filterPublic` / `publishCascade` / `unpublishCascade`. Slice histories:
+*Types: [`lib/data.ts`](../lib/data.ts). Projection, derivation and cascade:
+same file, `filterPublic` / `resolveSproutPlant` / `publishCascade`. Slice histories:
 [`superpowers/specs/`](superpowers/specs/).*
