@@ -1,6 +1,6 @@
 import {
   BEAN_PREFIX, BEE_PREFIX, PLANT_PREFIX, POD_PREFIX, SPROUT_PREFIX,
-  byDateDesc, parentsWithPrefix, resolveText, type Bean, type PlantNature, type RawGarden, type Sprout, type Text,
+  aboutRefs, byDateDesc, parentsWithPrefix, resolveText, type Bean, type PlantNature, type RawGarden, type Sprout, type Text,
 } from "./data";
 import { fillCoverFor } from "./bean-cover";
 import { isHttpUrl } from "./url";
@@ -37,16 +37,16 @@ export interface GraphNode {
   // Absent means the author wrote none: `alt=""`, never a fabricated sentence.
   cover?: { url: string; alt?: string; width?: number; height?: number };
   natures?: PlantNature[]; // plants only
-  type?: string; // sprouts (sprout.type) and bees (bee.kind)
+  type?: string; // sprouts (sprout.kind) and bees (bee.kind)
   date?: string; // sprouts only
   status?: string; // bees only
   tags?: string[]; // content kinds (never bees), only when non-empty
 }
 
 export interface GraphEdge {
-  source: string; // containment: container node id; relation: the declaring plant's or sprout's node id; serves: the bee's node id
-  target: string; // containment: contained node id; relation: rel.ref; serves: the served plant ref (all prefixed node ids)
-  kind: string; // "contains" for containment; relation kinds are free strings (G2); "serves" for bee edges
+  source: string; // containment: container node id; about: the pod's or bean's node id; relation: the declaring plant's or sprout's node id; serves: the bee's node id
+  target: string; // containment: contained node id; about: the sprout's node id; relation: rel.ref; serves: the served plant ref (all prefixed node ids)
+  kind: string; // "contains" for containment; "about" for a sprout's refs; relation kinds are free strings (G2); "serves" for bee edges
 }
 
 export interface Graph {
@@ -58,15 +58,19 @@ export interface Graph {
 // a derived cover (media slice — the route composes filterPublic, so a
 // serialized node is already public HTML): no content/raw media/source/
 // levers/serves. tags and description only when non-empty. Edges: containment derived from parents[] (plant→pod,
-// plant→bean, pod→bean, bean→sprout), then relation edges — plant relations,
-// sprout relations (G2) with their kinds passed through, then bee serves —
-// every edge emitted only when BOTH ends exist as nodes in the given seed
+// plant→bean, pod→bean, and plant→sprout for the plant-level entry), then a
+// sprout's about edges (pod→sprout, bean→sprout, kind "about" — the journal
+// model, spec 2026-10-10 §1.2: an entry is ABOUT the things it names and is
+// contained by nothing but its derived plant), then relation edges — plant
+// relations, sprout relations (G2) with their kinds passed through, then bee
+// serves — every edge emitted only when BOTH ends exist as nodes in the given seed
 // (prune, don't cascade — dangling refs silently drop, matching every existing
 // read path; for projected seeds this is belt-and-braces on top of
 // filterPublic's scrub). Duplicate (source, target, kind) triples dedupe — the
 // same pair may carry several kinds. Deterministic: nodes in input order
 // (plants, pods, beans, sprouts, bees); containment edges in child input
-// order, then relation edges in declarer-then-declaration order.
+// order, a sprout's about edges in the order its about[] names them, then
+// relation edges in declarer-then-declaration order.
 export function toGraph(raw: RawGarden): Graph {
   const plants = raw.plants ?? [];
   const pods = raw.pods ?? [];
@@ -78,10 +82,11 @@ export function toGraph(raw: RawGarden): Graph {
   // (byDateDesc, exported from lib/data.ts for exactly this), because that is
   // the ordering coverFor documents that it expects (and which fillCoverFor
   // passes straight through when it falls back to it). toGraph serializes a
-  // RawGarden and has no Dataset to borrow it from.
+  // RawGarden and has no Dataset to borrow it from. A sprout is under a bean
+  // when its about[] names it — parents[] holds a plant, never a bean.
   const sproutsByBean = new Map<string, Sprout[]>();
   for (const sprout of sprouts) {
-    for (const slug of parentsWithPrefix(sprout.parents, BEAN_PREFIX)) {
+    for (const slug of parentsWithPrefix(aboutRefs(sprout), BEAN_PREFIX)) {
       const list = sproutsByBean.get(slug) ?? [];
       list.push(sprout);
       sproutsByBean.set(slug, list);
@@ -124,7 +129,7 @@ export function toGraph(raw: RawGarden): Graph {
     ),
     ...sprouts.map((v) =>
       decorate(
-        { id: SPROUT_PREFIX + v.slug, kind: "sprout" as const, name: resolveText(v.name), type: v.type, date: v.date },
+        { id: SPROUT_PREFIX + v.slug, kind: "sprout" as const, name: resolveText(v.name), type: v.kind, date: v.date },
         v,
       ),
     ),
@@ -167,9 +172,25 @@ export function toGraph(raw: RawGarden): Graph {
       if (podSlugs.has(slug)) addEdge(POD_PREFIX + slug, BEAN_PREFIX + bean.slug, "contains");
     }
   }
+  // A sprout's edges follow the derivation in lib/data.ts (resolveSproutPlants):
+  // its about[] refs, in the author's order, each an "about" edge from the pod
+  // or bean it names — and parents[] is read ONLY when about[] is empty, so a
+  // stale plant ref beside a real about never becomes a second source of
+  // truth here either. Only then is the sprout CONTAINED, by its plant: the
+  // plant-level entry with no feature to hang on.
   for (const sprout of sprouts) {
-    for (const slug of parentsWithPrefix(sprout.parents, BEAN_PREFIX)) {
-      if (beanSlugs.has(slug)) addEdge(BEAN_PREFIX + slug, SPROUT_PREFIX + sprout.slug, "contains");
+    const target = SPROUT_PREFIX + sprout.slug;
+    const about = aboutRefs(sprout);
+    for (const ref of about) {
+      if (ref.startsWith(BEAN_PREFIX)) {
+        if (beanSlugs.has(ref.slice(BEAN_PREFIX.length))) addEdge(ref, target, "about");
+      } else if (ref.startsWith(POD_PREFIX)) {
+        if (podSlugs.has(ref.slice(POD_PREFIX.length))) addEdge(ref, target, "about");
+      }
+    }
+    if (about.length > 0) continue;
+    for (const slug of parentsWithPrefix(sprout.parents, PLANT_PREFIX)) {
+      if (plantSlugSet.has(slug)) addEdge(PLANT_PREFIX + slug, target, "contains");
     }
   }
 
