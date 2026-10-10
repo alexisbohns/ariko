@@ -19,6 +19,8 @@ import {
 } from "./data";
 import type { SproutInput } from "./promote";
 import type { SproutMetaPatch } from "./sprout-meta";
+import type { SproutKind } from "./sprout-kind";
+import type { SproutAnchor } from "./sprout-anchor";
 import type { ContentPatch } from "./content-edit";
 import { plantMetaUpdate, type PlantMetaPatch } from "./plant-meta";
 import { screenMetaUpdate, type ScreenMetaPatch } from "./screen-edit";
@@ -681,7 +683,7 @@ export async function updateSproutMeta(slug: string, patch: SproutMetaPatch): Pr
  * The narrowest writer in this file, and the most consequential: it is the
  * field `filterPublic` reads to decide whether a sprout is on the public site
  * at all, and the field whose transition `setSproutStateAction` runs the
- * publish and unpublish cascades around. It writes one key so that the cascade
+ * publish cascade around. It writes one key so that the cascade
  * in the action above it is reasoning about exactly one change.
  */
 export async function updateSproutState(slug: string, state: SproutState): Promise<void> {
@@ -703,16 +705,28 @@ export async function updateSproutDate(slug: string, date: string): Promise<void
 }
 
 /**
- * A sprout's type — and nothing else. A sibling of `updateSproutState`.
- *
- * The value is free-form but not shapeless: nothing validates it against a
- * vocabulary, because there isn't one (`lib/sprouts.ts` filters by state, plant
- * and tag and never by type), while `lib/sprout-type.ts` records what renders
- * it and what three `===` comparisons do with a padded one, and
- * `setSproutTypeAction` is the door that enforces it. Nothing checks it here —
- * this writer is reached only through that action.
+ * A sprout's kind — and nothing else. A sibling of `updateSproutState`. The
+ * value is a NAMED MEMBER of `lib/sprout-kind.ts`, re-validated by
+ * `setSproutKindAction` before it reaches here; nothing checks it here.
  */
-export async function updateSproutType(slug: string, type: string): Promise<void> {
+export async function updateSproutKind(slug: string, kind: SproutKind): Promise<void> {
   const db = await getDb();
-  await db.collection<Sprout>("sprouts").updateOne({ slug }, { $set: { type } });
+  await db.collection<Sprout>("sprouts").updateOne({ slug }, { $set: { kind } });
+}
+
+/**
+ * Where a sprout hangs (`lib/sprout-anchor.ts`). ONE write that sets one field
+ * and unsets the other, so no sprout ever carries both `about` and `parents`
+ * — the invariant the derivation (`resolveSproutPlants`) relies on to ignore
+ * `parents` whenever `about` is present. Validation (every ref exists, all
+ * roll up to one plant) is `resolveAnchor`'s, at the door; nothing checks it
+ * here.
+ */
+export async function updateSproutAnchor(slug: string, anchor: SproutAnchor): Promise<void> {
+  const db = await getDb();
+  const update: UpdateFilter<Sprout> =
+    "about" in anchor
+      ? { $set: { about: anchor.about }, $unset: { parents: "" } }
+      : { $set: { parents: [`${PLANT_PREFIX}${anchor.plant}`] }, $unset: { about: "" } };
+  await db.collection<Sprout>("sprouts").updateOne({ slug }, update);
 }

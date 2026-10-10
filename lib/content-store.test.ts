@@ -5,6 +5,8 @@ import {
   updatePlantContent,
   updatePodContent,
   updateBeanContent,
+  updateSproutAnchor,
+  updateSproutKind,
 } from "./botanical";
 import { closeDb, getDb } from "./db";
 
@@ -24,10 +26,10 @@ test("a content write touches content and relations and NOTHING else", { skip: !
   await db.collection("sprouts").insertOne({
     slug: "__test__s",
     name: "S",
-    type: "article",
+    kind: "milestone",
     date: "2026-08-23",
     description: "keep me",
-    parents: ["bean:__test__b"],
+    about: ["bean:__test__b"],
     state: "published",
     media: [{ kind: "image", storageKey: "k", url: "https://e.com/i.png" }],
     source: { kind: "manual" },
@@ -45,8 +47,8 @@ test("a content write touches content and relations and NOTHING else", { skip: !
   // The fields a content save must never disturb (spec §9 acceptance).
   assert.equal(stored?.state, "published");
   assert.equal(stored?.description, "keep me");
-  assert.equal(stored?.type, "article");
-  assert.deepEqual(stored?.parents, ["bean:__test__b"]);
+  assert.equal(stored?.kind, "milestone");
+  assert.deepEqual(stored?.about, ["bean:__test__b"]);
   assert.equal((stored?.media as unknown[])?.length, 1);
   assert.deepEqual(stored?.source, { kind: "manual" });
 });
@@ -101,6 +103,42 @@ test("the container writers reach plants and pods, leaving visibility alone", { 
   assert.equal(plant?.description, "d");
   assert.equal(pod?.content, "pod prose");
   assert.equal(pod?.visibility, "private");
+});
+
+test("updateSproutAnchor writes about and unsets parents, or writes a plant parent and unsets about", { skip: !hasDb }, async (t) => {
+  t.after(cleanup);
+  const db = await getDb();
+  await db.collection("sprouts").insertOne({
+    slug: "__test__anchor", name: "S", kind: "log", date: "2026-10-10", description: "",
+    parents: ["plant:__test__p"], state: "draft", media: [], source: { kind: "manual" },
+  });
+
+  await updateSproutAnchor("__test__anchor", { about: ["bean:__test__b", "pod:__test__pod"] });
+  let doc = await db.collection("sprouts").findOne({ slug: "__test__anchor" }, { projection: { _id: 0 } });
+  assert.deepEqual(doc!.about, ["bean:__test__b", "pod:__test__pod"]);
+  assert.equal("parents" in doc!, false);
+
+  await updateSproutAnchor("__test__anchor", { plant: "__test__p2" });
+  doc = await db.collection("sprouts").findOne({ slug: "__test__anchor" }, { projection: { _id: 0 } });
+  assert.deepEqual(doc!.parents, ["plant:__test__p2"]);
+  assert.equal("about" in doc!, false);
+  // Everything else untouched.
+  assert.equal(doc!.state, "draft");
+  assert.equal(doc!.kind, "log");
+});
+
+test("updateSproutKind writes kind and nothing else", { skip: !hasDb }, async (t) => {
+  t.after(cleanup);
+  const db = await getDb();
+  await db.collection("sprouts").insertOne({
+    slug: "__test__kind", name: "S", kind: "log", date: "2026-10-10", description: "",
+    about: ["bean:__test__b"], state: "private", media: [], source: { kind: "manual" },
+  });
+  await updateSproutKind("__test__kind", "decision");
+  const doc = await db.collection("sprouts").findOne({ slug: "__test__kind" }, { projection: { _id: 0 } });
+  assert.equal(doc!.kind, "decision");
+  assert.equal(doc!.state, "private");
+  assert.deepEqual(doc!.about, ["bean:__test__b"]);
 });
 
 // Release the cached Mongo connection so the runner exits instead of hanging
