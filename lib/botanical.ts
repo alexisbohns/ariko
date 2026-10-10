@@ -582,9 +582,10 @@ export async function updateBeanMeta(slug: string, patch: BeanMetaPatch): Promis
  * Writes a bean's visibility — and nothing else.
  *
  * NO CASCADE, in either direction, and that is `updatePlantVisibility`'s
- * argument one tier down. Downward privacy is a READ-time projection —
- * `filterPublic` drops a private bean's sprouts with it — so going private needs
- * no write beneath. And going public must not silently republish sprouts that
+ * argument one tier down. Going private needs no write beneath because a
+ * bean's sprouts are no longer tied to its visibility at all: they hang on the
+ * plant, and `filterPublic` scrubs the bean out of their `about` at read time
+ * (spec 2026-10-10 §2). And going public must not silently republish sprouts that
  * were held back on their own terms: a sprout's `state` is the thing that
  * cascades UPWARD, and this flip must not be able to run that machinery
  * backwards.

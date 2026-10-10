@@ -58,21 +58,6 @@ test("filterPublic never leaks a draft, private, or stateless sprout", () => {
   }
 });
 
-// Under the journal model a private bean no longer takes its sprouts with it —
-// a published sprout about a private bean under a PUBLIC plant is kept with
-// the door scrubbed (see the `about` tests below). With no plant anywhere, the
-// sprout's refs roll up to nothing and it drops, fail-closed.
-test("filterPublic drops a published sprout about a private bean that rolls up to no plant", () => {
-  const seed: RawGarden = {
-    pods: [{ slug: "m", name: "M", description: "" }],
-    beans: [{ slug: "a-priv", name: "A", parents: ["pod:m"], visibility: "private" }],
-    sprouts: [{ slug: "v", name: "V", kind: "milestone", date: "2026-01-01", description: "", about: ["bean:a-priv"], state: "published" }],
-  };
-  const out = filterPublic(seed);
-  assert.deepEqual((out.beans ?? []).map((a) => a.slug), []);
-  assert.deepEqual((out.sprouts ?? []).map((v) => v.slug), []);
-});
-
 test("filterPublic drops an bean whose only pod-parent is private (no standalone leak)", () => {
   const seed: RawGarden = {
     pods: [{ slug: "m-priv", name: "M", description: "", visibility: "private" }],
@@ -82,15 +67,6 @@ test("filterPublic drops an bean whose only pod-parent is private (no standalone
   const out = filterPublic(seed);
   assert.deepEqual((out.pods ?? []).map((m) => m.slug), []);
   assert.deepEqual((out.beans ?? []).map((a) => a.slug), []);
-});
-
-test("filterPublic drops a published sprout whose bean is cascaded out and rolls up to no plant", () => {
-  const seed: RawGarden = {
-    pods: [{ slug: "m-priv", name: "M", description: "", visibility: "private" }],
-    beans: [{ slug: "a", name: "A", parents: ["pod:m-priv"] }],
-    sprouts: [{ slug: "v", name: "V", kind: "milestone", date: "2026-01-01", description: "", about: ["bean:a"], state: "published" }],
-  };
-  assert.deepEqual((filterPublic(seed).sprouts ?? []).map((v) => v.slug), []);
 });
 
 test("filterPublic keeps a multi-parent bean if at least one pod-parent is public", () => {
@@ -507,7 +483,10 @@ test("the exhibition is the seam: privacy drops a screen, the opt-in selects one
 
 // --- The journal model (spec 2026-10-10 §2): a sprout's plant is DERIVED from
 // its `about`, the derivation decides whether it survives, and `about` is
-// scrubbed like `relations`.
+// scrubbed like `relations`. A private bean no longer takes its sprouts with
+// it — a published sprout about a private bean under a PUBLIC plant is kept
+// with the door scrubbed. With no public plant to roll up to, it drops,
+// fail-closed.
 
 test("filterPublic keeps a published sprout whose DERIVED plant is public, through a bean or a pod", () => {
   const seed: RawGarden = {
@@ -556,6 +535,7 @@ test("filterPublic keeps a sprout about a PRIVATE bean under a PUBLIC plant, and
       { slug: "s", name: "S", kind: "log", date: "2026-01-01", description: "", about: ["bean:b-priv", "bean:b-pub", "pod:pod", "bean:gone"], state: "published" },
       { slug: "untouched", name: "S", kind: "log", date: "2026-01-02", description: "", about: ["bean:b-pub"], state: "published" },
       { slug: "no-about", name: "S", kind: "log", date: "2026-01-03", description: "", parents: ["plant:p"], state: "published" },
+      { slug: "only-private", name: "S", kind: "log", date: "2026-01-04", description: "", about: ["bean:b-priv"], state: "published" },
     ],
   };
   const out = filterPublic(seed).sprouts ?? [];
@@ -566,6 +546,28 @@ test("filterPublic keeps a sprout about a PRIVATE bean under a PUBLIC plant, and
   assert.equal(out.find((x) => x.slug === "untouched")!.about, seed.sprouts![1].about);
   // Absent stays absent — never materialize [].
   assert.equal("about" in out.find((x) => x.slug === "no-about")!, false);
+});
+
+test("filterPublic re-anchors a sprout whose about scrubs to nothing on its derived plant, so the public dataset still files it", () => {
+  // The plant is derived against the RAW garden, once, and carried to the
+  // scrub. Left as `about: []` with no `parents`, the public dataset would
+  // derive no plant for this sprout and it would fall out of the plant's
+  // journal — the private door taking the entry with it by another route.
+  const seed: RawGarden = {
+    plants: [{ slug: "p", name: "P", natures: ["work"], role: { kind: "owner" }, description: "" }],
+    pods: [{ slug: "pod", name: "Pod", description: "", parents: ["plant:p"] }],
+    beans: [{ slug: "b-priv", name: "B", parents: ["pod:pod"], visibility: "private" }],
+    sprouts: [
+      { slug: "only-private", name: "S", kind: "log", date: "2026-01-04", description: "", about: ["bean:b-priv"], state: "published" },
+    ],
+  };
+  const pub = filterPublic(seed);
+  const s = (pub.sprouts ?? []).find((x) => x.slug === "only-private");
+  assert.ok(s, "kept: its derived plant is public");
+  assert.equal("about" in s, false);
+  assert.deepEqual(s.parents, ["plant:p"]);
+  assert.deepEqual(buildDataset(pub).sproutsForPlant("p").map((x) => x.slug), ["only-private"]);
+  assert.deepEqual(seed.sprouts![0].about, ["bean:b-priv"]); // pure
 });
 
 test("filterPublic tolerates a malformed about from a direct DB write (non-array → [], non-strings dropped)", () => {
