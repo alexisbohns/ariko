@@ -176,6 +176,15 @@ export interface Bean {
   name: Text; // bilingual since B1; plain strings remain valid (no migration)
   parents: string[]; // containment ONLY: "pod:…" and/or "plant:…" refs — a bean may skip the pod tier
   description?: Text; // optional — every existing bean predates it (slice 2); Pod/Plant require theirs
+  /**
+   * The bean's narrative: what the feature is now and how it got there, one
+   * body rewritten in place — never versioned, never appended (spec
+   * 2026-10-10-journal-model §1.1). States of a feature are told here and
+   * dated by its journal; a different version of a feature is a sibling bean.
+   */
+  content?: Text;
+  /** Mirrored from `content` by buildContentPatch, scrubbed by filterPublic — the pod's rule. */
+  relations?: Relation[];
   visibility?: Visibility; // default treated as "public"
   tags?: string[];
   /**
@@ -577,7 +586,7 @@ export function filterPublic(raw: RawGarden): RawGarden {
   const podExists = new Set(rawPods.map((p) => p.slug));
   const podKept = new Set(keptPods.map((p) => p.slug));
 
-  const beans = rawBeans.filter(
+  const keptBeans = rawBeans.filter(
     (b) =>
       b.visibility !== "private" &&
       !allExistingParentsFiltered(b.parents, [
@@ -586,7 +595,7 @@ export function filterPublic(raw: RawGarden): RawGarden {
       ]),
   );
   const beanExists = new Set(rawBeans.map((b) => b.slug));
-  const beanKept = new Set(beans.map((b) => b.slug));
+  const beanKept = new Set(keptBeans.map((b) => b.slug));
 
   // Screens sit BESIDE beans rather than under them: the plant is the only tier
   // above a screen, so this is the bean's rule with one entry in the tier list
@@ -635,6 +644,10 @@ export function filterPublic(raw: RawGarden): RawGarden {
   // pod relations (that's a separate feature/decision); this scrub exists so
   // the data is already safe by construction whenever that decision is made.
   const pods = keptPods.map((p) => scrubRelations(p, refSurvives));
+  // A bean's narrative mirrors refs into relations[] through the same
+  // buildContentPatch a pod's does, so it gets the same scrub, below
+  // refSurvives for the same reason.
+  const beans = keptBeans.map((b) => scrubRelations(b, refSurvives));
   // A screen's relations point at beans (the `{ kind: "cover" }` link the
   // import writes) and will point at sprouts, so this scrub belongs BELOW the
   // kept-sprout set for the reason stated above it, not merely beside the
