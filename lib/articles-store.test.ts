@@ -411,6 +411,55 @@ test(
   },
 );
 
+test("a bean: container takes a narrative; public-with-prose and projected beans are refused", { skip: !hasDb }, async (t) => {
+  t.after(cleanup);
+  const db = await getDb();
+  await db.collection("beans").insertOne({
+    slug: "__test__bean",
+    name: "Bean",
+    parents: ["plant:__test__p"],
+    visibility: "private",
+  });
+
+  const first = await writeArticles({
+    container: "bean:__test__bean",
+    narrative: { en: "hello :entity[other]{ref=bean:__test__other}" },
+  });
+  assert.deepEqual(first, { ok: true, written: 0, narrative: true });
+
+  const bean = await db.collection("beans").findOne({ slug: "__test__bean" });
+  assert.equal(bean?.content?.en, "hello :entity[other]{ref=bean:__test__other}");
+  assert.ok(Array.isArray(bean?.relations));
+  assert.ok(
+    bean!.relations.some((r: { kind: string; ref: string }) => r.kind === "mentions" && r.ref === "bean:__test__other"),
+    JSON.stringify(bean!.relations),
+  );
+  // This door publishes nothing: the bean stays as private as it was born.
+  assert.equal(bean?.visibility, "private");
+
+  // Once a human has published it, its prose is reviewed work — refused, and
+  // honored on disk, exactly as a plant or pod would be.
+  await db.collection("beans").updateOne({ slug: "__test__bean" }, { $set: { visibility: "public" } });
+  const second = await writeArticles({ container: "bean:__test__bean", narrative: "rewrite" });
+  assert.deepEqual(second, { ok: false, refused: ["bean:__test__bean"] });
+  const after = await db.collection("beans").findOne({ slug: "__test__bean" });
+  assert.equal(after?.content?.en, "hello :entity[other]{ref=bean:__test__other}");
+
+  // A projected bean is machine-owned and rebuildable from its feed; a
+  // narrative written onto it would be lost on the next rebuild.
+  await db.collection("beans").insertOne({
+    slug: "__test__projected",
+    name: "Projected",
+    parents: ["plant:__test__p"],
+    visibility: "private",
+    projected: { source: "arkaik", feedId: "feed-1", firstPollenId: "p-1" },
+  });
+  const third = await writeArticles({ container: "bean:__test__projected", narrative: "hello" });
+  assert.deepEqual(third, { ok: false, refused: ["bean:__test__projected (projected)"] });
+  const projected = await db.collection("beans").findOne({ slug: "__test__projected" });
+  assert.equal(projected?.content, undefined);
+});
+
 test.after(async () => {
   if (hasDb) await closeDb();
 });

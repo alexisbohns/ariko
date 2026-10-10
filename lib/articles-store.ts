@@ -7,7 +7,16 @@
 // synthesis-store.ts — pre-check every refusal before writing anything.
 
 import { getDb } from "./db";
-import { resolveText, PLANT_PREFIX, POD_PREFIX, type Bean, type Plant, type Pod, type Sprout } from "./data";
+import {
+  resolveText,
+  BEAN_PREFIX,
+  PLANT_PREFIX,
+  POD_PREFIX,
+  type Bean,
+  type Plant,
+  type Pod,
+  type Sprout,
+} from "./data";
 import { extractRefs, mergeMirrored } from "./entity-refs";
 import { sproutSlugFor, type ArticlesPayload } from "./articles";
 
@@ -16,10 +25,12 @@ export type WriteResult =
   | { ok: false; refused: string[] };
 
 // container ref -> { collection, slug }. Validated upstream by
-// validateArticlesPayload, so the prefix is guaranteed to be one of the two.
-function resolveContainer(ref: string): { collection: "plants" | "pods"; slug: string } {
+// validateArticlesPayload, so the prefix is guaranteed to be one of the three
+// (and a bean: container is guaranteed to carry no articles).
+function resolveContainer(ref: string): { collection: "plants" | "pods" | "beans"; slug: string } {
   if (ref.startsWith(PLANT_PREFIX)) return { collection: "plants", slug: ref.slice(PLANT_PREFIX.length) };
-  return { collection: "pods", slug: ref.slice(POD_PREFIX.length) };
+  if (ref.startsWith(POD_PREFIX)) return { collection: "pods", slug: ref.slice(POD_PREFIX.length) };
+  return { collection: "beans", slug: ref.slice(BEAN_PREFIX.length) };
 }
 
 // Mongo-side mirror of the JS refusal condition
@@ -61,12 +72,20 @@ export async function writeArticles(payload: ArticlesPayload): Promise<WriteResu
 
   if (payload.narrative !== undefined) {
     const container = await db
-      .collection<Plant | Pod>(collection)
-      .findOne({ slug: containerSlug }, { projection: { _id: 0, visibility: 1, content: 1 } });
+      .collection<Plant | Pod | Bean>(collection)
+      .findOne(
+        { slug: containerSlug },
+        { projection: { _id: 0, visibility: 1, content: 1, projected: 1 } },
+      );
     if (!container) {
       refused.push(`${payload.container} (unknown)`);
+    } else if ("projected" in container && container.projected) {
+      // A projected bean is machine-owned: derived from a pollen feed and
+      // rebuilt from it (lib/projected-beans.ts), so prose written onto it
+      // belongs to nobody and survives no rebuild. Not this door's to write.
+      refused.push(`${payload.container} (projected)`);
     } else if (container.visibility === "public" && resolveText(container.content).trim() !== "") {
-      // Containers (plants/pods) carry visibility but no `state` — there is no
+      // Containers (plants/pods/beans) carry visibility but no `state` — there is no
       // "published" flag to check the way sprouts have one. "public AND already
       // has non-blank prose" is the closest available proxy for "a human
       // published this narrative": once it's live with content, a machine

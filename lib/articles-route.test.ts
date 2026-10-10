@@ -110,13 +110,23 @@ test("write door: a payload failing pure validation is 400 and names the offende
     const body1 = await res1.json();
     assert.match(body1.error, /state/);
 
-    // bean: container is rejected — only plant: or pod: are accepted
+    // articles under a bean: container are rejected — a bean holds no beans,
+    // so the door says where they go. (A bean: with a narrative is accepted;
+    // the DB-backed case below drives it through the route.)
     const res2 = await POST(
-      req({ container: "bean:test-articles-route-a", narrative: "hi" }, "Bearer tok_art_test"),
+      req(
+        {
+          container: "bean:test-articles-route-b",
+          articles: [
+            { slug: "test-articles-route-a", name: "A", date: "2026-07-24", content: "body" },
+          ],
+        },
+        "Bearer tok_art_test",
+      ),
     );
     assert.equal(res2.status, 400);
     const body2 = await res2.json();
-    assert.match(body2.error, /container/);
+    assert.match(body2.error, /bean: container carries a narrative only/);
   } finally {
     delete process.env.ARTICLES_TOKEN;
   }
@@ -161,6 +171,35 @@ test(
     assert.equal(res.status, 200);
     const body = await res.json();
     assert.deepEqual(body, { ok: true, written: 1, narrative: true });
+  },
+);
+
+test(
+  "write door: a bean: container takes a narrative and returns 200",
+  { skip: !hasDb },
+  async (t) => {
+    t.after(cleanup);
+    process.env.ARTICLES_TOKEN = "tok_art_test";
+    t.after(() => {
+      delete process.env.ARTICLES_TOKEN;
+    });
+    const db = await getDb();
+    await db.collection("beans").insertOne({
+      slug: `${TEST_PREFIX}b`,
+      name: "B",
+      parents: [`plant:${TEST_PREFIX}p`],
+      visibility: "private",
+    });
+
+    const res = await POST(
+      req({ container: `bean:${TEST_PREFIX}b`, narrative: "A bean's own story." }, "Bearer tok_art_test"),
+    );
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { ok: true, written: 0, narrative: true });
+
+    const bean = await db.collection("beans").findOne({ slug: `${TEST_PREFIX}b` });
+    assert.equal(bean?.content, "A bean's own story.");
+    assert.equal(bean?.visibility, "private");
   },
 );
 

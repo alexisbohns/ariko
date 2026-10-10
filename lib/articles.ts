@@ -1,13 +1,15 @@
 // Pure validation for the articles write door (POST /api/articles): given a
-// container ref plus an optional narrative and/or batch of articles, checks
-// shape only — no I/O, no Mongo. All-or-nothing, like validateDigestBatch in
+// container ref (a plant, a pod, or a bean) plus an optional narrative and/or
+// batch of articles, checks shape only — no I/O, no Mongo. A bean: container
+// takes a narrative only: a bean holds no beans, so articles under one are
+// refused with the message naming where they go (its pod). All-or-nothing, like validateDigestBatch in
 // synthesis.ts: the first failure names the offender and refuses the whole
 // payload. `state` is refused on the RAW article object whatever its value —
 // this door is structurally incapable of publishing. DB-dependent refusals
 // (an already-reviewed sprout, a published container) belong in the store,
 // not here.
 
-import { PLANT_PREFIX, POD_PREFIX, type Text } from "./data";
+import { BEAN_PREFIX, PLANT_PREFIX, POD_PREFIX, type Text } from "./data";
 
 export interface ArticleInput {
   slug: string;
@@ -96,15 +98,22 @@ export function validateArticlesPayload(body: unknown): { ok: true } | { ok: fal
       ? container.slice(PLANT_PREFIX.length)
       : typeof container === "string" && container.startsWith(POD_PREFIX)
         ? container.slice(POD_PREFIX.length)
-        : null;
+        : typeof container === "string" && container.startsWith(BEAN_PREFIX)
+          ? container.slice(BEAN_PREFIX.length)
+          : null;
   if (containerRest === null || !SLUG.test(containerRest))
     return {
       ok: false,
-      error: `container must be a plant: or pod: ref, got ${container || "nothing"}`,
+      error: `container must be a plant:, pod: or bean: ref, got ${container || "nothing"}`,
     };
 
   if (narrative === undefined && articles === undefined)
     return { ok: false, error: "payload must carry narrative or articles (or both)" };
+
+  // Refused on presence, not on length: an empty `articles: []` under a bean
+  // is still a caller who thinks a bean has beans under it.
+  if (typeof container === "string" && container.startsWith(BEAN_PREFIX) && articles !== undefined)
+    return { ok: false, error: "a bean: container carries a narrative only — post articles under its pod" };
 
   if (narrative !== undefined) {
     const v = validateText(narrative, "narrative", { required: false });

@@ -140,9 +140,10 @@ Body: `{ container, narrative?, articles?: [{ slug, name, description?, date, co
 }
 ```
 
-* `container` is a `plant:`/`pod:` ref; a `bean:` ref is refused — a bean's narrative is its
-  sprout's content, not a field. `narrative` and `articles` are each optional on their own, but
-  the payload must carry at least one.
+* `container` is a `plant:`, `pod:` or `bean:` ref. `narrative` and `articles` are each optional
+  on their own, but the payload must carry at least one — and a `bean:` container takes a
+  `narrative` only: a bean holds no beans, so `articles` under one are refused (post them under
+  its pod). A projected bean (one derived from a pollen feed) is refused too.
 * `narrative` and each article's `content` are capped at **512 KiB** per language part.
 * Sprout slugs are derived as `<article-slug>-0`, so re-posting an unreviewed article corrects it
   in place.
