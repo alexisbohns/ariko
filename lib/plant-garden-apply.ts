@@ -31,6 +31,15 @@
  *    `assets` map holds exactly what `assetsNeeded` (`lib/garden-assets.ts`)
  *    said would be needed; the applier asks it the same question, so a miss
  *    is a bug in the flow and throws rather than writing nothing quietly.
+ *  - A PUBLISHED NARRATIVE IS NOT REWRITTEN. On `--update`, a pod or bean whose
+ *    stored `visibility` is `"public"` keeps its `content`: the plan marks the
+ *    action `narrativeKept` (`keepsPublishedNarrative`, `lib/garden-plan.ts`)
+ *    and the dry-run tree prints it, so the decision is on the plan a human
+ *    reads rather than inside this loop. Same reasoning as the cover: a
+ *    narrative published in the admin is a decision, and a routine re-plant
+ *    must not undo it. It is also what makes the "no invalidation" rule true —
+ *    a published entity's content and images are never touched here, so the
+ *    cached public dataset's narratives are unchanged by construction.
  *  - `--update` TOUCHES `name`, `description` AND `content` ONLY. That is why
  *    the update branches call the narrow writers (`updateBeanMeta`,
  *    `updateSproutMeta`, the two content writers) rather than re-running a
@@ -103,8 +112,9 @@ export async function applyPlan(
         });
       }
       // Whether just created or already there: a pod's narrative is the one
-      // field the creator has no slot for, so it is always a second write.
-      if (pod.content !== undefined) {
+      // field the creator has no slot for, so it is always a second write —
+      // unless the plan says the stored one is published (see the docblock).
+      if (pod.content !== undefined && !action.narrativeKept) {
         const existing =
           action.action === "create"
             ? undefined
@@ -136,8 +146,9 @@ export async function applyPlan(
       }
       // A bean's narrative, like a pod's, is the one field the creator has no
       // slot for, so it is a second write on create and on --update: the
-      // manifest is the author's current text for both.
-      if (bean.content !== undefined) {
+      // manifest is the author's current text for both — unless the stored
+      // bean is published, in which case the plan said so and we keep it.
+      if (bean.content !== undefined && !action.narrativeKept) {
         const existing =
           action.action === "create" ? undefined : garden.beans.find((b) => b.slug === bean.slug)?.relations;
         await updateBeanContent(bean.slug, contentPatch(bean.content, existing));

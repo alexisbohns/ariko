@@ -4,12 +4,18 @@
 // Usage: npm run migrate:journal            (dry run — the default)
 //        npm run migrate:journal -- --apply (writes, and DELETES sprouts)
 // Operator sequence: run it bare, read the plan, re-run with `-- --apply`,
-// then bare again expecting "0 fold(s)".
+// then bare again expecting "0 fold(s)" — THEN save any entity in the admin
+// (or redeploy). This fold changes PUBLIC data: published article sprouts are
+// deleted and content lands on public paulopus beans, and a CLI cannot
+// invalidate Next's Data Cache (no request store), so until something
+// tagged `garden` is written through the app the public site keeps serving
+// the pre-fold dataset.
 //
 // The script refuses to write while ANY fold is refused, because a half-folded
 // garden — some beans carrying content, some articles still sprouts — renders
 // two ways at once. No revalidateGarden(): a CLI has no request store (the
-// garden-plant rule), and the next admin write invalidates.
+// garden-plant rule) — which is why the operator sequence above ends with an
+// admin save, since unlike garden:plant this script DOES touch public data.
 //
 // Re-runs: after a clean run the next run plans 0 folds and writes nothing. A
 // crash BETWEEN a bean's update and its sprout's delete leaves that bean with

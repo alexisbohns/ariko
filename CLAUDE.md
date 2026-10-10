@@ -561,8 +561,15 @@ Four rules the tests pin, each of which passes `tsc`, `npm test` **and**
 - **The script does not invalidate the cache, deliberately.** A CLI has no Next
   request store, so `revalidateGarden()` would take its tolerated branch and do
   nothing — an invalidation that looks like one and is not. It is also
-  unnecessary: everything written is private, so `filterPublic` drops all of it
-  and the cached public dataset is unchanged by definition.
+  unnecessary, by construction rather than by luck: a create is private, so
+  `filterPublic` drops it; and `--update` never touches a published entity's
+  narrative or images — a pod or bean whose stored `visibility` is `"public"`
+  keeps its `content` (the plan marks it `(narrative kept: published)`,
+  `keepsPublishedNarrative` in `lib/garden-plan.ts`), exactly as a stored
+  cover or media is never replaced. What `--update` still rewrites on a public
+  entity is its `name` and `description`, which the cached dataset shows stale
+  until the next admin write — a stale title, not a leak and not a rewritten
+  page. `lib/plant-garden.test.ts` pins the kept narrative.
 
 The manifest also refuses a slug reused anywhere in one file. That one is an
 **authoring** guard, not a database constraint, and the docblock says so:
