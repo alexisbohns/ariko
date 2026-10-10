@@ -14,8 +14,13 @@ import { hasNarrative, resolveText, type Bean, type Sprout, type Text } from "./
 //
 // State is NOT re-checked here: the public page passes the filterPublic-projected
 // dataset, so "published" is already enforced upstream. One projection, one place.
-export function articleFor(sprouts: Sprout[]): Sprout | null {
-  return sprouts.find((s) => resolveText(s.content ?? "").trim() !== "") ?? null;
+export function articleFor(sprouts: Sprout[]): (Sprout & { content: Text }) | null {
+  return (
+    sprouts.find(
+      (s): s is Sprout & { content: Text } =>
+        s.content !== undefined && resolveText(s.content).trim() !== "",
+    ) ?? null
+  );
 }
 
 export interface Narrative {
@@ -31,7 +36,8 @@ export interface Narrative {
  * fallback, so no bean goes blank between the two slices.
  */
 export function narrativeFor(bean: Bean, sprouts: Sprout[]): Narrative | null {
-  if (hasNarrative(bean.content)) return { content: bean.content as Text, date: undefined };
+  const own = bean.content;
+  if (own !== undefined && hasNarrative(own)) return { content: own, date: undefined };
   const article = articleFor(sprouts);
-  return article ? { content: article.content as Text, date: article.date } : null;
+  return article ? { content: article.content, date: article.date } : null;
 }

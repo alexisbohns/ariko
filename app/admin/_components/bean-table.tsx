@@ -55,8 +55,8 @@ export function BeanTable({
           {showPlant ? <TableHead>plant</TableHead> : null}
           <TableHead>pod</TableHead>
           <TableHead>sprouts</TableHead>
-          <TableHead>narrative</TableHead>
           <TableHead>visibility</TableHead>
+          <TableHead>narrative</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -70,11 +70,11 @@ export function BeanTable({
             {showPlant ? <MarkCell mark={row.plant} /> : null}
             <TableCell className="text-muted-foreground">{row.pod ?? "—"}</TableCell>
             <TableCell className="text-muted-foreground">{row.sproutCount}</TableCell>
-            <TableCell className="text-muted-foreground">
-              {row.hasNarrative ? <NarrativeGlyph /> : "—"}
-            </TableCell>
             <TableCell>
               <VisibilityGlyph visibility={row.visibility} />
+            </TableCell>
+            <TableCell className="text-muted-foreground">
+              {row.hasNarrative ? <NarrativeGlyph /> : "—"}
             </TableCell>
           </TableRow>
         ))}

@@ -252,7 +252,8 @@ test("a sibling with a narrative of its own and no sprouts appears in the rail",
   };
   // `written` has no sprout at all — previously grounds for exclusion — and is
   // admitted by its `content`, the same `narrativeFor` the destination renders.
-  assert.ok(slugsFor(raw, "here").includes("written"));
+  // Undated, it sits LAST in the pod tier, ahead of every plant-tier bean.
+  assert.deepEqual(slugsFor(raw, "here"), ["sib-new", "sib-old", "written", "cousin", "direct"]);
 });
 
 test("within a tier an undated narrative sorts after a dated article; two undated sort by name", () => {
