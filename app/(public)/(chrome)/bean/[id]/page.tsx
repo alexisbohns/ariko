@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
-import { resolveText } from "@/lib/data";
+import { hasNarrative, resolveText } from "@/lib/data";
 import { currentLang } from "@/lib/locale-server";
 import { getPublicDataset } from "@/lib/garden-cache";
-import { narrativeFor } from "@/lib/article";
+import { entriesAbout } from "@/lib/beanstalk";
+import { Journal } from "@/components/journal";
 import { Prose } from "@/components/markdown";
 import { seq } from "@/components/reveal";
 import { resolveEntity } from "@/lib/entity-resolve";
@@ -16,10 +17,9 @@ import { BeanCover } from "@/components/bean-cover";
 export const dynamic = "force-dynamic";
 
 /**
- * One bean, as a visitor reads it: its name, its description, and its narrative
- * — the bean's own `content` (journal model §1.1), falling back to the newest
- * article sprout carrying prose until slice two folds the entries in, so no
- * bean goes blank between the two slices.
+ * One bean, as a visitor reads it: its name, its description, its narrative —
+ * the bean's own `content` (journal model §1.1), nothing else — and its
+ * journal, every published entry about it, newest first.
  *
  * The per-sprout cards are GONE — the last property dump in the repo, retired
  * here the way the admin's was in the bean-edition slice. It had been marked for
@@ -44,14 +44,14 @@ export const dynamic = "force-dynamic";
  * throw that away to save a file nothing renders; it is still pinned by
  * `lib/server-safe-source.test.ts`, so it cannot rot into a client component
  * while it waits. Putting a sprout's assets back on a page is then a rendering
- * decision, not a rebuild.
+ * decision, not a rebuild — and `/sprout/[slug]` is that page.
  *
- * `sproutsForBean` therefore survives for exactly one reader: `narrativeFor`,
- * whose fallback picks the newest published sprout carrying content (spec §4)
- * when the bean itself has written nothing.
+ * `sproutsForBean` now feeds the journal beneath the narrative; the rail's
+ * covers read it too.
  *
  * The rail beneath it is `lib/related-beans.ts` — pod siblings first, topped up
- * from the plant, and never a bean with nothing written under it. It draws
+ * from the plant, never a bean without a narrative of its own, and dated by
+ * each candidate's newest entry. It draws
  * `components/bean-card.tsx`, the landing page's own card, so a visitor who
  * reaches a bean from the landing page meets the same object twice.
  */
@@ -62,7 +62,10 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
   const bean = data.getBean(id);
   if (!bean) notFound();
 
-  const narrative = narrativeFor(bean, data.sproutsForBean(bean.slug));
+  // The journal (journal model §3): every published entry about this bean,
+  // newest first, as beanstalk lines. The narrative above it is the bean's OWN
+  // `content` and nothing else — the article fallback is gone with the fold.
+  const journal = entriesAbout(data.timelineSprouts(), data.sproutsForBean(bean.slug));
 
   // From the FILTERED dataset, so a private pod or plant is simply absent from
   // the trail — resolveLineage drops a ref it cannot resolve, which is the
@@ -92,14 +95,11 @@ export default async function BeanPage({ params }: { params: Promise<{ id: strin
           </p>
         ) : null}
 
-        {narrative ? (
-          <Prose
-            reveal
-            lang={lang}
-            content={narrative.content}
-            resolve={(ref) => resolveEntity(data, ref, lang)}
-          />
+        {hasNarrative(bean.content) ? (
+          <Prose reveal lang={lang} content={bean.content} resolve={(ref) => resolveEntity(data, ref, lang)} />
         ) : null}
+
+        <Journal entries={journal} lang={lang} heading="Journal" />
       </article>
 
       {/* Zero is NO rail — no heading, no border, no empty box under the word

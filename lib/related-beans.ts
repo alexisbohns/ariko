@@ -1,12 +1,12 @@
 import {
   POD_PREFIX,
+  hasNarrative,
   parentsWithPrefix,
   resolveText,
   type Bean,
   type Dataset,
 } from "./data";
 import { beansForPlantDeep } from "./plant-hub";
-import { narrativeFor } from "./article";
 
 /**
  * What to read next, at the end of a bean — pod siblings first, topped up from
@@ -33,19 +33,20 @@ import { narrativeFor } from "./article";
  */
 interface Candidate {
   bean: Bean;
-  /** So `narrativeFor` runs once per bean rather than once per comparison.
-   *  `""` when the narrative is the bean's own and so undated — the smallest
-   *  string, which the descending compare below puts LAST within its tier. */
+  /** The newest journal entry about the bean, looked up once per bean rather
+   *  than once per comparison. `""` when no entry is about the bean yet — the
+   *  smallest string, which the descending compare below puts LAST within its
+   *  tier. */
   date: string;
   /** So `resolveText` does too. */
   name: string;
 }
 
 /**
- * Newest article first; ties by English name, then by slug.
+ * Newest entry first; ties by English name, then by slug.
  *
  * The tie-break is TWO keys deep rather than one, and that is not belt and
- * braces: two beans can carry articles dated the same day, and `Dataset`'s
+ * braces: two beans' newest entries can be dated the same day, and `Dataset`'s
  * arrays are in garden order — which is Mongo's. Without the tail the rail
  * reshuffles itself between two visits with nothing in the garden having
  * changed, the hazard `lib/plant-hub.ts`'s `byName` and `lib/screens.ts`'s
@@ -90,19 +91,26 @@ export function relatedBeans(dataset: Dataset, bean: Bean, limit = 6): Bean[] {
     }
   }
 
-  // A candidate survives only if it has something to read — and the test is the
-  // SAME function the bean page renders by (`narrativeFor`, `lib/article.ts`),
-  // not a second one that happens to agree. The rail therefore cannot promise a
-  // read the destination will not give. A bean's own narrative carries no date
-  // and sorts behind every dated article in its tier, then by name.
+  // A candidate survives only if it has something to read — its OWN narrative
+  // (journal model §1.1: a bean's prose is its `content`, nothing else since
+  // the article fold). The test is `hasNarrative(bean.content)`, the same test
+  // the bean page renders by, not a second one that happens to agree, so the
+  // rail cannot promise a read the destination will not give. Dated by the
+  // newest journal entry ABOUT it, which is `sproutsForBean`'s first element
+  // (newest-first). `""` for a bean nobody has written about yet — the
+  // smallest string, LAST within its tier. This is the date source the spec
+  // required when the article fallback went: without it every candidate is
+  // undated and the rail degrades, silently, to name order.
   const readable = (beans: Iterable<Bean>): Candidate[] => {
     const out: Candidate[] = [];
     for (const candidate of beans) {
       if (candidate.slug === bean.slug) continue;
-      const narrative = narrativeFor(candidate, dataset.sproutsForBean(candidate.slug));
-      if (narrative) {
-        out.push({ bean: candidate, date: narrative.date ?? "", name: resolveText(candidate.name) });
-      }
+      if (!hasNarrative(candidate.content)) continue;
+      out.push({
+        bean: candidate,
+        date: dataset.sproutsForBean(candidate.slug)[0]?.date ?? "",
+        name: resolveText(candidate.name),
+      });
     }
     return out.sort(byNewestThenName);
   };
