@@ -1,4 +1,4 @@
-import { buildDataset, filterPublic, resolveText } from "@/lib/data";
+import { buildDataset, filterPublic } from "@/lib/data";
 import { loadCachedGarden } from "@/lib/garden-cache";
 import { getFederation } from "@/lib/federation";
 import { listPollen } from "@/lib/pollen-store";
