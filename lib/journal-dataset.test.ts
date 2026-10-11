@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildDataset, type RawGarden } from "./data";
+import { buildDataset, filterPublic, type RawGarden } from "./data";
 
 // The smallest garden with both anchor shapes: an entry ABOUT a bean under a
 // pod under a plant, and a plant-level entry with no `about`.
@@ -29,4 +29,22 @@ test("entryForSprout: a plant-level entry has no bean and keeps its plant", () =
 
 test("entryForSprout: an unknown slug is undefined, not a throw", () => {
   assert.equal(buildDataset(garden).entryForSprout("nope"), undefined);
+});
+
+test("getBeans: the projected dataset's beans, so a pollen line's bean door can only name a public bean", () => {
+  const mixed: RawGarden = {
+    ...garden,
+    beans: [
+      { slug: "b", name: "B", parents: ["pod:pod"] },
+      { slug: "hidden", name: "Hidden", parents: ["pod:pod"], visibility: "private" },
+    ],
+  };
+  assert.deepEqual(
+    buildDataset(filterPublic(mixed)).getBeans().map((b) => b.slug),
+    ["b"],
+  );
+  assert.deepEqual(
+    buildDataset(mixed).getBeans().map((b) => b.slug),
+    ["b", "hidden"],
+  );
 });

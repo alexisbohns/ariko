@@ -46,8 +46,8 @@ export default async function SproutPage({ params }: { params: Promise<{ slug: s
 
   // The trail: the DERIVED plant first, then whatever `about` names. `about`
   // refs are pod:/bean: and the climb fills the tiers between them. Beans are
-  // looked up one by one because `Dataset` has no `getBeans()` — and needs
-  // none here: the trail can only name beans the entry is about.
+  // looked up one by one rather than through `getBeans()`: the trail can only
+  // name beans the entry is about.
   const about = aboutRefs(sprout);
   const beans = parentsWithPrefix(about, BEAN_PREFIX)
     .map((s) => data.getBean(s))
