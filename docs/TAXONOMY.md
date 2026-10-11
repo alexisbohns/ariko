@@ -326,12 +326,13 @@ It is the one species that is **not slug-addressable** — it has an `id`
 | `source` | `{ kind, url?, externalId?, capturedAt? }` — `externalId` is the dedup key |
 | `suggested` | a hint, never a commitment: `{ plantSlug?, podSlug?, beanSlug?, type?, tags? }` |
 | `status` | `inbox \| promoted \| discarded` |
-| `promotedTo[]` | sprout slugs — empty until triage |
+| `promotedTo[]` | prefixed refs of what it became (`sprout:…` \| `bean:…`) — empty until triage; bare sprout slugs before 2026-10-11 |
 
 Seeds never reach the public zone by any route: `filterPublic` does not so much
 as see them, because they are not part of `RawGarden`. Triage
 (`/admin/triage/[id]`) is where a seed becomes a sprout, optionally creating the
-bean above it in the same act ([`lib/promote.ts`](../lib/promote.ts)).
+bean above it in the same act, or grows into a private bean of its own — its body
+the first draft of the bean's narrative ([`lib/promote.ts`](../lib/promote.ts)).
 
 Re-posting a seed with the same `source.externalId` **updates it in place** — a
 partial unique index makes that safe while letting manual seeds collide on
@@ -501,7 +502,7 @@ Nine doors, and the taxonomy is partly *defined* by which of them may publish.
 | door | writes | may publish? |
 |---|---|---|
 | The admin editors (`/admin/plant/[slug]`, `/pod/…`, `/bean/…`, `/sprout/…`, `/screens/…`) | every species, every field | **yes** — this is the only place |
-| `/admin/triage/[id]` | a seed → a sprout, optionally creating its bean | yes, via the enum rule |
+| `/admin/triage/[id]` | a seed → a sprout, optionally creating its bean; or a seed → a **private bean** | yes, via the enum rule — the sprout door only; a grown bean is born private |
 | `POST /api/inbox` | a **seed** (dedup on `source.externalId`) | no — seeds are never public |
 | `POST /api/articles` | a **private bean** per article carrying its `content` as the bean's narrative (no companion sprout), plus an optional container narrative | no — `state` is refused on the raw object, whatever its value, and a public bean is refused |
 | `POST /api/synthesis` | draft sprouts of `kind: digest`, each `about` its curated `digest-*` / `weekly-wrap` bean, which must already exist (the wire still says `parents`) | no |
