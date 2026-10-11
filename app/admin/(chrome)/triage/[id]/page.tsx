@@ -42,6 +42,9 @@ export default async function TriagePage({
 
   const [plants, pods, beans] = await Promise.all([listPlants(), listPods(), listBeans()]);
   const note = resolveText(seed.body);
+  // The seed's body, as the grow form's hint shows it: a bounded cut of the
+  // string (the narrative can be long) under a two-line clamp of the box.
+  const body = resolveText(seed.content).slice(0, 160);
 
   return (
     <article>
@@ -59,7 +62,7 @@ export default async function TriagePage({
 
         {error ? (
           <Alert variant="destructive" role="alert">
-            <AlertDescription>Could not promote: {error}</AlertDescription>
+            <AlertDescription>Could not triage: {error}</AlertDescription>
           </Alert>
         ) : null}
 
@@ -289,14 +292,23 @@ export default async function TriagePage({
             ones `buildBeanFromSeed` reads (pinned by lib/triage-grow-source.test.ts).
             The seed's title prefills the name per language and its note the
             description; its body becomes the bean's narrative, verbatim, which
-            the hint says so the author knows where the prose went. */}
+            the hint says so the author knows where the prose went — and since
+            the card above never shows the body, its first lines are previewed
+            here when there is one, so "its body" names something on screen. */}
         <form action={promoteSeedToBeanAction} className="flex flex-col gap-6">
           <input type="hidden" name="seedId" value={seed.id} />
 
           <Fieldset legend="Grow into a bean">
+            {body ? (
+              <p className="text-sm text-muted-foreground line-clamp-2">
+                <span className="font-heading text-xs uppercase tracking-widest">body</span>{" "}
+                {body}
+              </p>
+            ) : null}
             <p className="text-sm text-muted-foreground">
               The seed becomes a private bean: this title its name, this note its description,
-              and its body the first draft of its narrative. Root it under a pod, or a plant.
+              and its body, if it has one, the first draft of its narrative. Root it under a pod,
+              or a plant.
             </p>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-2">

@@ -16,10 +16,14 @@ const promote = readFileSync(join(process.cwd(), "lib/promote.ts"), "utf8");
 
 const FIELDS = ["beanSlug", "beanName", "beanNameFr", "beanDescription", "beanDescriptionFr"];
 
+// Bounded on both sides: from the grow form's opening tag to its own
+// `</form>`, so a form added below it cannot satisfy the field assertions.
 const growSection = () => {
   const at = page.indexOf("<form action={promoteSeedToBeanAction}");
   assert.notEqual(at, -1, "the grow form posts to promoteSeedToBeanAction");
-  return page.slice(at);
+  const end = page.indexOf("</form>", at);
+  assert.notEqual(end, -1, "the grow form closes");
+  return page.slice(at, end);
 };
 
 test("the grow form posts to promoteSeedToBeanAction", () => {
