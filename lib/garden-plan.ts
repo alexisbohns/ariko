@@ -13,9 +13,11 @@
  * hands back a plan; the applier (a later task) is the only thing that writes.
  *
  * ORDER IS THE OUTPUT, not an implementation detail: a bean's `parents` names
- * its pod and a sprout's names its bean, so `planGarden` emits pod, then each
- * bean immediately followed by its own sprouts, in manifest order — the exact
- * order a parent-first applier needs to walk. The read path
+ * its pod and a sprout's `about` names beans (or the pod), so `planGarden`
+ * emits the pod, then every bean, then every sprout, in manifest order — every
+ * bean a sprout is about has been created before the sprout is written, for
+ * the same reason a bean follows its pod. That is the exact order a
+ * parent-first applier needs to walk. The read path
  * (`lib/store.ts`/`lib/data.ts`) TOLERATES a dangling parent ref by ignoring
  * it, which is precisely why getting this order wrong is dangerous rather
  * than loud: creating a bean before its pod exists would not fail, the
@@ -38,16 +40,19 @@ export type Verb = "create" | "skip" | "update";
  * `tier: "bean"` beside a sprout entry and would hand `createBean` a sprout's
  * fields at the write.
  *
- * `parentSlug` gets the same treatment: REQUIRED on a bean and a sprout,
- * ABSENT on the pod. Optional-everywhere is what forced `parentSlug ?? null`
+ * `parentSlug` gets the same treatment: REQUIRED on a bean, ABSENT on the pod
+ * AND on a sprout. Optional-everywhere is what forced `parentSlug ?? null`
  * into `createBean`'s call, and that fallback is a nullable parentage written
  * into the database — a bean silently hanging from no pod, which the read path
- * tolerates by simply never listing it (see this file's ORDER note).
+ * tolerates by simply never listing it (see this file's ORDER note). A sprout
+ * is not contained, it is ABOUT: its anchors are `entry.about`, prefixed refs
+ * the parser resolved against the same file, and the applier writes that list
+ * verbatim.
  */
 export type PlanAction =
   | { action: Verb; tier: "pod"; slug: string; entry: ManifestPod; narrativeKept?: true }
   | { action: Verb; tier: "bean"; slug: string; entry: ManifestBean; parentSlug: string; narrativeKept?: true }
-  | { action: Verb; tier: "sprout"; slug: string; entry: ManifestSprout; parentSlug: string };
+  | { action: Verb; tier: "sprout"; slug: string; entry: ManifestSprout };
 
 /**
  * `narrativeKept` is set on an `update` of a pod or bean whose stored
@@ -112,15 +117,15 @@ export function planGarden(manifest: GardenManifest, garden: GardenSlugs, opts: 
       parentSlug: manifest.pod.slug,
       ...(keepsPublishedNarrative(beanVerb, bean, storedBean) ? { narrativeKept: true } : {}),
     });
-    for (const sprout of bean.sprouts) {
-      actions.push({
-        action: verbFor(sproutSlugs.has(sprout.slug), opts.update),
-        tier: "sprout",
-        slug: sprout.slug,
-        entry: sprout,
-        parentSlug: bean.slug,
-      });
-    }
+  }
+
+  for (const sprout of manifest.sprouts) {
+    actions.push({
+      action: verbFor(sproutSlugs.has(sprout.slug), opts.update),
+      tier: "sprout",
+      slug: sprout.slug,
+      entry: sprout,
+    });
   }
 
   return actions;
@@ -136,12 +141,15 @@ export function renderPlan(actions: PlanAction[]): string {
   // `skip`s has nothing to stand out against. Legibility is the safety property
   // a plan exists for.
   // The note is a SUFFIX so the columns above stay aligned; it names the one
-  // thing an `update` line otherwise implies and will not do.
+  // thing an `update` line otherwise implies and will not do. A sprout line
+  // says what the entry is ABOUT, also as a suffix: sprouts no longer sit
+  // under their bean in the tree, so the anchor is the one thing a human
+  // approving the plan cannot otherwise see.
   const lines = actions.map(
     (a) =>
       `${INDENT[a.tier]}${a.action.padEnd(6)} ${a.tier} ${a.slug}${
-        "narrativeKept" in a && a.narrativeKept ? " (narrative kept: published)" : ""
-      }`,
+        a.tier === "sprout" ? ` about ${a.entry.about.join(", ")}` : ""
+      }${"narrativeKept" in a && a.narrativeKept ? " (narrative kept: published)" : ""}`,
   );
 
   const creates = actions.filter((a) => a.action === "create").length;

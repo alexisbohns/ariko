@@ -16,16 +16,17 @@ beans:
     name: { en: Ledger }
     description: { en: The ledger bean. }
     cover: shots/ledger.png
-    sprouts:
-      - slug: first-entry
-        kind: log
-        date: 2026-09-13
-        name: { en: First entry }
-        description: { en: The first entry. }
-        media: [shots/ledger.png, { file: shots/two.webp, alt: Two }]
   - slug: bare
     name: { en: Bare }
     description: { en: No images. }
+sprouts:
+  - slug: first-entry
+    kind: log
+    date: 2026-09-13
+    about: [ledger]
+    name: { en: First entry }
+    description: { en: The first entry. }
+    media: [shots/ledger.png, { file: shots/two.webp, alt: Two }]
 `;
 
 function manifest() {

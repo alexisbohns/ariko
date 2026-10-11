@@ -46,10 +46,10 @@ export function collectAssets(manifest: GardenManifest): ManifestImage[] {
   const seen = new Map<string, ManifestImage>();
   for (const bean of manifest.beans) {
     if (bean.cover && !seen.has(bean.cover.file)) seen.set(bean.cover.file, bean.cover);
-    for (const sprout of bean.sprouts) {
-      for (const image of sprout.media ?? []) {
-        if (!seen.has(image.file)) seen.set(image.file, image);
-      }
+  }
+  for (const sprout of manifest.sprouts) {
+    for (const image of sprout.media ?? []) {
+      if (!seen.has(image.file)) seen.set(image.file, image);
     }
   }
   return [...seen.values()];

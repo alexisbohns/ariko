@@ -15,12 +15,13 @@ beans:
   - slug: bean-a
     name: { en: Bean A }
     description: { en: First bean }
-    sprouts:
-      - slug: sprout-a
-        kind: log
-        date: "2026-01-01"
-        name: { en: Sprout A }
-        description: { en: First sprout }
+sprouts:
+  - slug: sprout-a
+    kind: log
+    date: "2026-01-01"
+    about: [bean-a]
+    name: { en: Sprout A }
+    description: { en: First sprout }
 `;
 
 const TWO_BEAN_YAML = `
@@ -33,26 +34,27 @@ beans:
   - slug: bean-a
     name: { en: Bean A }
     description: { en: First bean }
-    sprouts:
-      - slug: sprout-a
-        kind: log
-        date: "2026-01-01"
-        name: { en: Sprout A }
-        description: { en: First sprout }
   - slug: bean-b
     name: { en: Bean B }
     description: { en: Second bean }
-    sprouts:
-      - slug: sprout-b
-        kind: log
-        date: "2026-01-02"
-        name: { en: Sprout B }
-        description: { en: Second sprout }
+sprouts:
+  - slug: sprout-a
+    kind: log
+    date: "2026-01-01"
+    about: [bean-a]
+    name: { en: Sprout A }
+    description: { en: First sprout }
+  - slug: sprout-b
+    kind: log
+    date: "2026-01-02"
+    about: [bean-b]
+    name: { en: Sprout B }
+    description: { en: Second sprout }
 `;
 
 function parse(yaml: string) {
   const result = parseManifest(yaml);
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, true, result.ok ? "" : result.error);
   if (!result.ok) throw new Error("unreachable");
   return result.manifest;
 }
@@ -124,7 +126,7 @@ test("{ update: true } still plans create for an entity the garden does not have
   );
 });
 
-test("ordering interleaves per bean: bean A, sprout A, bean B, sprout B", () => {
+test("ordering: pod, every bean, then every sprout, in manifest order", () => {
   const manifest = parse(TWO_BEAN_YAML);
   const actions = planGarden(manifest, EMPTY_GARDEN, { update: false });
   assert.deepEqual(
@@ -132,29 +134,41 @@ test("ordering interleaves per bean: bean A, sprout A, bean B, sprout B", () => 
     [
       ["pod", "krabs"],
       ["bean", "bean-a"],
-      ["sprout", "sprout-a"],
       ["bean", "bean-b"],
+      ["sprout", "sprout-a"],
       ["sprout", "sprout-b"],
     ]
   );
 });
 
-test("parentSlug is set correctly: absent on pod, pod's slug on bean, bean's slug on sprout", () => {
+test("parentSlug: absent on pod and sprout, the pod's slug on a bean; a sprout carries about instead", () => {
   const manifest = parse(TWO_BEAN_YAML);
   const actions = planGarden(manifest, EMPTY_GARDEN, { update: false });
-  // `parentSlug` is absent from the pod member of the union, so it is read
-  // through the tier rather than off a widened action — which is the point of
-  // the union: the pod case cannot even be asked the question.
-  const parentOf = (slug: string) => {
+  const find = (slug: string) => {
     const found = actions.find((a) => a.slug === slug);
     assert.ok(found, `no action for ${slug}`);
-    return found.tier === "pod" ? undefined : found.parentSlug;
+    return found;
   };
-  assert.equal(parentOf("krabs"), undefined);
+  // `parentSlug` exists on the bean member of the union only, so it is read
+  // through the tier rather than off a widened action — which is the point of
+  // the union: the pod and the sprout cannot even be asked the question.
+  const parentOf = (slug: string) => {
+    const found = find(slug);
+    return found.tier === "bean" ? found.parentSlug : undefined;
+  };
+  assert.equal("parentSlug" in find("krabs"), false);
   assert.equal(parentOf("bean-a"), "krabs");
   assert.equal(parentOf("bean-b"), "krabs");
-  assert.equal(parentOf("sprout-a"), "bean-a");
-  assert.equal(parentOf("sprout-b"), "bean-b");
+  // A sprout is not CONTAINED, it is ABOUT: no parentSlug on the action, and
+  // the parser's prefixed refs on the entry, which the applier writes verbatim.
+  const aboutOf = (slug: string) => {
+    const found = find(slug);
+    assert.equal(found.tier, "sprout");
+    assert.equal("parentSlug" in found, false);
+    return found.tier === "sprout" ? found.entry.about : undefined;
+  };
+  assert.deepEqual(aboutOf("sprout-a"), ["bean:bean-a"]);
+  assert.deepEqual(aboutOf("sprout-b"), ["bean:bean-b"]);
 });
 
 test("renderPlan output contains the summary counts", () => {
@@ -174,9 +188,13 @@ test("renderPlan output contains the summary counts", () => {
   assert.match(output, /create.*bean.*bean-a/i);
   // The verbs form a column: every tier word starts at the same offset within
   // its indent level, which is what makes a stray verb scannable.
-  const [podLine, beanLine] = output.split("\n");
+  const [podLine, beanLine, sproutLine] = output.split("\n");
   assert.equal(podLine, "skip   pod krabs");
   assert.equal(beanLine, "  create bean bean-a");
+  // A sprout line also says what it is ABOUT, so a human approving the plan
+  // sees the anchor the entry will be written with.
+  assert.match(output, /sprout sprout-a about bean:bean-a/);
+  assert.equal(sproutLine, "    create sprout sprout-a about bean:bean-a");
 });
 
 test("an update of a PUBLIC pod or bean carrying manifest content is marked narrativeKept, and the tree says so", () => {

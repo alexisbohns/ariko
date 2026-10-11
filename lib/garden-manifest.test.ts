@@ -48,7 +48,7 @@ test("rejects invalid YAML with a readable error", () => {
   assert.match(result.error, /YAML/i);
 });
 
-test("parses a bean with a sprout, including a YAML date scalar", () => {
+test("parses a bean and a sprout about it, including a YAML date scalar", () => {
   const result = parseManifest(`
 pod:
   slug: krabs
@@ -59,17 +59,18 @@ beans:
   - slug: ledger
     name: { en: Ledger }
     description: { en: The ledger bean. }
-    sprouts:
-      - slug: first-entry
-        kind: log
-        date: 2026-09-13
-        name: { en: First entry }
-        description: { en: The first entry. }
+sprouts:
+  - slug: first-entry
+    kind: log
+    date: 2026-09-13
+    about: [ledger]
+    name: { en: First entry }
+    description: { en: The first entry. }
 `);
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, true, result.ok ? "" : result.error);
   if (!result.ok) return;
   assert.equal(result.manifest.beans[0].slug, "ledger");
-  const sprout = result.manifest.beans[0].sprouts[0];
+  const sprout = result.manifest.sprouts[0];
   assert.equal(sprout.slug, "first-entry");
   assert.equal(sprout.kind, "log");
   assert.equal(sprout.date, "2026-09-13");
@@ -86,19 +87,25 @@ beans:
   - slug: first-bean
     name: { en: First bean }
     description: { en: A bean. }
-    sprouts: []
   - slug: second-bean
     name: { en: Second bean }
     description: { en: Another bean. }
-    sprouts:
-      - slug: missing-name
-        kind: log
-        date: 2026-09-13
-        description: { en: No name here. }
+sprouts:
+  - slug: has-a-name
+    kind: log
+    date: 2026-09-13
+    about: [first-bean]
+    name: { en: Has a name }
+    description: { en: Named. }
+  - slug: missing-name
+    kind: log
+    date: 2026-09-13
+    about: [second-bean]
+    description: { en: No name here. }
 `);
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.match(result.error, /beans\[1\]\.sprouts\[0\]\.name/);
+  assert.match(result.error, /sprouts\[1\]\.name/);
 });
 
 test("rejects a sprout date that is not YYYY-MM-DD", () => {
@@ -112,16 +119,17 @@ beans:
   - slug: ledger
     name: { en: Ledger }
     description: { en: The ledger bean. }
-    sprouts:
-      - slug: first-entry
-        kind: log
-        date: "09/12/2026"
-        name: { en: First entry }
-        description: { en: The first entry. }
+sprouts:
+  - slug: first-entry
+    kind: log
+    date: "09/12/2026"
+    about: [ledger]
+    name: { en: First entry }
+    description: { en: The first entry. }
 `);
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.match(result.error, /beans\[0\]\.sprouts\[0\]\.date/);
+  assert.match(result.error, /^sprouts\[0\]\.date/);
   assert.match(result.error, /09\/12\/2026/);
 });
 
@@ -134,7 +142,7 @@ beans:
 function withSprout(sprout: Record<string, string>): string {
   const { slug, name, description, ...rest } = sprout;
   const extra = Object.entries(rest)
-    .map(([key, value]) => `        ${key}: ${JSON.stringify(value)}`)
+    .map(([key, value]) => `    ${key}: ${JSON.stringify(value)}`)
     .join("\n");
   return `
 pod:
@@ -146,10 +154,11 @@ beans:
   - slug: ledger
     name: { en: Ledger }
     description: { en: The ledger bean. }
-    sprouts:
-      - slug: ${slug}
-        name: { en: ${name} }
-        description: { en: ${description || "An entry."} }
+sprouts:
+  - slug: ${slug}
+    about: [ledger]
+    name: { en: ${name} }
+    description: { en: ${description || "An entry."} }
 ${extra}
 `;
 }
@@ -162,7 +171,7 @@ test("a sprout's kind is a member of the vocabulary", () => {
   const r = parseManifest(withSprout({ slug: "s", name: "S", kind: "essay", date: "2026-01-01", description: "" }));
   assert.ok(r.ok, r.ok ? "" : r.error);
   if (!r.ok) return;
-  assert.equal(r.manifest.beans[0].sprouts[0].kind, "essay");
+  assert.equal(r.manifest.sprouts[0].kind, "essay");
   const bad = parseManifest(withSprout({ slug: "s", name: "S", kind: "note", date: "2026-01-01", description: "" }));
   assert.ok(!bad.ok);
   if (bad.ok) return;
@@ -177,7 +186,7 @@ test("a sprout's kind is a member of the vocabulary", () => {
 });
 
 test("a non-string kind reports what was there, not 'got \"\"'", () => {
-  const r = parseManifest(withSprout({ slug: "s", name: "S", date: "2026-01-01", description: "" }).replace("date:", "kind: 3\n        date:"));
+  const r = parseManifest(withSprout({ slug: "s", name: "S", date: "2026-01-01", description: "" }).replace("date:", "kind: 3\n    date:"));
   assert.ok(!r.ok);
   if (r.ok) return;
   assert.match(r.error, /sprouts\[0\]\.kind must be a string \(got 3\)/);
@@ -215,7 +224,6 @@ beans:
   - slug: Krabs_Pod
     name: { en: Ledger }
     description: { en: The ledger bean. }
-    sprouts: []
 `);
   assert.equal(result.ok, false);
   if (result.ok) return;
@@ -233,7 +241,6 @@ beans:
   - slug: krabs
     name: { en: Ledger }
     description: { en: The ledger bean. }
-    sprouts: []
 `);
   assert.equal(result.ok, false);
   if (result.ok) return;
@@ -316,11 +323,9 @@ beans:
   - slug: same-slug
     name: { en: First }
     description: { en: A bean. }
-    sprouts: []
   - slug: same-slug
     name: { en: Second }
     description: { en: Another bean. }
-    sprouts: []
 `);
   assert.equal(result.ok, false);
   if (result.ok) return;
@@ -328,7 +333,7 @@ beans:
   assert.match(result.error, /beans\[1\]/);
 });
 
-test("rejects a duplicate slug between two sprouts in different beans", () => {
+test("rejects a duplicate slug between two sprouts in the sprouts list", () => {
   const result = parseManifest(`
 pod:
   slug: krabs
@@ -339,26 +344,26 @@ beans:
   - slug: bean-one
     name: { en: First }
     description: { en: A bean. }
-    sprouts:
-      - slug: same-sprout
-        kind: log
-        date: 2026-09-13
-        name: { en: One }
-        description: { en: First sprout. }
   - slug: bean-two
     name: { en: Second }
     description: { en: Another bean. }
-    sprouts:
-      - slug: same-sprout
-        kind: log
-        date: 2026-09-13
-        name: { en: Two }
-        description: { en: Second sprout. }
+sprouts:
+  - slug: same-sprout
+    kind: log
+    date: 2026-09-13
+    about: [bean-one]
+    name: { en: One }
+    description: { en: First sprout. }
+  - slug: same-sprout
+    kind: log
+    date: 2026-09-13
+    about: [bean-two]
+    name: { en: Two }
+    description: { en: Second sprout. }
 `);
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.match(result.error, /duplicate slug "same-sprout"/);
-  assert.match(result.error, /beans\[1\]\.sprouts\[0\]/);
+  assert.match(result.error, /duplicate slug "same-sprout" at sprouts\[1\] \(first seen at sprouts\[0\]\)/);
 });
 
 const FORBIDDEN_KEYS = ["visibility", "state", "exhibited", "order", "relations", "parents"];
@@ -390,7 +395,6 @@ beans:
   - slug: ledger
     name: { en: Ledger }
     description: { en: The ledger bean. }
-    sprouts: []
     ${key}: true
 `);
     assert.equal(result.ok, false);
@@ -409,17 +413,18 @@ beans:
   - slug: ledger
     name: { en: Ledger }
     description: { en: The ledger bean. }
-    sprouts:
-      - slug: first-entry
-        kind: log
-        date: 2026-09-13
-        name: { en: First entry }
-        description: { en: The first entry. }
-        ${key}: true
+sprouts:
+  - slug: first-entry
+    kind: log
+    date: 2026-09-13
+    about: [ledger]
+    name: { en: First entry }
+    description: { en: The first entry. }
+    ${key}: true
 `);
     assert.equal(result.ok, false);
     if (result.ok) return;
-    assert.match(result.error, new RegExp(`beans\\[0\\]\\.sprouts\\[0\\]\\.${key}`));
+    assert.match(result.error, new RegExp(`^sprouts\\[0\\]\\.${key}`));
   });
 }
 
@@ -437,7 +442,6 @@ beans:
   - slug: ledger
     name: { en: Ledger }
     description: { en: The ledger bean. }
-    sprouts: []
     content: { en: now, fr: maintenant }
 `);
   assert.equal(result.ok, true, result.ok ? "" : result.error);
@@ -457,7 +461,6 @@ beans:
   - slug: ledger
     name: { en: Ledger }
     description: { en: The ledger bean. }
-    sprouts: []
     content: { en: "${big}" }
 `);
   assert.equal(result.ok, false);
@@ -484,18 +487,19 @@ beans:
   - slug: ledger
     name: { en: Ledger, fr: Registre }
     description: { en: The ledger bean., fr: Le haricot registre. }
-    sprouts:
-      - slug: first-entry
-        kind: log
-        date: "2026-01-01"
-        name: { en: First entry, fr: Première entrée }
-        description: { en: The first entry., fr: La première entrée. }
-        content: { en: "Sprout body", fr: "Corps du sprout" }
+sprouts:
+  - slug: first-entry
+    kind: log
+    date: "2026-01-01"
+    about: [ledger]
+    name: { en: First entry, fr: Première entrée }
+    description: { en: The first entry., fr: La première entrée. }
+    content: { en: "Sprout body", fr: "Corps du sprout" }
 `);
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.deepEqual(result.manifest.pod.content, { en: "# Pod body", fr: "# Corps du pod" });
-  assert.deepEqual(result.manifest.beans[0].sprouts[0].content, {
+  assert.deepEqual(result.manifest.sprouts[0].content, {
     en: "Sprout body",
     fr: "Corps du sprout",
   });
@@ -512,13 +516,14 @@ beans:
     name: { en: Ledger }
     description: { en: The ledger bean. }
     cover: ${cover}
-    sprouts:
-      - slug: first-entry
-        kind: log
-        date: 2026-09-13
-        name: { en: First entry }
-        description: { en: The first entry. }
-        media: ${media}
+sprouts:
+  - slug: first-entry
+    kind: log
+    date: 2026-09-13
+    about: [ledger]
+    name: { en: First entry }
+    description: { en: The first entry. }
+    media: ${media}
 `;
 
 test("a bean cover and sprout media parse as manifest-relative paths, bare or with alt", () => {
@@ -528,7 +533,7 @@ test("a bean cover and sprout media parse as manifest-relative paths, bare or wi
   assert.equal(result.ok, true, result.ok ? "" : result.error);
   if (!result.ok) return;
   assert.deepEqual(result.manifest.beans[0].cover, { file: "shots/ledger.png" });
-  assert.deepEqual(result.manifest.beans[0].sprouts[0].media, [
+  assert.deepEqual(result.manifest.sprouts[0].media, [
     { file: "shots/one.jpg" },
     { file: "shots/two.webp", alt: "The second" },
   ]);
@@ -562,4 +567,172 @@ test("an image key on the wrong tier is refused and told where it belongs", () =
   const onBean = parseManifest(WITH_IMAGES("shots/a.png", "[]").replace("cover: shots/a.png", "media: [shots/a.png]"));
   assert.equal(onBean.ok, false);
   if (!onBean.ok) assert.match(onBean.error, /beans\[0\]\.media: a bean has no media/);
+});
+
+test("a sprout's about resolves bare slugs against this file: a bean's, or the pod's", () => {
+  const result = parseManifest(`
+pod:
+  slug: krabs
+  name: { en: Krabs }
+  plant: null
+  description: { en: A small ledger. }
+beans:
+  - slug: ledger
+    name: { en: Ledger }
+    description: { en: The ledger bean. }
+sprouts:
+  - slug: about-the-bean
+    kind: log
+    date: 2026-09-13
+    about: [ledger]
+    name: { en: About the bean }
+    description: { en: x }
+  - slug: about-the-pod
+    kind: essay
+    date: 2026-09-14
+    about: [krabs]
+    name: { en: About the pod }
+    description: { en: x }
+  - slug: about-both
+    kind: decision
+    date: 2026-09-15
+    about: [krabs, ledger]
+    name: { en: About both }
+    description: { en: x }
+`);
+  assert.equal(result.ok, true, result.ok ? "" : result.error);
+  if (!result.ok) return;
+  assert.deepEqual(result.manifest.sprouts.map((s) => s.about), [["bean:ledger"], ["pod:krabs"], ["pod:krabs", "bean:ledger"]]);
+  assert.equal(result.manifest.beans[0].slug, "ledger");
+});
+
+test("a sprout nested under a bean — the old shape — is refused BY NAME, naming the new one", () => {
+  const result = parseManifest(`
+pod:
+  slug: krabs
+  name: { en: Krabs }
+  plant: null
+  description: { en: x }
+beans:
+  - slug: ledger
+    name: { en: Ledger }
+    description: { en: x }
+    sprouts:
+      - slug: first-entry
+        kind: log
+        date: 2026-09-13
+        name: { en: First entry }
+        description: { en: x }
+`);
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /beans\[0\]\.sprouts is not a key any more/);
+  assert.match(result.error, /top-level `sprouts:` list/);
+  assert.match(result.error, /about: \[ledger\]/);
+});
+
+test("about is required, a list of strings, non-empty", () => {
+  const base = (about: string) => `
+pod:
+  slug: krabs
+  name: { en: Krabs }
+  plant: null
+  description: { en: x }
+beans:
+  - slug: ledger
+    name: { en: Ledger }
+    description: { en: x }
+sprouts:
+  - slug: s
+    kind: log
+    date: 2026-09-13
+${about}
+    name: { en: S }
+    description: { en: x }
+`;
+  const missing = parseManifest(base(""));
+  assert.equal(missing.ok, false);
+  if (!missing.ok) assert.match(missing.error, /sprouts\[0\]\.about is required — a list of the slugs \(from this file\) the entry is about/);
+  const notList = parseManifest(base("    about: ledger"));
+  assert.equal(notList.ok, false);
+  if (!notList.ok) assert.match(notList.error, /sprouts\[0\]\.about must be a list of slugs/);
+  const empty = parseManifest(base("    about: []"));
+  assert.equal(empty.ok, false);
+  if (!empty.ok) assert.match(empty.error, /sprouts\[0\]\.about must name at least one/);
+  const notString = parseManifest(base("    about: [1]"));
+  assert.equal(notString.ok, false);
+  if (!notString.ok) assert.match(notString.error, /sprouts\[0\]\.about\[0\] must be a slug \(got 1\)/);
+});
+
+test("about refuses a slug this file does not define, a prefixed ref, and a repeat", () => {
+  const base = (about: string) => `
+pod:
+  slug: krabs
+  name: { en: Krabs }
+  plant: null
+  description: { en: x }
+beans:
+  - slug: ledger
+    name: { en: Ledger }
+    description: { en: x }
+sprouts:
+  - slug: s
+    kind: log
+    date: 2026-09-13
+    about: ${about}
+    name: { en: S }
+    description: { en: x }
+`;
+  const unknown = parseManifest(base("[elsewhere]"));
+  assert.equal(unknown.ok, false);
+  if (!unknown.ok) assert.match(unknown.error, /sprouts\[0\]\.about\[0\] "elsewhere" names nothing in this file — the pod is "krabs" and the beans are ledger/);
+  const prefixed = parseManifest(base("[\"bean:ledger\"]"));
+  assert.equal(prefixed.ok, false);
+  if (!prefixed.ok) assert.match(prefixed.error, /sprouts\[0\]\.about\[0\] "bean:ledger" is a bare slug here — write ledger/);
+  const twice = parseManifest(base("[ledger, ledger]"));
+  assert.equal(twice.ok, false);
+  if (!twice.ok) assert.match(twice.error, /sprouts\[0\]\.about\[1\] repeats "ledger"/);
+});
+
+test("a top-level sprout cannot name itself or another sprout in about", () => {
+  const result = parseManifest(`
+pod:
+  slug: krabs
+  name: { en: Krabs }
+  plant: null
+  description: { en: x }
+beans: []
+sprouts:
+  - slug: s
+    kind: log
+    date: 2026-09-13
+    about: [t]
+    name: { en: S }
+    description: { en: x }
+  - slug: t
+    kind: log
+    date: 2026-09-13
+    about: [krabs]
+    name: { en: T }
+    description: { en: x }
+`);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.error, /sprouts\[0\]\.about\[0\] "t" names nothing in this file/);
+});
+
+test("sprouts: must be a list, and may be omitted", () => {
+  const head = `
+pod:
+  slug: krabs
+  name: { en: Krabs }
+  plant: null
+  description: { en: x }
+beans: []
+`;
+  const omitted = parseManifest(head);
+  assert.equal(omitted.ok, true);
+  if (omitted.ok) assert.deepEqual(omitted.manifest.sprouts, []);
+  const notList = parseManifest(`${head}sprouts: nope\n`);
+  assert.equal(notList.ok, false);
+  if (!notList.ok) assert.match(notList.error, /sprouts must be a list/);
 });
