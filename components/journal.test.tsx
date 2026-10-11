@@ -65,3 +65,14 @@ test("without a heading the list stands alone (the beanstalk owns its own h1)", 
   assert.doesNotMatch(out, /<h2/);
   assert.doesNotMatch(out, /<section/);
 });
+
+test("a pollen line without a url renders its title as bare text, not a link", () => {
+  const out = html([pollenLine("arkaik:e2", "2026-02-03")]);
+  assert.doesNotMatch(out, /<a href="https/);
+  assert.match(out, /arkaik:e2 title/);
+});
+
+test("without a heading the markup carries no aria-label at all", () => {
+  const out = html([sproutLine("s", "2026-01-01")]);
+  assert.doesNotMatch(out, /aria-label/);
+});

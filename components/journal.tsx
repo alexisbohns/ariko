@@ -31,7 +31,11 @@ export function Journal({
 }: {
   entries: BeanstalkEntry[];
   lang: Lang;
-  /** Set on an entity page ("Journal"); absent on `/beanstalk`, which owns its h1. */
+  /**
+   * Set on an entity page ("Journal"); absent on `/beanstalk`, which owns its
+   * h1. Convention: pass an English word — UI chrome in this zone is never
+   * localised.
+   */
   heading?: string;
 }) {
   if (entries.length === 0) return null;
@@ -88,8 +92,7 @@ export function Journal({
 
   // The entity pages' section shape — the pod page's "Inside" heading,
   // verbatim, so the journal reads as the second index on the page rather than
-  // a new kind of thing. English regardless of the language switch, as every
-  // piece of UI chrome in this zone is.
+  // a new kind of thing.
   return (
     <section className="reveal flex flex-col gap-4 border-t pt-6">
       <h2 className="font-heading text-xs uppercase tracking-widest text-muted-foreground">{heading}</h2>
