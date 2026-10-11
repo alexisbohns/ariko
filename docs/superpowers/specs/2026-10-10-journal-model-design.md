@@ -188,10 +188,10 @@ plant/pod → parents) as well as into a sprout. `promotedTo` records either ref
 - **Garden manifest** (`lib/garden-manifest.ts`, `plugins/garden-plant/`):
   `bean.content` is accepted; a sprout names its `kind` (`type` is refused by
   name, and so is `kind: digest` — machine-written) and the applier writes a
-  nested sprout as `about: ["bean:…"]`, never `parents`. Moving `sprouts` out of
-  beans to a top-level list on the pod (or plant), each with its own
-  `about: [slugs]` resolved against the same file, is **slice four**; until
-  then nesting is the shorthand for one ref. Refused keys stay refused.
+  nested sprout as `about: ["bean:…"]`, never `parents`. Since slice four
+  (`plans/2026-10-11-manifest-sprouts.md`) `sprouts` is a top-level list, each
+  with its own `about: [slugs]` resolved against the same file; the nested
+  shape is refused by name. Refused keys stay refused.
 - **`/api/synthesis`** writes `kind: "digest"`; `/api/pollen/sync` unchanged.
   Mapping pollen `anchors.bean` to `about` is a later, separate decision.
 
@@ -258,7 +258,11 @@ state renders:
    changes, `articleFor` deleted. Migration steps 1, 3, 4 ship here.
 3. **Seeds grow into beans.** `promoteSeedToBeanAction` and the overlay action. Shipped by `plans/2026-10-11-seed-to-bean.md`.
 4. **Doors and plugin.** Manifest sprouts with `about`, `plugins/garden-plant/`
-   skill text, `/api/synthesis` kind, Lab Note docs.
+   skill text, `/api/synthesis` kind, Lab Note docs. Shipped by
+   `plans/2026-10-11-manifest-sprouts.md` — the last two needed nothing
+   further: `/api/synthesis` already writes `kind: "digest"` (Part A,
+   `lib/synthesis-store.ts`), and the Lab Note's `type` → `kind` prefill is
+   documented in README §triage.
 
 ## 6. What the tests must pin
 
@@ -276,9 +280,9 @@ so each gets a source or behaviour test on the day it lands:
 - `/sprout/[slug]` is in `lib/server-safe-source.test.ts` (Part B, below).
 - The migration refuses on an unrooted sprout and on a bean that already has
   content.
-- A manifest sprout nested under a bean is written `about` that bean, never
-  under it; the top-level `sprouts` list with its own `about` is slice four.
-- Slice four: the garden manifest refuses a sprout nested under a bean (the old
+- A manifest sprout is written with the `about` the parser resolved, never
+  `parents`.
+- The garden manifest refuses a sprout nested under a bean (the old
   shape) with a message naming the new one.
 
 ## Part B — the public surfaces

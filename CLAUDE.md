@@ -562,15 +562,23 @@ Six rules the tests pin, each of which passes `tsc`, `npm test` **and**
   one machine-written kind and the one with behaviour (exempt from the
   cascade, skipped by its own bucketing), and a file in another repo is where
   nothing would look wrong.
-- **A nested sprout is ABOUT its bean, never under it.** The manifest still
-  nests a sprout beneath a bean, and the applier writes it as
-  `about: ["bean:…"]` with no `parents` at all: its plant is derived through
-  the bean (`resolveSproutPlant`), so re-homing the bean carries its entries
-  with it. `parents: ["bean:…"]` would type-check — `parents` is `string[]`
-  — and `resolveSproutPlant` reads only `plant:` refs from it, so the sprout
-  would have no plant and `filterPublic` would drop it with nothing failing.
-  Slice four moves manifest sprouts to a top-level list with an `about:` of
-  their own; until then nesting is the authoring shorthand for one ref.
+- **A manifest sprout is ABOUT what its `about:` names, never under
+  anything.** Sprouts are a top-level `sprouts:` list; each `about:` is one or
+  more bare slugs from the same file — the pod's or a bean's — which
+  `lib/garden-manifest.ts` resolves to `pod:` / `bean:` refs against that file
+  and refuses by name when they name nothing, are already prefixed, or repeat.
+  The applier writes the list verbatim and no `parents`, so
+  `resolveSproutPlant` derives the plant through whatever the entry is about,
+  and re-homing a bean carries its entries with it. `parents: ["bean:…"]`
+  would type-check — `parents` is `string[]` — and `resolveSproutPlant` reads
+  only `plant:` refs from it, so the sprout would have no plant and
+  `filterPublic` would drop it with nothing failing. The old shape — `sprouts:`
+  nested under a bean — is refused BY NAME, before anything else on that bean
+  is read, with the new one spelled in the message, because a manifest that
+  nested would otherwise parse with its journal silently dropped. `--update`
+  never rewrites a stored `about` — re-anchoring an entry is the admin's
+  decision — and the tree says so on that line, `(about kept: edit it in the
+  admin)`, rather than leaving an author to believe the edit landed.
 - **A bean's `content` is its narrative, and a sprout is not a version of it.**
   Since the journal model (`specs/2026-10-10-journal-model-design.md`) a bean
   carries one body — what the feature is now and how it got there — rewritten

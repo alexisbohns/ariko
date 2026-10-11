@@ -202,7 +202,7 @@ unrooted pod.
 **A bean carries `content`, its evolving narrative — what the feature is today
 and how it got there — rewritten in place, never versioned or appended.** A
 different version of a feature is a sibling bean, not a second body. The sprouts
-beneath it stay the dated entries — how the timeline orders the work, how the
+about it stay the dated entries — how the timeline orders the work, how the
 publish cascade finds it — and the narrative is the one piece of prose that
 describes the bean itself. The garden manifest writes `content:` on a bean
 exactly as it does on a pod ([`lib/garden-manifest.ts`](../lib/garden-manifest.ts)).
@@ -507,7 +507,7 @@ Nine doors, and the taxonomy is partly *defined* by which of them may publish.
 | `POST /api/articles` | a **private bean** per article carrying its `content` as the bean's narrative (no companion sprout), plus an optional container narrative | no — `state` is refused on the raw object, whatever its value, and a public bean is refused |
 | `POST /api/synthesis` | draft sprouts of `kind: digest`, each `about` its curated `digest-*` / `weekly-wrap` bean, which must already exist (the wire still says `parents`) | no |
 | `POST /api/pollen/sync` | pollen docs, cursors, refusals — and **projected beans** | no — an envelope's `"public"` is a hint, `"private"` is binding |
-| `npm run garden:plant` | a pod, its beans and the entries about them, from a sibling repo's `garden.yml` — a nested sprout is written `about` its bean, with its `kind:` a member of the vocabulary | **no, by refusal** — `visibility`, `state`, `exhibited` and `order` are *refused* keys, not ignored ones; so are `type` (not a key any more) and `kind: digest` (machine-written) |
+| `npm run garden:plant` | a pod, its beans and the entries about them, from a sibling repo's `garden.yml` — sprouts are a top-level list, each written with the `about` its bare slugs resolve to (the file's pod, its beans, or both), with its `kind:` a member of the vocabulary | **no, by refusal** — `visibility`, `state`, `exhibited` and `order` are *refused* keys, not ignored ones; so are `type` (not a key any more), `kind: digest` (machine-written) and `sprouts:` nested under a bean (the old shape) |
 | `npm run migrate` | the whole garden from [`data/garden.yml`](../data/garden.yml) | seed data, as authored |
 | `npm run import:screens` / `import:casa` | screens and media, skipping what already exists | no — screens are private at birth |
 
