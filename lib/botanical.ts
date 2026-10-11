@@ -1,6 +1,7 @@
 import type { UpdateFilter } from "mongodb";
 import { getDb } from "./db";
 import {
+  hasNarrative,
   resolveText,
   PLANT_PREFIX,
   type Bean,
@@ -111,20 +112,32 @@ export interface NewBean {
   description: Text;
   podSlug: string | null;
   plantSlug: string | null; // used ONLY when podSlug is null — the pod carries the plant otherwise
+  content?: Text; // a narrative at birth (a seed grown into a bean); omitted when blank
+  relations?: Relation[]; // its mirrored refs; omitted when empty
 }
 
-export async function createBean(input: NewBean): Promise<Bean> {
-  const db = await getDb();
-  // A blank description is omitted rather than stored as "" — the field is
-  // optional, and an empty one would render as a dangling line (slice 2).
+// Pure: the document createBean inserts. Exported so the shape is testable
+// without a database — `lib/bean-document.test.ts`. Private at birth; a blank
+// description, a blank content and an empty relations list are OMITTED rather
+// than stored as "" / [] (an empty field renders as a dangling line, and
+// `hasNarrative` reads an absent content as "nothing written", which is true).
+export function beanDocument(input: NewBean): Bean {
   const described = resolveText(input.description).trim();
-  const doc: Bean = {
+  const narrated = input.content !== undefined && hasNarrative(input.content);
+  return {
     slug: input.slug,
     name: input.name,
     parents: input.podSlug ? [`pod:${input.podSlug}`] : input.plantSlug ? [`plant:${input.plantSlug}`] : [],
     ...(described ? { description: input.description } : {}),
+    ...(narrated ? { content: input.content } : {}),
+    ...(input.relations && input.relations.length > 0 ? { relations: input.relations } : {}),
     visibility: "private",
   };
+}
+
+export async function createBean(input: NewBean): Promise<Bean> {
+  const db = await getDb();
+  const doc = beanDocument(input);
   try {
     await db.collection<Bean>("beans").insertOne({ ...doc });
   } catch (err) {
