@@ -119,15 +119,15 @@ test("re-post preserves capturedAt from the first seed", { skip: !hasDb }, async
   assert.notEqual(second.seed.updatedAt, firstCapturedAt);
 });
 
-test("markSeedPromoted sets status and appends the sprout slug", { skip: !hasDb }, async (t) => {
+test("markSeedPromoted sets status and appends the ref", { skip: !hasDb }, async (t) => {
   t.after(cleanup);
   const { seed } = await createOrUpdateSeed({ title: "__test__ promote", media: [], source: { kind: "manual" } });
-  await markSeedPromoted(seed.id, "ver-1");
-  await markSeedPromoted(seed.id, "ver-1"); // idempotent add
-  await markSeedPromoted(seed.id, "ver-2");
+  await markSeedPromoted(seed.id, "sprout:ver-1");
+  await markSeedPromoted(seed.id, "sprout:ver-1"); // idempotent add
+  await markSeedPromoted(seed.id, "bean:b-1");
   const reread = await getSeed(seed.id);
   assert.equal(reread?.status, "promoted");
-  assert.deepEqual([...(reread?.promotedTo ?? [])].sort(), ["ver-1", "ver-2"]);
+  assert.deepEqual([...(reread?.promotedTo ?? [])].sort(), ["bean:b-1", "sprout:ver-1"]);
 });
 
 test("discardSeed sets status discarded", { skip: !hasDb }, async (t) => {

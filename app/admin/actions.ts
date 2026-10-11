@@ -21,6 +21,7 @@ import {
   PLANT_PREFIX,
   POD_PREFIX,
   BEAN_PREFIX,
+  SPROUT_PREFIX,
   parentsWithPrefix,
   type MediaImage,
   type PlantRole,
@@ -273,7 +274,7 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
       await setPublic(plantSlugs);
     }
 
-    await markSeedPromoted(seedId, input.slug);
+    await markSeedPromoted(seedId, `${SPROUT_PREFIX}${input.slug}`);
   } catch (err) {
     if (err instanceof SlugExistsError) slugError = err.message;
     else throw err;

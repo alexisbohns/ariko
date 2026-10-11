@@ -336,7 +336,7 @@ export interface Seed {
   source: Source;
   suggested?: SeedSuggestion;
   status: SeedStatus;
-  promotedTo: string[]; // sprout slugs; empty until 2b triage
+  promotedTo: string[]; // prefixed refs of what it became ("sprout:…" | "bean:…"); bare sprout slugs before 2026-10-11
   createdAt: string; // ISO
   updatedAt: string; // ISO
 }

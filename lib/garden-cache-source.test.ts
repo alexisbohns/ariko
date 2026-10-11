@@ -158,6 +158,7 @@ const GARDEN_READERS = new Set([
   "listScreensForPlant",
   "getScreen",
   "getSprout",
+  "beanDocument", // pure: builds the document createBean inserts, touches no database
 ]);
 
 /**
