@@ -45,6 +45,8 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 export const config = {
   // The public entries exist only so `?lang=` can be turned into a cookie.
   // They are the exhibition pages that render authored prose — the ones with
-  // something to be bilingual about.
-  matcher: ["/admin/:path*", "/", "/beanstalk", "/plant/:slug*", "/pod/:slug*", "/bean/:id*"],
+  // something to be bilingual about — and the sprout page, whose entry is
+  // bilingual prose itself. A public page left off this list keeps a dead
+  // language switch; lib/public-lang-matcher-source.test.ts reports it.
+  matcher: ["/admin/:path*", "/", "/beanstalk", "/plant/:slug*", "/pod/:slug*", "/bean/:id*", "/sprout/:slug*"],
 };
