@@ -187,7 +187,7 @@ plant/pod → parents) as well as into a sprout. `promotedTo` records either ref
   into a milestone entry in the bean's journal.
 - **Garden manifest** (`lib/garden-manifest.ts`, `plugins/garden-plant/`):
   `bean.content` is accepted; a sprout names its `kind` (`type` is refused by
-  name, and so is `kind: digest` — machine-written) and the applier writes a
+  name, and so is `kind: digest` — machine-written) and in slices two and three the applier wrote a
   nested sprout as `about: ["bean:…"]`, never `parents`. Since slice four
   (`plans/2026-10-11-manifest-sprouts.md`) `sprouts` is a top-level list, each
   with its own `about: [slugs]` resolved against the same file; the nested
