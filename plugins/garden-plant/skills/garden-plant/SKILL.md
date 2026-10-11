@@ -2,7 +2,7 @@
 name: garden-plant
 description: >
   Describe THIS repo's project for Ariko by writing a `garden.yml` at the repo
-  root — a pod, its beans, and the sprouts hanging from them, bilingual EN/FR.
+  root — a pod, its beans, and the journal entries about them, bilingual EN/FR.
   Use whenever someone asks to add this project to Ariko, give it a pod, write
   its beans, or draft its narratives. You write the FILE and open a PR, and you
   stop there: the maintainer plants it from the Ariko repo.
@@ -11,7 +11,8 @@ description: >
 # Planting a project in Ariko
 
 Ariko is a garden. A project lives there as a **pod** with **beans** hanging
-off it and **sprouts** hanging off those. This skill has you describe your own
+off it and a journal of **sprouts**, each about the pod or one of its beans.
+This skill has you describe your own
 repo in one file — `garden.yml` at the repo root — so the maintainer can plant
 it with a single reviewed command.
 
@@ -36,15 +37,15 @@ reaching for a database, you have left the skill.
 | **Plant** | A whole practice or brand — the root. | yes (`content`) |
 | **Pod** | One project. Usually one repo. | yes (`content`) |
 | **Bean** | One feature, theme or strand of the project. | yes (`content`) |
-| **Sprout** | One dated entry in a bean's journal: a log, a milestone, a release. | yes (`content`) |
+| **Sprout** | One dated entry in a project's journal — about the pod, or about one or more of its beans: a log, a milestone, a release. | yes (`content`) |
 
-A manifest writes **one pod, its beans, and their sprouts**. It never creates a
+A manifest writes **one pod, its beans, and the sprouts about them**. It never creates a
 plant — it may only point at one that already exists.
 
-A sprout nested under a bean is **about** that bean — it is a journal entry, not
-a child. Its plant is **derived**: from the bean, through the pod, to the plant
-the pod points at. You never write a sprout's plant, and the manifest refuses
-`parents` on it.
+A sprout is **about** what its `about:` names — the pod, or one or more beans,
+by their bare slugs from this same file. It is a journal entry, not a child.
+Its plant is **derived**: through what it is about, to the plant the pod points
+at. You never write a sprout's plant, and the manifest refuses `parents` on it.
 
 **Small project? Skip the plant.** `plant: null` makes a standalone pod, and
 that is the normal case for a side project.
@@ -57,7 +58,7 @@ it got there. It is bilingual like a pod's, under the same rules, and it is
 describes the feature as it stands, rather than appending a paragraph that
 begins "and then".
 
-A **sprout** is a dated piece of work — one entry in the bean's journal, with a
+A **sprout** is a dated piece of work — one entry in the project's journal, with a
 `kind` from a closed list. It keeps its date, so the timeline can order it and
 the publish cascade can find it, and it is never rewritten to say what the
 feature later became.
@@ -75,7 +76,7 @@ Sub-species — a retrospective, an experiment, a learning — are **tags**, not
 kinds: the kind says what an entry *is*, a tag says what it is *about*.
 
 So: "Ledger import" is a bean, and its `content` says what import can do today.
-"Ledger import now reads OFX" on 2026-08-14 is a sprout hanging from it.
+"Ledger import now reads OFX" on 2026-08-14 is a sprout about it.
 
 ## The file
 
@@ -125,25 +126,6 @@ beans:
         L'import prend le fichier que ta banque te donne déjà — CSV ou OFX —
         et en fait des lignes que tu reconnais. Au départ il ne lisait que le
         CSV, et mal les dates ; l'OFX a réglé ça pour la plupart des banques.
-    sprouts:
-      - slug: krabs-ofx-import
-        kind: release
-        date: 2026-08-14
-        name:
-          en: Your bank's own file, straight in
-          fr: Le fichier de ta banque, tel quel
-        description:
-          en: Krabs now reads OFX, so most banks work without a conversion step.
-          fr: "Krabs lit désormais l'OFX : la plupart des banques passent sans conversion."
-        content:
-          en: |
-            CSV was always a negotiation — every bank spells a date differently.
-            OFX is the format banks already export, so there is nothing to fix
-            up by hand any more.
-          fr: |
-            Le CSV, c'était toujours une négociation : chaque banque écrit ses
-            dates à sa façon. L'OFX, c'est ce que les banques exportent déjà —
-            plus rien à rafistoler à la main.
 
   - slug: krabs-stack
     name:
@@ -152,16 +134,49 @@ beans:
     description:
       en: What Krabs is built from, and why it stays small.
       fr: Ce qui fait tourner Krabs, et pourquoi ça reste léger.
-    sprouts:
-      - slug: krabs-offline-first
-        kind: log
-        date: 2026-09-02
-        name:
-          en: It works on the train
-          fr: Ça marche dans le train
-        description:
-          en: Everything is stored on your own machine, so Krabs never needs a signal.
-          fr: "Tout est stocké sur ta machine : Krabs n'a jamais besoin de réseau."
+
+sprouts:
+  - slug: krabs-ofx-import
+    kind: release
+    date: 2026-08-14
+    about: [ledger-import]
+    name:
+      en: Your bank's own file, straight in
+      fr: Le fichier de ta banque, tel quel
+    description:
+      en: Krabs now reads OFX, so most banks work without a conversion step.
+      fr: "Krabs lit désormais l'OFX : la plupart des banques passent sans conversion."
+    content:
+      en: |
+        CSV was always a negotiation — every bank spells a date differently.
+        OFX is the format banks already export, so there is nothing to fix
+        up by hand any more.
+      fr: |
+        Le CSV, c'était toujours une négociation : chaque banque écrit ses
+        dates à sa façon. L'OFX, c'est ce que les banques exportent déjà —
+        plus rien à rafistoler à la main.
+
+  - slug: krabs-offline-first
+    kind: log
+    date: 2026-09-02
+    about: [krabs-stack]
+    name:
+      en: It works on the train
+      fr: Ça marche dans le train
+    description:
+      en: Everything is stored on your own machine, so Krabs never needs a signal.
+      fr: "Tout est stocké sur ta machine : Krabs n'a jamais besoin de réseau."
+
+  - slug: krabs-one-number
+    kind: essay
+    date: 2026-09-20
+    about: [krabs]
+    name:
+      en: Six months, one number
+      fr: Six mois, un seul chiffre
+    description:
+      en: Every chart Krabs never grew, and why the one number left is the one you actually check.
+      fr: Tous les graphiques que Krabs n'a jamais eus, et pourquoi le seul chiffre qui reste est celui que tu regardes vraiment.
 ```
 
 Notes on the shape:
@@ -172,7 +187,10 @@ Notes on the shape:
   Markdown without quoting anything. A pod's and a bean's `content` is a
   narrative, kept current; a sprout's is an entry, dated and left as written.
 - `beans` may be omitted or empty — a pod on its own is a valid manifest.
-- `sprouts` may be omitted on a bean.
+- `sprouts` is a top-level list and may be omitted; every entry needs
+  `about: [...]` — one or more bare slugs from this file, the pod's or a
+  bean's. An entry about the pod alone is how you write about the project
+  rather than a feature.
 - `plant:` is either `null` or the slug of a plant that already exists in the
   garden. When unsure, use `null` and let the maintainer re-home it.
 
@@ -187,11 +205,13 @@ result; the manifest never holds a URL.
 beans:
   - slug: ledger-import
     cover: garden/ledger-import.png
-    sprouts:
-      - slug: krabs-ofx-import
-        media:
-          - garden/ofx-dialog.png
-          - { file: garden/ofx-result.webp, alt: "The ledger after an OFX import" }
+
+sprouts:
+  - slug: krabs-ofx-import
+    about: [ledger-import]
+    media:
+      - garden/ofx-dialog.png
+      - { file: garden/ofx-result.webp, alt: "The ledger after an OFX import" }
 ```
 
 - Keep them in one folder beside the manifest (`garden/` is the habit).
@@ -216,6 +236,10 @@ stops the run with nothing touched.
   `krabs`; the *reader* would not. A manifest is prose plus references, and a
   mention of `krabs` three lines above a bean of the same name is ambiguous to
   every human and every agent who edits the file later.
+- **`about` names things in this file.** Each value is a bare slug — the pod's
+  or a bean's — and the parser prefixes it. A slug the file does not define, a
+  prefixed value (`bean:ledger`), a repeat, or an empty list is refused by
+  name. A sprout cannot be about another sprout.
 - **Dates are `YYYY-MM-DD`**, exactly ten characters. The garden sorts sprouts
   by comparing the date **string**, raw — nothing anywhere parses it into a
   date. So `09/12/2026` does not fail; it sorts above every date starting with
@@ -249,7 +273,8 @@ Each of these is a **hard error**, not a field quietly dropped:
 | `exhibited` | Same. |
 | `order` | Same. |
 | `relations` | Derived from the prose's own references, never authored. |
-| `parents` | Containment; re-homing a pod or bean is a privacy decision — and a sprout has none: it is *about* the bean it is nested under, and its plant is derived. |
+| `parents` | Containment; re-homing a pod or bean is a privacy decision — and a sprout has none: it is *about* what its `about:` names, and its plant is derived. |
+| `sprouts` on a bean | Not a key any more — sprouts are a top-level list, each with its own `about:` naming the pod or the beans it is about. |
 | `type` on a sprout | Not a key any more — a sprout's kind is `kind:`, one of the five authorable members above (the sixth, `digest`, is refused by name). |
 | `cover` on a pod or sprout, `media` on a bean | A cover is a bean's; media is a sprout's. |
 
@@ -287,10 +312,14 @@ npm run garden:plant -- ../<this-repo>/garden.yml
 ```
 
 The dry run prints the plan — a `create` or `skip` per entity, plus the list
-of images it would upload — and writes nothing.
+of images it would upload — and writes nothing. Each sprout prints beside the
+beans rather than under one, with what it is about as a suffix:
+`create sprout krabs-ofx-import about bean:ledger-import`. On `--update`, an
+entry whose `about:` you changed prints `(about kept: edit it in the admin)` —
+re-planting never moves an entry, so that edit is the maintainer's to make.
 
 **Re-running is safe.** A slug that already exists is skipped, so planting the
 same file twice changes nothing. `--update` opts into rewriting names,
 descriptions and narratives from the file for entities that already exist, and
-touches nothing else — no visibility, no state, no parentage, and not which
-bean a sprout is about.
+touches nothing else — no visibility, no state, no parentage, and not what a
+sprout is about.
