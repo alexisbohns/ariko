@@ -24,10 +24,10 @@ const bean = (extra: Partial<Bean> = {}): Bean => ({
 const sprout = (media?: Sprout["media"]): Sprout => ({
   slug: "s",
   name: "S",
-  type: "release",
+  kind: "release",
   date: "2026-01-01",
   description: "",
-  parents: ["bean:b"],
+  about: ["bean:b"],
   ...(media ? { media } : {}),
 });
 

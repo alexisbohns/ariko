@@ -2,13 +2,19 @@ import type { Bean, RawGarden } from "./data";
 
 // Issue #54 / spec 2026-09-04-pbbls-legacy-bean-retirement-design.
 //
-// A pure, idempotent transform over a RawGarden, in the shape lib/retier.ts
-// established: the catalogs below are the single definition of "migrated", and
-// both halves of the migration read them — scripts/migrate-pbbls-legacy.ts for
-// Mongo, lib/pbbls-legacy.test.ts to prove data/garden.yml's hand edit matches.
+// A pure, idempotent transform over a RawGarden, in the shape the slice-1
+// re-tiering (lib/retier.ts, since deleted with its script for the same reason
+// as below) established: the catalogs are the single definition of "migrated".
+// The Mongo half ran in September 2026 (scripts/migrate-pbbls-legacy.ts, since
+// deleted: it wrote `parents` and `type`, two fields a sprout no longer has, and
+// cannot be expressed against the journal shape). What remains is the YAML
+// half — lib/pbbls-legacy.test.ts proves data/garden.yml's hand edit is a
+// fixed point of this transform, spelled in today's vocabulary: a sprout hangs
+// from its bean through `about`, and the twelve changelog entries are `kind:
+// milestone`.
 //
-// The YAML half is NOT written by a script, deliberately. migrate-retier.ts
-// ends with yaml.dump, which erases comments; garden.yml's comments are
+// The YAML half is NOT written by a script, deliberately. The retier script
+// ended with yaml.dump, which erases comments; garden.yml's comments are
 // load-bearing and one of them is the warning this very work adds. So the file
 // is edited by hand and the suite asserts it is already a fixed point here.
 
@@ -31,9 +37,11 @@ export const AUTHORED_BEANS = [
 ] as const;
 
 // Spec 2026-09-02 §6 calls these "milestone sprouts": dated, content-free, one
-// per shipped deliverable. The twelve below were seeded as `feature`; retyping
-// makes them one set with the deliverable.shipped events #55 will import.
-export const MILESTONE_TYPE = "milestone" as const;
+// per shipped deliverable. The twelve below were seeded as `feature`; under the
+// journal model (spec 2026-10-10) that word and `song`/`episode` all fold into
+// the one kind `milestone`, which makes them one set with the
+// deliverable.shipped events #55 will import.
+export const MILESTONE_KIND = "milestone" as const;
 
 // The twelve changelog sprouts, and the bean each one actually advances.
 // Four assignments are named in spec 2026-09-02 §9.2; three were judgement
@@ -114,7 +122,8 @@ const legacy = new Set<string>(LEGACY_BEANS);
 
 /**
  * Retires the legacy beans, seeds the missing stubs, and files the twelve
- * changelog sprouts under the beans they advance.
+ * changelog sprouts under the beans they advance — as `about: ["bean:…"]`,
+ * `kind: "milestone"`, with any legacy `parents` dropped.
  *
  * Two rules, both about not destroying authored work:
  *  - a stub is only ever ADDED; a slug that already exists is skipped whole, so
@@ -144,13 +153,17 @@ export function retireLegacyBeans(raw: RawGarden): RawGarden {
     // a ref built from a function source.
     if (!Object.hasOwn(SPROUT_MAP, s.slug)) return s;
     const target = SPROUT_MAP[s.slug];
-    // The parents array is REPLACED, not appended to: these twelve are seeded
-    // changelog sprouts with exactly one parent, and the whole point is to move
-    // them off the bean that retires. A second parent would be dropped — which
+    // The about array is REPLACED, not appended to: these twelve are seeded
+    // changelog sprouts anchored on exactly one bean, and the whole point is to
+    // move them off the bean that retires. A second ref would be dropped — which
     // is why the move is by explicit catalog entry and never by slug prefix.
-    const parents = [`bean:${target}`];
-    if (s.type === MILESTONE_TYPE && JSON.stringify(s.parents) === JSON.stringify(parents)) return s;
-    return { ...s, parents, type: MILESTONE_TYPE };
+    // `parents` is destructured OFF rather than carried: a sprout holds `about`
+    // or `parents`, never both, and a stale `parents` beside the new `about`
+    // would be a second source of truth for the plant it rolls up to.
+    const about = [`bean:${target}`];
+    if (s.kind === MILESTONE_KIND && JSON.stringify(s.about) === JSON.stringify(about)) return s;
+    const { parents: _parents, ...rest } = s;
+    return { ...rest, about, kind: MILESTONE_KIND };
   });
 
   // Spread raw first so unknown top-level keys pass through untouched.

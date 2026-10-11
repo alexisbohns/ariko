@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   initialsOf,
   sourceLabel,
+  sproutKindLabel,
   sproutStateLabel,
   tierLabel,
   visibilityLabel,
@@ -69,4 +70,13 @@ test("sproutStateLabel and visibilityLabel agree on the word they share", () => 
   // forms for one concept is a drift nobody sees, because each surface reads
   // correctly on its own.
   assert.equal(sproutStateLabel("private"), visibilityLabel("private"));
+});
+
+test("sproutKindLabel gives one display form per member", () => {
+  assert.equal(sproutKindLabel("log"), "Log");
+  assert.equal(sproutKindLabel("milestone"), "Milestone");
+  assert.equal(sproutKindLabel("release"), "Release");
+  assert.equal(sproutKindLabel("essay"), "Essay");
+  assert.equal(sproutKindLabel("decision"), "Decision");
+  assert.equal(sproutKindLabel("digest"), "Digest");
 });

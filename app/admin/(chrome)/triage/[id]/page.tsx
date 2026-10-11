@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { getSeed } from "@/lib/seeds";
 import { listPlants, listPods, listBeans } from "@/lib/botanical";
 import { resolveText, textPart } from "@/lib/data";
+import { SPROUT_KINDS, kindForSuggestion } from "@/lib/sprout-kind";
+import { sproutKindLabel } from "@/lib/glyphs";
 import { promoteSeedAction, discardSeedAction } from "../../../actions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -104,8 +106,10 @@ export default async function TriagePage({
           <input type="hidden" name="seedId" value={seed.id} />
 
           <Fieldset legend="Plant">
-            {/* Selecting a plant roots whichever parent is CREATED below: a new pod
-                parents under it; a new bean with no pod parents directly under it. */}
+            {/* The plant roots whatever is CREATED below, and is the sprout's anchor
+                when no pod or bean is picked (a plant-level entry). With an existing
+                pod or bean picked, the sprout's plant is derived from it and this
+                select must agree. */}
             <div className="flex flex-col gap-2">
               <Label htmlFor="plantSlug">Existing</Label>
               <NativeSelect
@@ -217,20 +221,27 @@ export default async function TriagePage({
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="type">Type</Label>
-                <Input
-                  id="type"
-                  type="text"
-                  name="type"
-                  required
-                  defaultValue={seed.suggested?.type ?? ""}
-                />
-              </div>
-              <div className="flex flex-col gap-2">
                 <Label htmlFor="date">Date</Label>
                 <Input id="date" type="date" name="date" required />
               </div>
             </div>
+            {/* The kind is a vocabulary (lib/sprout-kind.ts), drawn as radios with its
+                words under a legend that names the group; a lab note's
+                suggested.type only picks the default. */}
+            <Fieldset legend="Kind">
+              <div className="flex flex-wrap items-center gap-4">
+                {SPROUT_KINDS.map((kind) => (
+                  <ChoiceLabel key={kind}>
+                    <NativeRadio
+                      name="kind"
+                      value={kind}
+                      defaultChecked={kind === kindForSuggestion(seed.suggested?.type)}
+                    />{" "}
+                    {sproutKindLabel(kind)}
+                  </ChoiceLabel>
+                ))}
+              </div>
+            </Fieldset>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-2">
                 <Label htmlFor="description">Description</Label>

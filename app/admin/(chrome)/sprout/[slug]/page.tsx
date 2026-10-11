@@ -10,11 +10,12 @@ import { SproutHero, type Surface } from "../../../_components/sprout-hero";
 import { SproutMetaForm } from "../../../_components/sprout-meta-form";
 import { SproutMediaForm } from "../../../_components/sprout-media-form";
 import { SproutDeleteForm } from "../../../_components/sprout-delete-form";
+import { SproutAboutForm } from "../../../_components/sprout-about-form";
 import { EntityRail, type RailItem } from "../../../_components/entity-rail";
 // Not from lucide-react. `RailItem.icon` crosses into a client component and
 // this file is a server one, so the icons have to arrive as client references —
 // see _components/rail-icons.ts, which is the whole of that boundary.
-import { FileCode2, Images, Trash2 } from "../../../_components/rail-icons";
+import { FileCode2, Images, Route, Trash2 } from "../../../_components/rail-icons";
 import { ProseEditor } from "@/components/editor/prose-editor";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import Link from "next/link";
@@ -29,7 +30,9 @@ export const dynamic = "force-dynamic";
  * The sibling of `plant/[slug]/narrative/page.tsx` — a head, a bare editor, one
  * link back — with the difference that a sprout has no hub above it to carry
  * its fields, so its head carries them: the name in the h1 with the meta
- * overlay behind it, and state, date and type as three icons under it.
+ * overlay behind it, and state, date and kind as three icons under it. Where
+ * it hangs — the plant it derives, and the pods and beans it is about — is the
+ * About panel on the rail, server-rendered here and handed down.
  *
  * WHAT LEFT THIS PAGE, and why each one left:
  *
@@ -71,7 +74,13 @@ export default async function AdminSproutPage({
   // The admin reads the LIVE garden — it already does, one line up — because the
   // chrome is the surface most likely to be looked at right after a rename.
   // "en" rather than a negotiated language: the admin zone is authored in one.
-  const lineage = resolveLineage(sprout.parents, raw, { lang: "en", hrefs: ADMIN_HREFS });
+  // A sprout carries `about` OR `parents` (lib/data.ts), so the two concatenate
+  // without overlap: a plant-level sprout draws its plant, an about-sprout its
+  // bean, pod and plant.
+  const lineage = resolveLineage([...(sprout.about ?? []), ...(sprout.parents ?? [])], raw, {
+    lang: "en",
+    hrefs: ADMIN_HREFS,
+  });
 
   // What the editor opens on, and the half the rail's diagnostic shows. ONE
   // read serves both: with two, the Source panel could show one half while the
@@ -87,10 +96,10 @@ export default async function AdminSproutPage({
   // `?form=` claims neither surface, and its message falls through to the
   // page-level banner below.
   const heroForm: Surface | undefined =
-    error && (form === "meta" || form === "state" || form === "date" || form === "type")
+    error && (form === "meta" || form === "state" || form === "date" || form === "kind")
       ? form
       : undefined;
-  const railForm = error && form === "delete" ? "delete" : undefined;
+  const railForm = error && (form === "delete" || form === "about") ? form : undefined;
 
   const railItems: RailItem[] = [
     {
@@ -110,6 +119,22 @@ export default async function AdminSproutPage({
       ),
     },
     {
+      id: "about",
+      label: "About",
+      heading: "About",
+      icon: Route,
+      // The unfiltered garden's three container tiers, so a draft pod or a
+      // private bean is offered — the same reason `entityOptions` reads `raw`.
+      panel: (
+        <SproutAboutForm
+          sprout={sprout}
+          garden={{ plants: raw.plants, pods: raw.pods, beans: raw.beans }}
+          lang={lang}
+          {...(railForm === "about" ? { error } : {})}
+        />
+      ),
+    },
+    {
       id: "media",
       label: "Media",
       heading: "Media",
@@ -121,8 +146,9 @@ export default async function AdminSproutPage({
       label: "Delete",
       heading: "Danger zone",
       icon: Trash2,
-      // `railForm` already implies the error, exactly as `heroForm` does.
-      panel: <SproutDeleteForm sprout={sprout} {...(railForm ? { error } : {})} />,
+      // `railForm` already implies the error, exactly as `heroForm` does — and
+      // names WHICH panel, so a rejected about-save never reopens the delete.
+      panel: <SproutDeleteForm sprout={sprout} {...(railForm === "delete" ? { error } : {})} />,
     },
   ];
 
@@ -141,7 +167,7 @@ export default async function AdminSproutPage({
             description={resolveText(sprout.description).trim()}
             state={stateOf(sprout)}
             date={sprout.date}
-            type={sprout.type}
+            kind={sprout.kind}
             lang={lang}
             // Both or neither, and only when a head surface owns the message.
             // Every consumer inside the head also checks `errorForm`, so handing
@@ -159,15 +185,23 @@ export default async function AdminSproutPage({
               textPart(sprout.description, "en"),
               textPart(sprout.description, "fr"),
               sprout.date,
-              sprout.type,
+              sprout.kind,
               stateOf(sprout),
+              // The anchor is here although nothing in the head draws it: a
+              // rail panel stays OPEN after a save by design (About, like Media
+              // and Delete — entity-rail.tsx changes `open` only on a click,
+              // Escape or `openOnError`), so this entry closes nothing. It is in
+              // the list because the fingerprint is the page's one statement of
+              // "everything a save on this page can change", and the About
+              // panel's save lands back here like every other.
+              JSON.stringify(sprout.about ?? sprout.parents ?? []),
             ])}
           />
 
           {/* Only an error no surface will show: the head reopens onto a rejected
-              meta/state/date/type save and the rail onto a rejected delete, each
-              rendering the message inside, so repeating it here would say it
-              twice. */}
+              meta/state/date/kind save and the rail onto a rejected delete or
+              about save, each rendering the message inside, so repeating it
+              here would say it twice. */}
           {error && !heroForm && !railForm ? (
             <Alert variant="destructive" role="alert">
               <AlertDescription>{error}</AlertDescription>

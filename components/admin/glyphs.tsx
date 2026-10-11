@@ -7,12 +7,17 @@ import {
   ChessPawn,
   CircleDashed,
   Crown,
+  Feather,
+  Flag,
   GitPullRequest,
   Globe,
   Lock,
+  Newspaper,
+  NotebookPen,
   Package,
   PencilLine,
   Rss,
+  Scale,
   ScrollText,
   Sprout,
   User,
@@ -27,6 +32,7 @@ import { cloudinaryThumb } from "@/lib/image-url";
 import {
   initialsOf,
   sourceLabel,
+  sproutKindLabel,
   sproutStateLabel,
   tierLabel,
   visibilityLabel,
@@ -34,6 +40,7 @@ import {
   type Tier,
 } from "@/lib/glyphs";
 import { statusLabel } from "@/lib/plant-status";
+import type { SproutKind } from "@/lib/sprout-kind";
 import { cn } from "@/lib/utils";
 
 /**
@@ -425,6 +432,21 @@ export function SproutStateGlyph({ state }: { state: SproutState }) {
       }
     />
   );
+}
+
+/** EXPORTED for the same reason `SPROUT_STATE_ICONS` is: the sprout head's kind
+ *  trigger draws from this map, so the icon on the head is the icon on the row. */
+export const SPROUT_KIND_ICONS: Record<SproutKind, ComponentType<{ className?: string }>> = {
+  log: NotebookPen,
+  milestone: Flag,
+  release: Package,
+  essay: Feather,
+  decision: Scale,
+  digest: Newspaper,
+};
+
+export function SproutKindGlyph({ kind }: { kind: SproutKind }) {
+  return <IconGlyph icon={SPROUT_KIND_ICONS[kind]} label={sproutKindLabel(kind)} />;
 }
 
 /**

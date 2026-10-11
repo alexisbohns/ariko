@@ -2,6 +2,7 @@ import { GROUPS, groupPaletteItems, sectionItems, type PaletteItem, type Palette
 import {
   BEAN_PREFIX,
   PLANT_PREFIX,
+  aboutRefs,
   POD_PREFIX,
   resolveText,
   type Bean,
@@ -42,9 +43,9 @@ function snippet(text: string): string {
 }
 
 /**
- * The display name of whatever contains `doc`, or undefined. Only the FIRST
- * parent is used: a row has one line for it, and `parents` is a containment
- * list whose head is the one an author would name.
+ * The display name of whatever `doc` hangs from, or undefined. Only the FIRST
+ * ref is used: a row has one line for it, and both `parents` and a sprout's
+ * `about` are lists whose head is the one an author would name.
  */
 function parentLabel(
   parents: string[] | undefined,
@@ -114,7 +115,11 @@ export function buildPaletteIndex(input: { garden: RawGarden; seeds: Seed[] }): 
   }
 
   for (const sprout of garden.sprouts ?? []) {
-    const sublabel = parentLabel(sprout.parents, names);
+    // A sprout is ABOUT pods and beans, and its plant is derived; `parents` is
+    // read only for the plant-level entry, which is the one case it is set —
+    // the same precedence `resolveSproutPlant` applies (lib/data.ts).
+    const about = aboutRefs(sprout);
+    const sublabel = parentLabel(about.length > 0 ? about : sprout.parents, names);
     items.push({
       id: `sprout:${sprout.slug}`,
       kind: "sprout",

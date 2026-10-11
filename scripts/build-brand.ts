@@ -243,7 +243,7 @@ async function main() {
  * `main().catch(...)` rather than top-level await: this repo's package.json
  * carries no `"type": "module"`, so tsx transpiles a bare `.ts` script to
  * CommonJS, where top-level await is a syntax error. Mirrors the exit-on-error
- * shape of `scripts/migrate-retier.ts` and `scripts/check-orphan-assets.ts`.
+ * shape of `scripts/migrate-journal.ts` and `scripts/check-orphan-assets.ts`.
  */
 main().catch((err) => {
   console.error(err);

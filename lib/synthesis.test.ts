@@ -7,13 +7,13 @@ import {
   wrapSlug,
   isValidWeekId,
   bucketWeek,
-  DIGEST_TYPE,
   validateDigestBatch,
   refusedOverwrites,
   type WindowSprout,
   type DraftSprout,
 } from "./synthesis";
 import type { PollenDoc } from "./pollen-sync";
+import { DIGEST_KIND, type SproutKind } from "./sprout-kind";
 
 test("isoWeekId: maps dates to ISO weeks incl. year boundaries", () => {
   assert.equal(isoWeekId("2026-08-17"), "2026-W34"); // a Monday
@@ -68,8 +68,8 @@ function env(id: string, at: string, plant: string): PollenDoc {
     title: `t-${id}`,
   } as PollenDoc;
 }
-function ws(slug: string, date: string, plant: string | null, type = "note"): WindowSprout {
-  return { slug, type, date, plantSlug: plant, name: slug, description: "" };
+function ws(slug: string, date: string, plant: string | null, kind: SproutKind = "log"): WindowSprout {
+  return { slug, kind, date, plantSlug: plant, name: slug, description: "" };
 }
 
 test("bucketWeek: window-filters, groups per plant, derives quiet", () => {
@@ -95,16 +95,35 @@ test("bucketWeek: window-filters, groups per plant, derives quiet", () => {
   assert.deepEqual(out.quiet, ["femfolk"]);
 });
 
-test("bucketWeek: digest sprouts never narrate themselves", () => {
+// The skip is keyed on `kind` alone: a `log` entry on the SAME plant, the same
+// day, is kept — so the digest's absence is the exemption working, not the
+// window or the plant filter dropping it.
+test("bucketWeek: digest sprouts never narrate themselves; a log beside one is kept", () => {
   const bounds = { start: "2026-08-17", end: "2026-08-23" };
   const out = bucketWeek(
     [],
-    [ws("digest-pbbls-2026-w33", "2026-08-17", "pbbls", DIGEST_TYPE)],
-    ["pbbls"],
+    [
+      ws("digest-pbbls-2026-w33", "2026-08-17", "pbbls", DIGEST_KIND),
+      ws("digest-ariko-2026-w33", "2026-08-17", "ariko", "digest"),
+    ],
+    ["pbbls", "ariko"],
     bounds,
   );
   assert.deepEqual(out.plants, {});
-  assert.deepEqual(out.quiet, ["pbbls"]);
+  assert.deepEqual(out.quiet, ["pbbls", "ariko"]);
+
+  const mixed = bucketWeek(
+    [],
+    [
+      ws("digest-pbbls-2026-w33", "2026-08-17", "pbbls", DIGEST_KIND),
+      ws("shipped-it", "2026-08-17", "pbbls", "log"),
+    ],
+    ["pbbls"],
+    bounds,
+  );
+  assert.deepEqual(Object.keys(mixed.plants), ["pbbls"]);
+  assert.deepEqual(mixed.plants["pbbls"].sprouts.map((s) => s.slug), ["shipped-it"]);
+  assert.deepEqual(mixed.quiet, []);
 });
 
 const BEANS = new Set(["digest-pbbls", "digest-ariko", "weekly-wrap"]);

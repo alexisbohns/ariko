@@ -7,10 +7,10 @@ function sprout(slug: string, date: string, content?: Sprout["content"]): Sprout
   return {
     slug,
     name: slug,
-    type: "article",
+    kind: "log",
     date,
     description: "",
-    parents: ["bean:paulopus"],
+    about: ["bean:paulopus"],
     ...(content !== undefined ? { content } : {}),
   };
 }

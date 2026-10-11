@@ -1,6 +1,8 @@
 import type { Seed, Media, Relation, Source, Text, SproutState } from "./data";
-import { composeText, resolveText } from "./data";
+import { composeText, resolveText, PLANT_PREFIX } from "./data";
 import { extractRefs, mergeMirrored } from "./entity-refs";
+import { SPROUT_KINDS, isSproutKind, type SproutKind } from "./sprout-kind";
+import type { SproutAnchor } from "./sprout-anchor";
 
 export type ParentResolution =
   | { mode: "create"; slug: string }
@@ -19,14 +21,17 @@ export function resolveParentChoice(newSlug: string, selectedSlug: string): Pare
 }
 
 // The fields written to a new Version. Structurally the createSprout input.
+// Exactly one of `about` / `parents` is present — whichever the anchor named
+// (spec 2026-10-10 §1.2) — or neither, when the builder ran without one.
 export interface SproutInput {
   slug: string;
   name: Text;
-  type: string;
+  kind: SproutKind;
   date: string;
   description: Text;
   state: SproutState;
-  parents: string[];
+  about?: string[]; // from the anchor: the pods and beans the entry is about
+  parents?: string[]; // from the anchor: one "plant:…" ref, the plant-level entry
   media: Media[];
   source: Source;
   content?: Text; // the capture's body, when it had one (slice 3 §2.8)
@@ -57,12 +62,17 @@ export function buildNewBean(
 // seed.body via textPart), and what the boxes submit is exactly what is
 // stored — clearing a box clears that language, and a fully cleared name fails
 // validation instead of being silently resurrected. Carries the seed's media
-// and provenance. `beanParentSlug` (resolved by the action) wires the bean
-// parent ref.
+// and provenance. The `anchor` (resolved by the action, `lib/sprout-anchor.ts`)
+// is where the sprout hangs: `about` refs, or the plant for a plant-level
+// entry; `null` spreads neither, which is what the action's precheck passes so
+// the sprout's OWN fields can be validated before any parent is created.
+//
+// `kind` is read raw and cast: the builder stays total, and `validateSproutInput`
+// is the one place that decides whether the form's value is a member.
 export function buildSproutInput(
   form: FormData,
   seed: Seed,
-  beanParentSlug: string | null,
+  anchor: SproutAnchor | null,
 ): SproutInput {
   const get = (k: string) => String(form.get(k) ?? "").trim();
   const mirroredRelations = mergeMirrored(undefined, extractRefs(seed.content));
@@ -73,11 +83,12 @@ export function buildSproutInput(
   return {
     slug: get("sproutSlug"),
     name: composeText(get("sproutName"), get("sproutNameFr")),
-    type: get("type"),
+    kind: get("kind") as SproutKind,
     date: get("date"),
     description: composeText(get("description"), get("descriptionFr")),
     state,
-    parents: beanParentSlug ? [`bean:${beanParentSlug}`] : [],
+    ...(anchor && "about" in anchor ? { about: anchor.about } : {}),
+    ...(anchor && "plant" in anchor ? { parents: [`${PLANT_PREFIX}${anchor.plant}`] } : {}),
     media: seed.media,
     source: seed.source,
     // The inbox has always accepted a body; until now promote dropped it on the
@@ -99,7 +110,9 @@ export function validateSproutInput(
 ): { ok: true } | { ok: false; error: string } {
   if (!v.slug) return { ok: false, error: "version slug is required" };
   if (!resolveText(v.name)) return { ok: false, error: "sprout name is required" };
-  if (!v.type) return { ok: false, error: "sprout type is required" };
+  if (!isSproutKind(v.kind)) {
+    return { ok: false, error: `sprout kind must be one of ${SPROUT_KINDS.join(", ")}` };
+  }
   if (!v.date) return { ok: false, error: "sprout date is required" };
   return { ok: true };
 }

@@ -1,7 +1,8 @@
 # CLAUDE.md — working in the Ariko repo
 
 Ariko is a personal "central node": a portfolio on a botanical content model
-(`Pod → Bean → Sprout`, with inbox `Seed`s), Next.js 15 / React 19 / TypeScript / MongoDB.
+(`Plant → Pod → Bean`, with `Sprout` journal entries about them and inbox
+`Seed`s), Next.js 15 / React 19 / TypeScript / MongoDB.
 
 Both zones run on the design system: Tailwind v4 + shadcn on **Base UI**
 (`components.json`, preset `b3vqDobYF1` — style `base-nova`, neutral base /
@@ -198,39 +199,37 @@ while quietly becoming false.
   write is filtered on `exhibited: true` for a related reason: a reorder
   computed against a stale strip would republish a screen someone had just
   withdrawn.
-- **No enum writes on the click that opens it.** Four fields work this way now
-  — a plant's `status` and `visibility`, a sprout's `state`, and a bean's
-  `visibility`. The icon opens
+- **No enum writes on the click that opens it.** Five fields work this way now
+  — a plant's `status` and `visibility`, a sprout's `state` and `kind`, and a
+  bean's `visibility`. The icon opens
   the vocabulary as a list of native radios, the author picks a member, and a
   Save button commits it — disabled until the pick differs from what is stored,
   so the second click is a confirmation rather than a formality. A one-click
   flip was the first shape tried and the wrong one: a stray click on the globe
   unpublishes a project, and the undo is another stray click on the same pixel.
-  The sprout's `state` earns the rule hardest — publishing cascades upward
-  through its bean, pod and plant. All three post **a named member of a
-  vocabulary** (`lib/plant-status.ts`, `lib/plant-visibility.ts`,
-  `lib/sprout-state.ts`) which the action re-validates rather than trusting.
+  The sprout's `state` earns the rule hardest — publishing makes its plant
+  public. All five post **a named member of a vocabulary**
+  (`lib/plant-status.ts`, `lib/plant-visibility.ts`, `lib/sprout-state.ts`,
+  `lib/sprout-kind.ts`) which the action re-validates rather than trusting.
   The Meta sheet still carries `status` as a hidden input because
   `buildPlantMetaPatch` reads an absent status as `active`, so dropping the
   field would silently reactivate an inactive plant on every name edit. A
-  sprout's `date` and `type` open the same way but are **not** enums and do not
-  inherit the guard: there is no vocabulary to draw as radios, so each popover
+  sprout's `date` opens the same way but is **not** an enum and does not
+  inherit the guard: there is no vocabulary to draw as radios, so the popover
   holds one field and a plain Save — what the author typed is on screen, which
-  is the confirmation the radios otherwise have to manufacture. Each still
+  is the confirmation the radios otherwise have to manufacture. It still
   posts through a **shape** module the action applies rather than a vocabulary
   it picks from: `lib/sprout-date.ts` rejects a date that is not `YYYY-MM-DD`,
   because one that is merely non-empty sorts the sprout to the bottom of every
-  timeline the garden builds; `lib/sprout-type.ts` rejects surrounding
-  whitespace as well as blankness, because three places compare `type` against
-  a bare literal and none of them trims — `lib/sprout-edit.ts`'s
-  digest exemption, `lib/synthesis.ts`'s digest skip and
-  `lib/pbbls-legacy.ts`'s milestone match. A stored `"digest "` draws
-  identically to `"digest"` everywhere and is exempt from none of the three, so
-  publishing it flips the curated private bean and plant public — the exact act
-  the exemption exists to prevent, with nothing looking wrong anywhere. That is
-  the argument for a module for a field with no vocabulary: the shape is
-  load-bearing even when the value is free-form. A bean's `tags` is the second
-  field to earn that argument, through `lib/bean-tags.ts`: the garden's tag
+  timeline the garden builds. That is the argument for a module for a field
+  with no vocabulary: the shape is load-bearing even when the value is
+  free-form. A sprout's `kind` was such a field until it became the fifth
+  enum — a stored `"digest "` drew identically to `"digest"` and escaped the
+  digest's cascade exemption, so publishing it flipped a curated private bean
+  public — which is why the vocabulary is closed in `lib/sprout-kind.ts` and
+  `shouldCascadePublish` keys on a member rather than a string. A bean's
+  `tags` is the second free field to earn the shape argument, through
+  `lib/bean-tags.ts`: the garden's tag
   filters compare with `===` and do not trim either, so a stored `" ariko"`
   draws identically to `"ariko"` in every badge and matches nothing at all —
   the tag exists, looks right, and filters to an empty list. A bean's
@@ -238,6 +237,27 @@ while quietly becoming false.
   direction: downward privacy is a read-time projection, so going private needs
   no write beneath, and going public must not republish sprouts that were held
   back on their own terms.
+- **A sprout's plant is derived, never stored.** `resolveSproutPlant`
+  (`lib/data.ts`) is the one derivation: `about` names the pods and beans an
+  entry is about, every ref rolls up to a plant, and the sprout HAS a plant
+  only when all of them roll up to the same one — with `about` empty, its one
+  `plant:` parent. `filterPublic`, `buildDataset`, `publishCascade` and
+  `resolveAnchor` (`lib/sprout-anchor.ts`, the write-side validator behind
+  `setSproutAboutAction` and seed promotion) all call it, and nothing
+  re-derives, so no two pages can answer "whose entry is this" differently.
+  A sprout carries `about` OR a `plant:` parent, never both:
+  `updateSproutAnchor` sets one field and unsets the other in a single write,
+  because a stale `parents` beside a real `about` is a second source of truth
+  that drifts the day a bean moves pod. An ambiguous sprout — refs rolling up
+  to two plants — is unresolvable on every read and dropped by the
+  projection: fail-closed, never picked for. Publishing flips the derived
+  plant and nothing beneath it (a bean's visibility is editorial, and going
+  public must not republish a feature held back on its own terms), and there
+  is no unpublish cascade at all: a plant stays public once chosen, and a
+  delete changes no visibility. `lib/data.test.ts`, `lib/visibility.test.ts`
+  and `lib/sprout-anchor.test.ts` pin the derivation, the projection and the
+  validator; `lib/sprout-hero-a11y.test.ts` pins that `kind` opens as radios
+  under the enum rule above.
 - **A screen's image cannot be cleared**, because `Screen.image` is required —
   the one rule `buildScreenImagePatch` has that its three siblings lack.
 - **An article's halves are edited one at a time, and the URL names which.**
@@ -479,9 +499,9 @@ while quietly becoming false.
   The public zone reads the cached one, the admin and **every server action**
   read the live one — because `setSproutStateAction` and `promoteSeedAction`
   re-read *after* writing so `publishCascade` sees the just-saved state, and a
-  cached read there computes the cascade against the pre-write garden: a
-  published sprout whose bean silently stays private, or an unpublish that
-  leaves a parent public. In the other direction, a public page that imports
+  cached read there derives the sprout's plant from the pre-write garden: a
+  sprout just re-anchored and published flips the plant it LEFT public while
+  the one it now belongs to silently stays private. In the other direction, a public page that imports
   anything from `lib/store.ts` bypasses the cache — and `getFullDataset` skips
   `filterPublic` on the way, which is a leak rather than a slow page.
   `app/admin/(chrome)/layout.tsx` is a reader too, on every admin page: it
@@ -502,7 +522,7 @@ section is three invariants rather than a ledger of six exceptions.
 ## Planting a project from another repo
 
 A sibling repo describes itself as a `garden.yml` — one pod, its beans, and the
-sprouts under them — and **Ariko plants it**, never the other way round:
+journal entries about them — and **Ariko plants it**, never the other way round:
 
 ```bash
 npm run garden:plant -- ../krabs/garden.yml --dry-run   # prints the tree
@@ -524,16 +544,31 @@ decision made while looking at a diff. An ingest route would put a bad payload
 one `curl` from production, and `plugins/garden-plant/` says so to the agent
 that would otherwise reach for one.
 
-Five rules the tests pin, each of which passes `tsc`, `npm test` **and**
+Six rules the tests pin, each of which passes `tsc`, `npm test` **and**
 `npm run build` while quietly becoming false:
 
 - **A manifest cannot publish.** `visibility`, `state`, `exhibited` and `order`
   are REFUSED keys, not ignored ones, and the applier writes a sprout as
   `"draft"` and never touches visibility. Publishing stays in the admin behind
   the enum rule — a named member of a vocabulary and a Save that confirms. A
-  `--publish` flag here would run `publishCascade` from a CLI and flip the bean
-  and the pod above it with no confirmation, which is the shape the rulebook
-  rejected for a stray click on a globe.
+  `--publish` flag here would run `publishCascade` from a CLI and flip the
+  plant above it with no confirmation, which is the shape the rulebook
+  rejected for a stray click on a globe. A sprout's `kind:` is likewise a
+  member of `lib/sprout-kind.ts`, and `type` is refused BY NAME as a key that
+  is not one any more — a `type:` with a null value is still the old key,
+  typed by an author who meant it. `digest` is refused as a member: it is the
+  one machine-written kind and the one with behaviour (exempt from the
+  cascade, skipped by its own bucketing), and a file in another repo is where
+  nothing would look wrong.
+- **A nested sprout is ABOUT its bean, never under it.** The manifest still
+  nests a sprout beneath a bean, and the applier writes it as
+  `about: ["bean:…"]` with no `parents` at all: its plant is derived through
+  the bean (`resolveSproutPlant`), so re-homing the bean carries its entries
+  with it. `parents: ["bean:…"]` would type-check — `parents` is `string[]`
+  — and `resolveSproutPlant` reads only `plant:` refs from it, so the sprout
+  would have no plant and `filterPublic` would drop it with nothing failing.
+  Slice four moves manifest sprouts to a top-level list with an `about:` of
+  their own; until then nesting is the authoring shorthand for one ref.
 - **A bean's `content` is its narrative, and a sprout is not a version of it.**
   Since the journal model (`specs/2026-10-10-journal-model-design.md`) a bean
   carries one body — what the feature is now and how it got there — rewritten

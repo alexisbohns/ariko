@@ -15,6 +15,7 @@
  * tested without rendering anything.
  */
 import type { SproutState, Visibility } from "./data";
+import type { SproutKind } from "./sprout-kind";
 
 /**
  * Two letters for an entity with no image — the avatar fallback everywhere a
@@ -89,6 +90,20 @@ const SPROUT_STATE_LABELS: Record<SproutState, string> = {
 
 export function sproutStateLabel(state: SproutState): string {
   return SPROUT_STATE_LABELS[state];
+}
+
+/** A sprout's six kinds, in words — the display half of `lib/sprout-kind.ts`. */
+const SPROUT_KIND_LABELS: Record<SproutKind, string> = {
+  log: "Log",
+  milestone: "Milestone",
+  release: "Release",
+  essay: "Essay",
+  decision: "Decision",
+  digest: "Digest",
+};
+
+export function sproutKindLabel(kind: SproutKind): string {
+  return SPROUT_KIND_LABELS[kind];
 }
 
 export type Tier = "plant" | "pod";

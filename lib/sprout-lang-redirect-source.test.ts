@@ -4,8 +4,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * The sprout page's five OTHER writes — media, meta, state, date, type — never
- * touch the prose, so none of them chooses which half of an article to save.
+ * The sprout page's six OTHER writes — media, meta, state, date, kind, about —
+ * never touch the prose, so none of them chooses which half of an article to
+ * save.
  * But every one of them redirects back to `/admin/sprout/<slug>` through
  * `sproutHref` (app/admin/actions.ts), and that redirect has to land the
  * author on the half they were editing: an author on `?lang=fr` who renames a
@@ -20,7 +21,7 @@ import { join } from "node:path";
  * written, so an old tab or a form that somehow dropped the field should not
  * be treated as a rejected save.
  *
- * Reverting any of the five redirects back to a bare `sproutHref(...)` passes
+ * Reverting any of the six redirects back to a bare `sproutHref(...)` passes
  * `tsc`, `npm test` and `npm run build`: the form still posts, the redirect
  * still lands on a real page, and nothing throws — the author is simply on
  * the wrong half of it. This file is what reports it.
@@ -28,8 +29,8 @@ import { join } from "node:path";
  * Source text, and the same per-function slicing `lib/content-actions-lang-
  * source.test.ts` and `lib/garden-cache-source.test.ts` both use: each
  * function is sliced from its own `export async function <name>` to the next
- * top-level `\nexport `, so a regression in one of the five cannot hide behind
- * the other four still doing it right. One of these slices
+ * top-level `\nexport `, so a regression in one of the six cannot hide behind
+ * the other five still doing it right. One of these slices
  * (`editSproutMediaAction`, which the non-exported `sproutHref` helper sits
  * right after in source order) swallows that helper's own declaration on its
  * way to the next export — harmless, since that helper's body contains
@@ -43,7 +44,8 @@ const FUNCTION_NAMES = [
   "editSproutMetaAction",
   "setSproutStateAction",
   "setSproutDateAction",
-  "setSproutTypeAction",
+  "setSproutKindAction",
+  "setSproutAboutAction",
 ];
 
 const source = readFileSync(join(process.cwd(), ACTIONS_PATH), "utf8");

@@ -21,7 +21,7 @@ function doc(over: Partial<PollenDoc>): PollenDoc {
 
 function sproutEntry(slug: string, date: string, plantSlug: string | null = "pbbls"): TimelineEntry {
   return {
-    sprout: { slug, name: slug, type: "feature", date, description: "", parents: [] },
+    sprout: { slug, name: slug, kind: "milestone", date, description: "" },
     bean: null,
     plant: plantSlug ? { slug: plantSlug, name: plantSlug, natures: ["work"], role: { kind: "owner" as const }, description: "" } : null,
   };
