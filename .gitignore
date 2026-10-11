@@ -26,3 +26,8 @@ data/retired/2026-10-10-*.json
 # CDN is permitted, publishing a copy in this PUBLIC repo is not (EULA §7).
 # See app/fonts.ts.
 /app/fonts/Profane-*
+
+# Migration pre-images and database backups. They hold the PRODUCTION garden,
+# private entities included, and this repo is public. The one file already
+# tracked here (2026-09-04-legacy-pbbls-beans.json) predates the rule.
+/data/retired/
