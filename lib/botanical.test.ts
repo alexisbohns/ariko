@@ -48,6 +48,25 @@ test("createPod/createBean insert private-by-default", { skip: !hasDb }, async (
   assert.ok(atoms.some((x) => x.slug === "__test__a"));
 });
 
+test("createBean stores a narrative and its relations at birth", { skip: !hasDb }, async (t) => {
+  t.after(cleanup);
+  const bean = await createBean({
+    slug: "__test__grown",
+    name: "Grown",
+    description: "",
+    podSlug: null,
+    plantSlug: "__test__plant",
+    content: { en: "# Grown\n\nBody." },
+    relations: [{ kind: "mentions", ref: "bean:__test__other" }],
+  });
+  assert.deepEqual(bean.content, { en: "# Grown\n\nBody." });
+  const db = await getDb();
+  const stored = await db.collection("beans").findOne({ slug: "__test__grown" });
+  assert.deepEqual(stored?.content, { en: "# Grown\n\nBody." });
+  assert.deepEqual(stored?.relations, [{ kind: "mentions", ref: "bean:__test__other" }]);
+  assert.equal(stored?.visibility, "private");
+});
+
 test("createBean with no pod is parentless", { skip: !hasDb }, async (t) => {
   t.after(cleanup);
   const a = await createBean({ slug: "__test__solo", name: "Solo", description: "", podSlug: null, plantSlug: null });

@@ -116,3 +116,41 @@ export function validateSproutInput(
   if (!v.date) return { ok: false, error: "sprout date is required" };
   return { ok: true };
 }
+
+// The fields written to a bean grown from a seed (journal model §1.3): a seed
+// that is an idea becomes the feature it describes. Structurally the createBean
+// input minus the parents, which the action resolves against the live garden.
+export interface BeanFromSeed {
+  slug: string;
+  name: Text;
+  description: Text;
+  content?: Text; // the seed's body, verbatim — it IS the narrative's first draft
+  relations?: Relation[]; // mirrored from that body's entity refs — derived, never authored
+}
+
+// Pure. Maps the "Grow into a bean" form + the source seed into a BeanFromSeed.
+// Name and description compose from paired en/fr boxes, WYSIWYG exactly as
+// `buildSproutInput` does (the page prefills them from the seed's title and
+// note; what the boxes submit is what is stored, and a cleared name fails
+// validation rather than being resurrected). The seed's `content` is carried
+// verbatim and its refs mirrored here, on the write path, for the same reason
+// `buildSproutInput` mirrors: the edges are testable rather than buried in an
+// action.
+export function buildBeanFromSeed(form: FormData, seed: Seed): BeanFromSeed {
+  const get = (k: string) => String(form.get(k) ?? "").trim();
+  const mirrored = mergeMirrored(undefined, extractRefs(seed.content));
+  return {
+    slug: get("beanSlug"),
+    name: composeText(get("beanName"), get("beanNameFr")),
+    description: composeText(get("beanDescription"), get("beanDescriptionFr")),
+    ...(seed.content ? { content: seed.content } : {}),
+    ...(mirrored.length > 0 ? { relations: mirrored } : {}),
+  };
+}
+
+// Pure guard. "name required" means at least one language, as for a sprout.
+export function validateBeanFromSeed(b: BeanFromSeed): { ok: true } | { ok: false; error: string } {
+  if (!b.slug) return { ok: false, error: "bean slug is required" };
+  if (!resolveText(b.name)) return { ok: false, error: "bean name is required" };
+  return { ok: true };
+}

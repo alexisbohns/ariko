@@ -21,6 +21,7 @@ import {
   PLANT_PREFIX,
   POD_PREFIX,
   BEAN_PREFIX,
+  SPROUT_PREFIX,
   parentsWithPrefix,
   type MediaImage,
   type PlantRole,
@@ -28,7 +29,14 @@ import {
   type SproutState,
   type Visibility,
 } from "@/lib/data";
-import { resolveParentChoice, buildSproutInput, buildNewBean, validateSproutInput } from "@/lib/promote";
+import {
+  resolveParentChoice,
+  buildSproutInput,
+  buildNewBean,
+  validateSproutInput,
+  buildBeanFromSeed,
+  validateBeanFromSeed,
+} from "@/lib/promote";
 import { shouldCascadePublish } from "@/lib/sprout-edit";
 import { buildSproutMetaPatch, BlankSproutNameError, type SproutMetaPatch } from "@/lib/sprout-meta";
 import { isSproutState } from "@/lib/sprout-state";
@@ -273,7 +281,7 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
       await setPublic(plantSlugs);
     }
 
-    await markSeedPromoted(seedId, input.slug);
+    await markSeedPromoted(seedId, `${SPROUT_PREFIX}${input.slug}`);
   } catch (err) {
     if (err instanceof SlugExistsError) slugError = err.message;
     else throw err;
@@ -293,6 +301,50 @@ export async function promoteSeedAction(formData: FormData): Promise<void> {
     redirect(`/admin/triage/${seedId}?error=${encodeURIComponent(slugError)}`);
   }
   redirect("/admin/inbox");
+}
+
+// A seed grows into a BEAN (journal model §1.3): title → name, body → content,
+// the picked plant/pod → parents. The pure half is `buildBeanFromSeed`; this
+// resolves the parents against the live garden and writes once. A pod pick goes
+// through `resolveAnchor` exactly as a sprout's `about` does — an unknown pod,
+// a pod with no plant, or a pod under a different plant than the one picked is
+// refused by name BEFORE the write. With no pod, the plant must exist. The bean
+// is private at birth (createBean), so nothing public changes and no cascade
+// runs; the author lands on the bean's editor to keep writing.
+export async function promoteSeedToBeanAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const seedId = String(formData.get("seedId") ?? "");
+  const seed = await getSeed(seedId);
+  if (!seed) redirect("/admin/inbox");
+  const back = (error: string) => `/admin/triage/${seedId}?error=${encodeURIComponent(error)}`;
+
+  const bean = buildBeanFromSeed(formData, seed);
+  const valid = validateBeanFromSeed(bean);
+  if (!valid.ok) redirect(back(valid.error));
+
+  const plantSlug = String(formData.get("plantSlug") ?? "").trim() || null;
+  const podSlug = String(formData.get("podSlug") ?? "").trim() || null;
+  const raw = await loadRawGarden();
+  if (podSlug) {
+    const check = resolveAnchor([`${POD_PREFIX}${podSlug}`], plantSlug, raw);
+    if (!check.ok) redirect(back(check.error));
+  } else if (!plantSlug) {
+    redirect(back("pick a plant, or a pod, to root the bean under"));
+  } else if (!(raw.plants ?? []).some((p) => p.slug === plantSlug)) {
+    redirect(back(`unknown plant ${plantSlug}`));
+  }
+
+  let slugError: string | null = null;
+  try {
+    await createBean({ ...bean, podSlug, plantSlug: podSlug ? null : plantSlug });
+    await markSeedPromoted(seedId, `${BEAN_PREFIX}${bean.slug}`);
+  } catch (err) {
+    if (err instanceof SlugExistsError) slugError = err.message;
+    else throw err;
+  }
+  revalidateGarden();
+  if (slugError) redirect(back(slugError));
+  redirect(`/admin/bean/${encodeURIComponent(bean.slug)}`);
 }
 
 // Hard delete (roadmap A2). A delete changes no visibility: there is no

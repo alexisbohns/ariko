@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { resolveParentChoice, buildSproutInput, buildNewBean, validateSproutInput } from "./promote";
-import type { Seed } from "./data";
+import { resolveParentChoice, buildSproutInput, buildNewBean, validateSproutInput, buildBeanFromSeed, validateBeanFromSeed } from "./promote";
+import { resolveText, type Seed } from "./data";
 import { SPROUT_KINDS, type SproutKind } from "./sprout-kind";
 
 const seed: Seed = {
@@ -256,4 +256,56 @@ test("buildSproutInput mirrors entity refs from the carried body", () => {
     { kind: "embeds", ref: "bean:karma" },
   ]);
   assert.equal("relations" in buildSproutInput(form, seed, null), false);
+});
+
+const seedWithBody = (): Seed => ({
+  id: "s1",
+  title: { en: "Karma wallet", fr: "Portefeuille karma" },
+  body: { en: "note en", fr: "note fr" },
+  content: { en: "# Karma\n\n::entity{ref=bean:pbbls-market}\n", fr: "# Karma fr" },
+  media: [],
+  source: { kind: "manual", capturedAt: "2026-10-11T00:00:00.000Z" },
+  status: "inbox",
+  promotedTo: [],
+  createdAt: "2026-10-11T00:00:00.000Z",
+  updatedAt: "2026-10-11T00:00:00.000Z",
+});
+
+function growForm(entries: Record<string, string>): FormData {
+  const f = new FormData();
+  for (const [k, v] of Object.entries(entries)) f.set(k, v);
+  return f;
+}
+
+test("buildBeanFromSeed: slug, composed bilingual name and description, the seed's content and its mirrored refs", () => {
+  const out = buildBeanFromSeed(
+    growForm({ beanSlug: "pbbls-karma", beanName: "Karma", beanNameFr: "Karma fr", beanDescription: "d", beanDescriptionFr: "" }),
+    seedWithBody(),
+  );
+  assert.equal(out.slug, "pbbls-karma");
+  assert.deepEqual(out.name, { en: "Karma", fr: "Karma fr" });
+  assert.equal(resolveText(out.description), "d");
+  assert.deepEqual(out.content, { en: "# Karma\n\n::entity{ref=bean:pbbls-market}\n", fr: "# Karma fr" });
+  assert.deepEqual(out.relations, [{ kind: "embeds", ref: "bean:pbbls-market" }]);
+});
+
+test("buildBeanFromSeed: WYSIWYG — blank name boxes stay blank, nothing is resurrected from the title", () => {
+  const out = buildBeanFromSeed(growForm({ beanSlug: "x", beanName: "", beanNameFr: "" }), seedWithBody());
+  assert.equal(resolveText(out.name), "");
+});
+
+test("buildBeanFromSeed: a seed with no content yields no content and no relations", () => {
+  const seed = { ...seedWithBody(), content: undefined };
+  const out = buildBeanFromSeed(growForm({ beanSlug: "x", beanName: "N" }), seed);
+  assert.equal(out.content, undefined);
+  assert.equal(out.relations, undefined);
+});
+
+test("validateBeanFromSeed: slug and a name in at least one language are required", () => {
+  const ok = buildBeanFromSeed(growForm({ beanSlug: "x", beanNameFr: "Nom" }), seedWithBody());
+  assert.deepEqual(validateBeanFromSeed(ok), { ok: true });
+  const noSlug = buildBeanFromSeed(growForm({ beanName: "N" }), seedWithBody());
+  assert.deepEqual(validateBeanFromSeed(noSlug), { ok: false, error: "bean slug is required" });
+  const noName = buildBeanFromSeed(growForm({ beanSlug: "x" }), seedWithBody());
+  assert.deepEqual(validateBeanFromSeed(noName), { ok: false, error: "bean name is required" });
 });

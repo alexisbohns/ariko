@@ -256,7 +256,7 @@ state renders:
 2. **The journal.** `kind` vocabulary, `about` with the derived plant, the sprout
    admin changes, `/sprout/[slug]`, the plant/pod/bean journals, cascade
    changes, `articleFor` deleted. Migration steps 1, 3, 4 ship here.
-3. **Seeds grow into beans.** `promoteSeedToBeanAction` and the overlay action.
+3. **Seeds grow into beans.** `promoteSeedToBeanAction` and the overlay action. Shipped by `plans/2026-10-11-seed-to-bean.md`.
 4. **Doors and plugin.** Manifest sprouts with `about`, `plugins/garden-plant/`
    skill text, `/api/synthesis` kind, Lab Note docs.
 

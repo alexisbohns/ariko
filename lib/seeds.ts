@@ -116,13 +116,16 @@ export async function getSeed(id: string): Promise<Seed | null> {
   return col.findOne({ id }, { projection: { _id: 0 } });
 }
 
-// Triage: a seed becomes a Version. Status flips to "promoted" and the version
-// slug is appended ($addToSet keeps it idempotent across re-promotes of the same slug).
-export async function markSeedPromoted(id: string, versionSlug: string): Promise<void> {
+// Triage: a seed became something. Status flips to "promoted" and the REF of
+// what it became — `sprout:<slug>` or `bean:<slug>` (journal model §1.3) — is
+// appended; $addToSet keeps it idempotent across re-promotes of the same ref.
+// Seeds promoted before 2026-10-11 hold bare sprout slugs here; no reader
+// resolves the list, so they are left as written.
+export async function markSeedPromoted(id: string, ref: string): Promise<void> {
   const col = await seedsCol();
   await col.updateOne(
     { id },
-    { $set: { status: "promoted", updatedAt: nowIso() }, $addToSet: { promotedTo: versionSlug } },
+    { $set: { status: "promoted", updatedAt: nowIso() }, $addToSet: { promotedTo: ref } },
   );
 }
 
