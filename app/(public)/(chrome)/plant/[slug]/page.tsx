@@ -4,7 +4,7 @@ import { currentLang } from "@/lib/locale-server";
 import { getPublicDataset } from "@/lib/garden-cache";
 import { getFederation } from "@/lib/federation";
 import { listPollen } from "@/lib/pollen-store";
-import { exhibitedPollen, mergeBeanstalk } from "@/lib/beanstalk";
+import { entriesAbout, exhibitedPollen } from "@/lib/beanstalk";
 import { Journal } from "@/components/journal";
 import { resolveEntity } from "@/lib/entity-resolve";
 import { PlantHead } from "@/app/(public)/_components/plant-head";
@@ -36,18 +36,19 @@ export default async function PlantPage({ params }: { params: Promise<{ slug: st
   const pods = data.podsForPlant(slug);
   const beans = data.beansForPlant(slug);
 
-  // The journal (journal model §3): this plant's published entries — those
-  // whose DERIVED plant is this one, `timelineSprouts` narrowed — merged with
-  // its exhibited pollen, newest first. `exhibitedPollen` is handed a one-plant
-  // set, so the exhibition rule (private envelope loses; the plant must be in
-  // data/federation.yml's exhibit list; the plant must have survived
-  // filterPublic — it has, we are on its page) admits only this plant's events.
+  // The journal (journal model §3): this plant's published entries —
+  // `sproutsForPlant`, those whose DERIVED plant is this one — narrowed out of
+  // the timeline by `entriesAbout` and merged with its exhibited pollen, newest
+  // first, exactly as the pod and bean journals are drawn. `exhibitedPollen` is
+  // handed a one-plant set, so the exhibition rule (private envelope loses; the
+  // plant must be in data/federation.yml's exhibit list; the plant must have
+  // survived filterPublic — it has, we are on its page) admits only this
+  // plant's events.
   // The kept-bean set is every public bean, so a pollen line about a public
   // bean keeps its door: the same set /beanstalk passes.
-  const mine = data.timelineSprouts().filter((e) => e.plant?.slug === slug);
   const pollen = exhibitedPollen(allPollen, getFederation().exhibit, new Set([slug]));
   const keptBeanSlugs = new Set(data.getBeans().map((b) => b.slug));
-  const journal = mergeBeanstalk(mine, pollen, keptBeanSlugs);
+  const journal = entriesAbout(data.timelineSprouts(), data.sproutsForPlant(slug), pollen, keptBeanSlugs);
 
   // The exhibition, with both Texts resolved HERE rather than in the strip —
   // which is what keeps components/screen-strip.tsx isomorphic instead of

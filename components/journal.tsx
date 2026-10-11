@@ -2,6 +2,7 @@ import { resolveText } from "@/lib/data";
 import type { Lang } from "@/lib/locale";
 import { sproutKindLabel } from "@/lib/glyphs";
 import { publicSproutHref, type BeanstalkEntry } from "@/lib/beanstalk";
+import { PUBLIC_HREFS } from "@/lib/lineage";
 import { Badge } from "@/components/ui/badge";
 
 /**
@@ -75,7 +76,7 @@ export function Journal({
               <span>{e.pollen.source}</span>
               {e.beanSlug ? (
                 <a
-                  href={`/bean/${encodeURIComponent(e.beanSlug)}`}
+                  href={PUBLIC_HREFS.bean(e.beanSlug)}
                   className="underline-offset-4 transition-colors hover:text-foreground hover:underline"
                 >
                   {e.beanSlug}

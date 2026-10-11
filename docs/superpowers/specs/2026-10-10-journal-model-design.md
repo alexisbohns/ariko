@@ -278,6 +278,8 @@ so each gets a source or behaviour test on the day it lands:
   content.
 - A manifest sprout nested under a bean is written `about` that bean, never
   under it; the top-level `sprouts` list with its own `about` is slice four.
+- Slice four: the garden manifest refuses a sprout nested under a bean (the old
+  shape) with a message naming the new one.
 
 ## Part B — the public surfaces
 
@@ -297,5 +299,3 @@ Shipped by `plans/2026-10-11-public-surfaces.md`: `components/journal.tsx` is
 the one journal line (`/beanstalk`, plant, pod, bean), `/sprout/[slug]` is on
 the server-safe list, `lib/article.ts` is deleted and `lib/related-beans.ts`
 dates a candidate by `sproutsForBean(slug)[0]`.
-- The garden manifest refuses a sprout nested under a bean (the old shape) with
-  a message naming the new one.

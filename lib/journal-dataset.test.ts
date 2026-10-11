@@ -48,3 +48,24 @@ test("getBeans: the projected dataset's beans, so a pollen line's bean door can 
     ["b", "hidden"],
   );
 });
+
+// The public sprout page's notFound() rests on this: it asks the PROJECTED
+// dataset for the entry and draws nothing when the answer is undefined. A
+// sprout with no `state` is unpublished — filterPublic keeps only
+// `"published"` — so its address must answer 404 even though its bean, pod and
+// plant are all public and a published sibling about the same bean resolves.
+test("entryForSprout: a private sprout is not in the projected dataset", () => {
+  const mixed: RawGarden = {
+    ...garden,
+    sprouts: [
+      { slug: "out", name: "Out", kind: "log", date: "2026-01-03", description: "", about: ["bean:b"], state: "published" },
+      { slug: "held", name: "Held", kind: "log", date: "2026-01-04", description: "", about: ["bean:b"] },
+    ],
+  };
+  const projected = buildDataset(filterPublic(mixed));
+  assert.equal(projected.entryForSprout("held"), undefined);
+  assert.equal(projected.entryForSprout("out")?.bean?.slug, "b");
+  // The contrast: the unfiltered dataset knows it, so the absence above is the
+  // projection's doing and not a typo in the fixture.
+  assert.equal(buildDataset(mixed).entryForSprout("held")?.sprout.slug, "held");
+});

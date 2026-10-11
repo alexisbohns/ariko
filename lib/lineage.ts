@@ -71,8 +71,9 @@ export const PUBLIC_HREFS: LineageHrefs = {
 
 /** The lookups the climb needs. Shaped like `RawGarden`'s first three fields so
  *  the admin can pass the garden it already has, and the public zone can build
- *  one from its `Dataset` (a bean's own parents are pods and plants, so the
- *  public zone never needs to pass beans here). */
+ *  one from its `Dataset`. The public CONTAINER pages — plant, pod, bean — never
+ *  pass beans, because a bean's own parents are pods and plants; the sprout
+ *  page does, because its trail must name the beans the entry is about. */
 export interface LineageGarden {
   plants?: Plant[];
   pods?: Pod[];

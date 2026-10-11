@@ -33,7 +33,7 @@ visibility cascades, and what the model derives rather than stores — is
 ## Pages
 
 * `/` — Directory. For each plant (+ its pods, + an "Unrooted" group for orphan pods and beans): name, role line, natures, description, and the beans beneath it — each bean a link to /bean/[id] with its own one-line description.
-* `/beanstalk` — The beanstalk (formerly `/timeline`, which 308-redirects). Authored sprouts and exhibited pollen feed events, sorted by date descending. Above the list: a `<ul>` of domain filter buttons (`all | music | design | podcast`). Below: a `<ul>` of filtered results.
+* `/beanstalk` — The beanstalk (formerly `/timeline`, which 308-redirects). Authored sprouts and exhibited pollen feed events, sorted by date descending. Above the list: a `<ul>` of plant filters — `all` plus one link per public plant's slug, each a plain `<a href="/beanstalk?plant=…">`, so the filter works with script off; an unknown `?plant=` falls back to `all`. Below: the journal, narrowed to that plant's lines (a sprout by its derived plant, a pollen event by its anchor).
 * `/plant/[slug]` and `/pod/[slug]` — Container pages: name, the plant's role badge ahead of its natures, description, the role's `detail` line, the container's own `content` narrative (entity refs resolved live), then a mechanical index of what is inside, and its journal.
 * `/bean/[id]` — Bean detail. `<h1>` bean name, its description, its own `content` narrative, and its journal.
 * `/sprout/[slug]` — A journal entry — kind, date, name, body, media, links, and the pods and beans it is about.

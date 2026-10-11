@@ -108,3 +108,17 @@ test("entriesAbout: the timeline narrowed to the given sprouts, order kept, no p
 test("entriesAbout: no sprouts, no lines", () => {
   assert.deepEqual(entriesAbout([sproutEntry("x", "2026-01-01")], []), []);
 });
+
+test("entriesAbout: a plant journal — the narrowing plus pollen, which keeps its bean door, newest first", () => {
+  const timeline = [sproutEntry("new", "2026-03-01"), sproutEntry("mid", "2026-02-01"), sproutEntry("old", "2026-01-01")];
+  const mine: Sprout[] = [timeline[0].sprout, timeline[2].sprout];
+  const pollen = [doc({ at: "2026-02-15T09:00:00Z", anchors: { plant: "plant:pbbls", bean: "bean:krabs" } })];
+  const r = entriesAbout(timeline, mine, pollen, new Set(["krabs"]));
+  assert.deepEqual(
+    r.map((e) => (e.type === "sprout" ? e.entry.sprout.slug : "pollen")),
+    ["new", "pollen", "old"],
+  );
+  const line = r[1];
+  assert.equal(line.type, "pollen");
+  assert.equal(line.type === "pollen" ? line.beanSlug : undefined, "krabs");
+});
