@@ -8,7 +8,7 @@
  * the GARDEN.
  */
 import { load } from "js-yaml";
-import { composeText, type Text } from "./data";
+import { BEAN_PREFIX, composeText, POD_PREFIX, type Text } from "./data";
 import { isTimelineDate } from "./sprout-date";
 import { DIGEST_KIND, isSproutKind, SPROUT_KINDS, type SproutKind } from "./sprout-kind";
 import { MAX_CONTENT_BYTES } from "./content-edit";
@@ -117,6 +117,13 @@ export interface ManifestSprout {
   /** A member of `SPROUT_KINDS` — never the free string `type` used to be. */
   kind: SproutKind;
   date: string;
+  /**
+   * What the entry is ABOUT, as PREFIXED refs (`pod:<slug>` / `bean:<slug>`),
+   * resolved by the parser from the bare slugs the author wrote against the
+   * pod and beans of the same file. The storage grammar (`Sprout.about`), so
+   * the applier writes it verbatim and `resolveSproutPlant` derives the plant.
+   */
+  about: string[];
   name: Text;
   description: Text;
   content?: Text;
@@ -128,7 +135,6 @@ export interface ManifestBean {
   slug: string;
   name: Text;
   description: Text;
-  sprouts: ManifestSprout[];
   /** The bean's narrative — what it is now and how it got there — same rules as a pod's. */
   content?: Text;
   /** The one image on the bean's card and page head. */
@@ -146,6 +152,8 @@ export interface ManifestPod {
 export interface GardenManifest {
   pod: ManifestPod;
   beans: ManifestBean[];
+  /** The journal: every entry in the file, each ABOUT the pod and/or beans above it. */
+  sprouts: ManifestSprout[];
 }
 
 export type ParseResult =
@@ -277,7 +285,13 @@ function buildPod(raw: Record<string, unknown>): PodResult {
 
 type SproutResult = { ok: true; sprout: ManifestSprout } | { ok: false; error: string };
 
-function buildSprout(raw: Record<string, unknown>, where: string): SproutResult {
+/** The names a sprout's `about` may use: the file's own pod and beans. */
+interface FileSlugs {
+  pod: string;
+  beans: Set<string>;
+}
+
+function buildSprout(raw: Record<string, unknown>, where: string, slugs: FileSlugs): SproutResult {
   const name = readText(raw.name, `${where}.name`);
   if (!name.ok) return { ok: false, error: name.error };
   const description = readText(raw.description, `${where}.description`);
@@ -323,6 +337,42 @@ function buildSprout(raw: Record<string, unknown>, where: string): SproutResult 
     };
   }
 
+  // `about` is REQUIRED: a sprout is a journal entry about something, and an
+  // entry about nothing would derive no plant and be dropped by `filterPublic`
+  // with nothing failing. The author writes BARE slugs from this file — the
+  // pod's, or a bean's — and the parser prefixes them, so the shorthand stays
+  // short and the storage grammar stays the one `Sprout.about` has. A prefixed
+  // value is refused rather than accepted: two spellings for one thing is how
+  // a manifest written against the storage shape drifts from this one. A slug
+  // the file does not define is refused here, not at planting — against the
+  // SAME file, which is the one thing the author can see.
+  if (raw.about === undefined) {
+    return {
+      ok: false,
+      error: `${where}.about is required — a list of the slugs (from this file) the entry is about: the pod "${slugs.pod}"${slugs.beans.size ? ` or a bean (${[...slugs.beans].join(", ")})` : ""}`,
+    };
+  }
+  if (!Array.isArray(raw.about)) return { ok: false, error: `${where}.about must be a list of slugs` };
+  if (raw.about.length === 0) return { ok: false, error: `${where}.about must name at least one slug from this file` };
+  const about: string[] = [];
+  const seenAbout = new Set<string>();
+  for (let k = 0; k < raw.about.length; k += 1) {
+    const value = raw.about[k];
+    const awhere = `${where}.about[${k}]`;
+    if (typeof value !== "string") return { ok: false, error: `${awhere} must be a slug (got ${JSON.stringify(value)})` };
+    if (value.includes(":")) {
+      return { ok: false, error: `${awhere} "${value}" is a bare slug here — write ${value.slice(value.indexOf(":") + 1)}; the parser prefixes it` };
+    }
+    if (seenAbout.has(value)) return { ok: false, error: `${awhere} repeats "${value}"` };
+    seenAbout.add(value);
+    if (value === slugs.pod) about.push(`${POD_PREFIX}${value}`);
+    else if (slugs.beans.has(value)) about.push(`${BEAN_PREFIX}${value}`);
+    else {
+      const beans = slugs.beans.size ? [...slugs.beans].join(", ") : "(none)";
+      return { ok: false, error: `${awhere} "${value}" names nothing in this file — the pod is "${slugs.pod}" and the beans are ${beans}` };
+    }
+  }
+
   // A YAML date scalar parses to a Date; force the authored text back.
   const date = raw.date instanceof Date ? raw.date.toISOString().slice(0, 10) : String(raw.date ?? "");
   if (!isTimelineDate(date)) {
@@ -333,6 +383,7 @@ function buildSprout(raw: Record<string, unknown>, where: string): SproutResult 
     slug: str(raw.slug),
     kind,
     date,
+    about,
     name: name.text,
     description: description.text,
   };
@@ -359,6 +410,18 @@ function buildSprout(raw: Record<string, unknown>, where: string): SproutResult 
 type BeanResult = { ok: true; bean: ManifestBean } | { ok: false; error: string };
 
 function buildBean(raw: Record<string, unknown>, where: string): BeanResult {
+  // The pre-slice-four shape, refused BY NAME before anything else is read:
+  // a manifest nesting its sprouts under beans would otherwise parse with the
+  // sprouts silently ignored — the author believes the journal landed and the
+  // garden has none of it. Same `in` test as `type` on a sprout: a `sprouts:`
+  // with an empty list is still the old key, typed by an author who meant it.
+  if ("sprouts" in raw) {
+    return {
+      ok: false,
+      error: `${where}.sprouts is not a key any more — sprouts are a top-level \`sprouts:\` list beside \`beans:\`, each with \`about: [${str(raw.slug) || "<bean-slug>"}]\` naming the pod or the beans it is about`,
+    };
+  }
+
   const name = readText(raw.name, `${where}.name`);
   if (!name.ok) return { ok: false, error: name.error };
   const description = readText(raw.description, `${where}.description`);
@@ -370,20 +433,7 @@ function buildBean(raw: Record<string, unknown>, where: string): BeanResult {
   const forbiddenError = checkForbiddenKeys(raw, where, "bean");
   if (forbiddenError) return { ok: false, error: forbiddenError };
 
-  const sproutsRaw = raw.sprouts ?? [];
-  if (!Array.isArray(sproutsRaw)) return { ok: false, error: `${where}.sprouts must be a list` };
-
-  const sprouts: ManifestSprout[] = [];
-  for (let j = 0; j < sproutsRaw.length; j += 1) {
-    const s = sproutsRaw[j];
-    const swhere = `${where}.sprouts[${j}]`;
-    if (!isMapping(s)) return { ok: false, error: `${swhere} must be a mapping` };
-    const result = buildSprout(s, swhere);
-    if (!result.ok) return { ok: false, error: result.error };
-    sprouts.push(result.sprout);
-  }
-
-  const bean: ManifestBean = { slug: str(raw.slug), name: name.text, description: description.text, sprouts };
+  const bean: ManifestBean = { slug: str(raw.slug), name: name.text, description: description.text };
   // A bean's narrative is read exactly as a pod's: what the feature is now and
   // how it got there, rewritten in place. A dated piece of work is a sprout.
   if (raw.content !== undefined) {
@@ -436,10 +486,23 @@ function buildManifest(doc: unknown): ParseResult {
     beans.push(result.bean);
   }
 
-  const dupError = findDuplicateSlug(podResult.pod, beans);
+  const sproutsRaw = root.sprouts ?? [];
+  if (!Array.isArray(sproutsRaw)) return { ok: false, error: "sprouts must be a list" };
+  const slugs: FileSlugs = { pod: podResult.pod.slug, beans: new Set(beans.map((b) => b.slug)) };
+  const sprouts: ManifestSprout[] = [];
+  for (let i = 0; i < sproutsRaw.length; i += 1) {
+    const s = sproutsRaw[i];
+    const where = `sprouts[${i}]`;
+    if (!isMapping(s)) return { ok: false, error: `${where} must be a mapping` };
+    const result = buildSprout(s, where, slugs);
+    if (!result.ok) return { ok: false, error: result.error };
+    sprouts.push(result.sprout);
+  }
+
+  const dupError = findDuplicateSlug(podResult.pod, beans, sprouts);
   if (dupError) return { ok: false, error: dupError };
 
-  return { ok: true, manifest: { pod: podResult.pod, beans } };
+  return { ok: true, manifest: { pod: podResult.pod, beans, sprouts } };
 }
 
 /**
@@ -460,8 +523,11 @@ function buildManifest(doc: unknown): ParseResult {
  * file makes every bare mention of a name unambiguous to read. The cost of the
  * rule is a rename in a text file before anything is written; the cost of not
  * having it is a wrong link nothing anywhere reports.
+ *
+ * The one namespace is also what makes a sprout's `about` unambiguous: a bare
+ * slug there names exactly one thing in the file, the pod or one bean.
  */
-function findDuplicateSlug(pod: ManifestPod, beans: ManifestBean[]): string | null {
+function findDuplicateSlug(pod: ManifestPod, beans: ManifestBean[], sprouts: ManifestSprout[]): string | null {
   const seen = new Map<string, string>();
   const claim = (slug: string, where: string): string | null => {
     const prior = seen.get(slug);
@@ -474,13 +540,12 @@ function findDuplicateSlug(pod: ManifestPod, beans: ManifestBean[]): string | nu
   if (error) return error;
 
   for (let i = 0; i < beans.length; i += 1) {
-    const bwhere = `beans[${i}]`;
-    error = claim(beans[i].slug, bwhere);
+    error = claim(beans[i].slug, `beans[${i}]`);
     if (error) return error;
-    for (let j = 0; j < beans[i].sprouts.length; j += 1) {
-      error = claim(beans[i].sprouts[j].slug, `${bwhere}.sprouts[${j}]`);
-      if (error) return error;
-    }
+  }
+  for (let j = 0; j < sprouts.length; j += 1) {
+    error = claim(sprouts[j].slug, `sprouts[${j}]`);
+    if (error) return error;
   }
   return null;
 }

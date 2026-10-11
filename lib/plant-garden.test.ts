@@ -44,13 +44,14 @@ beans:
   - slug: test-krabs-import
     name: { en: Import, fr: Import }
     description: { en: Bringing data in., fr: Faire entrer les données. }
-    sprouts:
-      - slug: test-krabs-import-intro
-        kind: log
-        date: 2026-09-13
-        name: { en: Intro, fr: Intro }
-        description: { en: First note., fr: Première note. }
-        content: { en: Body., fr: Corps. }
+sprouts:
+  - slug: test-krabs-import-intro
+    kind: log
+    date: 2026-09-13
+    about: [test-krabs-import]
+    name: { en: Intro, fr: Intro }
+    description: { en: First note., fr: Première note. }
+    content: { en: Body., fr: Corps. }
 `;
 }
 
@@ -92,7 +93,8 @@ test("planting creates the tree private, parented upward, bilingual", { skip: !h
   assert.deepEqual(bean.parents, ["pod:test-krabs"]);
 
   // A sprout is not CONTAINED by its bean, it is ABOUT it: the manifest's
-  // nesting becomes `about`, its `kind` is the vocabulary member the file
+  // bare `about: [test-krabs-import]` is resolved by the parser to the prefixed
+  // ref and written verbatim, its `kind` is the vocabulary member the file
   // named, and it carries no `parents` — its plant is derived from the bean
   // through the pod. A sprout written with both `about` and `parents` is the
   // shape every write-side validator refuses, and one written with `parents`
@@ -195,8 +197,8 @@ test("a manifest cover and media are written at creation and never replaced on -
   t.after(cleanup);
 
   const yaml = manifestYaml("The narrative.", "Le récit.")
-    .replace("    sprouts:", "    cover: shots/import.png\n    sprouts:")
-    .replace("        content: { en: Body., fr: Corps. }", "        content: { en: Body., fr: Corps. }\n        media: [{ file: shots/first.png, alt: First }]");
+    .replace("\nsprouts:", "\n    cover: shots/import.png\nsprouts:")
+    .replace("    content: { en: Body., fr: Corps. }", "    content: { en: Body., fr: Corps. }\n    media: [{ file: shots/first.png, alt: First }]");
 
   // `applyPlan` takes the ALREADY-uploaded map; the fake stands in for
   // Cloudinary so the write path is exercised with no network.
@@ -236,7 +238,7 @@ test("a bean's narrative is written at creation and rewritten on --update", { sk
   // en-only pair down to a bare string, so an `{ en }`-only fixture would store
   // "x" and say nothing about the fr half surviving the write.
   const withBeanContent = (en: string, fr: string) =>
-    manifestYaml("The narrative.", "Le récit.").replace("    sprouts:", `    content: { en: ${en}, fr: ${fr} }\n    sprouts:`);
+    manifestYaml("The narrative.", "Le récit.").replace("\nsprouts:", `\n    content: { en: ${en}, fr: ${fr} }\nsprouts:`);
 
   // A bean's narrative is what the feature is NOW, rewritten in place — so,
   // like a pod's, it is a second write on create and the manifest's text wins
@@ -271,7 +273,7 @@ test("--update never rewrites a PUBLISHED pod's or bean's narrative; a private o
   t.after(cleanup);
 
   const withBeanContent = (podEn: string, beanEn: string) =>
-    manifestYaml(podEn, "Le récit.").replace("    sprouts:", `    content: { en: ${beanEn}, fr: ${beanEn} }\n    sprouts:`);
+    manifestYaml(podEn, "Le récit.").replace("\nsprouts:", `\n    content: { en: ${beanEn}, fr: ${beanEn} }\nsprouts:`);
 
   await plant(withBeanContent("First.", "x"), false);
   const db = await getDb();

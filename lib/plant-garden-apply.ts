@@ -24,11 +24,13 @@
  *  - NEVER `parents` ON AN UPDATE. Re-homing a pod or a bean is the same
  *    privacy-cascade decision, and it belongs to the admin. Parentage is
  *    written once, at creation, from the manifest's own nesting. A sprout has
- *    no `parents` here at all: it is ABOUT the bean it is nested under
- *    (`about: ["bean:…"]`), and its plant is DERIVED from that bean through
- *    its pod (`resolveSproutPlant`, `lib/data.ts`). `about` is likewise
- *    written once, at creation, and `--update` never touches it — moving an
- *    entry to another bean is the admin's About panel.
+ *    no `parents` here at all: what it is ABOUT is written once, at creation,
+ *    from the manifest's own `about:` list — the parser resolved the author's
+ *    bare slugs to `pod:`/`bean:` refs against the same file, so this is the
+ *    storage grammar verbatim, and `resolveSproutPlant` (`lib/data.ts`)
+ *    derives the plant through whichever it names. `--update` never rewrites
+ *    `about`: what an entry is about is editorial, and re-anchoring is the
+ *    admin's About panel.
  *  - AN IMAGE IS WRITTEN ONLY WHERE THERE IS NONE. A bean's `cover` and a
  *    sprout's `media` come from the manifest at creation, and on `--update`
  *    only when the stored entity carries no image — a cover the maintainer
@@ -171,9 +173,9 @@ export async function applyPlan(
         date: sprout.date,
         description: sprout.description,
         state: "draft",
-        // The bean the manifest nested it under is what the entry is ABOUT;
-        // no `parents` — the plant is derived (see the docblock).
-        about: [`bean:${action.parentSlug}`],
+        // What the manifest said the entry is ABOUT, already prefixed by the
+        // parser; no `parents` — the plant is derived (see the docblock).
+        about: sprout.about,
         media: (sprout.media ?? []).map((image) => uploadedFor(assets, image)),
         source: { kind: "manifest" },
         ...(sprout.content
