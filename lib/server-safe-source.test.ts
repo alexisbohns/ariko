@@ -49,16 +49,18 @@ const SERVER_SAFE = [
   "components/bean-cover.tsx",
   "components/phone-frame.tsx",
   "components/screen-strip.tsx",
+  "components/journal.tsx", // the journal line: /beanstalk, and the plant, pod and bean pages
+  // The first PAGE on this list. Every other public page is kept honest by the
+  // components it imports; this one was named by the spec (journal model §6)
+  // because it is the newest surface and the one most likely to grow an island.
+  "app/(public)/(chrome)/sprout/[slug]/page.tsx",
   // The lightbox's shared name and arithmetic. The strip imports it for the
   // anchor attribute, so it is on the plant page's server path exactly as the
   // strip is — and the island imports it too, which is the whole reason it is
   // one file.
   "lib/screen-lightbox.ts",
-  // Read by the public bean page: `narrativeFor` is the one function the page
-  // renders by and the "Keep reading" rail admits by.
-  "lib/article.ts",
-  // The "Keep reading" rail under a bean — public-rendered, and it imports
-  // `narrativeFor` from the file above.
+  // The "Keep reading" rail under a bean — public-rendered, and it admits a
+  // candidate by `hasNarrative`, the same test the page renders by.
   "lib/related-beans.ts",
   // The shared entity head. CLAUDE.md names it as one of the four shared
   // surfaces and its own docblock claims server-safety; until the sprout's

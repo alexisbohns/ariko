@@ -364,6 +364,9 @@ export interface Dataset {
   getPlant(slug: string): Plant | undefined;
   getPod(slug: string): Pod | undefined;
   getBean(slug: string): Bean | undefined;
+  /** Every bean in this dataset, garden order — the kept-bean set a journal's
+   *  pollen lines take their bean doors from. */
+  getBeans(): Bean[];
   /** Entries about this bean, newest first. */
   sproutsForBean(slug: string): Sprout[];
   /** Entries about this pod OR about a bean inside it, newest first, once each. */
@@ -371,6 +374,10 @@ export interface Dataset {
   /** Entries whose DERIVED plant is this one, newest first. */
   sproutsForPlant(slug: string): Sprout[];
   timelineSprouts(): TimelineEntry[];
+  /** One sprout's timeline entry — the sprout, its first about-bean and its
+   *  DERIVED plant — or undefined. The public sprout page reads this rather
+   *  than re-deriving the plant: `resolveSproutPlant` stays the one derivation. */
+  entryForSprout(slug: string): TimelineEntry | undefined;
 }
 
 // The prefixed-ref grammar, shared with the graph serializer (lib/graph.ts).
@@ -579,6 +586,7 @@ export function buildDataset(raw: RawGarden): Dataset {
     for (const list of map.values()) list.sort(byDateDesc);
   }
   timeline.sort((a, b) => byDateDesc(a.sprout, b.sprout));
+  const entryBySlug = new Map(timeline.map((e) => [e.sprout.slug, e] as const));
 
   function plantForBean(slug: string): Plant | null {
     const bean = beanBySlug.get(slug);
@@ -612,10 +620,12 @@ export function buildDataset(raw: RawGarden): Dataset {
     getPlant: (slug) => plantBySlug.get(slug),
     getPod: (slug) => podBySlug.get(slug),
     getBean: (slug) => beanBySlug.get(slug),
+    getBeans: () => beans,
     sproutsForBean: (slug) => sproutsByBean.get(slug) ?? [],
     sproutsForPod: (slug) => sproutsByPod.get(slug) ?? [],
     sproutsForPlant: (slug) => sproutsByPlant.get(slug) ?? [],
     timelineSprouts: () => timeline,
+    entryForSprout: (slug) => entryBySlug.get(slug),
   };
 }
 

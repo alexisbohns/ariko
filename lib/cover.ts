@@ -17,12 +17,11 @@ import type { MediaImage, Sprout } from "./data";
  *
  * The umbrella says "the first MediaImage in its newest published sprout's
  * media[]", which could also be read as "strictly the newest sprout, or
- * nothing". Resolved toward this function's sibling, articleFor
- * (lib/article.ts), which returns the first sprout CARRYING content rather than
- * giving up at the newest: a bean whose latest sprout is a text-only changelog
- * entry keeps the cover its previous release earned.
+ * nothing". Resolved toward "the first sprout carrying one", not "strictly the
+ * newest": a bean whose latest entry is a text-only log keeps the cover its
+ * previous release earned.
  *
- * State is NOT re-checked here, exactly as in articleFor: the public page
+ * State is NOT re-checked here, as every public reader does: the public page
  * passes the filterPublic-projected dataset, so "published" is already enforced
  * upstream. One projection, one place.
  */

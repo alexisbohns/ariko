@@ -33,9 +33,11 @@ export type EntityResolver = (ref: string) => ResolvedEntity | null;
 // null is the whole security story: the caller passes the dataset it is allowed
 // to show — filterPublic's projection on a public page, the full one in the
 // admin — so a hidden target is simply absent, and a card over it renders
-// nothing without any extra check. sprout: refs resolve to null too: sprouts
-// have no public URL yet, and a card that cannot link anywhere is worse than no
-// card (spec §4).
+// nothing without any extra check. sprout: refs resolve to null too — not yet,
+// by decision. The address exists (`publicSproutHref` in lib/beanstalk.ts), but
+// a sprout is a journal entry, and whether prose should embed one as a card is
+// a product question the journal's public slice did not take. Until it is
+// taken, an unresolved ref renders nothing, which is the honest default.
 export function resolveEntity(
   dataset: Dataset,
   ref: string,

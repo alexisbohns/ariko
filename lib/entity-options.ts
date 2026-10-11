@@ -19,13 +19,19 @@ export interface EntityOption {
 /**
  * Pure. The rows the editor's `@` and `/` menus offer (spec §2.6).
  *
- * Sprouts are absent by design: resolveEntity returns null for `sprout:` refs
- * because sprouts have no public URL, so offering one would mint a reference
- * that can never render. `exclude` keeps a page from referencing itself.
+ * Sprouts are absent, not yet, by decision: resolveEntity returns null for
+ * `sprout:` refs, so offering one would mint a reference that renders nothing.
+ * The address exists (`publicSproutHref` in lib/beanstalk.ts), but a sprout is
+ * a journal entry, and whether prose should embed one as a card is a product
+ * question the journal's public slice did not take. `exclude` keeps a page
+ * from referencing itself.
  *
- * Reads the RAW garden, not a Dataset — Dataset has no whole-bean accessor, and
- * composing beansForPlant + beansForPod + standaloneBeans to fake one would be
- * three ways to miss a bean.
+ * Reads the RAW garden, not a Dataset: every caller is an admin editor page
+ * that already holds `loadRawGarden`'s unfiltered result, and the menus want
+ * exactly its three container arrays — drafts and private entities included,
+ * because in the authoring zone a reference to one should resolve. Building a
+ * Dataset only to read those arrays back out would derive the timeline and the
+ * journal indexes for nothing.
  */
 export function entityOptions(raw: RawGarden, exclude?: string): EntityOption[] {
   const rows: EntityOption[] = [];

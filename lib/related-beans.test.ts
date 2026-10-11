@@ -5,22 +5,14 @@ import { join } from "node:path";
 import { buildDataset, type RawGarden, type Bean, type Sprout } from "./data";
 import { relatedBeans } from "./related-beans";
 
-/** A sprout carrying real content, so `articleFor` answers for its bean. */
-function written(slug: string, bean: string, date: string): Sprout {
-  return {
-    slug,
-    name: slug,
-    kind: "log",
-    date,
-    description: "",
-    about: [`bean:${bean}`],
-    content: `# ${slug}\n\nBody.`,
-  };
+/** An entry about a bean — dated, and all a journal entry needs to be here. */
+function entry(slug: string, bean: string, date: string): Sprout {
+  return { slug, name: slug, kind: "log", date, description: "", about: [`bean:${bean}`] };
 }
 
-/** A sprout with NO content — present, dated, and invisible to `articleFor`. */
-function blank(slug: string, bean: string, date: string): Sprout {
-  return { slug, name: slug, kind: "log", date, description: "", about: [`bean:${bean}`] };
+/** A bean with a narrative of its own — the ONE admission test now. */
+function readable(slug: string, name: string, parents: string[]): Bean {
+  return { slug, name, parents, content: `# ${name}\n\nBody.` };
 }
 
 const garden: RawGarden = {
@@ -48,20 +40,20 @@ const garden: RawGarden = {
     { slug: "far", name: "Far", description: "", parents: ["plant:other-plant"] },
   ],
   beans: [
-    { slug: "here", name: "Here", parents: ["pod:karma"] },       // the bean being read
-    { slug: "sib-old", name: "Sib Old", parents: ["pod:karma"] },  // pod sibling, older
-    { slug: "sib-new", name: "Sib New", parents: ["pod:karma"] },  // pod sibling, newer
-    { slug: "cousin", name: "Cousin", parents: ["pod:atlas"] },    // same plant, other pod
-    { slug: "direct", name: "Direct", parents: ["plant:paulopus"] }, // same plant, no pod
-    { slug: "stranger", name: "Stranger", parents: ["pod:far"] },  // other plant entirely
+    readable("here", "Here", ["pod:karma"]),            // the bean being read
+    readable("sib-old", "Sib Old", ["pod:karma"]),      // pod sibling, older
+    readable("sib-new", "Sib New", ["pod:karma"]),      // pod sibling, newer
+    readable("cousin", "Cousin", ["pod:atlas"]),        // same plant, other pod
+    readable("direct", "Direct", ["plant:paulopus"]),   // same plant, no pod
+    readable("stranger", "Stranger", ["pod:far"]),      // other plant entirely
   ],
   sprouts: [
-    written("s-here", "here", "2026-01-01"),
-    written("s-sib-old", "sib-old", "2020-01-01"),
-    written("s-sib-new", "sib-new", "2024-01-01"),
-    written("s-cousin", "cousin", "2026-06-01"),   // NEWER than both pod siblings
-    written("s-direct", "direct", "2025-01-01"),
-    written("s-stranger", "stranger", "2026-09-01"),
+    entry("s-here", "here", "2026-01-01"),
+    entry("s-sib-old", "sib-old", "2020-01-01"),
+    entry("s-sib-new", "sib-new", "2024-01-01"),
+    entry("s-cousin", "cousin", "2026-06-01"),   // NEWER than both pod siblings
+    entry("s-direct", "direct", "2025-01-01"),
+    entry("s-stranger", "stranger", "2026-09-01"),
   ],
 };
 
@@ -85,29 +77,47 @@ test("a bean under another plant is never related", () => {
   assert.ok(!slugsFor(garden, "here").includes("stranger"));
 });
 
-test("within a tier, newest article first", () => {
+test("within a tier, newest entry first", () => {
   const out = slugsFor(garden, "here");
   assert.deepEqual(out.slice(0, 2), ["sib-new", "sib-old"]);
 });
 
-test("a bean with no sprout carrying content is excluded", () => {
+test("a bean with no narrative is excluded", () => {
+  // `sib-new` has an entry about it — dated, published, present — and no prose
+  // of its own. An entry DATES a candidate; it never admits one.
   const raw: RawGarden = {
     ...garden,
-    sprouts: [written("s-here", "here", "2026-01-01"), blank("s-sib-new", "sib-new", "2024-01-01")],
+    beans: [
+      readable("here", "Here", ["pod:karma"]),
+      { slug: "sib-new", name: "Sib New", parents: ["pod:karma"] },
+      { slug: "cousin", name: "Cousin", parents: ["pod:atlas"] },
+      { slug: "direct", name: "Direct", parents: ["plant:paulopus"] },
+    ],
+    sprouts: [entry("s-here", "here", "2026-01-01"), entry("s-sib-new", "sib-new", "2024-01-01")],
   };
   assert.deepEqual(slugsFor(raw, "here"), []);
 });
 
-test("a bean with no sprouts at all is excluded", () => {
-  const raw: RawGarden = { ...garden, sprouts: [written("s-here", "here", "2026-01-01")] };
+test("a bean with no narrative and no entries is excluded", () => {
+  const raw: RawGarden = {
+    ...garden,
+    beans: [
+      readable("here", "Here", ["pod:karma"]),
+      { slug: "sib-old", name: "Sib Old", parents: ["pod:karma"] },
+      { slug: "sib-new", name: "Sib New", parents: ["pod:karma"] },
+      { slug: "cousin", name: "Cousin", parents: ["pod:atlas"] },
+      { slug: "direct", name: "Direct", parents: ["plant:paulopus"] },
+    ],
+    sprouts: [entry("s-here", "here", "2026-01-01")],
+  };
   assert.deepEqual(slugsFor(raw, "here"), []);
 });
 
 test("a bean in two pods contributes both sibling sets, once each", () => {
   const raw: RawGarden = {
     ...garden,
-    beans: [...garden.beans!, { slug: "both", name: "Both", parents: ["pod:karma", "pod:atlas"] }],
-    sprouts: [...garden.sprouts!, written("s-both", "both", "2026-07-01")],
+    beans: [...garden.beans!, readable("both", "Both", ["pod:karma", "pod:atlas"])],
+    sprouts: [...garden.sprouts!, entry("s-both", "both", "2026-07-01")],
   };
   const out = slugsFor(raw, "both");
   // Siblings from BOTH pods, each listed once, newest-first across the merged
@@ -140,31 +150,31 @@ test("the default rail is six beans, not five and not seven", () => {
   const extras = ["e1", "e2", "e3", "e4"];
   const raw: RawGarden = {
     ...garden,
-    beans: [...garden.beans!, ...extras.map((s) => ({ slug: s, name: s, parents: ["pod:karma"] }))],
-    sprouts: [...garden.sprouts!, ...extras.map((s) => written(`s-${s}`, s, "2023-01-01"))],
+    beans: [...garden.beans!, ...extras.map((s) => readable(s, s, ["pod:karma"]))],
+    sprouts: [...garden.sprouts!, ...extras.map((s) => entry(`s-${s}`, s, "2023-01-01"))],
   };
   assert.equal(slugsFor(raw, "here").length, 6);
 });
 
-test("equal article dates tie-break by English name, then slug", () => {
+test("equal entry dates tie-break by English name, then slug", () => {
   const raw: RawGarden = {
     ...garden,
     beans: [
-      { slug: "here", name: "Here", parents: ["pod:karma"] },
-      { slug: "z-bean", name: "Alpha", parents: ["pod:karma"] },
-      { slug: "a-bean", name: "Beta", parents: ["pod:karma"] },
+      readable("here", "Here", ["pod:karma"]),
+      readable("z-bean", "Alpha", ["pod:karma"]),
+      readable("a-bean", "Beta", ["pod:karma"]),
       // Same name AND same date as z-bean, so only the SLUG can separate them
       // — and it is listed last, so garden order disagrees with slug order.
       // Without the tie-break's second key the stable sort leaves these two in
       // garden order (z-bean, m-bean) and this assertion fails, which is the
       // whole point of the third bean.
-      { slug: "m-bean", name: "Alpha", parents: ["pod:karma"] },
+      readable("m-bean", "Alpha", ["pod:karma"]),
     ],
     sprouts: [
-      written("s-here", "here", "2026-01-01"),
-      written("s-z", "z-bean", "2025-05-05"),
-      written("s-a", "a-bean", "2025-05-05"),
-      written("s-m", "m-bean", "2025-05-05"),
+      entry("s-here", "here", "2026-01-01"),
+      entry("s-z", "z-bean", "2025-05-05"),
+      entry("s-a", "a-bean", "2025-05-05"),
+      entry("s-m", "m-bean", "2025-05-05"),
     ],
   };
   // Same date: NAME decides first, so both Alphas precede "Beta" (slug a-bean).
@@ -176,14 +186,14 @@ test("the order is English-name order even when French would disagree", () => {
   const raw: RawGarden = {
     ...garden,
     beans: [
-      { slug: "here", name: "Here", parents: ["pod:karma"] },
-      { slug: "x-bean", name: { en: "Alpha", fr: "Zèbre" }, parents: ["pod:karma"] },
-      { slug: "y-bean", name: { en: "Beta", fr: "Aube" }, parents: ["pod:karma"] },
+      readable("here", "Here", ["pod:karma"]),
+      { ...readable("x-bean", "Alpha", ["pod:karma"]), name: { en: "Alpha", fr: "Zèbre" } },
+      { ...readable("y-bean", "Beta", ["pod:karma"]), name: { en: "Beta", fr: "Aube" } },
     ],
     sprouts: [
-      written("s-here", "here", "2026-01-01"),
-      written("s-x", "x-bean", "2025-05-05"),
-      written("s-y", "y-bean", "2025-05-05"),
+      entry("s-here", "here", "2026-01-01"),
+      entry("s-x", "x-bean", "2025-05-05"),
+      entry("s-y", "y-bean", "2025-05-05"),
     ],
   };
   // Same date, so the name decides — and the two languages disagree about it:
@@ -195,7 +205,7 @@ test("the order is English-name order even when French would disagree", () => {
 
 test("a bean parented straight to a plant still gets the plant tier", () => {
   // "direct" has no pod, so tier 1 is empty and the whole rail is tier 2 —
-  // every other written bean under paulopus, newest article first.
+  // every other readable bean under paulopus, newest entry first.
   assert.deepEqual(slugsFor(garden, "direct"), ["cousin", "here", "sib-new", "sib-old"]);
 });
 
@@ -212,8 +222,8 @@ test("a bean whose pod has no plant gets pod siblings only", () => {
 test("a standalone bean gets nothing", () => {
   const raw: RawGarden = {
     ...garden,
-    beans: [{ slug: "lonely", name: "Lonely", parents: [] }, ...garden.beans!],
-    sprouts: [...garden.sprouts!, written("s-lonely", "lonely", "2026-01-01")],
+    beans: [readable("lonely", "Lonely", []), ...garden.beans!],
+    sprouts: [...garden.sprouts!, entry("s-lonely", "lonely", "2026-01-01")],
   };
   assert.deepEqual(slugsFor(raw, "lonely"), []);
 });
@@ -243,31 +253,56 @@ test("the plant tier is built by CALLING beansForPlantDeep, not by composing it"
   );
 });
 
-// --- The bean's OWN narrative admits it, exactly as the bean page reads it.
+// --- The bean's OWN narrative admits it, by the test the bean page renders by.
 
 test("a sibling with a narrative of its own and no sprouts appears in the rail", () => {
   const raw: RawGarden = {
     ...garden,
     beans: [...garden.beans!, { slug: "written", name: "Written", parents: ["pod:karma"], content: "prose" }],
   };
-  // `written` has no sprout at all — previously grounds for exclusion — and is
-  // admitted by its `content`, the same `narrativeFor` the destination renders.
-  // Undated, it sits LAST in the pod tier, ahead of every plant-tier bean.
+  // `written` has no entry about it at all, and is admitted by its `content` —
+  // `hasNarrative`, the same test the destination renders by. Undated, it sits
+  // LAST in the pod tier, ahead of every plant-tier bean.
   assert.deepEqual(slugsFor(raw, "here"), ["sib-new", "sib-old", "written", "cousin", "direct"]);
 });
 
-test("within a tier an undated narrative sorts after a dated article; two undated sort by name", () => {
+test("within a tier a bean nobody has written about sorts after one with an entry; two such sort by name", () => {
   const raw: RawGarden = {
     ...garden,
     beans: [
-      { slug: "here", name: "Here", parents: ["pod:karma"] },
-      // Dated by its sprout, and OLD — still ahead of every bean-only narrative.
-      { slug: "sib-old", name: "Sib Old", parents: ["pod:karma"] },
+      readable("here", "Here", ["pod:karma"]),
+      // Dated by its entry, and OLD — still ahead of every bean with none.
+      readable("sib-old", "Sib Old", ["pod:karma"]),
       // Listed Z before A so that garden order disagrees with name order.
       { slug: "zed", name: "Zed", parents: ["pod:karma"], content: "prose" },
       { slug: "ann", name: "Ann", parents: ["pod:karma"], content: { en: "prose" } },
     ],
-    sprouts: [written("s-here", "here", "2026-01-01"), written("s-sib-old", "sib-old", "2020-01-01")],
+    sprouts: [entry("s-here", "here", "2026-01-01"), entry("s-sib-old", "sib-old", "2020-01-01")],
   };
   assert.deepEqual(slugsFor(raw, "here"), ["sib-old", "ann", "zed"]);
+});
+
+// --- Dated by the newest journal entry ABOUT it — the date source the rail was
+// given when the article fallback went. Without one every candidate is undated
+// and the rail degrades, silently, to name order — which the first test below
+// reports, and the second does for a date taken from a bean's OLDEST entry.
+
+test("a candidate is dated by its newest journal entry: newer entry first", () => {
+  const g: RawGarden = {
+    ...garden,
+    beans: [readable("here", "Here", ["pod:karma"]), readable("a", "A", ["pod:karma"]), readable("b", "B", ["pod:karma"])],
+    sprouts: [entry("a-old", "a", "2020-01-01"), entry("b-new", "b", "2026-06-01")],
+  };
+  const d = buildDataset(g);
+  assert.deepEqual(relatedBeans(d, d.getBean("here")!).map((b) => b.slug), ["b", "a"]);
+});
+
+test("a candidate's date is its NEWEST entry, not its first", () => {
+  const g: RawGarden = {
+    ...garden,
+    beans: [readable("here", "Here", ["pod:karma"]), readable("a", "Zed", ["pod:karma"]), readable("b", "Ann", ["pod:karma"])],
+    sprouts: [entry("a-old", "a", "2020-01-01"), entry("b-mid", "b", "2026-01-01"), entry("a-new", "a", "2026-06-01")],
+  };
+  const d = buildDataset(g);
+  assert.deepEqual(relatedBeans(d, d.getBean("here")!).map((b) => b.slug), ["a", "b"]);
 });

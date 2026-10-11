@@ -1,9 +1,9 @@
-import { buildDataset, filterPublic, resolveText } from "@/lib/data";
+import { buildDataset, filterPublic } from "@/lib/data";
 import { loadCachedGarden } from "@/lib/garden-cache";
 import { getFederation } from "@/lib/federation";
 import { listPollen } from "@/lib/pollen-store";
 import { exhibitedPollen, mergeBeanstalk, plantSlugOf } from "@/lib/beanstalk";
-import { sproutKindLabel } from "@/lib/glyphs";
+import { Journal } from "@/components/journal";
 import { Badge } from "@/components/ui/badge";
 import { seq } from "@/components/reveal";
 import { Separator } from "@/components/ui/separator";
@@ -28,7 +28,7 @@ export default async function BeanstalkPage({
   const active = plant && plantSlugs.includes(plant) ? plant : "all";
 
   const pollen = exhibitedPollen(allPollen, getFederation().exhibit, new Set(plantSlugs));
-  const keptBeanSlugs = new Set((pub.beans ?? []).map((b) => b.slug));
+  const keptBeanSlugs = new Set(data.getBeans().map((b) => b.slug));
   const entries = mergeBeanstalk(data.timelineSprouts(), pollen, keptBeanSlugs).filter(
     (e) => active === "all" || plantSlugOf(e) === active,
   );
@@ -64,56 +64,9 @@ export default async function BeanstalkPage({
       <Separator {...seq(2)} />
 
       {/* Each entry arrives as it reaches the fold — the timeline is the one
-          surface here long enough for that to be the whole point. */}
-      <ul className="reveal-each flex flex-col gap-4">
-        {entries.map((e) =>
-          e.type === "sprout" ? (
-            <li key={`sprout:${e.entry.sprout.slug}`} className="flex flex-col gap-1">
-              <span className="text-base">
-                {e.entry.bean ? (
-                  <a
-                    href={`/bean/${e.entry.bean.slug}`}
-                    className="underline-offset-4 transition-colors hover:underline"
-                  >
-                    {resolveText(e.entry.sprout.name, lang)}
-                  </a>
-                ) : (
-                  resolveText(e.entry.sprout.name, lang)
-                )}
-              </span>
-              <span className="flex flex-wrap items-center gap-2 font-heading text-xs text-muted-foreground">
-                <time dateTime={e.entry.sprout.date}>{e.date}</time>
-                <Badge variant="secondary">{sproutKindLabel(e.entry.sprout.kind)}</Badge>
-              </span>
-            </li>
-          ) : (
-            <li key={`pollen:${e.pollen.id}`} className="flex flex-col gap-1">
-              <span className="text-base">
-                {e.url ? (
-                  <a href={e.url} className="underline-offset-4 transition-colors hover:underline">
-                    {resolveText(e.pollen.title, lang)}
-                  </a>
-                ) : (
-                  resolveText(e.pollen.title, lang)
-                )}
-              </span>
-              <span className="flex flex-wrap items-center gap-2 font-heading text-xs text-muted-foreground">
-                <time dateTime={e.pollen.at}>{e.date}</time>
-                <Badge variant="secondary">{e.pollen.kind}</Badge>
-                <span>{e.pollen.source}</span>
-                {e.beanSlug ? (
-                  <a
-                    href={`/bean/${e.beanSlug}`}
-                    className="underline-offset-4 transition-colors hover:text-foreground hover:underline"
-                  >
-                    {e.beanSlug}
-                  </a>
-                ) : null}
-              </span>
-            </li>
-          ),
-        )}
-      </ul>
+          surface here long enough for that to be the whole point. No heading:
+          this page's h1 IS the journal's name. */}
+      <Journal entries={entries} lang={lang} />
     </article>
   );
 }

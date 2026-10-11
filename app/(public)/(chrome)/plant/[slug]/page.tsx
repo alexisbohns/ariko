@@ -2,6 +2,10 @@ import { notFound } from "next/navigation";
 import { resolveText, textPart } from "@/lib/data";
 import { currentLang } from "@/lib/locale-server";
 import { getPublicDataset } from "@/lib/garden-cache";
+import { getFederation } from "@/lib/federation";
+import { listPollen } from "@/lib/pollen-store";
+import { entriesAbout, exhibitedPollen } from "@/lib/beanstalk";
+import { Journal } from "@/components/journal";
 import { resolveEntity } from "@/lib/entity-resolve";
 import { PlantHead } from "@/app/(public)/_components/plant-head";
 import { seq } from "@/components/reveal";
@@ -17,7 +21,7 @@ export const dynamic = "force-dynamic";
 export default async function PlantPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const lang = await currentLang();
-  const data = await getPublicDataset();
+  const [data, allPollen] = await Promise.all([getPublicDataset(), listPollen()]);
   const plant = data.getPlant(slug);
   // A private container 404s rather than existing as an empty public shell.
   if (!plant) notFound();
@@ -31,6 +35,20 @@ export default async function PlantPage({ params }: { params: Promise<{ slug: st
 
   const pods = data.podsForPlant(slug);
   const beans = data.beansForPlant(slug);
+
+  // The journal (journal model §3): this plant's published entries —
+  // `sproutsForPlant`, those whose DERIVED plant is this one — narrowed out of
+  // the timeline by `entriesAbout` and merged with its exhibited pollen, newest
+  // first, exactly as the pod and bean journals are drawn. `exhibitedPollen` is
+  // handed a one-plant set, so the exhibition rule (private envelope loses; the
+  // plant must be in data/federation.yml's exhibit list; the plant must have
+  // survived filterPublic — it has, we are on its page) admits only this
+  // plant's events.
+  // The kept-bean set is every public bean, so a pollen line about a public
+  // bean keeps its door: the same set /beanstalk passes.
+  const pollen = exhibitedPollen(allPollen, getFederation().exhibit, new Set([slug]));
+  const keptBeanSlugs = new Set(data.getBeans().map((b) => b.slug));
+  const journal = entriesAbout(data.timelineSprouts(), data.sproutsForPlant(slug), pollen, keptBeanSlugs);
 
   // The exhibition, with both Texts resolved HERE rather than in the strip —
   // which is what keeps components/screen-strip.tsx isomorphic instead of
@@ -126,6 +144,7 @@ export default async function PlantPage({ params }: { params: Promise<{ slug: st
           </ul>
         </nav>
       ) : null}
+      <Journal entries={journal} lang={lang} heading="Journal" />
     </article>
   );
 }

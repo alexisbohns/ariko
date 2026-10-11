@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { resolveText } from "@/lib/data";
 import { currentLang } from "@/lib/locale-server";
 import { getPublicDataset } from "@/lib/garden-cache";
+import { entriesAbout } from "@/lib/beanstalk";
+import { Journal } from "@/components/journal";
 import { resolveEntity } from "@/lib/entity-resolve";
 import { Prose } from "@/components/markdown";
 import { seq } from "@/components/reveal";
@@ -19,6 +21,11 @@ export default async function PodPage({ params }: { params: Promise<{ slug: stri
   if (!pod) notFound();
 
   const beans = data.beansForPod(slug);
+
+  // The journal (journal model §3): entries ABOUT this pod or about any bean
+  // inside it, `sproutsForPod`'s exact definition, as beanstalk lines. No
+  // pollen — a feed event anchors to a plant and at most a bean, never a pod.
+  const journal = entriesAbout(data.timelineSprouts(), data.sproutsForPod(slug));
 
   // From the FILTERED dataset, so a private plant is simply absent from the
   // trail — resolveLineage drops a ref it cannot resolve, which is the privacy
@@ -71,6 +78,7 @@ export default async function PodPage({ params }: { params: Promise<{ slug: stri
             </ul>
           </nav>
         ) : null}
+        <Journal entries={journal} lang={lang} heading="Journal" />
       </article>
     </>
   );

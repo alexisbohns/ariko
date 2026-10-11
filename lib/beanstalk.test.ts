@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { exhibitedPollen, mergeBeanstalk, plantSlugOf } from "./beanstalk";
+import { entriesAbout, exhibitedPollen, mergeBeanstalk, plantSlugOf, publicSproutHref } from "./beanstalk";
 import type { PollenDoc } from "./pollen-sync";
-import type { TimelineEntry } from "./data";
+import type { Sprout, TimelineEntry } from "./data";
 
 function doc(over: Partial<PollenDoc>): PollenDoc {
   return {
@@ -88,4 +88,37 @@ test("a bean anchor outside the kept set yields no bean link", () => {
 test("plantSlugOf reads both entry types", () => {
   const entries = mergeBeanstalk([sproutEntry("s1", "2026-08-01")], [doc({})], new Set());
   assert.deepEqual(entries.map(plantSlugOf), ["pbbls", "pbbls"]);
+});
+
+test("publicSproutHref: /sprout/<slug>, URL-encoded", () => {
+  assert.equal(publicSproutHref("felina-0"), "/sprout/felina-0");
+  assert.equal(publicSproutHref("a b"), "/sprout/a%20b");
+});
+
+test("entriesAbout: the timeline narrowed to the given sprouts, order kept, no pollen", () => {
+  const timeline = [sproutEntry("new", "2026-03-01"), sproutEntry("mid", "2026-02-01"), sproutEntry("old", "2026-01-01")];
+  const mine: Sprout[] = [timeline[2].sprout, timeline[0].sprout];
+  const r = entriesAbout(timeline, mine);
+  assert.deepEqual(
+    r.map((e) => (e.type === "sprout" ? e.entry.sprout.slug : "pollen")),
+    ["new", "old"],
+  );
+});
+
+test("entriesAbout: no sprouts, no lines", () => {
+  assert.deepEqual(entriesAbout([sproutEntry("x", "2026-01-01")], []), []);
+});
+
+test("entriesAbout: a plant journal — the narrowing plus pollen, which keeps its bean door, newest first", () => {
+  const timeline = [sproutEntry("new", "2026-03-01"), sproutEntry("mid", "2026-02-01"), sproutEntry("old", "2026-01-01")];
+  const mine: Sprout[] = [timeline[0].sprout, timeline[2].sprout];
+  const pollen = [doc({ at: "2026-02-15T09:00:00Z", anchors: { plant: "plant:pbbls", bean: "bean:krabs" } })];
+  const r = entriesAbout(timeline, mine, pollen, new Set(["krabs"]));
+  assert.deepEqual(
+    r.map((e) => (e.type === "sprout" ? e.entry.sprout.slug : "pollen")),
+    ["new", "pollen", "old"],
+  );
+  const line = r[1];
+  assert.equal(line.type, "pollen");
+  assert.equal(line.type === "pollen" ? line.beanSlug : undefined, "krabs");
 });

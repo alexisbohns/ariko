@@ -30,10 +30,9 @@ test("the FIRST image of the newest sprout that has one", () => {
 });
 
 // The umbrella's wording ("the newest published sprout's media[]") could mean
-// "strictly the newest, or nothing". Resolved toward its sibling articleFor,
-// which returns the first sprout CARRYING content rather than giving up at the
-// newest — so a bean whose latest sprout is a text-only changelog entry keeps
-// the cover its previous release earned.
+// "strictly the newest, or nothing". Resolved toward "the first sprout carrying
+// one" rather than giving up at the newest — so a bean whose latest entry is a
+// text-only log keeps the cover its previous release earned.
 test("scans past a newer sprout that has no image", () => {
   const cover = coverFor([
     sprout("changelog", "2026-06-01"),
@@ -56,7 +55,7 @@ test("a sprout whose media is only embeds does not stop the scan", () => {
 });
 
 test("input order is respected as given — the caller supplies newest-first", () => {
-  // Same as articleFor: ordering is the dataset's guarantee, not this
+  // As for every public reader: ordering is the dataset's guarantee, not this
   // function's job. Given oldest-first, it honestly returns the oldest.
   const cover = coverFor([sprout("old", "2020-01-01", [img("old")]), sprout("new", "2026-01-01", [img("new")])]);
   assert.equal(cover?.storageKey, "old");

@@ -1,4 +1,4 @@
-import { BEAN_PREFIX, PLANT_PREFIX, type TimelineEntry } from "./data";
+import { BEAN_PREFIX, PLANT_PREFIX, type Sprout, type TimelineEntry } from "./data";
 import type { PollenDoc } from "./pollen-sync";
 
 // Pure beanstalk builders (spec §4, §6): the timeline is the union of
@@ -58,4 +58,33 @@ export function plantSlugOf(e: BeanstalkEntry): string | null {
   return e.type === "sprout"
     ? (e.entry.plant?.slug ?? null)
     : e.pollen.anchors.plant.slice(PLANT_PREFIX.length);
+}
+
+// The public address of a sprout, spelled ONCE. `lib/lineage.ts`'s PUBLIC_HREFS
+// stops at the bean because a sprout is never a container; the journal lines
+// and the sprout page's own doors read this instead.
+export function publicSproutHref(slug: string): string {
+  return `/sprout/${encodeURIComponent(slug)}`;
+}
+
+// The beanstalk lines for a page's OWN sprouts — a plant's, a pod's, a bean's —
+// in the timeline's newest-first order. A pod or bean journal is therefore the
+// beanstalk narrowed, drawn by the same component, rather than a second
+// rendering of a `Sprout[]` that would drift from the first. A plant journal is
+// the same narrowing plus the plant's exhibited pollen: the caller hands over
+// what `exhibitedPollen` admitted and the kept-bean set its doors may name, and
+// the merge is `mergeBeanstalk`'s, so the order and the bean doors are the
+// beanstalk's own. The defaults are a pod's and a bean's: no pollen, no doors.
+export function entriesAbout(
+  timeline: TimelineEntry[],
+  sprouts: Sprout[],
+  pollen: PollenDoc[] = [],
+  keptBeanSlugs: Set<string> = new Set(),
+): BeanstalkEntry[] {
+  const keep = new Set(sprouts.map((s) => s.slug));
+  return mergeBeanstalk(
+    timeline.filter((e) => keep.has(e.sprout.slug)),
+    pollen,
+    keptBeanSlugs,
+  );
 }
