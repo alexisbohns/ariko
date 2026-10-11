@@ -34,14 +34,15 @@ visibility cascades, and what the model derives rather than stores — is
 
 * `/` — Directory. For each plant (+ its pods, + an "Unrooted" group for orphan pods and beans): name, role line, natures, description, and the beans beneath it — each bean a link to /bean/[id] with its own one-line description.
 * `/beanstalk` — The beanstalk (formerly `/timeline`, which 308-redirects). Authored sprouts and exhibited pollen feed events, sorted by date descending. Above the list: a `<ul>` of domain filter buttons (`all | music | design | podcast`). Below: a `<ul>` of filtered results.
-* `/plant/[slug]` and `/pod/[slug]` — Container pages: name, the plant's role badge ahead of its natures, description, the role's `detail` line, the container's own `content` narrative (entity refs resolved live), then a mechanical index of what is inside.
-* `/bean/[id]` — Bean detail. `<h1>` bean name, then for each sprout: `<h2>` sprout name, `<ul>` of all key-value properties.
+* `/plant/[slug]` and `/pod/[slug]` — Container pages: name, the plant's role badge ahead of its natures, description, the role's `detail` line, the container's own `content` narrative (entity refs resolved live), then a mechanical index of what is inside, and its journal.
+* `/bean/[id]` — Bean detail. `<h1>` bean name, its description, its own `content` narrative, and its journal.
+* `/sprout/[slug]` — A journal entry — kind, date, name, body, media, links, and the pods and beans it is about.
 
 ## Rich content
 
 Sprouts carry optional markdown in `content` (localizable — `Text`, like `name`/`description`).
 
-* It renders as prose on `/bean/[id]` when the bean carries no narrative of its own (`narrativeFor`, `lib/article.ts` — bean content first, the newest published sprout carrying content as a fallback)
+* It renders as prose on the entry's own page, `/sprout/[slug]` (a bean page renders the bean's own `content`, never a sprout's),
   and as a **Preview** card on `/admin/sprout/[slug]`, beside the raw source.
 * The pipeline is configured in exactly one place, `lib/markdown.ts`: `remark-gfm` for tables and
   fenced code, `rehype-sanitize` **last**. `rehype-raw` is deliberately absent, so HTML embedded in
@@ -85,7 +86,7 @@ As of the Vault Spine slice, content lives in **MongoDB** (not the static seed).
 * Set `MONGODB_URI` and `MONGODB_DB` in `.env.local` (gitignored).
 * `npm run migrate` — one-time import of `data/garden.yml` into Mongo (idempotent).
 * `npm run migrate:journal` — the journal-model migration (`docs/superpowers/specs/2026-10-10-journal-model-design.md` §4), one script in two phases over one read: the **fold** (every `type: "article"` sprout's content lands on its bean and the sprout is deleted) and the **re-anchor** (every remaining sprout gets `kind` from its `type` and `about` from its `bean:` parents, with `type` and `parents` unset). **Dry by default** — it only reads unless you pass `-- --apply` — and it refuses to write while *either* phase has a refusal, so two operator pre-steps gate the whole run: root the `krabs` pod under a plant in the admin, and delete or retype the `bla` test sprout (an unknown `type` is refused by name, never guessed at). Writes a pre-image per phase to `data/retired/` (gitignored) and refuses to clobber one. It does not invalidate Next's Data Cache (no request store), so save any entity in the admin afterwards. The earlier `migrate:pbbls-legacy` (#54) is spent and deleted.
-* `npm run dev` — needs `MONGODB_URI` set and the cluster reachable (pages query Mongo at request time). The public pages (`/`, `/beanstalk`, `/bean/[id]`) are `force-dynamic`, so they read published-only from Mongo on every request and reflect a publish immediately — and `npm run build` no longer needs DB reachability to prerender them.
+* `npm run dev` — needs `MONGODB_URI` set and the cluster reachable (pages query Mongo at request time). The public pages (`/`, `/beanstalk`, `/bean/[id]`, `/sprout/[slug]`) are `force-dynamic`, so they read published-only from Mongo on every request and reflect a publish immediately — and `npm run build` no longer needs DB reachability to prerender them.
 * `npm test` — pure unit tests; the DB-backed integration tests auto-skip unless `MONGODB_URI` is set, so a plain run is green without a cluster.
 * `npm run test:db` — the eight DB-backed files, run **serially** against a **scratch database**. Both halves are load-bearing (#75): they share one database and delete each other's `__test__` fixtures under parallel execution, and `MONGODB_DB` is forced to `beanstalk_scratch` from the shell (which wins over `.env.local`) so a `cleanup()` can never reach the real garden. Override with `MONGODB_DB=… npm run test:db` if you mean to.
 

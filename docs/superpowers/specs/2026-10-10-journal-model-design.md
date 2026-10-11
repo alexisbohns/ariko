@@ -292,5 +292,10 @@ written), the plant, pod and bean journals, and deleting `articleFor` with
 the related-beans rail given a date source of its own. The §3 Doors sentence
 about top-level manifest sprouts and §6's nested-manifest refusal are slice
 four.
+
+Shipped by `plans/2026-10-11-public-surfaces.md`: `components/journal.tsx` is
+the one journal line (`/beanstalk`, plant, pod, bean), `/sprout/[slug]` is on
+the server-safe list, `lib/article.ts` is deleted and `lib/related-beans.ts`
+dates a candidate by `sproutsForBean(slug)[0]`.
 - The garden manifest refuses a sprout nested under a bean (the old shape) with
   a message naming the new one.

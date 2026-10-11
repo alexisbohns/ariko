@@ -81,8 +81,10 @@ only route to anything.
 `lib/server-safe-source.test.ts` **is** that rule, not a restatement of it: it
 pins the list of public-rendered files, it forbids `lucide-react` (one import
 is one client boundary, via an `Icon.mjs` carrying the directive), and it
-forbids `node:` imports. **Add a file to it the day you write it.** All three
-violations pass `tsc`, `npm test` and `npm run build` while quietly costing the
+forbids `node:` imports. **Add a file to it the day you write it.**
+`app/(public)/(chrome)/sprout/[slug]/page.tsx` is the first PAGE on the list,
+per the journal spec; a page that imports only listed components is otherwise
+kept honest by them. All three violations pass `tsc`, `npm test` and `npm run build` while quietly costing the
 public site its navigation or its media list — which is how a stock
 `"use client"` on `components/ui/table.tsx` shipped 8.5 kB to every prose page
 for twenty slices. `components/public-icons.tsx` is the way around lucide in
@@ -575,8 +577,10 @@ Six rules the tests pin, each of which passes `tsc`, `npm test` **and**
   in place, never versioned or appended. `editContainerContentAction` takes a
   `bean:` ref, `/api/articles` takes a `bean:` container for `narrative` only,
   and the manifest's `content:` on a bean is a second write exactly as a pod's.
-  `narrativeFor` (`lib/article.ts`) is the one function the public bean page
-  and the related-beans rail read by; its sprout fallback goes with slice two.
+  The public bean page renders that `content` and nothing else — the sprout
+  fallback went with the fold — and the related-beans rail admits a candidate
+  only by `hasNarrative(bean.content)`, a narrative of its own, and dates it by
+  its newest journal entry, `sproutsForBean(slug)[0]`.
 - **An update preserves hand-authored relations.** `contentPatch` takes the
   stored `relations` as a REQUIRED parameter, never a defaulted one.
   `lib/content-edit.ts`'s §2.10 note already says that `articles-store.ts`'s

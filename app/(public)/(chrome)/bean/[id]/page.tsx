@@ -46,8 +46,8 @@ export const dynamic = "force-dynamic";
  * while it waits. Putting a sprout's assets back on a page is then a rendering
  * decision, not a rebuild — and `/sprout/[slug]` is that page.
  *
- * `sproutsForBean` now feeds the journal beneath the narrative; the rail's
- * covers read it too.
+ * `sproutsForBean` now narrows the timeline to the journal beneath the
+ * narrative; the rail's covers read it too.
  *
  * The rail beneath it is `lib/related-beans.ts` — pod siblings first, topped up
  * from the plant, never a bean without a narrative of its own, and dated by

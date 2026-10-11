@@ -473,19 +473,19 @@ a question two pages could otherwise answer differently.
 | **A bean's plant** | a direct `plant:` parent wins; otherwise the first resolvable pod's first plant | `Dataset.plantForBean` |
 | **A sprout's plant** | the one plant every `about` ref rolls up to (bean → pod → plant, bean → plant, pod → plant); with `about` empty, its one `plant:` parent; two plants or none ⇒ `null`, fail-closed | `resolveSproutPlant`, [`lib/data.ts`](../lib/data.ts) |
 | **A bean's cover** | explicit `Bean.cover` wins; otherwise the first `MediaImage` in the first sprout that has one (newest-first) | [`lib/bean-cover.ts`](../lib/bean-cover.ts) over [`lib/cover.ts`](../lib/cover.ts) |
-| **A bean's narrative** | the bean's own `content` when it carries one; otherwise, until slice two of the journal model, the first sprout carrying non-blank `content`, newest-first | `narrativeFor`, [`lib/article.ts`](../lib/article.ts) |
+| **A bean's narrative** | the bean's own `content`, nothing else — no sprout stands in for it | `hasNarrative`, [`lib/data.ts`](../lib/data.ts) |
 | **A pod's cover** | borrowed from its first bean that can offer one — the artwork, never the `keyword` | `podCoverFrom` |
 | **A plant's bean set** | beans parented directly to the plant **plus** the beans of each of its pods, deduped | [`lib/plant-hub.ts`](../lib/plant-hub.ts) |
 | **The timeline** | every sprout with the first bean it is about and its derived plant, newest first | `Dataset.timelineSprouts` |
 | **The beanstalk** | the timeline **unioned with exhibited pollen**, newest first by date part, authored material winning ties | [`lib/beanstalk.ts`](../lib/beanstalk.ts) |
 | **Lineage** | the climb from an entity to its plant, rendered as the parenting chrome; the garden is a *parameter*, never loaded inside | [`lib/lineage.ts`](../lib/lineage.ts) |
-| **Related beans** | pod siblings first, topped up from the plant, never a bean with nothing written under it | [`lib/related-beans.ts`](../lib/related-beans.ts) |
+| **Related beans** | pod siblings first, topped up from the plant, never a bean without a narrative of its own; each dated by its newest journal entry | [`lib/related-beans.ts`](../lib/related-beans.ts) |
 | **The exhibition strip** | screens with `exhibited === true`, sorted once, `order` absent ⇒ last | `Dataset.exhibitionForPlant` |
 | **Entity refs in prose** | `::entity{ref=bean:karma}` (block) and `:entity[label]{ref=plant:paulopus}` (inline) are extracted at **write** time and mirrored into `relations[]` under the kinds `embeds` / `mentions` — derived state, re-derived on every write, so the graph reads stored refs and never parses prose | [`lib/entity-refs.ts`](../lib/entity-refs.ts) |
 | **The graph** | every species becomes a node (`kind:slug`); containment becomes `contains` edges, a sprout's `about[]` becomes `about` edges, relations become their own kinds, a bee's `serves[]` becomes `serves` | [`lib/graph.ts`](../lib/graph.ts) |
 
-Two of these earn a note. `narrativeFor` and `coverFor` deliberately **do not
-re-check state** — the public page hands them a `filterPublic`-projected dataset,
+Two of these earn a note. `coverFor` deliberately **does not
+re-check state** — the public page hands it a `filterPublic`-projected dataset,
 so "published" is already enforced upstream: one projection, one place. And the
 rollup in `plant-hub.ts` exists so a plant's hub and its scoped section **report
 the same count because they call the same function**, not because two pieces of
@@ -530,21 +530,22 @@ Two properties of that table are the design rather than a coincidence:
 
 | species | public zone | admin zone | API |
 |---|---|---|---|
-| **Plant** | `/` (grouped by status), `/plant/[slug]` — role badge, natures, narrative, links, screen strip, index of contents | `/admin/plant/[slug]` + `/narrative`, the chrome's plant switcher, the scope of every section | `/api/graph` |
-| **Pod** | `/` , `/pod/[slug]` — name, description, narrative, its beans | `/admin/pods`, `/admin/pod/[slug]` | `/api/graph` |
-| **Bean** | `/` (cards with covers), `/bean/[id]` — name, description, **its narrative**, a related-beans rail | `/admin/beans`, `/admin/bean/[id]` | `/api/graph` |
-| **Sprout** | **no page of its own** — a sprout reaches a visitor as its bean's article, or as a line on `/beanstalk` | `/admin/sprouts`, `/admin/sprout/[slug]` | `/api/graph` |
+| **Plant** | `/` (grouped by status), `/plant/[slug]` — role badge, natures, narrative, links, screen strip, index of contents, its journal | `/admin/plant/[slug]` + `/narrative`, the chrome's plant switcher, the scope of every section | `/api/graph` |
+| **Pod** | `/` , `/pod/[slug]` — name, description, narrative, its beans, its journal | `/admin/pods`, `/admin/pod/[slug]` | `/api/graph` |
+| **Bean** | `/` (cards with covers), `/bean/[id]` — name, description, **its narrative**, its journal, a related-beans rail | `/admin/beans`, `/admin/bean/[id]` | `/api/graph` |
+| **Sprout** | `/sprout/[slug]` — kind, date, name, body, media, links, and the pods and beans it is about; a line in the journal of `/beanstalk` and of the plant, pod and bean pages it rolls up to | `/admin/sprouts`, `/admin/sprout/[slug]` | `/api/graph` |
 | **Screen** | the strip on `/plant/[slug]` | `/admin/screens`, `/admin/screens/[slug]` (+ intercepted sheet), `/admin/screens/new` | — |
 | **Bee** | — | — | `/api/graph` (public only when explicitly public) |
 | **Seed** | never | `/admin/inbox`, `/admin/triage/[id]` | `POST /api/inbox` |
-| **Pollen** | lines on `/beanstalk`, when exhibited | — | `POST /api/pollen/sync` |
+| **Pollen** | lines on `/beanstalk` and on its plant's journal, when exhibited | — | `POST /api/pollen/sync` |
 
-The sprout row is the one that surprises people. It is correct: the sprout is
-the unit of *work*, not the unit of *reading*. A visitor reads a bean, and the
-bean's narrative is what they read there. The per-sprout
-property dump that used to exist on `/bean/[id]` was retired deliberately — and
-it took the sprout's `media[]` and `links[]` with it, so those leave the public
-site entirely rather than moving somewhere else.
+The sprout row is the one that changed. A sprout is a dated journal entry, so
+it is read twice: as one line in a journal — the same line,
+`components/journal.tsx`, on `/beanstalk` and on every entity page — and on its
+own page, which the line links to. The per-sprout property dump that used to
+exist on `/bean/[id]` stays retired; `/sprout/[slug]` is where the sprout's
+`media[]` and `links[]` came back to the public site. A bean's page reads the
+bean's own narrative, never a sprout standing in for it.
 
 ---
 

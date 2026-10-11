@@ -300,7 +300,7 @@ test("a candidate is dated by its newest journal entry: newer entry first", () =
 test("a candidate's date is its NEWEST entry, not its first", () => {
   const g: RawGarden = {
     ...garden,
-    beans: [readable("here", "Here", ["pod:karma"]), readable("a", "A", ["pod:karma"]), readable("b", "B", ["pod:karma"])],
+    beans: [readable("here", "Here", ["pod:karma"]), readable("a", "Zed", ["pod:karma"]), readable("b", "Ann", ["pod:karma"])],
     sprouts: [entry("a-old", "a", "2020-01-01"), entry("b-mid", "b", "2026-01-01"), entry("a-new", "a", "2026-06-01")],
   };
   const d = buildDataset(g);
