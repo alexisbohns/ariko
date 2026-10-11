@@ -655,6 +655,33 @@ sprouts:
       their emotions, enhancing the visual experience.
     about:
       - bean:pbbls-colour
+  # Pebbles journal (spec 2026-10-10-journal-model-design 1.2). An essay with a
+  # body: the EN/FR halves live in docs/pbbls-atelier-editorial/payloads/
+  # pbbls-feed-redesign.{en,fr}.md and were inserted, as a draft, on 2026-10-11
+  # (frontmatter, H1 and source comments stripped). No `state` here on purpose:
+  # the entry exists, so migrate's $setOnInsert never fires, and a `state` line
+  # would $set over whatever the admin has published since.
+  - slug: pbbls-feed-redesign
+    name:
+      en: Five ways to hold a week
+      fr: Cinq façons de tenir une semaine
+    kind: essay
+    date: '2026-10-11'
+    description:
+      en: >-
+        One evening of design work on the Pebbles Path, 11 October 2026, from two displays I
+        disliked, through five directions and two syntheses explored by Claude agents, to the
+        Spine with lit stones.
+      fr: >-
+        Une soirée de design sur le Path de Pebbles, le 11 octobre 2026 — de deux affichages qui
+        ne me plaisaient pas, en passant par cinq directions et deux synthèses explorées par des
+        agents Claude, jusqu'à la Marge aux pierres éclairées.
+    about:
+      - bean:pbbls-polaroid-wall
+      - bean:pbbls-render
+      - pod:pbbls-path
+    links:
+      - url: https://claude.ai/artifact/YWnrBsWLbbkTTkZ3ra561z
   - slug: rom-act-of-war-0
     name: Act of War
     kind: milestone
