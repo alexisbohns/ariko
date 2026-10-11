@@ -410,17 +410,6 @@ function buildSprout(raw: Record<string, unknown>, where: string, slugs: FileSlu
 type BeanResult = { ok: true; bean: ManifestBean } | { ok: false; error: string };
 
 function buildBean(raw: Record<string, unknown>, where: string): BeanResult {
-  const name = readText(raw.name, `${where}.name`);
-  if (!name.ok) return { ok: false, error: name.error };
-  const description = readText(raw.description, `${where}.description`);
-  if (!description.ok) return { ok: false, error: description.error };
-
-  const slugError = checkSlug(raw.slug, where);
-  if (slugError) return { ok: false, error: slugError };
-
-  const forbiddenError = checkForbiddenKeys(raw, where, "bean");
-  if (forbiddenError) return { ok: false, error: forbiddenError };
-
   // The pre-slice-four shape, refused BY NAME before anything else is read:
   // a manifest nesting its sprouts under beans would otherwise parse with the
   // sprouts silently ignored — the author believes the journal landed and the
@@ -432,6 +421,17 @@ function buildBean(raw: Record<string, unknown>, where: string): BeanResult {
       error: `${where}.sprouts is not a key any more — sprouts are a top-level \`sprouts:\` list beside \`beans:\`, each with \`about: [${str(raw.slug) || "<bean-slug>"}]\` naming the pod or the beans it is about`,
     };
   }
+
+  const name = readText(raw.name, `${where}.name`);
+  if (!name.ok) return { ok: false, error: name.error };
+  const description = readText(raw.description, `${where}.description`);
+  if (!description.ok) return { ok: false, error: description.error };
+
+  const slugError = checkSlug(raw.slug, where);
+  if (slugError) return { ok: false, error: slugError };
+
+  const forbiddenError = checkForbiddenKeys(raw, where, "bean");
+  if (forbiddenError) return { ok: false, error: forbiddenError };
 
   const bean: ManifestBean = { slug: str(raw.slug), name: name.text, description: description.text };
   // A bean's narrative is read exactly as a pod's: what the feature is now and

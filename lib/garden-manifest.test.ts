@@ -631,6 +631,26 @@ beans:
   assert.match(result.error, /about: \[ledger\]/);
 });
 
+test("the old shape's refusal comes first, ahead of any other fault on the same bean", () => {
+  // An old-shape manifest has to be reshaped whatever else is wrong with it, so
+  // the shape is the first thing it is told — not a missing description that
+  // the reshaping may well move anyway.
+  const result = parseManifest(`
+pod:
+  slug: krabs
+  name: { en: Krabs }
+  plant: null
+  description: { en: x }
+beans:
+  - slug: ledger
+    name: { en: Ledger }
+    sprouts: []
+`);
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /beans\[0\]\.sprouts is not a key any more/);
+});
+
 test("about is required, a list of strings, non-empty", () => {
   const base = (about: string) => `
 pod:
