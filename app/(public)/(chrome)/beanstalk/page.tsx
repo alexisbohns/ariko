@@ -28,7 +28,7 @@ export default async function BeanstalkPage({
   const active = plant && plantSlugs.includes(plant) ? plant : "all";
 
   const pollen = exhibitedPollen(allPollen, getFederation().exhibit, new Set(plantSlugs));
-  const keptBeanSlugs = new Set((pub.beans ?? []).map((b) => b.slug));
+  const keptBeanSlugs = new Set(data.getBeans().map((b) => b.slug));
   const entries = mergeBeanstalk(data.timelineSprouts(), pollen, keptBeanSlugs).filter(
     (e) => active === "all" || plantSlugOf(e) === active,
   );

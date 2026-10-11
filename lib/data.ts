@@ -364,6 +364,9 @@ export interface Dataset {
   getPlant(slug: string): Plant | undefined;
   getPod(slug: string): Pod | undefined;
   getBean(slug: string): Bean | undefined;
+  /** Every bean in this dataset, garden order — the kept-bean set a journal's
+   *  pollen lines take their bean doors from. */
+  getBeans(): Bean[];
   /** Entries about this bean, newest first. */
   sproutsForBean(slug: string): Sprout[];
   /** Entries about this pod OR about a bean inside it, newest first, once each. */
@@ -617,6 +620,7 @@ export function buildDataset(raw: RawGarden): Dataset {
     getPlant: (slug) => plantBySlug.get(slug),
     getPod: (slug) => podBySlug.get(slug),
     getBean: (slug) => beanBySlug.get(slug),
+    getBeans: () => beans,
     sproutsForBean: (slug) => sproutsByBean.get(slug) ?? [],
     sproutsForPod: (slug) => sproutsByPod.get(slug) ?? [],
     sproutsForPlant: (slug) => sproutsByPlant.get(slug) ?? [],

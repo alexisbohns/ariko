@@ -101,7 +101,7 @@ export default async function SproutPage({ params }: { params: Promise<{ slug: s
         <MediaList media={sprout.media} />
 
         {sprout.links && sprout.links.length > 0 ? (
-          <div {...seq(6, "flex justify-center")}>
+          <div {...seq(3, "flex justify-center")}>
             <LinkRow links={sprout.links} lang={lang} label={`Find ${resolveText(sprout.name, lang)} elsewhere`} />
           </div>
         ) : null}
