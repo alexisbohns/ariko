@@ -63,7 +63,7 @@ test("createBean stores a narrative and its relations at birth", { skip: !hasDb 
   const db = await getDb();
   const stored = await db.collection("beans").findOne({ slug: "__test__grown" });
   assert.deepEqual(stored?.content, { en: "# Grown\n\nBody." });
-  assert.equal(stored?.relations?.length, 1);
+  assert.deepEqual(stored?.relations, [{ kind: "mentions", ref: "bean:__test__other" }]);
   assert.equal(stored?.visibility, "private");
 });
 

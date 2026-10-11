@@ -286,7 +286,7 @@ test("buildBeanFromSeed: slug, composed bilingual name and description, the seed
   assert.deepEqual(out.name, { en: "Karma", fr: "Karma fr" });
   assert.equal(resolveText(out.description), "d");
   assert.deepEqual(out.content, { en: "# Karma\n\n::entity{ref=bean:pbbls-market}\n", fr: "# Karma fr" });
-  assert.ok(out.relations && out.relations.length > 0, "the body's entity refs are mirrored at birth");
+  assert.deepEqual(out.relations, [{ kind: "embeds", ref: "bean:pbbls-market" }]);
 });
 
 test("buildBeanFromSeed: WYSIWYG — blank name boxes stay blank, nothing is resurrected from the title", () => {
