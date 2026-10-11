@@ -105,18 +105,28 @@ for (const path of EDITOR_MOUNTS) {
   });
 }
 
-test("the pod page hands ContentCard its language", () => {
-  const text = source("app/admin/(chrome)/pod/[slug]/page.tsx");
-  assert.match(text, /editLang\(/);
-  assert.match(text, /langHrefs=\{/);
-});
+// Every page that renders the editor through ContentCard: the pod page and the
+// bean page. Each reads its half from the URL (`editLang(`) and hands the card
+// the hrefs that switch it (`langHrefs=`) — the two things ContentCard cannot
+// supply for itself.
+const CONTENT_CARD_CALLERS = [
+  "app/admin/(chrome)/pod/[slug]/page.tsx",
+  "app/admin/(chrome)/bean/[id]/page.tsx",
+];
+
+for (const path of CONTENT_CARD_CALLERS) {
+  test(`${path} hands ContentCard its language`, () => {
+    const text = source(path);
+    assert.match(text, /editLang\(/);
+    assert.match(text, /langHrefs=\{/);
+  });
+}
 
 // Every file under app/ that renders <ProseEditor> or <ContentCard>, found by
 // scanning rather than trusted from the hard-coded lists above — so a NEW
-// mount that nobody added to EDITOR_MOUNTS (or to the pod-page test above)
+// mount that nobody added to EDITOR_MOUNTS (or to CONTENT_CARD_CALLERS)
 // fails loudly here instead of shipping unchecked, exactly the failure class
 // this file exists to catch.
-const CONTENT_CARD_CALLERS = ["app/admin/(chrome)/pod/[slug]/page.tsx"];
 
 function walkTsx(dir: string): string[] {
   let files: string[] = [];
@@ -147,7 +157,7 @@ test("every file under app/ that renders <ProseEditor> or <ContentCard> is one t
     }
     // A file rendering <ContentCard> instead hands ITS language down through
     // ContentCard's own props (lib/edit-lang.ts's editLang / editLangHrefs),
-    // which is what the pod-page test above checks.
+    // which is what the CONTENT_CARD_CALLERS loop above checks.
     if (/<ContentCard\b/.test(text)) {
       assert.ok(
         CONTENT_CARD_CALLERS.includes(path),

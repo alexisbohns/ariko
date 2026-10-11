@@ -284,6 +284,41 @@ test("filterPublic scrubs pod relations to surviving targets — a relation poin
   assert.deepEqual(pod?.relations, [{ kind: "features", ref: "bean:rm-public" }]);
 });
 
+// A bean's narrative mirrors refs into relations[] exactly as a pod's does
+// (buildContentPatch → extractRefs). Pods are scrubbed in filterPublic; a bean
+// that is not would publish a private slug inside a public document.
+test("filterPublic scrubs a bean's relations to refs that survive", () => {
+  const raw: RawGarden = {
+    plants: [
+      { slug: "p", name: "P", natures: ["work" as const], role: { kind: "owner" as const }, description: "" },
+    ],
+    pods: [],
+    beans: [
+      {
+        slug: "open",
+        name: "Open",
+        parents: ["plant:p"],
+        content: "see [[bean:hidden]] and [[bean:shown]]",
+        relations: [
+          { kind: "mentions", ref: "bean:hidden" },
+          { kind: "mentions", ref: "bean:shown" },
+          { kind: "mentions", ref: "sprout:ghost" },
+        ],
+      },
+      { slug: "hidden", name: "Hidden", parents: ["plant:p"], visibility: "private" as const },
+      { slug: "shown", name: "Shown", parents: ["plant:p"] },
+    ],
+    sprouts: [],
+    screens: [],
+    bees: [],
+  };
+  const pub = filterPublic(raw);
+  const open = pub.beans?.find((b) => b.slug === "open");
+  assert.ok(open);
+  assert.deepEqual(open.relations, [{ kind: "mentions", ref: "bean:shown" }]);
+  assert.equal(open.content, "see [[bean:hidden]] and [[bean:shown]]");
+});
+
 // --- Screen species (the screen store): the bean's rules, with only the plant
 // tier above it.
 //

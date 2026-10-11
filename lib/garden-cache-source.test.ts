@@ -101,6 +101,7 @@ const GARDEN_WRITERS = new Set([
   "updateSproutContent",
   "updatePlantContent",
   "updatePodContent",
+  "updateBeanContent",
   "updatePlantRole",
   "updatePlantMeta",
   "updatePlantLogo",

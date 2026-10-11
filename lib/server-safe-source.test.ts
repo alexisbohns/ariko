@@ -54,6 +54,12 @@ const SERVER_SAFE = [
   // strip is — and the island imports it too, which is the whole reason it is
   // one file.
   "lib/screen-lightbox.ts",
+  // Read by the public bean page: `narrativeFor` is the one function the page
+  // renders by and the "Keep reading" rail admits by.
+  "lib/article.ts",
+  // The "Keep reading" rail under a bean — public-rendered, and it imports
+  // `narrativeFor` from the file above.
+  "lib/related-beans.ts",
   // The shared entity head. CLAUDE.md names it as one of the four shared
   // surfaces and its own docblock claims server-safety; until the sprout's
   // edition slice nothing checked either. It is rendered by

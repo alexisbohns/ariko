@@ -18,6 +18,10 @@ next-env.d.ts
 # scratch probes from agent verification runs — never committed
 __probe*
 
+# migrate:journal pre-image — mongodump is the backup of record, and this
+# repo is public (scripts/migrate-journal.ts)
+data/retired/2026-10-10-*.json
+
 # The Profane display face is licensed, not open — serving it from our own
 # CDN is permitted, publishing a copy in this PUBLIC repo is not (EULA §7).
 # See app/fonts.ts.

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseManifest } from "./garden-manifest";
-import { planGarden, renderPlan, type GardenSlugs } from "./garden-plan";
+import { planGarden, renderPlan, keepsPublishedNarrative, type GardenSlugs } from "./garden-plan";
 
 const EMPTY_GARDEN: GardenSlugs = { pods: [], beans: [], sprouts: [] };
 
@@ -177,4 +177,37 @@ test("renderPlan output contains the summary counts", () => {
   const [podLine, beanLine] = output.split("\n");
   assert.equal(podLine, "skip   pod krabs");
   assert.equal(beanLine, "  create bean bean-a");
+});
+
+test("an update of a PUBLIC pod or bean carrying manifest content is marked narrativeKept, and the tree says so", () => {
+  const yaml = ONE_BEAN_YAML.replace("  description: { en: A pod }", "  description: { en: A pod }\n  content: { en: Pod prose }").replace(
+    "    description: { en: First bean }",
+    "    description: { en: First bean }\n    content: { en: Bean prose }",
+  );
+  const manifest = parse(yaml);
+  const garden: GardenSlugs = {
+    pods: [{ slug: "krabs", visibility: "public" } as any],
+    beans: [{ slug: "bean-a", visibility: "private" } as any],
+    sprouts: [],
+  };
+  const actions = planGarden(manifest, garden, { update: true });
+  const [pod, bean] = actions;
+  assert.equal(pod.action, "update");
+  assert.equal("narrativeKept" in pod && pod.narrativeKept, true);
+  // Private: the manifest's text wins, nothing is kept.
+  assert.equal(bean.action, "update");
+  assert.equal("narrativeKept" in bean, false);
+
+  const output = renderPlan(actions);
+  assert.equal(output.split("\n")[0], "update pod krabs (narrative kept: published)");
+  assert.equal(output.split("\n")[1], "  update bean bean-a");
+
+  // Without --update the pod is a skip, and a skip keeps nothing to say.
+  const skipped = planGarden(manifest, garden, { update: false });
+  assert.equal("narrativeKept" in skipped[0], false);
+  // A public entity whose manifest entry carries NO content has nothing to keep either.
+  assert.equal(keepsPublishedNarrative("update", {}, { visibility: "public" }), false);
+  // An absent visibility is not a publish — strict, like /api/articles.
+  assert.equal(keepsPublishedNarrative("update", { content: "x" }, { slug: "p" } as any), false);
+  assert.equal(keepsPublishedNarrative("create", { content: "x" }, { visibility: "public" }), false);
 });

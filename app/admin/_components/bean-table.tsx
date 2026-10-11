@@ -1,4 +1,4 @@
-import { VisibilityGlyph, type EntityMark } from "@/components/admin/glyphs";
+import { NarrativeGlyph, VisibilityGlyph, type EntityMark } from "@/components/admin/glyphs";
 import {
   Table,
   TableBody,
@@ -15,6 +15,8 @@ export interface BeanRow {
   name: string;
   visibility: Visibility;
   sproutCount: number;
+  /** Whether the bean carries its own narrative (`Bean.content`), per `hasNarrative`. */
+  hasNarrative: boolean;
   /** The pod that holds it, where one does — a bean may skip the pod tier. */
   pod?: string;
   plant?: EntityMark;
@@ -54,6 +56,7 @@ export function BeanTable({
           <TableHead>pod</TableHead>
           <TableHead>sprouts</TableHead>
           <TableHead>visibility</TableHead>
+          <TableHead>narrative</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -69,6 +72,9 @@ export function BeanTable({
             <TableCell className="text-muted-foreground">{row.sproutCount}</TableCell>
             <TableCell>
               <VisibilityGlyph visibility={row.visibility} />
+            </TableCell>
+            <TableCell className="text-muted-foreground">
+              {row.hasNarrative ? <NarrativeGlyph /> : "—"}
             </TableCell>
           </TableRow>
         ))}

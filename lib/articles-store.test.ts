@@ -15,7 +15,7 @@ async function cleanup() {
 }
 
 test(
-  "a fresh post creates the bean, the sprout and the narrative",
+  "a fresh post creates the bean carrying the article as its narrative, plus the container narrative — and no sprout",
   { skip: !hasDb },
   async (t) => {
     t.after(cleanup);
@@ -46,19 +46,25 @@ test(
 
     const bean = await db.collection("beans").findOne({ slug: "__test__a" });
     assert.equal(bean?.visibility, "private");
+    assert.deepEqual(bean?.parents, ["plant:__test__p"]);
+    // An article IS the bean's narrative (journal model §3 "Doors"): content
+    // lands on the bean, with its refs mirrored into relations.
+    assert.equal(bean?.content, "body");
+    assert.deepEqual(bean?.relations, []);
+    // `date` is validated and recorded nowhere — a bean has no date.
+    assert.equal(bean?.date, undefined);
 
-    const sprout = await db.collection("sprouts").findOne({ slug: "__test__a-0" });
-    assert.ok(sprout);
-    assert.ok(!("state" in sprout!));
-    assert.deepEqual(sprout!.parents, ["bean:__test__a"]);
-    assert.equal(sprout!.content, "body");
+    // The pre-journal shape — a `type:"article"` sprout `<slug>-0` under the
+    // bean — is what migrate:journal folds away; the door must not recreate it.
+    assert.equal(await db.collection("sprouts").findOne({ slug: "__test__a-0" }), null);
+    assert.equal(await db.collection("sprouts").countDocuments({ parents: "bean:__test__a" }), 0);
 
     const plant = await db.collection("plants").findOne({ slug: "__test__p" });
     assert.deepEqual(plant?.relations, [{ kind: "embeds", ref: "bean:__test__a" }]);
   },
 );
 
-test("a re-post updates the sprout in place", { skip: !hasDb }, async (t) => {
+test("a re-post to a still-private bean rewrites its narrative in place", { skip: !hasDb }, async (t) => {
   t.after(cleanup);
   const db = await getDb();
   await db.collection("plants").insertOne({
@@ -83,13 +89,15 @@ test("a re-post updates the sprout in place", { skip: !hasDb }, async (t) => {
     ],
   });
 
-  const sprouts = await db.collection("sprouts").find({ slug: "__test__a-0" }).toArray();
-  assert.equal(sprouts.length, 1);
-  assert.equal(sprouts[0].content, "second");
+  const beans = await db.collection("beans").find({ slug: "__test__a" }).toArray();
+  assert.equal(beans.length, 1);
+  assert.equal(beans[0].content, "second");
+  assert.equal(beans[0].visibility, "private");
+  assert.equal(await db.collection("sprouts").countDocuments({ slug: /^__test__/ }), 0);
 });
 
 test(
-  "a reviewed sprout is refused and nothing in the batch is written",
+  "a published bean carrying a narrative is refused, untouched, and nothing in the batch is written",
   { skip: !hasDb },
   async (t) => {
     t.after(cleanup);
@@ -114,10 +122,10 @@ test(
         },
       ],
     });
-    // Simulate a human reviewing and publishing the sprout directly in Mongo.
+    // Simulate a human reviewing and publishing the bean in the admin.
     await db
-      .collection("sprouts")
-      .updateOne({ slug: "__test__a-0" }, { $set: { state: "published" } });
+      .collection("beans")
+      .updateOne({ slug: "__test__a" }, { $set: { visibility: "public" } });
 
     const result = await writeArticles({
       container: "plant:__test__p",
@@ -138,12 +146,13 @@ test(
         },
       ],
     });
-    assert.deepEqual(result, { ok: false, refused: ["__test__a-0"] });
+    assert.deepEqual(result, { ok: false, refused: ["bean:__test__a"] });
 
-    const sprout = await db.collection("sprouts").findOne({ slug: "__test__a-0" });
-    assert.equal(sprout?.content, "original");
+    const bean = await db.collection("beans").findOne({ slug: "__test__a" });
+    assert.equal(bean?.content, "original");
+    assert.equal(bean?.visibility, "public");
 
-    const other = await db.collection("sprouts").findOne({ slug: "__test__b-0" });
+    const other = await db.collection("beans").findOne({ slug: "__test__b" });
     assert.equal(other, null);
   },
 );
@@ -175,22 +184,20 @@ test("a public container carrying prose is refused", { skip: !hasDb }, async (t)
 });
 
 test(
-  "refusals accumulate: a missing container and a pre-published sprout are both reported, and nothing is written",
+  "refusals accumulate: a missing container and a published bean are both reported, and nothing is written",
   { skip: !hasDb },
   async (t) => {
     t.after(cleanup);
     const db = await getDb();
-    // A sprout that some other flow already reviewed and published — no
-    // container in this collection has to exist for this row to exist.
-    await db.collection("sprouts").insertOne({
-      slug: "__test__c-0",
+    // A bean a human already reviewed and published — no container in this
+    // collection has to exist for this row to exist.
+    await db.collection("beans").insertOne({
+      slug: "__test__c",
       name: "C",
-      type: "article",
-      date: "2026-07-01",
       description: "",
-      parents: ["bean:__test__c"],
+      parents: ["plant:__test__missing"],
       content: "reviewed content",
-      state: "published",
+      visibility: "public",
     });
 
     const result = await writeArticles({
@@ -201,17 +208,17 @@ test(
       ],
     });
     // Both refusals surface in one response — the missing-container check
-    // does not short-circuit before the sprout-state check runs.
+    // does not short-circuit before the bean-visibility check runs.
     assert.deepEqual(result, {
       ok: false,
-      refused: ["plant:__test__missing (unknown)", "__test__c-0"],
+      refused: ["plant:__test__missing (unknown)", "bean:__test__c"],
     });
 
     assert.equal(await db.collection("plants").findOne({ slug: "__test__missing" }), null);
-    assert.equal(await db.collection("beans").findOne({ slug: "__test__c" }), null);
-    const sprout = await db.collection("sprouts").findOne({ slug: "__test__c-0" });
-    assert.equal(sprout?.content, "reviewed content");
-    assert.equal(sprout?.state, "published");
+    const bean = await db.collection("beans").findOne({ slug: "__test__c" });
+    assert.equal(bean?.content, "reviewed content");
+    assert.equal(bean?.visibility, "public");
+    assert.equal(await db.collection("sprouts").findOne({ slug: "__test__c-0" }), null);
   },
 );
 
@@ -266,7 +273,7 @@ test(
 );
 
 test(
-  "a public existing bean is refused, and its name/description and the sprout are untouched",
+  "a public existing bean is refused, and its name, description and narrative are untouched",
   { skip: !hasDb },
   async (t) => {
     t.after(cleanup);
@@ -285,6 +292,7 @@ test(
       name: "Original Name",
       description: "Original description.",
       parents: ["plant:__test__p"],
+      content: "Original narrative.",
       visibility: "public",
     });
 
@@ -305,10 +313,9 @@ test(
     const bean = await db.collection("beans").findOne({ slug: "__test__pubbean" });
     assert.equal(bean?.name, "Original Name");
     assert.equal(bean?.description, "Original description.");
+    assert.equal(bean?.content, "Original narrative.");
     assert.equal(bean?.visibility, "public");
-
-    const sprout = await db.collection("sprouts").findOne({ slug: "__test__pubbean-0" });
-    assert.equal(sprout, null);
+    assert.equal(await db.collection("sprouts").countDocuments({ slug: /^__test__/ }), 0);
   },
 );
 
@@ -350,12 +357,15 @@ test(
     const bean = await db.collection("beans").findOne({ slug: "__test__privbean" });
     assert.equal(bean?.name, "Updated Name");
     assert.equal(bean?.description, "Updated description.");
+    assert.equal(bean?.content, "body");
     assert.equal(bean?.visibility, "private");
+    // The hand-authored bean's parentage is not re-asserted by the re-post.
+    assert.deepEqual(bean?.parents, ["plant:__test__p"]);
   },
 );
 
 test(
-  "a public-bean refusal accumulates alongside a sprout-state refusal in one response",
+  "a public-bean refusal accumulates alongside a projected-bean refusal in one response",
   { skip: !hasDb },
   async (t) => {
     t.after(cleanup);
@@ -374,15 +384,14 @@ test(
       parents: ["plant:__test__p"],
       visibility: "public",
     });
-    await db.collection("sprouts").insertOne({
-      slug: "__test__reviewed-0",
-      name: "Reviewed",
-      type: "article",
-      date: "2026-07-01",
-      description: "",
-      parents: ["bean:__test__reviewed"],
-      content: "reviewed content",
-      state: "published",
+    // A projected bean is machine-owned (lib/projected-beans.ts): a narrative
+    // written onto it would be lost on the next rebuild from its feed.
+    await db.collection("beans").insertOne({
+      slug: "__test__reviewed",
+      name: "Projected",
+      parents: ["plant:__test__p"],
+      visibility: "private",
+      projected: { source: "arkaik", feedId: "feed-1", firstPollenId: "p-1" },
     });
 
     const result = await writeArticles({
@@ -406,10 +415,85 @@ test(
     });
     assert.deepEqual(result, {
       ok: false,
-      refused: ["bean:__test__pubbean2", "__test__reviewed-0"],
+      refused: ["bean:__test__pubbean2", "bean:__test__reviewed (projected)"],
     });
+    const projected = await db.collection("beans").findOne({ slug: "__test__reviewed" });
+    assert.equal(projected?.content, undefined);
   },
 );
+
+test("a bean: container takes a narrative; public-with-prose and projected beans are refused", { skip: !hasDb }, async (t) => {
+  t.after(cleanup);
+  const db = await getDb();
+  await db.collection("beans").insertOne({
+    slug: "__test__bean",
+    name: "Bean",
+    parents: ["plant:__test__p"],
+    visibility: "private",
+  });
+
+  const first = await writeArticles({
+    container: "bean:__test__bean",
+    narrative: { en: "hello :entity[other]{ref=bean:__test__other}" },
+  });
+  assert.deepEqual(first, { ok: true, written: 0, narrative: true });
+
+  const bean = await db.collection("beans").findOne({ slug: "__test__bean" });
+  assert.equal(bean?.content?.en, "hello :entity[other]{ref=bean:__test__other}");
+  assert.ok(Array.isArray(bean?.relations));
+  assert.ok(
+    bean!.relations.some((r: { kind: string; ref: string }) => r.kind === "mentions" && r.ref === "bean:__test__other"),
+    JSON.stringify(bean!.relations),
+  );
+  // This door publishes nothing: the bean stays as private as it was born.
+  assert.equal(bean?.visibility, "private");
+
+  // Once a human has published it, its prose is reviewed work — refused, and
+  // honored on disk, exactly as a plant or pod would be.
+  await db.collection("beans").updateOne({ slug: "__test__bean" }, { $set: { visibility: "public" } });
+  const second = await writeArticles({ container: "bean:__test__bean", narrative: "rewrite" });
+  assert.deepEqual(second, { ok: false, refused: ["bean:__test__bean"] });
+  const after = await db.collection("beans").findOne({ slug: "__test__bean" });
+  assert.equal(after?.content?.en, "hello :entity[other]{ref=bean:__test__other}");
+
+  // A projected bean is machine-owned and rebuildable from its feed; a
+  // narrative written onto it would be lost on the next rebuild.
+  await db.collection("beans").insertOne({
+    slug: "__test__projected",
+    name: "Projected",
+    parents: ["plant:__test__p"],
+    visibility: "private",
+    projected: { source: "arkaik", feedId: "feed-1", firstPollenId: "p-1" },
+  });
+  const third = await writeArticles({ container: "bean:__test__projected", narrative: "hello" });
+  assert.deepEqual(third, { ok: false, refused: ["bean:__test__projected (projected)"] });
+  const projected = await db.collection("beans").findOne({ slug: "__test__projected" });
+  assert.equal(projected?.content, undefined);
+});
+
+test("the store refuses articles under a bean on its own, and writes nothing", { skip: !hasDb }, async (t) => {
+  t.after(cleanup);
+  const db = await getDb();
+  await db.collection("beans").insertOne({
+    slug: "__test__holder",
+    name: "Holder",
+    parents: ["plant:__test__p"],
+    visibility: "private",
+  });
+
+  // Bypasses validateArticlesPayload deliberately: the route would have
+  // refused this shape already, and the store must not depend on that.
+  const result = await writeArticles({
+    container: "bean:__test__holder",
+    narrative: "prose",
+    articles: [{ slug: "__test__under", name: "U", date: "2026-07-24", content: "body" }],
+  });
+  assert.deepEqual(result, { ok: false, refused: ["bean:__test__holder (a bean holds no beans)"] });
+
+  const holder = await db.collection("beans").findOne({ slug: "__test__holder" });
+  assert.equal(holder?.content, undefined);
+  assert.equal(await db.collection("beans").findOne({ slug: "__test__under" }), null);
+});
 
 test.after(async () => {
   if (hasDb) await closeDb();
@@ -447,9 +531,8 @@ test("writes a bilingual narrative and bilingual articles verbatim", { skip: !ha
   const bean = await db.collection("beans").findOne({ slug: "__test__bi-a" });
   assert.deepEqual(bean?.name, { en: "Name", fr: "Nom" });
   assert.deepEqual(bean?.description, { en: "Desc", fr: "Description" });
-
-  const sprout = await db.collection("sprouts").findOne({ slug: "__test__bi-a-0" });
-  assert.deepEqual(sprout?.content, { en: "prose", fr: "de la prose" });
+  assert.deepEqual(bean?.content, { en: "prose", fr: "de la prose" });
+  assert.equal(await db.collection("sprouts").findOne({ slug: "__test__bi-a-0" }), null);
 
   await cleanup();
 });

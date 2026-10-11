@@ -45,9 +45,29 @@ export type Verb = "create" | "skip" | "update";
  * tolerates by simply never listing it (see this file's ORDER note).
  */
 export type PlanAction =
-  | { action: Verb; tier: "pod"; slug: string; entry: ManifestPod }
-  | { action: Verb; tier: "bean"; slug: string; entry: ManifestBean; parentSlug: string }
+  | { action: Verb; tier: "pod"; slug: string; entry: ManifestPod; narrativeKept?: true }
+  | { action: Verb; tier: "bean"; slug: string; entry: ManifestBean; parentSlug: string; narrativeKept?: true }
   | { action: Verb; tier: "sprout"; slug: string; entry: ManifestSprout; parentSlug: string };
+
+/**
+ * `narrativeKept` is set on an `update` of a pod or bean whose stored
+ * `visibility` is `"public"` and whose manifest entry carries `content`: the
+ * applier will NOT write that content. A published narrative is a decision
+ * made in the admin — the same rule the cover and media already obey — and a
+ * routine re-plant must not undo it; it is also what keeps the cached public
+ * dataset untouched by a CLI that cannot invalidate it (CLAUDE.md, "Planting
+ * a project from another repo"). It is decided HERE, on the plan a human
+ * reads, rather than silently inside the applier, so the dry-run tree says
+ * which narratives the manifest's text will not reach. Strictly `=== "public"`,
+ * like `/api/articles`'s own refusal: an absent visibility is not a publish.
+ */
+export function keepsPublishedNarrative(
+  verb: Verb,
+  entry: { content?: unknown },
+  stored: { visibility?: string } | undefined,
+): boolean {
+  return verb === "update" && entry.content !== undefined && stored?.visibility === "public";
+}
 
 export interface GardenSlugs {
   pods: Pod[];
@@ -71,20 +91,26 @@ export function planGarden(manifest: GardenManifest, garden: GardenSlugs, opts: 
 
   const actions: PlanAction[] = [];
 
+  const podVerb = verbFor(podSlugs.has(manifest.pod.slug), opts.update);
+  const storedPod = garden.pods.find((p) => p.slug === manifest.pod.slug);
   actions.push({
-    action: verbFor(podSlugs.has(manifest.pod.slug), opts.update),
+    action: podVerb,
     tier: "pod",
     slug: manifest.pod.slug,
     entry: manifest.pod,
+    ...(keepsPublishedNarrative(podVerb, manifest.pod, storedPod) ? { narrativeKept: true } : {}),
   });
 
   for (const bean of manifest.beans) {
+    const beanVerb = verbFor(beanSlugs.has(bean.slug), opts.update);
+    const storedBean = garden.beans.find((b) => b.slug === bean.slug);
     actions.push({
-      action: verbFor(beanSlugs.has(bean.slug), opts.update),
+      action: beanVerb,
       tier: "bean",
       slug: bean.slug,
       entry: bean,
       parentSlug: manifest.pod.slug,
+      ...(keepsPublishedNarrative(beanVerb, bean, storedBean) ? { narrativeKept: true } : {}),
     });
     for (const sprout of bean.sprouts) {
       actions.push({
@@ -109,7 +135,14 @@ export function renderPlan(actions: PlanAction[]): string {
   // line's tier starts at a different offset and a stray `update` in a wall of
   // `skip`s has nothing to stand out against. Legibility is the safety property
   // a plan exists for.
-  const lines = actions.map((a) => `${INDENT[a.tier]}${a.action.padEnd(6)} ${a.tier} ${a.slug}`);
+  // The note is a SUFFIX so the columns above stay aligned; it names the one
+  // thing an `update` line otherwise implies and will not do.
+  const lines = actions.map(
+    (a) =>
+      `${INDENT[a.tier]}${a.action.padEnd(6)} ${a.tier} ${a.slug}${
+        "narrativeKept" in a && a.narrativeKept ? " (narrative kept: published)" : ""
+      }`,
+  );
 
   const creates = actions.filter((a) => a.action === "create").length;
   const updates = actions.filter((a) => a.action === "update").length;

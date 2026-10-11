@@ -524,7 +524,7 @@ decision made while looking at a diff. An ingest route would put a bad payload
 one `curl` from production, and `plugins/garden-plant/` says so to the agent
 that would otherwise reach for one.
 
-Four rules the tests pin, each of which passes `tsc`, `npm test` **and**
+Five rules the tests pin, each of which passes `tsc`, `npm test` **and**
 `npm run build` while quietly becoming false:
 
 - **A manifest cannot publish.** `visibility`, `state`, `exhibited` and `order`
@@ -534,16 +534,19 @@ Four rules the tests pin, each of which passes `tsc`, `npm test` **and**
   `--publish` flag here would run `publishCascade` from a CLI and flip the bean
   and the pod above it with no confirmation, which is the shape the rulebook
   rejected for a stray click on a globe.
-- **A bean has no `content`.** Only `Pod.content` and `Plant.content` exist
-  (`lib/data.ts:161`, `:129`); a bean's prose is a sprout under it, which is how
-  the timeline orders it and the cascade finds it. The validator refuses the key
-  BY NAME and says where the prose belongs, because it would otherwise parse,
-  write nothing, and lose the author's paragraphs in silence.
+- **A bean's `content` is its narrative, and a sprout is not a version of it.**
+  Since the journal model (`specs/2026-10-10-journal-model-design.md`) a bean
+  carries one body — what the feature is now and how it got there — rewritten
+  in place, never versioned or appended. `editContainerContentAction` takes a
+  `bean:` ref, `/api/articles` takes a `bean:` container for `narrative` only,
+  and the manifest's `content:` on a bean is a second write exactly as a pod's.
+  `narrativeFor` (`lib/article.ts`) is the one function the public bean page
+  and the related-beans rail read by; its sprout fallback goes with slice two.
 - **An update preserves hand-authored relations.** `contentPatch` takes the
   stored `relations` as a REQUIRED parameter, never a defaulted one.
   `lib/content-edit.ts`'s §2.10 note already says that `articles-store.ts`'s
-  `undefined` is "right for a door that only writes unreviewed sprouts and wrong
-  for an edit path" — `--update` is an edit path, and passing `undefined` there
+  `undefined` is "right for a door that writes only unreviewed drafts … and
+  wrong for an edit path" — `--update` is an edit path, and passing `undefined` there
   deletes every non-mirrored kind with nothing failing anywhere. The parameter is
   required so no future call site can omit it back into the bug.
 - **An image is written only where there is none.** A bean's `cover:` and a
@@ -558,8 +561,15 @@ Four rules the tests pin, each of which passes `tsc`, `npm test` **and**
 - **The script does not invalidate the cache, deliberately.** A CLI has no Next
   request store, so `revalidateGarden()` would take its tolerated branch and do
   nothing — an invalidation that looks like one and is not. It is also
-  unnecessary: everything written is private, so `filterPublic` drops all of it
-  and the cached public dataset is unchanged by definition.
+  unnecessary, by construction rather than by luck: a create is private, so
+  `filterPublic` drops it; and `--update` never touches a published entity's
+  narrative or images — a pod or bean whose stored `visibility` is `"public"`
+  keeps its `content` (the plan marks it `(narrative kept: published)`,
+  `keepsPublishedNarrative` in `lib/garden-plan.ts`), exactly as a stored
+  cover or media is never replaced. What `--update` still rewrites on a public
+  entity is its `name` and `description`, which the cached dataset shows stale
+  until the next admin write — a stale title, not a leak and not a rewritten
+  page. `lib/plant-garden.test.ts` pins the kept narrative.
 
 The manifest also refuses a slug reused anywhere in one file. That one is an
 **authoring** guard, not a database constraint, and the docblock says so:

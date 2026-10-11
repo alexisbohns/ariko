@@ -176,6 +176,15 @@ export interface Bean {
   name: Text; // bilingual since B1; plain strings remain valid (no migration)
   parents: string[]; // containment ONLY: "pod:…" and/or "plant:…" refs — a bean may skip the pod tier
   description?: Text; // optional — every existing bean predates it (slice 2); Pod/Plant require theirs
+  /**
+   * The bean's narrative: what the feature is now and how it got there, one
+   * body rewritten in place — never versioned, never appended (spec
+   * 2026-10-10-journal-model §1.1). States of a feature are told here and
+   * dated by its journal; a different version of a feature is a sibling bean.
+   */
+  content?: Text;
+  /** Mirrored from `content` by buildContentPatch, scrubbed by filterPublic — the pod's rule. */
+  relations?: Relation[];
   visibility?: Visibility; // default treated as "public"
   tags?: string[];
   /**
@@ -544,7 +553,7 @@ export function composeText(en: string, fr: string): Text {
 //    shelters it), and a Sprout whose every EXISTING bean parent was filtered
 //    out is dropped. Dangling (nonexistent) parent refs are ignored, so
 //    standalone-by-dangling items are preserved (matches buildDataset);
-//  - each kept Sprout's, Plant's, AND Pod's relations[] is scrubbed to refs
+//  - each kept Sprout's, Plant's, Pod's AND Bean's relations[] is scrubbed to refs
 //    whose TARGET survives this same projection (kept sprout/bean/pod/plant)
 //    — draft, private, cascaded-out, dangling, and unknown-prefix targets all
 //    drop, so a hidden slug can never leak through a property dump or the
@@ -577,7 +586,7 @@ export function filterPublic(raw: RawGarden): RawGarden {
   const podExists = new Set(rawPods.map((p) => p.slug));
   const podKept = new Set(keptPods.map((p) => p.slug));
 
-  const beans = rawBeans.filter(
+  const keptBeans = rawBeans.filter(
     (b) =>
       b.visibility !== "private" &&
       !allExistingParentsFiltered(b.parents, [
@@ -586,7 +595,7 @@ export function filterPublic(raw: RawGarden): RawGarden {
       ]),
   );
   const beanExists = new Set(rawBeans.map((b) => b.slug));
-  const beanKept = new Set(beans.map((b) => b.slug));
+  const beanKept = new Set(keptBeans.map((b) => b.slug));
 
   // Screens sit BESIDE beans rather than under them: the plant is the only tier
   // above a screen, so this is the bean's rule with one entry in the tier list
@@ -635,6 +644,10 @@ export function filterPublic(raw: RawGarden): RawGarden {
   // pod relations (that's a separate feature/decision); this scrub exists so
   // the data is already safe by construction whenever that decision is made.
   const pods = keptPods.map((p) => scrubRelations(p, refSurvives));
+  // A bean's narrative mirrors refs into relations[] through the same
+  // buildContentPatch a pod's does, so it gets the same scrub, below
+  // refSurvives for the same reason.
+  const beans = keptBeans.map((b) => scrubRelations(b, refSurvives));
   // A screen's relations point at beans (the `{ kind: "cover" }` link the
   // import writes) and will point at sprouts, so this scrub belongs BELOW the
   // kept-sprout set for the reason stated above it, not merely beside the
@@ -684,11 +697,11 @@ function allExistingParentsFiltered(
   return existing > 0;
 }
 
-// Shared relations scrub for kept sprouts and plants. Tolerates malformed
-// shapes from direct DB writes (the validator's "moderate" level never
-// re-checks pre-existing docs): a non-array field and non-{kind,ref}-string
-// entries drop fail-closed instead of throwing — one bad doc must not 500
-// every public read.
+// Shared relations scrub for every kept item that carries relations[]
+// (sprouts, plants, pods, beans, screens). Tolerates malformed shapes from
+// direct DB writes (the validator's "moderate" level never re-checks
+// pre-existing docs): a non-array field and non-{kind,ref}-string entries drop
+// fail-closed instead of throwing — one bad doc must not 500 every public read.
 function scrubRelations<T extends { relations?: Relation[] }>(
   item: T,
   refSurvives: (ref: string) => boolean,

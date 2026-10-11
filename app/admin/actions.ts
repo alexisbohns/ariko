@@ -22,6 +22,7 @@ import {
   unpublishCascadeForBeans,
   PLANT_PREFIX,
   POD_PREFIX,
+  BEAN_PREFIX,
   parentsWithPrefix,
   type MediaImage,
   type PlantRole,
@@ -62,6 +63,7 @@ import {
   updateSproutContent,
   updatePlantContent,
   updatePodContent,
+  updateBeanContent,
   updateSproutMedia,
   updateSproutMeta,
   updateSproutState,
@@ -561,12 +563,12 @@ export async function setSproutTypeAction(formData: FormData): Promise<void> {
   redirect(withEditLang(sproutHref(slug), lang));
 }
 
-// Plant and pod narrative. One action for both tiers: the ref carries the tier,
-// and the two collections differ only in which writer runs.
+// Plant, pod and bean narrative. One action for all three tiers: the ref
+// carries the tier, and the three collections differ only in which writer runs.
 //
-// The redirect goes to WHEREVER THAT REF'S EDITOR ACTUALLY IS, which is no
-// longer the same page for both tiers: a pod's narrative is still edited on the
-// pod's own page, while a plant's has a page of its own
+// The redirect goes to WHEREVER THAT REF'S EDITOR ACTUALLY IS, which is not the
+// same page for every tier: a pod's and a bean's narrative are edited on the
+// entity's own page, while a plant's has a page of its own
 // (`narrativeHref`, app/admin/(chrome)/plant/[slug]/narrative). Sending a plant
 // back to the hub would land the author on a page where the thing they just
 // saved is two clamped lines and the caret is gone. The error redirect goes to
@@ -574,10 +576,10 @@ export async function setSproutTypeAction(formData: FormData): Promise<void> {
 // appear where the editor is, or it describes an edit on a page the author has
 // already left.
 //
-// Both branches interpolate a STORED slug through the one builder that spells
-// the plant address (lib/plant-path.ts), after the existence check below: the
-// ref arrives from a form, and a redirect target is not a thing to take on
-// trust from a payload.
+// Every branch interpolates a STORED slug (the plant's through the one builder
+// that spells the plant address, lib/plant-path.ts), after the existence check
+// below: the ref arrives from a form, and a redirect target is not a thing to
+// take on trust from a payload.
 //
 // One half of the prose, named by the posted `lang`, and every redirect lands
 // back on that half — see editContentAction.
@@ -588,16 +590,29 @@ export async function editContainerContentAction(formData: FormData): Promise<vo
 
   const isPlant = ref.startsWith(PLANT_PREFIX);
   const isPod = ref.startsWith(POD_PREFIX);
-  if (!isPlant && !isPod) redirect("/admin");
+  const isBean = ref.startsWith(BEAN_PREFIX);
+  if (!isPlant && !isPod && !isBean) redirect("/admin");
 
   const slug = ref.slice(ref.indexOf(":") + 1);
   const raw = await loadRawGarden();
   const existing = isPlant
     ? raw.plants?.find((p) => p.slug === slug)
-    : raw.pods?.find((p) => p.slug === slug);
+    : isPod
+      ? raw.pods?.find((p) => p.slug === slug)
+      : raw.beans?.find((b) => b.slug === slug);
   if (!existing) redirect("/admin");
 
-  const back = isPlant ? narrativeHref(slug) : `/admin/pod/${encodeURIComponent(slug)}`;
+  const back = isPlant
+    ? narrativeHref(slug)
+    : isPod
+      ? `/admin/pod/${encodeURIComponent(slug)}`
+      : `/admin/bean/${encodeURIComponent(slug)}`;
+  // A projected bean is machine-owned end to end (lib/projected-beans.ts); every
+  // other bean action in this file bounces on the flag, and so does this one.
+  // The one redirect here that skips withEditLang, on purpose: `lang` is not
+  // parsed yet, and the page draws no editor for a projected bean, so a post
+  // reaching this line was hand-crafted and has no half to land back on.
+  if (isBean && "projected" in existing && existing.projected) redirect(back);
   const field = parseEditLangField(formData.get("lang"));
   if (!field.ok) {
     redirect(`${back}?error=${encodeURIComponent(`could not save content: ${field.error}`)}`);
@@ -611,7 +626,8 @@ export async function editContainerContentAction(formData: FormData): Promise<vo
   }
   if (result.dirty) {
     if (isPlant) await updatePlantContent(slug, result.patch);
-    else await updatePodContent(slug, result.patch);
+    else if (isPod) await updatePodContent(slug, result.patch);
+    else await updateBeanContent(slug, result.patch);
   }
 
   revalidateGarden();

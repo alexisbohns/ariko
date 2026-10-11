@@ -110,13 +110,23 @@ test("write door: a payload failing pure validation is 400 and names the offende
     const body1 = await res1.json();
     assert.match(body1.error, /state/);
 
-    // bean: container is rejected — only plant: or pod: are accepted
+    // articles under a bean: container are rejected — a bean holds no beans,
+    // so the door says where they go. (A bean: with a narrative is accepted;
+    // the DB-backed case below drives it through the route.)
     const res2 = await POST(
-      req({ container: "bean:test-articles-route-a", narrative: "hi" }, "Bearer tok_art_test"),
+      req(
+        {
+          container: "bean:test-articles-route-b",
+          articles: [
+            { slug: "test-articles-route-a", name: "A", date: "2026-07-24", content: "body" },
+          ],
+        },
+        "Bearer tok_art_test",
+      ),
     );
     assert.equal(res2.status, 400);
     const body2 = await res2.json();
-    assert.match(body2.error, /container/);
+    assert.match(body2.error, /bean: container carries a narrative only/);
   } finally {
     delete process.env.ARTICLES_TOKEN;
   }
@@ -161,11 +171,47 @@ test(
     assert.equal(res.status, 200);
     const body = await res.json();
     assert.deepEqual(body, { ok: true, written: 1, narrative: true });
+
+    // Through the real route: the article is the bean's narrative, private,
+    // and no companion sprout exists.
+    const bean = await db.collection("beans").findOne({ slug: `${TEST_PREFIX}a` });
+    assert.equal(bean?.content, "body");
+    assert.equal(bean?.visibility, "private");
+    assert.equal(await db.collection("sprouts").findOne({ slug: `${TEST_PREFIX}a-0` }), null);
   },
 );
 
 test(
-  "write door: a payload whose sprout has already been published is refused with 409",
+  "write door: a bean: container takes a narrative and returns 200",
+  { skip: !hasDb },
+  async (t) => {
+    t.after(cleanup);
+    process.env.ARTICLES_TOKEN = "tok_art_test";
+    t.after(() => {
+      delete process.env.ARTICLES_TOKEN;
+    });
+    const db = await getDb();
+    await db.collection("beans").insertOne({
+      slug: `${TEST_PREFIX}b`,
+      name: "B",
+      parents: [`plant:${TEST_PREFIX}p`],
+      visibility: "private",
+    });
+
+    const res = await POST(
+      req({ container: `bean:${TEST_PREFIX}b`, narrative: "A bean's own story." }, "Bearer tok_art_test"),
+    );
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { ok: true, written: 0, narrative: true });
+
+    const bean = await db.collection("beans").findOne({ slug: `${TEST_PREFIX}b` });
+    assert.equal(bean?.content, "A bean's own story.");
+    assert.equal(bean?.visibility, "private");
+  },
+);
+
+test(
+  "write door: a payload whose bean has already been published is refused with 409",
   { skip: !hasDb },
   async (t) => {
     t.after(cleanup);
@@ -181,15 +227,13 @@ test(
       description: "",
       visibility: "private",
     });
-    await db.collection("sprouts").insertOne({
-      slug: `${TEST_PREFIX}a-0`,
+    await db.collection("beans").insertOne({
+      slug: `${TEST_PREFIX}a`,
       name: "A",
-      type: "article",
-      date: "2026-07-24",
       description: "",
-      parents: [`bean:${TEST_PREFIX}a`],
+      parents: [`plant:${TEST_PREFIX}p`],
       content: "reviewed content",
-      state: "published",
+      visibility: "public",
     });
 
     const res = await POST(
@@ -210,10 +254,11 @@ test(
     );
     assert.equal(res.status, 409);
     const body = await res.json();
-    assert.deepEqual(body.refused, [`${TEST_PREFIX}a-0`]);
+    assert.deepEqual(body.refused, [`bean:${TEST_PREFIX}a`]);
 
-    const sprout = await db.collection("sprouts").findOne({ slug: `${TEST_PREFIX}a-0` });
-    assert.equal(sprout?.content, "reviewed content");
+    const bean = await db.collection("beans").findOne({ slug: `${TEST_PREFIX}a` });
+    assert.equal(bean?.content, "reviewed content");
+    assert.equal(bean?.visibility, "public");
   },
 );
 

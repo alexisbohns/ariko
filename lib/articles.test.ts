@@ -29,10 +29,20 @@ test("a payload carrying neither half is refused", () => {
   );
 });
 
-test("the container must be a plant or pod ref", () => {
-  for (const container of ["bean:karma", "paulopus", "plant:", "plant:Bad_Slug", "sprout:x"]) {
+test("the container must be a plant, pod or bean ref", () => {
+  for (const container of ["paulopus", "plant:", "bean:", "plant:Bad_Slug", "sprout:x"]) {
     assert.equal(validateArticlesPayload({ ...ok, container }).ok, false, container);
   }
+});
+
+test("a bean: container takes a narrative", () => {
+  assert.deepEqual(validateArticlesPayload({ container: "bean:karma", narrative: "x" }), { ok: true });
+});
+
+test("a bean: container refuses articles — a bean holds no beans", () => {
+  const r = validateArticlesPayload({ container: "bean:karma", articles: [] });
+  assert.equal(r.ok, false);
+  assert.match((r as { error: string }).error, /bean: container carries a narrative only/);
 });
 
 test("state is refused whatever its value — the door cannot publish", () => {
