@@ -49,6 +49,7 @@ const SERVER_SAFE = [
   "components/bean-cover.tsx",
   "components/phone-frame.tsx",
   "components/screen-strip.tsx",
+  "components/journal.tsx", // the journal line: /beanstalk, plant, pod, bean (Part B)
   // The lightbox's shared name and arithmetic. The strip imports it for the
   // anchor attribute, so it is on the plant page's server path exactly as the
   // strip is — and the island imports it too, which is the whole reason it is

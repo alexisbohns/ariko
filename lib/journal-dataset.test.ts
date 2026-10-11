@@ -1,4 +1,3 @@
-// lib/journal-dataset.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildDataset, type RawGarden } from "./data";
