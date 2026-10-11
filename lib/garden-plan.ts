@@ -52,7 +52,7 @@ export type Verb = "create" | "skip" | "update";
 export type PlanAction =
   | { action: Verb; tier: "pod"; slug: string; entry: ManifestPod; narrativeKept?: true }
   | { action: Verb; tier: "bean"; slug: string; entry: ManifestBean; parentSlug: string; narrativeKept?: true }
-  | { action: Verb; tier: "sprout"; slug: string; entry: ManifestSprout };
+  | { action: Verb; tier: "sprout"; slug: string; entry: ManifestSprout; aboutKept?: true };
 
 /**
  * `narrativeKept` is set on an `update` of a pod or bean whose stored
@@ -72,6 +72,35 @@ export function keepsPublishedNarrative(
   stored: { visibility?: string } | undefined,
 ): boolean {
   return verb === "update" && entry.content !== undefined && stored?.visibility === "public";
+}
+
+/**
+ * `aboutKept` is set on an `update` of a sprout whose stored `about` names a
+ * different SET of refs than the manifest entry's: the applier will NOT write
+ * the manifest's. What an entry is about is editorial — re-anchoring it to
+ * another bean or to the pod is the admin's About panel, where a human sees
+ * what the move does to the derived plant — so a routine re-plant never
+ * rewrites it, the same way it never rewrites `parents`. It is decided HERE,
+ * on the plan a human reads, rather than by the applier staying silent, so
+ * the dry-run tree says which edits to `about:` the file will not reach; an
+ * author who re-anchored an entry in the manifest and saw nothing would
+ * believe it had moved. Compared as a set: the same members in another order
+ * are the same anchors, and saying "kept" there would be noise. Read the way
+ * `aboutRefs` (`lib/data.ts`) reads it — not imported, because that module
+ * opens with `node:fs` and this one is pure.
+ */
+export function keepsAbout(
+  verb: Verb,
+  entry: { about: string[] },
+  stored: { about?: unknown } | undefined,
+): boolean {
+  if (verb !== "update" || stored === undefined) return false;
+  const storedAbout = Array.isArray(stored.about) ? stored.about.filter((r) => typeof r === "string") : [];
+  const want = new Set(entry.about);
+  const have = new Set(storedAbout);
+  if (want.size !== have.size) return true;
+  for (const ref of want) if (!have.has(ref)) return true;
+  return false;
 }
 
 export interface GardenSlugs {
@@ -120,18 +149,27 @@ export function planGarden(manifest: GardenManifest, garden: GardenSlugs, opts: 
   }
 
   for (const sprout of manifest.sprouts) {
+    const sproutVerb = verbFor(sproutSlugs.has(sprout.slug), opts.update);
+    const storedSprout = garden.sprouts.find((s) => s.slug === sprout.slug);
     actions.push({
-      action: verbFor(sproutSlugs.has(sprout.slug), opts.update),
+      action: sproutVerb,
       tier: "sprout",
       slug: sprout.slug,
       entry: sprout,
+      ...(keepsAbout(sproutVerb, sprout, storedSprout) ? { aboutKept: true } : {}),
     });
   }
 
   return actions;
 }
 
-const INDENT: Record<Tier, string> = { pod: "", bean: "  ", sprout: "    " };
+/**
+ * Indentation shows ONE relation: the pod, then everything planted in it.
+ * Beans and sprouts are siblings in the file, so they sit at the same depth —
+ * a sprout indented under the last bean would claim an anchor it may not
+ * have. What a sprout is about is its ` about …` suffix, never its position.
+ */
+const INDENT: Record<Tier, string> = { pod: "", bean: "  ", sprout: "  " };
 
 export function renderPlan(actions: PlanAction[]): string {
   // The verb is padded to a fixed width so the tier and slug form COLUMNS. A
@@ -142,14 +180,16 @@ export function renderPlan(actions: PlanAction[]): string {
   // a plan exists for.
   // The note is a SUFFIX so the columns above stay aligned; it names the one
   // thing an `update` line otherwise implies and will not do. A sprout line
-  // says what the entry is ABOUT, also as a suffix: sprouts no longer sit
-  // under their bean in the tree, so the anchor is the one thing a human
-  // approving the plan cannot otherwise see.
+  // says what the entry is ABOUT, also as a suffix — that suffix is the
+  // anchor, since the indent only says "in this pod" — and, on an update that
+  // will not re-anchor it, that the stored `about` is kept.
   const lines = actions.map(
     (a) =>
       `${INDENT[a.tier]}${a.action.padEnd(6)} ${a.tier} ${a.slug}${
         a.tier === "sprout" ? ` about ${a.entry.about.join(", ")}` : ""
-      }${"narrativeKept" in a && a.narrativeKept ? " (narrative kept: published)" : ""}`,
+      }${a.tier === "sprout" && a.aboutKept ? " (about kept: edit it in the admin)" : ""}${
+        "narrativeKept" in a && a.narrativeKept ? " (narrative kept: published)" : ""
+      }`,
   );
 
   const creates = actions.filter((a) => a.action === "create").length;

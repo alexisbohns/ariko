@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseManifest } from "./garden-manifest";
-import { planGarden, renderPlan, keepsPublishedNarrative, type GardenSlugs } from "./garden-plan";
+import { planGarden, renderPlan, keepsAbout, keepsPublishedNarrative, type GardenSlugs } from "./garden-plan";
 
 const EMPTY_GARDEN: GardenSlugs = { pods: [], beans: [], sprouts: [] };
 
@@ -192,9 +192,11 @@ test("renderPlan output contains the summary counts", () => {
   assert.equal(podLine, "skip   pod krabs");
   assert.equal(beanLine, "  create bean bean-a");
   // A sprout line also says what it is ABOUT, so a human approving the plan
-  // sees the anchor the entry will be written with.
+  // sees the anchor the entry will be written with. It sits BESIDE the bean,
+  // not under it: in the file sprouts are siblings of beans, and the suffix —
+  // not the indent — is the anchor.
   assert.match(output, /sprout sprout-a about bean:bean-a/);
-  assert.equal(sproutLine, "    create sprout sprout-a about bean:bean-a");
+  assert.equal(sproutLine, "  create sprout sprout-a about bean:bean-a");
 });
 
 test("an update of a PUBLIC pod or bean carrying manifest content is marked narrativeKept, and the tree says so", () => {
@@ -228,4 +230,52 @@ test("an update of a PUBLIC pod or bean carrying manifest content is marked narr
   // An absent visibility is not a publish — strict, like /api/articles.
   assert.equal(keepsPublishedNarrative("update", { content: "x" }, { slug: "p" } as any), false);
   assert.equal(keepsPublishedNarrative("create", { content: "x" }, { visibility: "public" }), false);
+});
+
+test("keepsAbout: never on create, never when the sets match in any order, always on an update that differs", () => {
+  const entry = { about: ["pod:krabs", "bean:bean-a"] };
+  assert.equal(keepsAbout("create", entry, { about: ["bean:other"] }), false);
+  assert.equal(keepsAbout("create", entry, undefined), false);
+  assert.equal(keepsAbout("skip", entry, { about: ["bean:other"] }), false);
+  assert.equal(keepsAbout("update", entry, { about: ["bean:bean-a", "pod:krabs"] }), false);
+  assert.equal(keepsAbout("update", entry, { about: ["pod:krabs", "bean:bean-a"] }), false);
+  assert.equal(keepsAbout("update", entry, { about: ["bean:other"] }), true);
+  assert.equal(keepsAbout("update", entry, { about: ["pod:krabs"] }), true);
+  assert.equal(keepsAbout("update", entry, { about: ["pod:krabs", "bean:bean-a", "bean:other"] }), true);
+  // A stored sprout with no `about` at all is about nothing — which differs.
+  assert.equal(keepsAbout("update", entry, {}), true);
+});
+
+test("an --update whose manifest about differs from the stored one is marked aboutKept, and the tree says so", () => {
+  const manifest = parse(ONE_BEAN_YAML);
+  const garden: GardenSlugs = {
+    pods: [{ slug: "krabs" } as any],
+    beans: [{ slug: "bean-a" } as any],
+    sprouts: [{ slug: "sprout-a", about: ["bean:other"] } as any],
+  };
+  const actions = planGarden(manifest, garden, { update: true });
+  const sprout = actions.find((a) => a.slug === "sprout-a");
+  assert.ok(sprout && sprout.tier === "sprout");
+  assert.equal(sprout.action, "update");
+  assert.equal(sprout.aboutKept, true);
+  assert.equal(
+    renderPlan(actions).split("\n")[2],
+    "  update sprout sprout-a about bean:bean-a (about kept: edit it in the admin)",
+  );
+
+  // Without --update it is a skip, and a skip keeps nothing to say.
+  const skipped = planGarden(manifest, garden, { update: false });
+  assert.equal("aboutKept" in skipped[2], false);
+});
+
+test("an --update whose manifest about matches the stored one carries no note", () => {
+  const manifest = parse(ONE_BEAN_YAML);
+  const garden: GardenSlugs = {
+    pods: [{ slug: "krabs" } as any],
+    beans: [{ slug: "bean-a" } as any],
+    sprouts: [{ slug: "sprout-a", about: ["bean:bean-a"] } as any],
+  };
+  const actions = planGarden(manifest, garden, { update: true });
+  assert.equal("aboutKept" in actions[2], false);
+  assert.equal(renderPlan(actions).split("\n")[2], "  update sprout sprout-a about bean:bean-a");
 });
