@@ -241,7 +241,8 @@ while quietly becoming false.
   back on their own terms. A pod's `visibility` is the sixth, with the same no-cascade
   rule, and the only door a pod has to the public site: since the journal
   model a published sprout flips its plant and nothing beneath it, a pod is
-  private at birth, and `filterPublic` drops every bean under a private pod —
+  private at birth, and `filterPublic` drops a bean whose only parent is a
+  private pod —
   so before `setPodVisibilityAction` a published bean in a planted pod was
   invisible with nothing failing. The bean head and the pod page draw the
   radios from one file, `app/admin/_components/visibility-form.tsx`.
@@ -453,7 +454,8 @@ while quietly becoming false.
   photo avatar is ever wanted, `npx shadcn@latest add avatar` restores it; do not
   route the entity mark back through it.
 - **An icon trigger names its stored value.** The plant header's five editors,
-  the sprout header's four and the bean header's four are icons; the only place
+  the sprout header's four, the bean header's four and the pod page's one are
+  icons; the only place
   a reader learns what `status`, `visibility`, `state`, `date`, `type`,
   `keyword` and `tags` currently ARE is each trigger's accessible name, set on
   the control rather than on a visible span (the hover label is CSS). Replace
@@ -461,8 +463,8 @@ while quietly becoming false.
   identical and stops saying what it is. An empty value states itself too — the
   bean's `Keyword: none` — because a label ending in a colon reads as broken
   rather than as blank. `lib/plant-hero-a11y.test.ts`,
-  `lib/sprout-hero-a11y.test.ts` and `lib/bean-hero-a11y.test.ts` pin it, the
-  last one also pinning that a projected bean draws no trigger at all while
+  `lib/sprout-hero-a11y.test.ts`, `lib/bean-hero-a11y.test.ts` and
+  `lib/pod-visibility-a11y.test.ts` pin it, the bean's also pinning that a projected bean draws no trigger at all while
   still stating all three facts.
   The public zone's preferences trigger is the one DOCUMENTED EXCEPTION: it
   names its language and not its theme, because the theme lives in

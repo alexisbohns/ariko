@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { buildDataset, resolveText } from "@/lib/data";
 import { editLang, editLangHrefs } from "@/lib/edit-lang";
+import { visibilityOf } from "@/lib/plant-visibility";
 import { loadRawGarden } from "@/lib/store";
 import { editContainerContentAction } from "../../../actions";
 import { ContentCard } from "../../../_components/content-card";
@@ -34,8 +35,6 @@ export default async function AdminPodPage({
   if (!pod) notFound();
 
   const beans = buildDataset(raw).beansForPod(slug);
-  // An absent visibility reads as public, as everywhere else (lib/data.ts).
-  const visibility = pod.visibility ?? "public";
 
   // The LIVE garden — already loaded above, per CLAUDE.md's garden rule: the
   // admin reads live, and the chrome is the surface most likely to be looked at
@@ -54,13 +53,11 @@ export default async function AdminPodPage({
             </h1>
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="outline">pod:{pod.slug}</Badge>
-              {/* Keyed on the STORED value: a save that lands soft-navigates
-                  here with a different key, which remounts the island closed. */}
               <PodVisibility
-                key={visibility}
                 slug={pod.slug}
-                visibility={visibility}
+                visibility={visibilityOf(pod)}
                 error={visibilityError}
+                lang={lang}
               />
             </div>
             {resolveText(pod.description ?? "").trim() ? (

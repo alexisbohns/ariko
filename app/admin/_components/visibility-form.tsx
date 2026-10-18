@@ -29,6 +29,7 @@ export function VisibilityForm({
   current,
   hints,
   idPrefix,
+  lang,
 }: {
   action: (formData: FormData) => Promise<void>;
   slug: string;
@@ -36,12 +37,19 @@ export function VisibilityForm({
   hints: Record<Visibility, string>;
   /** Keeps each radio's `id` unique on the page, for its `<label htmlFor>`. */
   idPrefix: string;
+  /**
+   * The half of the page's editor on screen, posted so the action can land back
+   * on it. Absent on the bean, whose actions redirect to the bare URL by an
+   * accepted decision (`bean/[id]/page.tsx`).
+   */
+  lang?: string;
 }) {
   const [picked, setPicked] = useState<Visibility>(current);
 
   return (
     <form action={action} className="flex flex-col gap-3">
       <input type="hidden" name="slug" value={slug} />
+      {lang ? <input type="hidden" name="lang" value={lang} /> : null}
 
       <div className="flex flex-col gap-2">
         {PLANT_VISIBILITIES.map((option) => {

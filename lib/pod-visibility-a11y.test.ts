@@ -45,3 +45,30 @@ test("the trigger opens a guarded form rather than flipping, and posts to the po
   assert.match(form, /type="radio"|NativeRadio/);
   assert.match(form, /disabled=\{picked === current\}/);
 });
+
+test("the pod page hands the island its rejection and its editor half, and does not key it", () => {
+  // Three silent losses, each passing tsc and npm test:
+  // - no `error` reaching FactPopover: a rejected save reopens onto silence,
+  //   because the page hides its banner precisely when ?form= names a surface;
+  // - no `lang`: a save from the French half lands on the English editor;
+  // - a `key` on the island: a landed save remounts the trigger, Base UI's
+  //   return-focus target is detached, and focus falls to document.body.
+  const page = readFileSync(join(process.cwd(), "app/admin/(chrome)/pod/[slug]/page.tsx"), "utf8");
+  const call = page.slice(page.indexOf("<PodVisibility"), page.indexOf("/>", page.indexOf("<PodVisibility")));
+  assert.match(call, /error=\{visibilityError\}/);
+  assert.match(call, /lang=\{lang\}/);
+  assert.ok(!/\bkey=/.test(call), "the island closes by state, never by remount");
+  assert.match(page, /error && !visibilityError/, "the banner yields to the popover");
+
+  const island = readFileSync(join(process.cwd(), "app/admin/_components/pod-visibility.tsx"), "utf8");
+  assert.match(island, /error=\{error\}/);
+  assert.match(island, /lang=\{lang\}/);
+});
+
+test("the pod action lands back on the editor half it was posted from", () => {
+  const actions = readFileSync(join(process.cwd(), "app/admin/actions.ts"), "utf8");
+  const start = actions.indexOf("export async function setPodVisibilityAction");
+  const body = actions.slice(start, actions.indexOf("\n}\n", start));
+  assert.match(body, /editLang\(formData\.get\("lang"\)\)/);
+  assert.match(body, /redirect\(withEditLang\(back, lang\)\)/);
+});
