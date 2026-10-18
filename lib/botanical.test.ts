@@ -15,6 +15,7 @@ import {
   listBeans,
   updateBeanCover,
   updateBeanKeyword,
+  updatePodVisibility,
   updateScreenImage,
   updateScreenMeta,
   writeExhibition,
@@ -102,6 +103,21 @@ test("setPublic flips the named plants public — and only plants", { skip: !has
   const m = await db.collection("pods").findOne({ slug: "__test__pm" });
   assert.equal(p?.visibility, "public");
   assert.equal(m?.visibility, "private"); // the pod beneath is not touched
+});
+
+test("updatePodVisibility flips the pod alone, in both directions", { skip: !hasDb }, async (t) => {
+  t.after(cleanup);
+  const db = await getDb();
+  await createPod({ slug: "__test__vm", name: "M", plantSlug: null, description: "" });
+  await createBean({ slug: "__test__vb", name: "B", description: "", podSlug: "__test__vm", plantSlug: null });
+
+  await updatePodVisibility("__test__vm", "public");
+  assert.equal((await db.collection("pods").findOne({ slug: "__test__vm" }))?.visibility, "public");
+  // Nothing beneath is touched: a bean's visibility is its own.
+  assert.equal((await db.collection("beans").findOne({ slug: "__test__vb" }))?.visibility, "private");
+
+  await updatePodVisibility("__test__vm", "private");
+  assert.equal((await db.collection("pods").findOne({ slug: "__test__vm" }))?.visibility, "private");
 });
 
 test("setPublic is a no-op on an empty array", { skip: !hasDb }, async () => {

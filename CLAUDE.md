@@ -201,16 +201,16 @@ while quietly becoming false.
   write is filtered on `exhibited: true` for a related reason: a reorder
   computed against a stale strip would republish a screen someone had just
   withdrawn.
-- **No enum writes on the click that opens it.** Five fields work this way now
-  — a plant's `status` and `visibility`, a sprout's `state` and `kind`, and a
-  bean's `visibility`. The icon opens
+- **No enum writes on the click that opens it.** Six fields work this way now
+  — a plant's `status` and `visibility`, a sprout's `state` and `kind`, a
+  bean's `visibility` and a pod's. The icon opens
   the vocabulary as a list of native radios, the author picks a member, and a
   Save button commits it — disabled until the pick differs from what is stored,
   so the second click is a confirmation rather than a formality. A one-click
   flip was the first shape tried and the wrong one: a stray click on the globe
   unpublishes a project, and the undo is another stray click on the same pixel.
   The sprout's `state` earns the rule hardest — publishing makes its plant
-  public. All five post **a named member of a vocabulary**
+  public. All six post **a named member of a vocabulary**
   (`lib/plant-status.ts`, `lib/plant-visibility.ts`, `lib/sprout-state.ts`,
   `lib/sprout-kind.ts`) which the action re-validates rather than trusting.
   The Meta sheet still carries `status` as a hidden input because
@@ -238,7 +238,13 @@ while quietly becoming false.
   `visibility` is the fourth enum, and the one that does NOT cascade in either
   direction: downward privacy is a read-time projection, so going private needs
   no write beneath, and going public must not republish sprouts that were held
-  back on their own terms.
+  back on their own terms. A pod's `visibility` is the sixth, with the same no-cascade
+  rule, and the only door a pod has to the public site: since the journal
+  model a published sprout flips its plant and nothing beneath it, a pod is
+  private at birth, and `filterPublic` drops every bean under a private pod —
+  so before `setPodVisibilityAction` a published bean in a planted pod was
+  invisible with nothing failing. The bean head and the pod page draw the
+  radios from one file, `app/admin/_components/visibility-form.tsx`.
 - **A sprout's plant is derived, never stored.** `resolveSproutPlant`
   (`lib/data.ts`) is the one derivation: `about` names the pods and beans an
   entry is about, every ref rolls up to a plant, and the sprout HAS a plant

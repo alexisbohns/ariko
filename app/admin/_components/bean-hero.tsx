@@ -4,9 +4,9 @@ import { useEffect, useRef, useState, type ComponentType, type ReactNode } from 
 import { Globe, Lock, MessageSquareQuote, Tags } from "lucide-react";
 import type { Visibility } from "@/lib/data";
 import { visibilityLabel } from "@/lib/glyphs";
-import { PLANT_VISIBILITIES } from "@/lib/plant-visibility";
 import { setBeanVisibilityAction, editBeanKeywordAction, editBeanTagsAction } from "../actions";
 import { FactPopover } from "./fact-popover";
+import { VisibilityForm } from "./visibility-form";
 import { OverlaySheet } from "./overlay-sheet";
 import { sweepRejection } from "@/lib/sweep-rejection";
 import { PlantHeader } from "@/components/plant-header";
@@ -14,7 +14,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ChoiceLabel, NativeRadio } from "@/components/ui/native-controls";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -204,7 +203,13 @@ export function BeanHero({
                 icon={visibility === "public" ? Globe : Lock}
                 tone={visibility === "private" ? "text-foreground" : undefined}
               >
-                <VisibilityForm slug={slug} current={visibility} />
+                <VisibilityForm
+                  action={setBeanVisibilityAction}
+                  slug={slug}
+                  current={visibility}
+                  hints={VISIBILITY_HINTS}
+                  idPrefix="bean-visibility"
+                />
               </FactPopover>
 
               {/* Keyword and tags. NOT enums — there is no vocabulary to draw as
@@ -266,64 +271,7 @@ export function BeanHero({
 }
 
 
-/**
- * The visibility vocabulary, drawn as native radios.
- *
- * The words come from `lib/glyphs.ts` and the members from
- * `lib/plant-visibility.ts`, so a visibility reads the same on the admin tables
- * and on this head. The hints are the only new prose, and they exist because what
- * each member DOES is invisible from this page.
- *
- * Not the Base UI RadioGroup: that one submits through a script-populated hidden
- * input, and a real radio is what keeps this form a form.
- */
-function VisibilityForm({ slug, current }: { slug: string; current: Visibility }) {
-  const [picked, setPicked] = useState<Visibility>(current);
-
-  return (
-    <form action={setBeanVisibilityAction} className="flex flex-col gap-3">
-      <input type="hidden" name="slug" value={slug} />
-
-      <div className="flex flex-col gap-2">
-        {PLANT_VISIBILITIES.map((option) => {
-          const Icon = option === "public" ? Globe : Lock;
-          const id = `bean-visibility-${option}`;
-          return (
-            <ChoiceLabel key={option} htmlFor={id} className="items-start gap-2.5">
-              <NativeRadio
-                id={id}
-                name="visibility"
-                value={option}
-                checked={picked === option}
-                onChange={() => setPicked(option)}
-                className="mt-0.5"
-              />
-              <span className="flex min-w-0 flex-col gap-1">
-                <span className="flex items-center gap-1.5">
-                  <Icon className="size-3.5 text-muted-foreground" />
-                  {visibilityLabel(option)}
-                </span>
-                <span className="text-xs leading-snug text-muted-foreground">
-                  {VISIBILITY_HINTS[option]}
-                </span>
-              </span>
-            </ChoiceLabel>
-          );
-        })}
-      </div>
-
-      <div className="flex justify-end">
-        {/* Disabled until the pick differs from what is stored. Without it the
-            Save is a formality — two clicks that mean what one click meant — and
-            the confirmation this popover exists to add is gone. */}
-        <Button type="submit" size="sm" disabled={picked === current}>
-          Save
-        </Button>
-      </div>
-    </form>
-  );
-}
-
+/** What each member does to a BEAN — invisible from this page, hence the hints. */
 const VISIBILITY_HINTS: Record<Visibility, string> = {
   public: "On the public site, with its own page — and its published sprouts with it.",
   private: "Off the public site, and its sprouts leave with it. Nothing above or below is changed.",
