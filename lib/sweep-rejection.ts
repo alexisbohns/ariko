@@ -11,11 +11,11 @@
  * re-render the page underneath the surface that is in the middle of closing.
  *
  * **A pure DOM utility with no entity knowledge and no React in it**, which is
- * why it lives here rather than inside any of its three callers. It was written
+ * why it lives here rather than inside any of its callers. It was written
  * once in `entity-rail.tsx` and then copied, verbatim and independently, into
  * `sprout-hero.tsx`'s `close()` and `bean-hero.tsx`'s — the third copy is the
  * threshold, and a rule about URL hygiene told in three files is three files
- * that drift.
+ * that drift. `pod-visibility.tsx` is the fourth caller.
  *
  * Client-safe by construction: it imports nothing, and guards `window` so a
  * server render is a no-op rather than a crash.

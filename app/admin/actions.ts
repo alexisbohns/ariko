@@ -86,6 +86,7 @@ import {
   updateBeanMeta,
   updateBeanTags,
   updateBeanVisibility,
+  updatePodVisibility,
   createScreen,
   getScreen,
   updateScreenMeta,
@@ -1033,6 +1034,50 @@ export async function setBeanVisibilityAction(formData: FormData): Promise<void>
 
   revalidateGarden();
   redirect(back);
+}
+
+/**
+ * The pod's visibility — and nothing else.
+ *
+ * `setBeanVisibilityAction` one tier up, and the same guard: a named member of
+ * the vocabulary, re-validated here, posted from radios behind a Save. It is the
+ * only door a pod has to the public site — publishing a sprout flips its plant
+ * and nothing beneath it — and a private pod takes every bean under it off the
+ * public site unless it also hangs from something public.
+ *
+ * No `projected` gate: pollen projects beans and sprouts, never pods.
+ *
+ * Unlike the bean's, it lands back on the half being edited: the pod page is
+ * one of the three `?lang=` editor pages, and a visibility save from the French
+ * half that redirected bare would reopen the editor on English. `lang` is read
+ * tolerantly, as every sprout action reads it — it picks a URL, never a write.
+ */
+export async function setPodVisibilityAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const slug = String(formData.get("slug") ?? "");
+
+  const raw = await loadRawGarden();
+  const existing = raw.pods?.find((p) => p.slug === slug);
+  if (!existing) redirect("/admin/pods");
+
+  const back = `/admin/pod/${encodeURIComponent(slug)}`;
+  const lang = editLang(formData.get("lang"));
+  const value = String(formData.get("visibility") ?? "").trim();
+  if (!isVisibility(value)) {
+    redirect(
+      withEditLang(
+        `${back}?form=visibility&error=${encodeURIComponent(
+          `unknown visibility: ${value || "(blank)"}`,
+        )}`,
+        lang,
+      ),
+    );
+  }
+
+  await updatePodVisibility(slug, value);
+
+  revalidateGarden();
+  redirect(withEditLang(back, lang));
 }
 
 /**

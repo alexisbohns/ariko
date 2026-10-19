@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
 import { buildDataset, resolveText } from "@/lib/data";
 import { editLang, editLangHrefs } from "@/lib/edit-lang";
+import { visibilityOf } from "@/lib/plant-visibility";
 import { loadRawGarden } from "@/lib/store";
 import { editContainerContentAction } from "../../../actions";
 import { ContentCard } from "../../../_components/content-card";
+import { PodVisibility } from "../../../_components/pod-visibility";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,11 +20,14 @@ export default async function AdminPodPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ error?: string; lang?: string }>;
+  searchParams: Promise<{ error?: string; form?: string; lang?: string }>;
 }) {
   const { slug } = await params;
   const query = await searchParams;
-  const { error } = query;
+  const { error, form } = query;
+  // A rejected visibility save names its surface, and the message renders
+  // inside the reopened popover rather than in the banner below.
+  const visibilityError = form === "visibility" ? error : undefined;
   const lang = editLang(query.lang);
 
   const raw = await loadRawGarden();
@@ -48,16 +53,19 @@ export default async function AdminPodPage({
             </h1>
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="outline">pod:{pod.slug}</Badge>
-              <Badge variant={pod.visibility === "public" ? "default" : "secondary"}>
-                {pod.visibility ?? "public"}
-              </Badge>
+              <PodVisibility
+                slug={pod.slug}
+                visibility={visibilityOf(pod)}
+                error={visibilityError}
+                lang={lang}
+              />
             </div>
             {resolveText(pod.description ?? "").trim() ? (
               <p className="text-sm text-muted-foreground">{resolveText(pod.description)}</p>
             ) : null}
           </div>
 
-          {error ? (
+          {error && !visibilityError ? (
             <Alert variant="destructive" role="alert">
               <AlertDescription>{error}</AlertDescription>
             </Alert>

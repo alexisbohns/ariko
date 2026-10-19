@@ -112,6 +112,7 @@ const GARDEN_WRITERS = new Set([
   "updateBeanMeta",
   "updateBeanTags",
   "updateBeanVisibility",
+  "updatePodVisibility",
   "updateSproutMedia",
   "writeArticles",
   "upsertDigestDrafts",

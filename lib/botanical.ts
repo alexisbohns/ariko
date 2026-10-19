@@ -599,6 +599,27 @@ export async function updateBeanVisibility(slug: string, visibility: Visibility)
 }
 
 /**
+ * Writes a pod's visibility — and nothing else.
+ *
+ * The bean's writer one tier up, and it had to exist for the same reason: since
+ * the journal model (spec 2026-10-10 §2) publishing a sprout flips only its
+ * plant, so the cascade that used to carry a pod public along with its beans is
+ * gone. A pod is private at birth (`createPod`, and every `garden:plant`), and
+ * without this the only way to show one was a hand edit in the database — while
+ * `filterPublic` drops every bean beneath a private pod, so a published bean
+ * there is invisible too.
+ *
+ * It touches nothing beneath it, in either direction, for
+ * `updatePlantVisibility`'s reasons: downward privacy is a read-time
+ * projection, and going public must not republish beans held back on their own
+ * terms.
+ */
+export async function updatePodVisibility(slug: string, visibility: Visibility): Promise<void> {
+  const db = await getDb();
+  await db.collection<Pod>("pods").updateOne({ slug }, { $set: { visibility } });
+}
+
+/**
  * Writes a bean's tags — and nothing else. An empty list CLEARS.
  *
  * The FOURTH copy of the one-field `$set`/`$unset` shape (`updatePlantLogo`,
