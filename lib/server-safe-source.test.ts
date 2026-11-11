@@ -92,6 +92,7 @@ const SERVER_SAFE = [
   "components/hours-weekly-bars.tsx",
   "components/hours-tables.tsx",
   "lib/hours-aggregate.ts",
+  "app/(public)/(chrome)/hours/page.tsx",
   // The registry primitives the public zone renders — all of them, which is
   // the whole point. This list used to stop at components/, so shadcn's stock
   // "use client" on table.tsx cost every prose page 8.5 kB of
