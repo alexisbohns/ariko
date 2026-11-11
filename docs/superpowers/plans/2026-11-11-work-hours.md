@@ -1927,6 +1927,7 @@ Run: `npm run build 2>&1 | tail -25` and expect a successful build with `/hours`
 HOURS_TOKEN=dev HOURS_URL=http://localhost:3333/api/hours npm run hours:sync -- --local ~/code
 ```
 
+The engine refuses `--local` without `--dry-run` unless `HOURS_URL` points at `localhost` or `127.0.0.1`, as above, so this seeding command is the allowed exception.
 Start the dev server with `MONGODB_DB=beanstalk_scratch HOURS_TOKEN=dev npm run dev` first. Then open `http://localhost:3333/hours`.
 Check, in light and dark, and at 400px width:
 - the calendar scrolls inside its frame;

@@ -2,13 +2,15 @@ import { hasValidToken, singleToken } from "../../../lib/auth";
 import { MAX_SNAPSHOT_BYTES, validateSnapshot } from "../../../lib/hours";
 import { aggregateUnit, parisToday } from "../../../lib/hours-aggregate";
 import { loadHoursSnapshot, saveHoursSnapshot } from "../../../lib/hours-store";
-import { revalidateHours } from "../../../lib/hours-cache";
+import { getCachedHours, revalidateHours } from "../../../lib/hours-cache";
 
 export const dynamic = "force-dynamic";
 
 // GET: public by decision (spec §1) — the snapshot plus derived aggregates.
+// Reads through the tagged cache so an anonymous crawler cannot hammer Mongo;
+// the POST wipe guard below keeps the live read.
 export async function GET(): Promise<Response> {
-  const snapshot = await loadHoursSnapshot();
+  const snapshot = await getCachedHours();
   if (!snapshot) return Response.json({ snapshot: null }, { status: 404 });
   const today = parisToday();
   const agg = (u: typeof snapshot.global) => ({ key: u.key, ...aggregateUnit(u, snapshot.params.since, today) });

@@ -103,7 +103,7 @@ A test validates the committed file, the same way the manifests are guarded.
 `scripts/hours-sync.ts` does the following:
 
 1. Reads `data/hours.yml`.
-2. For each repo, runs `git clone --mirror --filter=blob:none https://x-access-token:$HOURS_GITHUB_TOKEN@github.com/<repo>.git` into a temp dir. A treeless clone is enough, because no diff is ever read.
+2. For each repo, runs `git clone --mirror --filter=blob:none https://github.com/<repo>.git` into a temp dir, with a 10-minute timeout. A treeless clone is enough, because no diff is ever read. The token never appears in the URL or in argv, where `ps` and git's own error text could show it. The auth header travels through the child's environment instead: `GIT_CONFIG_COUNT=1`, `GIT_CONFIG_KEY_0=http.extraheader`, `GIT_CONFIG_VALUE_0=AUTHORIZATION: basic <base64 of x-access-token:$HOURS_GITHUB_TOKEN>`. Any stderr is redacted of that value before it is reported. The `--local <dir>` flag, which reads local clones instead, is guarded: it throws without a directory, and it is `--dry-run` only, because local branches differ from the remote refs and must never be POSTed to production. The one exception is a `HOURS_URL` that points at `localhost` or `127.0.0.1`, which is how a local dev server is seeded.
 3. Runs `git log --all --no-merges --format=%aI%x09%an%x09%ae` and applies §2.1–2.2. This is pure code: `lib/hours.ts` `selectTimestamps(lines, config)`.
 4. Computes the snapshot (§5) with `lib/hours.ts` `buildSnapshot(config, timestampsByRepo, now)`.
 5. POSTs the snapshot to `https://www.ariko.app/api/hours` with `Authorization: Bearer $HOURS_TOKEN`.
@@ -142,6 +142,8 @@ The snapshot carries sessions, not aggregates. Every aggregate (§6) is derived 
 - a 512 KiB cap;
 - the session invariant `start ≤ end`;
 - `hours > 0`.
+
+On success it returns a freshly built object holding only the fields above. Unknown keys, such as a body `_id`, are dropped rather than stored and served by the public GET.
 
 ## 6. Ariko side
 

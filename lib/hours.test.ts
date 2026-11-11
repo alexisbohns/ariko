@@ -185,3 +185,30 @@ test("validateSnapshot refuses bad params", () => {
   refused(bad((s) => (s.generatedAt = "2026-13-11T00:00:00Z")), /generatedAt/);
   assert.equal(bad((s) => (s.generatedAt = "2026-11-11T00:00:00Z")).ok, true);
 });
+
+test("validateSnapshot returns a fresh object holding only the known fields", () => {
+  const s = fresh();
+  s._id = "current";
+  s.foo = "bar";
+  s.params.extra = 1;
+  s.global.secret = "x";
+  s.global.sessions[0].email = "a@b.c";
+  s.repos[0].sessions[0].email = "a@b.c";
+  if (s.plants[0]) s.plants[0].junk = true;
+  const r = validateSnapshot(s);
+  assert.equal(r.ok, true);
+  const out = (r as { ok: true; snapshot: any }).snapshot;
+  assert.notEqual(out, s);
+  assert.deepEqual(Object.keys(out).sort(), ["generatedAt", "global", "params", "plants", "repos", "v"]);
+  assert.deepEqual(Object.keys(out.params).sort(), ["gapMinutes", "leadMinutes", "since"]);
+  assert.equal("secret" in out.global, false);
+  assert.deepEqual(Object.keys(out.global.sessions[0]).sort(), ["commits", "end", "hours", "start"]);
+  assert.deepEqual(Object.keys(out.repos[0].sessions[0]).sort(), ["commits", "end", "hours", "start"]);
+  assert.deepEqual(out, fresh());
+});
+
+test("validateSnapshot keeps unit.plant only when present", () => {
+  const out = (validateSnapshot(fresh()) as { ok: true; snapshot: any }).snapshot;
+  assert.equal("plant" in out.global, false);
+  assert.equal(out.repos[0].plant, "p");
+});

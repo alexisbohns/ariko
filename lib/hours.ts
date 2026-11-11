@@ -165,33 +165,55 @@ type Result = { ok: true; snapshot: HoursSnapshot } | { ok: false; error: string
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
-function checkUnit(u: unknown, where: string, leadMinutes: number): string | null {
-  if (!isObj(u)) return `${where} must be an object`;
-  if (typeof u.key !== "string" || !u.key) return `${where}.key must be a string`;
-  if (typeof u.name !== "string" || !u.name) return `${where}.name must be a string`;
-  if (u.plant !== undefined && typeof u.plant !== "string") return `${where}.plant must be a string`;
-  if (!Array.isArray(u.repos) || !u.repos.every((r) => typeof r === "string")) return `${where}.repos must be strings`;
-  if (typeof u.commits !== "number" || u.commits < 0) return `${where}.commits must be a number`;
-  if (!Array.isArray(u.sessions)) return `${where}.sessions must be a list`;
+/**
+ * Validates one unit and, on success, returns a FRESH object holding only the
+ * known fields. Nothing the sender added survives (spec §5: sanitize at the door).
+ */
+function checkUnit(
+  u: unknown,
+  where: string,
+  leadMinutes: number,
+): { error: string } | { unit: HoursUnit } {
+  const fail = (error: string) => ({ error });
+  if (!isObj(u)) return fail(`${where} must be an object`);
+  if (typeof u.key !== "string" || !u.key) return fail(`${where}.key must be a string`);
+  if (typeof u.name !== "string" || !u.name) return fail(`${where}.name must be a string`);
+  if (u.plant !== undefined && typeof u.plant !== "string") return fail(`${where}.plant must be a string`);
+  if (!Array.isArray(u.repos) || !u.repos.every((r) => typeof r === "string")) return fail(`${where}.repos must be strings`);
+  if (typeof u.commits !== "number" || u.commits < 0) return fail(`${where}.commits must be a number`);
+  if (!Array.isArray(u.sessions)) return fail(`${where}.sessions must be a list`);
+  const sessions: HoursSession[] = [];
   for (let i = 0; i < u.sessions.length; i++) {
     const s = u.sessions[i];
     const at = `${where}.sessions[${i}]`;
-    if (!isObj(s)) return `${at} must be an object`;
-    if (typeof s.start !== "string" || !realLocal(s.start)) return `${at}.start must be a local timestamp`;
-    if (typeof s.end !== "string" || !realLocal(s.end)) return `${at}.end must be a local timestamp`;
-    if (s.end < s.start) return `${at} ends before it starts`;
-    if (typeof s.commits !== "number" || s.commits < 1) return `${at}.commits must be ≥ 1`;
+    if (!isObj(s)) return fail(`${at} must be an object`);
+    if (typeof s.start !== "string" || !realLocal(s.start)) return fail(`${at}.start must be a local timestamp`);
+    if (typeof s.end !== "string" || !realLocal(s.end)) return fail(`${at}.end must be a local timestamp`);
+    if (s.end < s.start) return fail(`${at} ends before it starts`);
+    if (typeof s.commits !== "number" || s.commits < 1) return fail(`${at}.commits must be ≥ 1`);
     if (typeof s.hours !== "number" || !Number.isFinite(s.hours) || s.hours <= 0 || s.hours > MAX_SESSION_HOURS) {
-      return `${at}.hours must be a finite number in (0, ${MAX_SESSION_HOURS}]`;
+      return fail(`${at}.hours must be a finite number in (0, ${MAX_SESSION_HOURS}]`);
     }
     // The method's invariant (spec §2.3): hours = (last − first) + lead.
     const expected = (ms(s.end) - ms(s.start)) / 3_600_000 + leadMinutes / 60;
     if (Math.abs(s.hours - expected) >= HOURS_SLACK) {
-      return `${at}.hours ${s.hours} does not match its span plus lead (${round3(expected)})`;
+      return fail(`${at}.hours ${s.hours} does not match its span plus lead (${round3(expected)})`);
     }
+    sessions.push({ start: s.start, end: s.end, commits: s.commits, hours: s.hours });
   }
-  return null;
+  return {
+    unit: {
+      key: u.key,
+      name: u.name,
+      ...(u.plant !== undefined ? { plant: u.plant } : {}),
+      repos: [...(u.repos as string[])],
+      commits: u.commits,
+      sessions,
+    },
+  };
 }
+
+
 
 export function validateSnapshot(x: unknown): Result {
   if (!isObj(x)) return { ok: false, error: "snapshot must be an object" };
@@ -208,14 +230,26 @@ export function validateSnapshot(x: unknown): Result {
   if (!posInt(p.leadMinutes)) return { ok: false, error: "params.leadMinutes must be a positive integer" };
   const lead = p.leadMinutes;
   const g = checkUnit(x.global, "global", lead);
-  if (g) return { ok: false, error: g };
+  if ("error" in g) return { ok: false, error: g.error };
+  const lists: Record<"plants" | "repos", HoursUnit[]> = { plants: [], repos: [] };
   for (const list of ["plants", "repos"] as const) {
     const arr = x[list];
     if (!Array.isArray(arr)) return { ok: false, error: `${list} must be a list` };
     for (let i = 0; i < arr.length; i++) {
       const e = checkUnit(arr[i], `${list}[${i}]`, lead);
-      if (e) return { ok: false, error: e };
+      if ("error" in e) return { ok: false, error: e.error };
+      lists[list].push(e.unit);
     }
   }
-  return { ok: true, snapshot: x as unknown as HoursSnapshot };
+  return {
+    ok: true,
+    snapshot: {
+      v: 1,
+      generatedAt: x.generatedAt,
+      params: { since: p.since, gapMinutes: p.gapMinutes, leadMinutes: p.leadMinutes },
+      global: g.unit,
+      plants: lists.plants,
+      repos: lists.repos,
+    },
+  };
 }
