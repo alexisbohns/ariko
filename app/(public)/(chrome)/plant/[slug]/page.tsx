@@ -17,7 +17,7 @@ import { ScreenLightbox } from "@/app/(public)/_components/screen-lightbox";
 import type { ExhibitionRow } from "@/lib/exhibition";
 import { getCachedHours } from "@/lib/hours-cache";
 import { aggregateUnit, parisToday } from "@/lib/hours-aggregate";
-import { HeatCalendar } from "@/components/heat-calendar";
+import { HeatCalendar, yearSummary } from "@/components/heat-calendar";
 
 export const dynamic = "force-dynamic";
 
@@ -128,8 +128,15 @@ export default async function PlantPage({ params }: { params: Promise<{ slug: st
       {work && work.totalSince > 0 ? (
         <section className="reveal flex flex-col gap-2">
           <h2 className="font-heading text-xs uppercase tracking-widest text-muted-foreground">Work</h2>
-          <div className="overflow-x-auto">
-            <HeatCalendar days={work.days} today={today} label={resolveText(plant.name, lang)} size="sm" />
+          {/* rtl scroller: opens on the most recent months, with no script. */}
+          <div className="overflow-x-auto [direction:rtl]">
+            <HeatCalendar
+              days={work.days}
+              today={today}
+              label={resolveText(plant.name, lang)}
+              summary={yearSummary(work.days, today)}
+              size="sm"
+            />
           </div>
           <p className="text-sm text-muted-foreground tabular-nums">
             {Math.round(work.totalSince)} h since {hours!.params.since} · {work.avgActiveWeek.toFixed(1)} h per active

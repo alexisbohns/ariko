@@ -2,9 +2,9 @@ import { getCachedHours } from "@/lib/hours-cache";
 import { getPublicDataset } from "@/lib/garden-cache";
 import { aggregateUnit, parisToday, type UnitAggregate } from "@/lib/hours-aggregate";
 import type { HoursUnit } from "@/lib/hours";
-import { HeatCalendar, HeatLegend } from "@/components/heat-calendar";
+import { HeatCalendar, HeatLegend, yearSummary } from "@/components/heat-calendar";
 import { HoursWeeklyBars } from "@/components/hours-weekly-bars";
-import { MonthTable, WeekTable, type HoursRow } from "@/components/hours-tables";
+import { MonthTable, partialMonths, WeekTable, type HoursRow } from "@/components/hours-tables";
 import { resolveText } from "@/lib/data";
 import { currentLang } from "@/lib/locale-server";
 import { seq } from "@/components/reveal";
@@ -76,9 +76,12 @@ export default async function HoursPage() {
   }
   const units = [...snapshot.plants.map((u) => ({ u, name: plantName(u) })), ...snapshot.repos.filter((u) => !u.plant).map((u) => ({ u, name: u.name }))]
     .map(({ u, name }) => ({ u, name, a: agg(u) }))
+    .filter(({ a }) => a.totalSince > 0)
     .sort((x, y) => y.u.sessions.reduce((s, z) => s + z.hours, 0) - x.u.sessions.reduce((s, z) => s + z.hours, 0));
   const sumRepos = snapshot.repos.reduce((s, u) => s + agg(u).totalSince, 0);
   const updated = ago(snapshot.generatedAt);
+  const partial = partialMonths(since, today);
+  const starred = partial.first || partial.last;
 
   const section = "flex flex-col gap-3";
   const h2 = "font-heading text-xs uppercase tracking-widest text-muted-foreground";
@@ -114,8 +117,9 @@ export default async function HoursPage() {
 
       <section className={section}>
         <h2 className={h2}>Past 12 months</h2>
-        <div className="overflow-x-auto">
-          <HeatCalendar days={g.days} today={today} label="All projects" />
+        {/* rtl scroller: opens on the most recent months, with no script. */}
+        <div className="overflow-x-auto [direction:rtl]">
+          <HeatCalendar days={g.days} today={today} label="All projects" summary={yearSummary(g.days, today)} />
         </div>
         <HeatLegend />
       </section>
@@ -140,9 +144,9 @@ export default async function HoursPage() {
 
       <section className={section}>
         <h2 className={h2}>Per month, by project</h2>
-        <p className="text-sm text-muted-foreground">* The first and current months are partial.</p>
+        {starred ? <p className="text-sm text-muted-foreground">* partial month</p> : null}
         <div className="overflow-x-auto">
-          <MonthTable rows={repoRows} total={total} months={months} />
+          <MonthTable rows={repoRows} total={total} months={months} since={since} today={today} />
         </div>
       </section>
 
@@ -161,8 +165,8 @@ export default async function HoursPage() {
                   {fmt(a.totalSince)} h · {a.sessionsSince} sessions{u.repos.length > 1 ? ` · ${u.repos.length} repos` : ""}
                 </span>
               </div>
-              <div className="overflow-x-auto">
-                <HeatCalendar days={a.days} today={today} label={name} size="sm" />
+              <div className="overflow-x-auto [direction:rtl]">
+                <HeatCalendar days={a.days} today={today} label={name} summary={yearSummary(a.days, today)} size="sm" />
               </div>
             </div>
           ))}

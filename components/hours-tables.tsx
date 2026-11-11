@@ -12,6 +12,15 @@ export interface HoursRow {
 const fmt = (h: number) => (h >= 10 ? Math.round(h).toLocaleString("en") : h.toFixed(1));
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+/** Whether the first month (from `since`) and the last (to `today`) are partial. */
+export function partialMonths(since: string, today: string): { first: boolean; last: boolean } {
+  const [y, m, d] = today.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return { first: since.slice(8, 10) !== "01", last: d !== lastDay };
+}
+
+const Star = () => <abbr title="partial month">*</abbr>;
+
 function Name({ row }: { row: HoursRow }) {
   return row.href ? (
     <a href={row.href} className="underline-offset-4 hover:underline">
@@ -24,7 +33,7 @@ function Name({ row }: { row: HoursRow }) {
 
 export function WeekTable({ rows, total }: { rows: HoursRow[]; total: HoursRow }) {
   const line = (r: HoursRow, isTotal = false) => (
-    <TableRow key={r.name} className={isTotal ? "font-semibold" : undefined}>
+    <TableRow key={isTotal ? "__total" : r.name} className={isTotal ? "font-semibold" : undefined}>
       <TableCell>{isTotal ? r.name : <Name row={r} />}</TableCell>
       <TableCell className="text-right tabular-nums">{fmt(r.agg.totalSince)}</TableCell>
       <TableCell className="text-right tabular-nums">
@@ -59,9 +68,22 @@ export function WeekTable({ rows, total }: { rows: HoursRow[]; total: HoursRow }
   );
 }
 
-export function MonthTable({ rows, total, months }: { rows: HoursRow[]; total: HoursRow; months: string[] }) {
+export function MonthTable({
+  rows,
+  total,
+  months,
+  since,
+  today,
+}: {
+  rows: HoursRow[];
+  total: HoursRow;
+  months: string[];
+  since: string;
+  today: string;
+}) {
+  const partial = partialMonths(since, today);
   const line = (r: HoursRow, isTotal = false) => (
-    <TableRow key={r.name} className={isTotal ? "font-semibold" : undefined}>
+    <TableRow key={isTotal ? "__total" : r.name} className={isTotal ? "font-semibold" : undefined}>
       <TableCell>{isTotal ? r.name : <Name row={r} />}</TableCell>
       {months.map((m) => {
         const h = r.agg.months[m] ?? 0;
@@ -83,7 +105,7 @@ export function MonthTable({ rows, total, months }: { rows: HoursRow[]; total: H
           {months.map((m, i) => (
             <TableHead key={m} className="text-right">
               {MONTHS[Number(m.slice(5, 7)) - 1]}
-              {i === 0 || i === months.length - 1 ? "*" : ""}
+              {(i === 0 && partial.first) || (i === months.length - 1 && partial.last) ? <Star /> : null}
             </TableHead>
           ))}
           <TableHead className="text-right">Total</TableHead>
