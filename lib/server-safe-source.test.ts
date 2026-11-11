@@ -86,6 +86,12 @@ const SERVER_SAFE = [
   // journal slice on; it imports `./data` as a TYPE only, which is what keeps
   // `node:fs` off that path — and the icon map stays in components/admin/.
   "lib/glyphs.ts",
+  // The work-hours surfaces (spec 2026-11-11-work-hours §6): /hours and the
+  // plant page's Work block render them. SVG + <title>, no island.
+  "components/heat-calendar.tsx",
+  "components/hours-weekly-bars.tsx",
+  "components/hours-tables.tsx",
+  "lib/hours-aggregate.ts",
   // The registry primitives the public zone renders — all of them, which is
   // the whole point. This list used to stop at components/, so shadcn's stock
   // "use client" on table.tsx cost every prose page 8.5 kB of
