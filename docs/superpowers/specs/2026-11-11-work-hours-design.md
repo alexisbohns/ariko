@@ -97,7 +97,7 @@ A test validates the committed file, the same way the manifests are guarded.
 ## 4. Engine: `hours-sync` workflow
 
 `.github/workflows/hours-sync.yml`:
-- Triggers: `schedule: "17 */6 * * *"` and `workflow_dispatch`.
+- Triggers: `schedule: "17 3 * * *"` (daily, 03:17 UTC) and `workflow_dispatch`. A full rebuild each run, not an incremental one: a blobless clone of the largest repo (pbbls, ~4,100 commits) takes ~2 s and ~8 MB. Do not switch to `--filter=tree:0`: `git log --all` on femfolk then needs a tree the clone skipped and fails, and a stateless rebuild self-heals after a failed run, a force-push or a `data/hours.yml` change. The calendar's unit is a day, so daily is enough.
 - Steps: checkout, Node 22, `npm ci`, then `npm run hours:sync`.
 
 `scripts/hours-sync.ts` does the following:
@@ -195,7 +195,7 @@ On success it returns a freshly built object holding only the fields above. Unkn
 
 ## 8. Freshness and failure
 
-- **Failed sync.** It shows as a red run in GitHub Actions, the same as `pollen-sync`. The page shows "Updated N hours ago". After 24 h it adds a muted "stale" chip.
+- **Failed sync.** It shows as a red run in GitHub Actions, the same as `pollen-sync`. The page shows "Updated N hours ago". After 36 h (one missed daily run, with slack for cron delay) it adds a muted "stale" chip.
 - **Empty or partial data.** The ingest refuses a snapshot whose global unit has zero sessions while the stored one has some. This protects against an identity misconfiguration wiping the page. The opt-out is the `?force=1` query parameter, which only the bearer token can use.
 
 ## 9. Testing

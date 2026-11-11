@@ -20,7 +20,7 @@ const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 function ago(iso: string, now = Date.now()): { text: string; stale: boolean } {
   const h = (now - Date.parse(iso)) / 3_600_000;
   const text = h < 1 ? "less than an hour ago" : h < 48 ? `${Math.round(h)} h ago` : `${Math.round(h / 24)} days ago`;
-  return { text, stale: h > 24 };
+  return { text, stale: h > 36 };
 }
 
 function Bars({ values, labels, every }: { values: number[]; labels: string[]; every: number }) {

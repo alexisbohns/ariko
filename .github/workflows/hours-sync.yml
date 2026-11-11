@@ -5,7 +5,7 @@ name: hours-sync
 
 on:
   schedule:
-    - cron: "17 */6 * * *"
+    - cron: "17 3 * * *" # daily, 04:17 Paris in winter / 05:17 in summer (cron is UTC)
   workflow_dispatch:
 
 permissions:
