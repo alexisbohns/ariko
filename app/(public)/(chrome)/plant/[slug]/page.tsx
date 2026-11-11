@@ -15,13 +15,16 @@ import { LinkRow } from "@/components/link-row";
 import { ScreenStrip } from "@/components/screen-strip";
 import { ScreenLightbox } from "@/app/(public)/_components/screen-lightbox";
 import type { ExhibitionRow } from "@/lib/exhibition";
+import { getCachedHours } from "@/lib/hours-cache";
+import { aggregateUnit, parisToday } from "@/lib/hours-aggregate";
+import { HeatCalendar } from "@/components/heat-calendar";
 
 export const dynamic = "force-dynamic";
 
 export default async function PlantPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const lang = await currentLang();
-  const [data, allPollen] = await Promise.all([getPublicDataset(), listPollen()]);
+  const [data, allPollen, hours] = await Promise.all([getPublicDataset(), listPollen(), getCachedHours()]);
   const plant = data.getPlant(slug);
   // A private container 404s rather than existing as an empty public shell.
   if (!plant) notFound();
@@ -59,6 +62,11 @@ export default async function PlantPage({ params }: { params: Promise<{ slug: st
     legend: resolveText(screen.legend ?? "", lang).trim(),
     image: screen.image,
   }));
+
+  // The Work block (work-hours spec §6): only when this plant has mapped repos.
+  const hoursUnit = hours?.plants.find((u) => u.plant === slug);
+  const today = parisToday();
+  const work = hoursUnit && hours ? aggregateUnit(hoursUnit, hours.params.since, today) : null;
 
   return (
     <article className="flex flex-col gap-8">
@@ -116,6 +124,22 @@ export default async function PlantPage({ params }: { params: Promise<{ slug: st
         content={plant.content}
         resolve={(ref) => resolveEntity(data, ref, lang)}
       />
+
+      {work && work.totalSince > 0 ? (
+        <section className="reveal flex flex-col gap-2">
+          <h2 className="font-heading text-xs uppercase tracking-widest text-muted-foreground">Work</h2>
+          <div className="overflow-x-auto">
+            <HeatCalendar days={work.days} today={today} label={resolveText(plant.name, lang)} size="sm" />
+          </div>
+          <p className="text-sm text-muted-foreground tabular-nums">
+            {Math.round(work.totalSince)} h since {hours!.params.since} · {work.avgActiveWeek.toFixed(1)} h per active
+            week ·{" "}
+            <a href="/hours" className="underline-offset-4 hover:underline">
+              all hours
+            </a>
+          </p>
+        </section>
+      ) : null}
 
       {/* Mechanical index — an aggregation with no argument to make (spec §5). */}
       {pods.length > 0 || beans.length > 0 ? (
