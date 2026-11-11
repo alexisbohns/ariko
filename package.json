@@ -17,6 +17,7 @@
     "validators": "node --env-file=.env.local --import tsx scripts/apply-validators.ts",
     "pollen:validate": "node --import tsx scripts/pollen-validate.ts",
     "pollen:rebuild": "node --env-file=.env.local --import tsx scripts/pollen-rebuild.ts",
+    "hours:sync": "node --import tsx scripts/hours-sync.ts",
     "migrate:journal": "node --env-file=.env.local --import tsx scripts/migrate-journal.ts",
     "backfill:plant-roles": "node --env-file=.env.local --import tsx scripts/backfill-plant-roles.ts",
     "check:orphans": "node --env-file=.env.local --import tsx scripts/check-orphan-assets.ts"
