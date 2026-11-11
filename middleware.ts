@@ -48,5 +48,5 @@ export const config = {
   // something to be bilingual about — and the sprout page, whose entry is
   // bilingual prose itself. A public page left off this list keeps a dead
   // language switch; lib/public-lang-matcher-source.test.ts reports it.
-  matcher: ["/admin/:path*", "/", "/beanstalk", "/plant/:slug*", "/pod/:slug*", "/bean/:id*", "/sprout/:slug*"],
+  matcher: ["/admin/:path*", "/", "/beanstalk", "/hours", "/plant/:slug*", "/pod/:slug*", "/bean/:id*", "/sprout/:slug*"],
 };

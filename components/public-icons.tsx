@@ -2,13 +2,13 @@ import type { ComponentType, SVGProps } from "react";
 import type { PlantRoleKind } from "@/lib/data";
 
 /**
- * The public zone's icon set — nine glyphs, as SERVER components.
+ * The public zone's icon set — ten glyphs, as SERVER components.
  *
  * `components/media.tsx` states the rule these exist to obey: lucide-react@1.33
  * routes every icon through an Icon.mjs carrying "use client", so a single
  * <Crown /> imported from it would push a client boundary into a zone whose
- * whole rule is that it has none. Nine glyphs would be nine boundaries, to
- * draw nine static shapes.
+ * whole rule is that it has none. Ten glyphs would be ten boundaries, to
+ * draw ten static shapes.
  *
  * So the path data is inlined instead. It IS lucide's — copied verbatim from
  * lucide-react@1.33 (ISC licence: "Permission to use, copy, modify, and/or
@@ -21,10 +21,10 @@ import type { PlantRoleKind } from "@/lib/data";
  * chrome puts the word in the anchor's aria-label, and the plant head renders
  * the word beside the icon. Nothing here is the accessible name for anything.
  *
- * Adding a tenth: copy `__iconNode` out of
+ * Adding an eleventh: copy `__iconNode` out of
  * node_modules/lucide-react/dist/esm/icons/<name>.mjs. Do not eyeball it.
  *
- * Bumping lucide: RE-COPY ALL NINE. package.json carries a caret on
+ * Bumping lucide: RE-COPY ALL TEN. package.json carries a caret on
  * lucide-react, and lucide redraws icons in minor releases — so an ordinary
  * install can move the admin's glyph and leave this copy behind, which no
  * compiler can see because the copy is a string.
@@ -84,6 +84,24 @@ export function WaypointsIcon(props: SVGProps<SVGSVGElement>) {
       <circle cx="12" cy="4" r="2" />
       <circle cx="20" cy="12" r="2" />
       <circle cx="4" cy="12" r="2" />
+    </SvgFrame>
+  );
+}
+
+/** lucide `calendar-days` — the work hours. The public chrome's /hours link. */
+export function CalendarIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <SvgFrame {...props}>
+      <path d="M8 2v3" />
+      <path d="M16 2v3" />
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="M3 9h18" />
+      <path d="M8 13h.01" />
+      <path d="M12 13h.01" />
+      <path d="M16 13h.01" />
+      <path d="M8 17h.01" />
+      <path d="M12 17h.01" />
+      <path d="M16 17h.01" />
     </SvgFrame>
   );
 }

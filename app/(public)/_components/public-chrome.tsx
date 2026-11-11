@@ -1,7 +1,7 @@
 import { ArikoIcon } from "@/components/brand/ariko-icon";
 import { Chrome, ChromeLink } from "@/components/chrome";
 import { PreferencesMenu } from "@/app/(public)/_components/preferences-menu";
-import { SproutIcon, WaypointsIcon } from "@/components/public-icons";
+import { CalendarIcon, SproutIcon, WaypointsIcon } from "@/components/public-icons";
 import type { Lang } from "@/lib/locale";
 
 /**
@@ -47,6 +47,9 @@ export function PublicChrome({ lang, authed }: { lang: Lang; authed: boolean }) 
         </ChromeLink>
         <ChromeLink href="/beanstalk" label="Beanstalk">
           <WaypointsIcon className="size-4" />
+        </ChromeLink>
+        <ChromeLink href="/hours" label="Hours">
+          <CalendarIcon className="size-4" />
         </ChromeLink>
       </Chrome>
 

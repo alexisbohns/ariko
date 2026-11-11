@@ -5,6 +5,7 @@ import type { ComponentType, SVGProps } from "react";
 
 import {
   Bean,
+  CalendarDays,
   ChessKnight,
   ChessPawn,
   Crown,
@@ -18,6 +19,7 @@ import { PLANT_ROLE_ICONS as ADMIN_ROLE_ICONS } from "./admin/glyphs";
 import { PLANT_ROLE_KINDS } from "@/lib/plant-role";
 import {
   BeanIcon,
+  CalendarIcon,
   ChessKnightIcon,
   ChessPawnIcon,
   CrownIcon,
@@ -44,7 +46,7 @@ import {
  * first person to notice is a visitor comparing two pages.
  *
  * So this test renders both and compares the GEOMETRY. On a lucide bump that
- * moves any of the nine, it fails loudly — which is the point: the fix is for
+ * moves any of the ten, it fails loudly — which is the point: the fix is for
  * someone to re-copy the data deliberately, not for the divergence to ship.
  *
  * Two deliberate limits on what is compared:
@@ -53,8 +55,9 @@ import {
  *    reaching into dist/esm/icons/<name>.mjs for `__iconNode` would be reading a
  *    private implementation detail that a future package layout is free to move.
  *    Rendering the exported component is the contract lucide actually offers.
- *  - Geometry ONLY — every <path>/<circle>/<polyline>'s `d`, `cx`, `cy`, `r`
- *    and `points`, in document order. Stroke, fill, class and size legitimately
+ *  - Geometry ONLY — every <path>/<circle>/<polyline>/<rect>'s `d`, `cx`, `cy`, `r`
+ *    `points`, and a rect's `x`, `y`, `width`, `height` and `rx`, in document
+ *    order. Stroke, fill, class and size legitimately
  *    differ: our SvgFrame sets its own defaults and callers size the glyph
  *    themselves. Asserting on those would make this test fail for a reason that
  *    has nothing to do with the shape it exists to protect.
@@ -70,7 +73,9 @@ type Geometry = Record<string, string | undefined>;
 // polyline: an attribute the extractor does not read is an attribute that can
 // drift without failing anything, which is the exact hole this file exists to
 // close.
-const GEOMETRY_ATTRS = ["d", "cx", "cy", "r", "points"] as const;
+// `rect` and its five numbers join for lucide's `calendar-days`, whose frame is
+// a rounded rect, for the same reason.
+const GEOMETRY_ATTRS = ["d", "cx", "cy", "r", "points", "x", "y", "width", "height", "rx"] as const;
 
 /**
  * Attribute order inside a tag is an implementation detail of whoever emitted
@@ -80,7 +85,7 @@ const GEOMETRY_ATTRS = ["d", "cx", "cy", "r", "points"] as const;
  */
 const geometryOf = (markup: string): Geometry[] => {
   const shapes: Geometry[] = [];
-  for (const tag of markup.matchAll(/<(path|circle|polyline)\b([^>]*)>/g)) {
+  for (const tag of markup.matchAll(/<(path|circle|polyline|rect)\b([^>]*)>/g)) {
     const [, , attrs] = tag;
     const shape: Geometry = { tag: tag[1] };
     for (const name of GEOMETRY_ATTRS) {
@@ -111,6 +116,7 @@ const pairs: ReadonlyArray<
   ["zap-off", ZapOff, ZapOffIcon],
   ["chess-knight", ChessKnight, ChessKnightIcon],
   ["chess-pawn", ChessPawn, ChessPawnIcon],
+  ["calendar-days", CalendarDays, CalendarIcon],
 ];
 
 for (const [name, Upstream, Ours] of pairs) {
