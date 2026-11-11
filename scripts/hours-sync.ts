@@ -57,7 +57,7 @@ function git(args: string[], opts: { env?: NodeJS.ProcessEnv; timeout?: number }
 }
 
 function logLines(dir: string): string[] {
-  return git(["-C", dir, "log", "--all", "--no-merges", "--format=%aI%x09%an%x09%ae"]).split("\n");
+  return git(["-C", dir, "log", "--all", "--no-merges", "--format=%aI%x09%an%x09%ae%x09%ce"]).split("\n");
 }
 
 async function main(): Promise<void> {

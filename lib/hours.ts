@@ -73,14 +73,22 @@ export function localStamp(iso: string): string | null {
 
 const ms = (local: string) => Date.parse(`${local}Z`);
 
-/** Lines are `git log --format=%aI%x09%an%x09%ae`. Returns sorted unique local stamps. */
+/** Commits GitHub itself created: squash/rebase merges (stamped at the merge click) and web edits. */
+const GITHUB_COMMITTER = "noreply@github.com";
+
+/**
+ * Lines are `git log --format=%aI%x09%an%x09%ae%x09%ce`. Returns sorted unique local stamps.
+ * A commit whose committer is GitHub is dropped (spec §2.1): the PR's own commits, kept
+ * under refs/pull/*, already carry the real work times.
+ */
 export function selectTimestamps(lines: string[], rules: SelectRules): string[] {
   const ids = new Set(rules.identities);
   const out = new Set<string>();
   for (const line of lines) {
-    const [date, name, email] = line.split("\t");
+    const [date, name, email, committer] = line.split("\t");
     if (!date || name === undefined || email === undefined) continue;
     if (!ids.has(email.trim().toLowerCase())) continue;
+    if (committer?.trim().toLowerCase() === GITHUB_COMMITTER) continue;
     const who = `${name.trim()} <${email.trim()}>`;
     if (rules.exclude.some((re) => re.test(who))) continue;
     const stamp = localStamp(date);

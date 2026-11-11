@@ -32,6 +32,7 @@ This is the method the prototype used, frozen here so the numbers stay reproduci
 1. **Commits.**
    - Take `git log --all --no-merges` of each configured repo. The repo is cloned with `--mirror`, so `refs/pull/*` heads are included and branch commits survive branch deletion.
    - Keep a commit when its author email is in `identities` (§3). Then drop it if its author name or email matches `exclude` (bots, `Claude`, Copilot).
+   - Drop it too when its committer is `noreply@github.com`: GitHub made it (a squash or rebase merge, or a web edit). A squash merge is stamped at the merge click, not the work; on Oxymore those clicks alone added 23.4 h and 8 sessions. The PR's own commits stay reachable under `refs/pull/*`, so the real work is still counted. Web-editor edits are lost, which is accepted.
 2. **Timestamp.**
    - Use the author date. A rebase rewrites the committer date, and the author date survives it.
    - Keep the author's **local wall-clock** time: the ISO string with its offset removed. This is the time Alexis saw.
@@ -54,7 +55,7 @@ This is the method the prototype used, frozen here so the numbers stay reproduci
    - `since` defaults to 2026-03-16.
    - The heat calendars ignore `since`. They always show the trailing 53 weeks.
 
-**Acceptance baseline.** Run with the repos in §3 on 2026-11-11, the method should give about **917 h in 343 sessions since 2026-03-16**. Remote refs differ slightly from local branches, so a deviation of up to ±5% is acceptable. A bigger gap is a bug.
+**Acceptance baseline.** The prototype, run on local clones on 2026-11-11, gave about 917 h in 343 sessions since 2026-03-16. The GitHub mirrors hold far more of Alexis's commits than those clones did (PR branches deleted after merge survive under `refs/pull/*`; Oxymore had 865 unique stamps remotely against 374 locally), so the remote figure is the reference: with GitHub-committed commits dropped, **928 h in 301 sessions** on 2026-11-11 (Oxymore 119.8 h). A deviation of more than ±5% on the same date is a bug.
 
 ## 3. Configuration: `data/hours.yml`
 
@@ -104,7 +105,7 @@ A test validates the committed file, the same way the manifests are guarded.
 
 1. Reads `data/hours.yml`.
 2. For each repo, runs `git clone --mirror --filter=blob:none https://github.com/<repo>.git` into a temp dir, with a 10-minute timeout. A treeless clone is enough, because no diff is ever read. The token never appears in the URL or in argv, where `ps` and git's own error text could show it. The auth header travels through the child's environment instead: `GIT_CONFIG_COUNT=1`, `GIT_CONFIG_KEY_0=http.extraheader`, `GIT_CONFIG_VALUE_0=AUTHORIZATION: basic <base64 of x-access-token:$HOURS_GITHUB_TOKEN>`. Any stderr is redacted of that value before it is reported. The `--local <dir>` flag, which reads local clones instead, is guarded: it throws without a directory, and it is `--dry-run` only, because local branches differ from the remote refs and must never be POSTed to production. The one exception is a `HOURS_URL` that points at `localhost` or `127.0.0.1`, which is how a local dev server is seeded.
-3. Runs `git log --all --no-merges --format=%aI%x09%an%x09%ae` and applies §2.1–2.2. This is pure code: `lib/hours.ts` `selectTimestamps(lines, config)`.
+3. Runs `git log --all --no-merges --format=%aI%x09%an%x09%ae%x09%ce` and applies §2.1–2.2. This is pure code: `lib/hours.ts` `selectTimestamps(lines, config)`.
 4. Computes the snapshot (§5) with `lib/hours.ts` `buildSnapshot(config, timestampsByRepo, now)`.
 5. POSTs the snapshot to `https://www.ariko.app/api/hours` with `Authorization: Bearer $HOURS_TOKEN`.
 

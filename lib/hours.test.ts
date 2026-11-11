@@ -37,6 +37,16 @@ test("selectTimestamps filters identity and excludes, dedups, sorts", () => {
   assert.deepEqual(selectTimestamps(lines, rules), ["2026-08-07T08:00:00", "2026-08-07T09:00:00"]);
 });
 
+test("selectTimestamps drops commits GitHub itself committed (squash/rebase merges, web edits)", () => {
+  const lines = [
+    "2026-09-20T14:42:44+02:00\tBohns\thello@bohns.design\tnoreply@github.com", // squash merge click
+    "2026-09-20T10:00:00+02:00\tAlexis\thello@bohns.design\thello@bohns.design", // the real PR commit
+    "2026-09-20T11:00:00+02:00\tAlexis\thello@bohns.design\t NoReply@GitHub.com ", // case and spaces don't dodge it
+    "2026-09-20T12:00:00+02:00\tAlexis\thello@bohns.design", // no committer field: kept (older log format)
+  ];
+  assert.deepEqual(selectTimestamps(lines, rules), ["2026-09-20T10:00:00", "2026-09-20T12:00:00"]);
+});
+
 test("sessionize: a single commit is one lead-length session", () => {
   assert.deepEqual(sessionize(["2026-08-07T08:00:00"], 120, 30), [
     { start: "2026-08-07T08:00:00", end: "2026-08-07T08:00:00", commits: 1, hours: 0.5 },
