@@ -1,0 +1,29 @@
+# Work hours (spec docs/superpowers/specs/2026-11-11-work-hours-design.md).
+# Which GitHub repos count, whose commits are Alexis's, and the session method.
+# Merging is deploying: the next hours-sync run uses this file.
+since: 2026-03-16      # averages start here; calendars always show 53 weeks
+gapMinutes: 120        # a longer silence starts a new session
+leadMinutes: 30        # credited before each session's first commit
+identities:
+  - hello@bohns.design
+  - alexis.bohn@teale.io
+  - alexis@enerfip.fr
+  - 58178426+alexisbohns@users.noreply.github.com
+exclude:               # case-insensitive, matched on "Name <email>"
+  - "\\[bot\\]"
+  - "^claude <"
+  - "^copilot <"
+  - "noreply@anthropic\\.com"
+repos:
+  - { repo: alexisbohns/pbbls, name: pbbls, plant: pbbls }
+  - { repo: alexisbohns/arkaik, name: arkaik, plant: arkaik }
+  - { repo: alexisbohns/ariko, name: ariko, plant: ariko }
+  - { repo: alexisbohns/femfolk, name: femfolk, plant: femfolk }
+  - { repo: alexisbohns/melogram, name: melogram, plant: melogram }
+  - { repo: alexisbohns/paulopus, name: paulopus, plant: paulopus }
+  - { repo: OxymoreApp/Oxymore, name: Oxymore, plant: oxymore }
+  - { repo: alexisbohns/bohnsdesign, name: bohnsdesign }
+  - { repo: alexisbohns/letsgong, name: letsgong }
+  - { repo: alexisbohns/krabs, name: krabs }
+  - { repo: alexisbohns/sparkaik, name: sparkaik }
+  - { repo: l855skipi/skillteplait, name: skillteplait }
