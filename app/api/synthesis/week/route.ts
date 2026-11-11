@@ -1,5 +1,7 @@
 import { hasValidToken, singleToken } from "../../../../lib/auth";
 import { bucketWeek, isValidWeekId, weekBounds } from "../../../../lib/synthesis";
+import { loadHoursSnapshot } from "../../../../lib/hours-store";
+import { weekHours } from "../../../../lib/hours-aggregate";
 import { loadWeekMaterial, listDigestBeanSlugs } from "../../../../lib/synthesis-store";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +19,11 @@ export async function GET(request: Request): Promise<Response> {
     return Response.json({ error: `invalid week id: ${week}` }, { status: 400 });
   }
   const bounds = weekBounds(week);
-  const [material, digestBeans] = await Promise.all([loadWeekMaterial(), listDigestBeanSlugs()]);
+  const [material, digestBeans, hoursSnapshot] = await Promise.all([
+    loadWeekMaterial(),
+    listDigestBeanSlugs(),
+    loadHoursSnapshot(),
+  ]);
   const { plants, quiet } = bucketWeek(
     material.pollen,
     material.sprouts,
@@ -33,5 +39,7 @@ export async function GET(request: Request): Promise<Response> {
     // digest-<plant> container here has no destination to draft into —
     // the routine mentions it in the wrap's quiet/skipped line instead.
     digestBeans: [...digestBeans].sort(),
+    // Work-hours tally for the wrap (work-hours spec §7); null before the first sync.
+    hours: hoursSnapshot ? weekHours(hoursSnapshot, bounds.start, bounds.end) : null,
   });
 }

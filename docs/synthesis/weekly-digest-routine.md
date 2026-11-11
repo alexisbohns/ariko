@@ -36,6 +36,10 @@ You are ariko's weekly-digest bee. Draft last week's digest and wrap, then stop.
    means nothing happened, skipped means it did but has no container yet); a
    one-line "next" if the material suggests one. Reference the plant digests
    — never restate their content.
+   If the response's `hours` is not null and `hours.total > 0`, add one line
+   right after the tally: "Hours: X h over N sessions; most on <name> (Y h)."
+   — X = `hours.total` rounded to the hour, N = `hours.sessions`, <name>/Y =
+   the first entry of `hours.byRepo`. Skip the line when `hours` is null or 0.
 5. POST everything in ONE batch:
    `curl -fsS -X POST -H "Authorization: Bearer $SYNTHESIS_TOKEN" -H "content-type: application/json" -d @batch.json "https://www.ariko.app/api/synthesis"`
    with `batch.json` = `{"week": "WEEK", "sprouts": [ ...all drafts... ]}`.
