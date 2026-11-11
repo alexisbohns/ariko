@@ -24,7 +24,10 @@ export const dynamic = "force-dynamic";
 export default async function PlantPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const lang = await currentLang();
-  const [data, allPollen, hours] = await Promise.all([getPublicDataset(), listPollen(), getCachedHours()]);
+  const [data, allPollen, hours] = await Promise.all([getPublicDataset(), listPollen(),
+    // The Work block is optional: a failed hours read must not take the plant page down.
+    getCachedHours().catch(() => null),
+  ]);
   const plant = data.getPlant(slug);
   // A private container 404s rather than existing as an empty public shell.
   if (!plant) notFound();

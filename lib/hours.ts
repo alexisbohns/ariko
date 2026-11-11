@@ -148,7 +148,7 @@ export function buildSnapshot(
     if (r.plant) byPlant.set(r.plant, [...(byPlant.get(r.plant) ?? []), r.repo]);
   }
   const plants = [...byPlant].map(([slug, rs]) =>
-    unit(`plant:${slug}`, slug, rs, rs.flatMap(of), cfg, slug),
+    unit(`plant:${slug}`, cfg.repos.find((r) => r.plant === slug)?.name ?? slug, rs, rs.flatMap(of), cfg, slug),
   );
   const allRepos = cfg.repos.map((r) => r.repo);
   return {
@@ -180,7 +180,7 @@ function checkUnit(
   if (typeof u.name !== "string" || !u.name) return fail(`${where}.name must be a string`);
   if (u.plant !== undefined && typeof u.plant !== "string") return fail(`${where}.plant must be a string`);
   if (!Array.isArray(u.repos) || !u.repos.every((r) => typeof r === "string")) return fail(`${where}.repos must be strings`);
-  if (typeof u.commits !== "number" || u.commits < 0) return fail(`${where}.commits must be a number`);
+  if (!Number.isInteger(u.commits) || (u.commits as number) < 0) return fail(`${where}.commits must be a number`);
   if (!Array.isArray(u.sessions)) return fail(`${where}.sessions must be a list`);
   const sessions: HoursSession[] = [];
   for (let i = 0; i < u.sessions.length; i++) {
@@ -190,7 +190,7 @@ function checkUnit(
     if (typeof s.start !== "string" || !realLocal(s.start)) return fail(`${at}.start must be a local timestamp`);
     if (typeof s.end !== "string" || !realLocal(s.end)) return fail(`${at}.end must be a local timestamp`);
     if (s.end < s.start) return fail(`${at} ends before it starts`);
-    if (typeof s.commits !== "number" || s.commits < 1) return fail(`${at}.commits must be ≥ 1`);
+    if (!Number.isInteger(s.commits) || (s.commits as number) < 1) return fail(`${at}.commits must be ≥ 1`);
     if (typeof s.hours !== "number" || !Number.isFinite(s.hours) || s.hours <= 0 || s.hours > MAX_SESSION_HOURS) {
       return fail(`${at}.hours must be a finite number in (0, ${MAX_SESSION_HOURS}]`);
     }
@@ -199,7 +199,7 @@ function checkUnit(
     if (Math.abs(s.hours - expected) >= HOURS_SLACK) {
       return fail(`${at}.hours ${s.hours} does not match its span plus lead (${round3(expected)})`);
     }
-    sessions.push({ start: s.start, end: s.end, commits: s.commits, hours: s.hours });
+    sessions.push({ start: s.start, end: s.end, commits: s.commits as number, hours: s.hours });
   }
   return {
     unit: {
@@ -207,7 +207,7 @@ function checkUnit(
       name: u.name,
       ...(u.plant !== undefined ? { plant: u.plant } : {}),
       repos: [...(u.repos as string[])],
-      commits: u.commits,
+      commits: u.commits as number,
       sessions,
     },
   };

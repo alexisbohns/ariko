@@ -911,6 +911,8 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ### Task 4: Engine script — `scripts/hours-sync.ts`
 
+> **Superseded by the committed `scripts/hours-sync.ts`.** The code below passes the token in git's argv, and it lacks the `--local` guard and the stderr redaction. Do not copy it; read the real script instead.
+
 **Files:**
 - Create: `scripts/hours-sync.ts`
 - Modify: `package.json`, adding one script

@@ -22,7 +22,8 @@ export async function GET(request: Request): Promise<Response> {
   const [material, digestBeans, hoursSnapshot] = await Promise.all([
     loadWeekMaterial(),
     listDigestBeanSlugs(),
-    loadHoursSnapshot(),
+    // `hours` may be null (spec §7): a broken hours collection must not fail the digest.
+    loadHoursSnapshot().catch(() => null),
   ]);
   const { plants, quiet } = bucketWeek(
     material.pollen,

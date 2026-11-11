@@ -45,7 +45,7 @@ export default async function HoursPage() {
       <article className="flex flex-col gap-4">
         <h1 className="font-heading text-2xl font-medium tracking-tight">Hours</h1>
         <p className="text-muted-foreground">
-          No hours synced yet. Once the hourly sync runs, this page shows work time estimated from commit timestamps.
+          No hours synced yet. Once the sync runs, this page shows work time estimated from commit timestamps.
         </p>
       </article>
     );
