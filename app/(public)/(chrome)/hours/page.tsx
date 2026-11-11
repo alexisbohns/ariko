@@ -186,7 +186,7 @@ export default async function HoursPage() {
         <ul className="flex list-disc flex-col gap-1 pl-5">
           <li>Every branch of each GitHub repo, my own commits only. Bots and commits authored by Claude are left out.</li>
           <li>Each commit's author time, in the timezone where it was made. A session belongs to the day it started.</li>
-          <li>Time spent designing, in meetings or away from git doesn&apos;t appear. A squash merge keeps only its merge time.</li>
+          <li>Time spent designing, in meetings or away from git doesn&apos;t appear. The commits GitHub creates when I merge a pull request are left out; the pull request&apos;s own commits count.</li>
           <li>When an agent commits every few minutes, a session can run as long as the agent does, so long sessions are an upper bound.</li>
         </ul>
       </section>
