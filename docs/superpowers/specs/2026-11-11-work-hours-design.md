@@ -42,11 +42,13 @@ This is the method the prototype used, frozen here so the numbers stay reproduci
 4. **Units.**
    - Sessions are computed for each repo, for each plant (all timestamps of the plant's repos merged), and globally (every repo merged).
    - Because of the merge, the global figure counts parallel work in two repos only once. Per-repo totals therefore add up to more than the global total. The page says so.
+   - For the same reason the global and plant `commits` count unique timestamps across the merged repos, so they can be lower than the sum of the repos.
+   - Durations are wall-clock, so a session that spans a DST switch is off by an hour. This is accepted.
 5. **Day bucketing.**
    - A session belongs to the local date of its first commit.
    - A week runs Monday to Sunday (ISO). A month is a calendar month.
 6. **Averages.**
-   - "Avg / week" is hours ÷ the number of weeks from `since` (inclusive) to today.
+   - "Avg / week" is hours ÷ fractional weeks: the days from `since` to today, inclusive, ÷ 7.
    - "Avg / active week" divides by the weeks that have at least one session.
    - "Avg / month" is hours ÷ months elapsed since `since`, where months elapsed = days ÷ 30.44.
    - `since` defaults to 2026-03-16.
@@ -203,7 +205,7 @@ The snapshot carries sessions, not aggregates. Every aggregate (§6) is derived 
   - `validateSnapshot`;
   - every aggregate in `hours-aggregate` (week math across years and ISO week 53, `since` mid-week, streaks);
   - `hours-config` against the committed file.
-- **Fixture parity.** A small TSV fixture taken from the prototype's data, with known session counts and hours, guards the method against drift.
+- **Fixture parity.** Satisfied by the `--dry-run --local` acceptance run below, not by a committed TSV fixture.
 - **Route tests.** Pure handler tests for auth (401), validation (400), size (413) and the empty-wipe guard.
 - **Acceptance.**
   - `npm run hours:sync -- --dry-run` locally matches the §2 baseline.

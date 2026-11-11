@@ -77,6 +77,14 @@ export function calendarWeeks(today: string): (string | null)[][] {
   return cols;
 }
 
+/** Median of an ascending list; the mean of the two middle values when the count is even. */
+function median(sorted: number[]): number {
+  const n = sorted.length;
+  if (!n) return 0;
+  const mid = Math.floor(n / 2);
+  return n % 2 ? sorted[mid] : r2((sorted[mid - 1] + sorted[mid]) / 2);
+}
+
 const dayOf = (s: HoursSession) => s.start.slice(0, 10);
 
 export function aggregateUnit(unit: HoursUnit, since: string, today: string): UnitAggregate {
@@ -132,7 +140,7 @@ export function aggregateUnit(unit: HoursUnit, since: string, today: string): Un
     avgActiveWeek: activeWeeks ? r2(totalSince / activeWeeks) : 0,
     avgMonth: r2(totalSince / monthsElapsed),
     peakWeek: peak ? { week: peak[0], hours: peak[1] } : null,
-    medianSession: sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0,
+    medianSession: median(sorted),
     longestSession: sorted.length ? sorted[sorted.length - 1] : 0,
     byWeekday: byWeekday.map(r2),
     byHour: byHour.map(r2),

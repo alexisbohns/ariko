@@ -30,6 +30,8 @@ test("plant is optional", () => {
 for (const [label, patch, msg] of [
   ["unknown top-level key", { colour: "green" }, /unknown key "colour"/],
   ["bad since", { since: "16/03/2026" }, /since/],
+  ["since that is not a real day", { since: "2026-02-31" }, /since/],
+  ["since month 99", { since: "2026-99-99" }, /since/],
   ["zero gap", { gapMinutes: 0 }, /gapMinutes/],
   ["negative lead", { leadMinutes: -1 }, /leadMinutes/],
   ["empty identities", { identities: [] }, /identities/],

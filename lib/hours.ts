@@ -47,6 +47,24 @@ export const MAX_SNAPSHOT_BYTES = 512 * 1024;
 const STAMP = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:Z|[+-]\d{2}:\d{2})$/;
 const LOCAL = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const GENERATED_AT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+
+/** A local "YYYY-MM-DDTHH:MM:SS" that exists on the calendar (no month 13, no 25:00, no Feb 31). */
+export function realLocal(s: string): boolean {
+  if (!LOCAL.test(s)) return false;
+  const d = new Date(`${s}Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 19) === s;
+}
+
+/** A "YYYY-MM-DD" that exists on the calendar. */
+export function realDay(d: string): boolean {
+  if (!DAY.test(d)) return false;
+  const t = new Date(`${d}T00:00:00Z`);
+  return !Number.isNaN(t.getTime()) && t.toISOString().slice(0, 10) === d;
+}
+
+const MAX_SESSION_HOURS = 168; // sanity bound only; the invariant below is the real check
+const HOURS_SLACK = 0.002; // hours are rounded to 3 decimals
 
 export function localStamp(iso: string): string | null {
   const m = STAMP.exec(iso.trim());
@@ -63,7 +81,7 @@ export function selectTimestamps(lines: string[], rules: SelectRules): string[] 
     const [date, name, email] = line.split("\t");
     if (!date || name === undefined || email === undefined) continue;
     if (!ids.has(email.trim().toLowerCase())) continue;
-    const who = `${name} <${email}>`;
+    const who = `${name.trim()} <${email.trim()}>`;
     if (rules.exclude.some((re) => re.test(who))) continue;
     const stamp = localStamp(date);
     if (stamp) out.add(stamp);
@@ -147,7 +165,7 @@ type Result = { ok: true; snapshot: HoursSnapshot } | { ok: false; error: string
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
-function checkUnit(u: unknown, where: string): string | null {
+function checkUnit(u: unknown, where: string, leadMinutes: number): string | null {
   if (!isObj(u)) return `${where} must be an object`;
   if (typeof u.key !== "string" || !u.key) return `${where}.key must be a string`;
   if (typeof u.name !== "string" || !u.name) return `${where}.name must be a string`;
@@ -159,11 +177,18 @@ function checkUnit(u: unknown, where: string): string | null {
     const s = u.sessions[i];
     const at = `${where}.sessions[${i}]`;
     if (!isObj(s)) return `${at} must be an object`;
-    if (typeof s.start !== "string" || !LOCAL.test(s.start)) return `${at}.start must be a local timestamp`;
-    if (typeof s.end !== "string" || !LOCAL.test(s.end)) return `${at}.end must be a local timestamp`;
+    if (typeof s.start !== "string" || !realLocal(s.start)) return `${at}.start must be a local timestamp`;
+    if (typeof s.end !== "string" || !realLocal(s.end)) return `${at}.end must be a local timestamp`;
     if (s.end < s.start) return `${at} ends before it starts`;
     if (typeof s.commits !== "number" || s.commits < 1) return `${at}.commits must be ≥ 1`;
-    if (typeof s.hours !== "number" || !(s.hours > 0) || s.hours > 48) return `${at}.hours must be in (0, 48]`;
+    if (typeof s.hours !== "number" || !Number.isFinite(s.hours) || s.hours <= 0 || s.hours > MAX_SESSION_HOURS) {
+      return `${at}.hours must be a finite number in (0, ${MAX_SESSION_HOURS}]`;
+    }
+    // The method's invariant (spec §2.3): hours = (last − first) + lead.
+    const expected = (ms(s.end) - ms(s.start)) / 3_600_000 + leadMinutes / 60;
+    if (Math.abs(s.hours - expected) >= HOURS_SLACK) {
+      return `${at}.hours ${s.hours} does not match its span plus lead (${round3(expected)})`;
+    }
   }
   return null;
 }
@@ -171,23 +196,24 @@ function checkUnit(u: unknown, where: string): string | null {
 export function validateSnapshot(x: unknown): Result {
   if (!isObj(x)) return { ok: false, error: "snapshot must be an object" };
   if (x.v !== 1) return { ok: false, error: "v must be 1" };
-  if (typeof x.generatedAt !== "string" || Number.isNaN(Date.parse(x.generatedAt))) {
-    return { ok: false, error: "generatedAt must be an ISO date" };
+  if (typeof x.generatedAt !== "string" || !GENERATED_AT.test(x.generatedAt) || Number.isNaN(Date.parse(x.generatedAt))) {
+    return { ok: false, error: "generatedAt must be a UTC ISO date" };
   }
   const p = x.params;
-  if (!isObj(p) || typeof p.since !== "string" || !DAY.test(p.since)) {
-    return { ok: false, error: "params.since must be YYYY-MM-DD" };
+  if (!isObj(p) || typeof p.since !== "string" || !realDay(p.since)) {
+    return { ok: false, error: "params.since must be a real YYYY-MM-DD date" };
   }
-  if (typeof p.gapMinutes !== "number" || typeof p.leadMinutes !== "number") {
-    return { ok: false, error: "params.gapMinutes and leadMinutes must be numbers" };
-  }
-  const g = checkUnit(x.global, "global");
+  const posInt = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n > 0;
+  if (!posInt(p.gapMinutes)) return { ok: false, error: "params.gapMinutes must be a positive integer" };
+  if (!posInt(p.leadMinutes)) return { ok: false, error: "params.leadMinutes must be a positive integer" };
+  const lead = p.leadMinutes;
+  const g = checkUnit(x.global, "global", lead);
   if (g) return { ok: false, error: g };
   for (const list of ["plants", "repos"] as const) {
     const arr = x[list];
     if (!Array.isArray(arr)) return { ok: false, error: `${list} must be a list` };
     for (let i = 0; i < arr.length; i++) {
-      const e = checkUnit(arr[i], `${list}[${i}]`);
+      const e = checkUnit(arr[i], `${list}[${i}]`, lead);
       if (e) return { ok: false, error: e };
     }
   }

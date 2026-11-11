@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import yaml from "js-yaml";
+import { realDay } from "./hours";
 import { isObject, nonEmptyString } from "./text-input";
 
 // The hours config (spec §3). A pure parser plus a node:fs reader, split the
@@ -25,7 +26,6 @@ export interface HoursConfig {
 
 const TOP_KEYS = new Set(["since", "gapMinutes", "leadMinutes", "identities", "exclude", "repos"]);
 const REPO_KEYS = new Set(["repo", "name", "plant"]);
-const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const OWNER_NAME = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SLUG = /^[a-z0-9][a-z0-9-]*$/;
 
@@ -48,7 +48,7 @@ export function parseHoursConfig(raw: unknown): HoursConfig {
 
   // CORE_SCHEMA keeps an unquoted date a string; a Date would mean a different schema.
   const since = raw.since instanceof Date ? raw.since.toISOString().slice(0, 10) : raw.since;
-  if (typeof since !== "string" || !DAY.test(since) || Number.isNaN(Date.parse(since))) {
+  if (typeof since !== "string" || !realDay(since)) {
     throw new Error("since must be a YYYY-MM-DD date");
   }
   const gapMinutes = positiveInt(raw.gapMinutes, "gapMinutes");
