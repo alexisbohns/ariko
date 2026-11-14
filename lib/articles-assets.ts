@@ -39,7 +39,7 @@ export async function handleAssetUpload(request: Request, deps: AssetDeps): Prom
     const media = await deps.upload(Buffer.from(await file.arrayBuffer()), uploadedFilename(file));
     return Response.json({ url: media.url, width: media.width, height: media.height });
   } catch (err) {
-    console.error(`[articles/assets] upload failed for pod ${repo.pod}`, err);
+    console.error(`[articles/assets] upload failed for plant ${repo.plant}`, err);
     // The provider's message stays in the log: it can carry account detail.
     return Response.json({ error: "upload failed" }, { status: 502 });
   }

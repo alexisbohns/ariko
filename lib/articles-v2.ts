@@ -1,9 +1,9 @@
 // lib/articles-v2.ts
 //
 // Pure validation for the v2 article door (spec 2026-11-14 §3.3): a repo token
-// posts essays (draft sprouts of kind `essay`) and narratives (its pod's or a
-// bean's `content`). Shape only — scope (is this slug in the token's pod?) is
-// the store's, because it needs the database. First failure wins and names
+// posts essays (draft sprouts of kind `essay`) and narratives (a pod's or a
+// bean's `content`). Shape only — scope (is this slug in the token's plant?)
+// is the store's, because it needs the database. First failure wins and names
 // the offender, as validateArticlesPayload does.
 //
 // Six keys are refused BY NAME whatever their value, because each is a way to
@@ -22,11 +22,15 @@ export interface EssayInput {
   name: Text;
   description?: Text;
   content: Text;
-  about: string[];
+  // Bare pod/bean slugs. Omitted: the essay is about the whole plant.
+  about?: string[];
 }
 
 export interface NarrativeInput {
   slug: string;
+  // The pod a NEW bean is created under (the plant has several). On an
+  // existing bean it must name the pod it is already in.
+  pod?: string;
   name?: Text;
   description?: Text;
   content: Text;
@@ -41,7 +45,7 @@ type Check = { ok: true } | { ok: false; error: string };
 
 const REFUSED_KEYS = ["state", "visibility", "kind", "type", "parents", "exhibited"] as const;
 const ESSAY_KEYS = ["slug", "date", "name", "description", "content", "about"];
-const NARRATIVE_KEYS = ["slug", "name", "description", "content"];
+const NARRATIVE_KEYS = ["slug", "pod", "name", "description", "content"];
 const LEGACY_KEYS = ["container", "narrative", "articles"] as const;
 
 export function isV2Shape(body: unknown): boolean {
@@ -112,12 +116,15 @@ export function validateArticlesV2(body: unknown, opts: { host: ImageHost | unde
     if (!name.ok) return name;
     if (typeof raw.date !== "string" || !isTimelineDate(raw.date))
       return { ok: false, error: `${who}: date is required (YYYY-MM-DD)` };
-    if (!Array.isArray(raw.about) || raw.about.length === 0)
-      return { ok: false, error: `${who}: about must name at least one of the pod or its beans` };
+    if (raw.about !== undefined && (!Array.isArray(raw.about) || raw.about.length === 0))
+      return {
+        ok: false,
+        error: `${who}: about must list pod or bean slugs — omit it for an essay about the whole plant`,
+      };
     const seenAbout = new Set<string>();
-    for (const a of raw.about) {
+    for (const a of (raw.about as unknown[] | undefined) ?? []) {
       if (typeof a !== "string" || !SLUG.test(a))
-        return { ok: false, error: `${who}: about takes bare slugs (the pod's or a bean's), got ${String(a)}` };
+        return { ok: false, error: `${who}: about takes bare slugs (a pod's or a bean's), got ${String(a)}` };
       if (seenAbout.has(a)) return { ok: false, error: `${who}: about repeats ${a}` };
       seenAbout.add(a);
     }
@@ -133,6 +140,8 @@ export function validateArticlesV2(body: unknown, opts: { host: ImageHost | unde
     if (seenNarratives.has(raw.slug as string))
       return { ok: false, error: `duplicate narrative slug: ${raw.slug}` };
     seenNarratives.add(raw.slug as string);
+    if (raw.pod !== undefined && (typeof raw.pod !== "string" || !SLUG.test(raw.pod)))
+      return { ok: false, error: `${who}: pod must be a bare pod slug` };
     if (raw.name !== undefined) {
       const name = validateText(raw.name, `${who}: name`, { required: true });
       if (!name.ok) return name;

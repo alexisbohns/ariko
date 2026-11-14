@@ -14,8 +14,8 @@ export const dynamic = "force-dynamic";
 // Guarded long-form write door: drafts only, all-or-nothing, never publishes.
 //
 // Two tokens, two shapes (spec 2026-11-14 §2–3). A per-repo token
-// (`ariko_<pod>_…`, lib/repo-token-store.ts) takes the v2 shape — essays and
-// narratives scoped to its pod. The legacy ARTICLES_TOKEN keeps the original
+// (`ariko_<plant>_…`, lib/repo-token-store.ts) takes the v2 shape — essays and
+// narratives scoped to its plant. The legacy ARTICLES_TOKEN keeps the original
 // container/narrative/articles shape until it is retired. Each refuses the
 // other's shape with a 400 that names the right one, so a sibling halfway
 // through the migration learns what to change from the error alone.
@@ -37,7 +37,7 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: "body must be JSON" }, { status: 400 });
   }
 
-  if (repo.ok) return v2(repo.pod, body);
+  if (repo.ok) return v2(repo.plant, body);
   if (isV2Shape(body))
     return Response.json(
       { error: "essays/narratives needs a repo token (npm run token:mint in the Ariko repo)" },
@@ -46,7 +46,7 @@ export async function POST(request: Request): Promise<Response> {
   return legacy(body);
 }
 
-async function v2(pod: string, body: unknown): Promise<Response> {
+async function v2(plant: string, body: unknown): Promise<Response> {
   if (!isV2Shape(body))
     return Response.json(
       { error: "a repo token posts { essays, narratives } — see the ariko-article skill" },
@@ -58,7 +58,7 @@ async function v2(pod: string, body: unknown): Promise<Response> {
 
   let result;
   try {
-    result = await writeArticlesV2(pod, body as ArticlesV2);
+    result = await writeArticlesV2(plant, body as ArticlesV2);
   } catch (err) {
     // Should be unreachable: createBean/createSprout map a duplicate to
     // SlugExistsError, which the store reports as refused with `written`. Kept as a safety net.
@@ -76,11 +76,10 @@ async function v2(pod: string, body: unknown): Promise<Response> {
     return Response.json({ error: "refused", refused: result.refused, written: result.written }, { status: 409 });
   }
   revalidateGarden();
-  const admin = [
-    ...result.narratives.map((s) => (s === pod ? `/admin/pod/${s}` : `/admin/bean/${s}`)),
-    ...result.essays.map((s) => `/admin/sprout/${s}`),
-  ];
-  return Response.json({ ...result, admin });
+  // `pod:x` → /admin/pod/x, and so on: the store knows which kind each slug was.
+  const { written, ...posted } = result;
+  const admin = written.map((ref) => `/admin/${ref.replace(":", "/")}`);
+  return Response.json({ ...posted, admin });
 }
 
 async function legacy(body: unknown): Promise<Response> {

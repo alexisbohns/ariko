@@ -178,14 +178,15 @@ public together, so the narrative, the cards and the articles all go live in the
 
 ### Writing for Ariko from another repo (per-repo tokens)
 
-`POST /api/articles` also takes a **per-repo token** (`ariko_<pod>_…`), so a sibling repo's agent —
+`POST /api/articles` also takes a **per-repo token** (`ariko_<plant>_…`), so a sibling repo's agent —
 local or in a Claude Code cloud session — posts essays and pod/bean narratives, with images, as
-**drafts**, with nothing committed to the sibling. The token is scoped to one pod and minted here:
+**drafts**, with nothing committed to the sibling. A repo is a plant: the token is scoped to one
+plant — every pod of it, and the beans under them — and minted here:
 
 ```bash
-npm run token:mint   -- --pod pbbls --env ../pbbls/.env      # or: --pod a --pod b --sheet ~/Desktop/setup.md
+npm run token:mint   -- --plant pbbls --env ../pbbls/.env    # or: --plant a --plant b --sheet ~/Desktop/setup.md
 npm run token:list
-npm run token:revoke -- --pod pbbls                           # a leaked token: revoke, then mint again
+npm run token:revoke -- --plant pbbls                         # a leaked token: revoke, then mint again
 ```
 
 Minting writes to the database `.env.local` names (production) and prints a setup card per repo for
@@ -194,7 +195,7 @@ cloud environment's variables, allow `www.ariko.app` on the environment's networ
 `ariko-article@ariko` plugin in its `.claude/settings.json`, and paste
 `plugins/ariko-article/CLAUDE-SNIPPET.md` into its `CLAUDE.md` (the setup card has all of it).
 
-* `GET /api/articles/ping` returns `{ pod, plant, beans }` — the token's scope.
+* `GET /api/articles/ping` returns `{ plant, pods, beans }` — the token's scope.
 * `POST /api/articles/assets` takes one raster image (`multipart/form-data`, field `file`, 4 MB) and
   returns `{ url, width, height }`. It has **no rate limit**; revoke a leaked token at once.
 * `POST /api/articles` takes `{ essays?, narratives? }` and returns `{ ok, essays, narratives, admin }`.

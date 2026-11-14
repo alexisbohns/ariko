@@ -3,10 +3,11 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { POST } from "../app/api/articles/route";
 import { getDb, closeDb } from "./db";
-import { mintToken, revokePod } from "./repo-token-store";
+import { mintToken, revokePlant } from "./repo-token-store";
 
 const hasDb = Boolean(process.env.MONGODB_URI);
 const P = "test-route-v2-";
+const PLANT = `${P}plant`;
 const POD = `${P}pod`;
 let token = "";
 
@@ -22,15 +23,16 @@ async function cleanup() {
   const db = await getDb();
   const rx = new RegExp(`^${P}`);
   for (const c of ["plants", "pods", "beans", "sprouts"]) await db.collection(c).deleteMany({ slug: rx });
-  await db.collection("tokens").deleteMany({ pod: rx });
+  await db.collection("tokens").deleteMany({ plant: rx });
 }
 
 before(async () => {
   if (!hasDb) return;
   await cleanup();
   const db = await getDb();
-  await db.collection("pods").insertOne({ slug: POD, name: "Pod", description: "", parents: [], visibility: "private" });
-  token = await mintToken(POD, "route test");
+  await db.collection("plants").insertOne({ slug: PLANT, name: "Plant", description: "" });
+  await db.collection("pods").insertOne({ slug: POD, name: "Pod", description: "", parents: [`plant:${PLANT}`], visibility: "private" });
+  token = await mintToken(PLANT, "route test");
 });
 after(async () => {
   if (!hasDb) return;
@@ -49,6 +51,17 @@ test("repo token + v2 shape → written", { skip: !hasDb }, async () => {
     narratives: [],
     admin: [`/admin/sprout/${P}essay`],
   });
+});
+
+test("admin links name the kind each narrative turned out to be", { skip: !hasDb }, async () => {
+  const res = await POST(
+    req(
+      { narratives: [{ slug: POD, content: "Pod body" }, { slug: `${P}bean`, pod: POD, name: "B", content: "Bean body" }] },
+      `Bearer ${token}`,
+    ),
+  );
+  assert.equal(res.status, 200);
+  assert.deepEqual((await res.json()).admin, [`/admin/pod/${POD}`, `/admin/bean/${P}bean`]);
 });
 
 test("repo token + legacy shape → 400 naming the v2 shape", { skip: !hasDb }, async () => {
@@ -77,7 +90,7 @@ test("revoked or unknown repo token → 401", { skip: !hasDb }, async () => {
 test("scope refusal → 409 with refused", { skip: !hasDb }, async () => {
   const res = await POST(req({ essays: [{ ...essay, slug: `${P}e2`, about: ["somewhere-else"] }] }, `Bearer ${token}`));
   assert.equal(res.status, 409);
-  assert.deepEqual((await res.json()).refused, [`${P}e2: about somewhere-else is not in pod ${POD}`]);
+  assert.deepEqual((await res.json()).refused, [`${P}e2: about somewhere-else is not in plant ${PLANT}`]);
 });
 
 test("an image not hosted by Ariko → 400", { skip: !hasDb }, async () => {
@@ -88,10 +101,10 @@ test("an image not hosted by Ariko → 400", { skip: !hasDb }, async () => {
   assert.match((await res.json()).error, /not hosted by Ariko/);
 });
 
-// Last on purpose: minting revokes the pod's previous token, so every test
+// Last on purpose: minting revokes the plant's previous token, so every test
 // above that uses `token` must have run.
 test("a revoked repo token → 401", { skip: !hasDb }, async () => {
-  const dead = await mintToken(POD, "to be revoked");
-  await revokePod(POD);
+  const dead = await mintToken(PLANT, "to be revoked");
+  await revokePlant(PLANT);
   assert.equal((await POST(req({ essays: [essay] }, `Bearer ${dead}`))).status, 401);
 });

@@ -121,6 +121,36 @@ interface RepoToken {
   only with a repo token. Retiring the legacy token is a later one-line PR,
   once no sibling posts the old shape.
 
+### 2.1 Amendment (2026-11-14, after merge): the scope is a plant, not a pod
+
+Decisions 2 and 6 assumed a repo is a pod. Minting showed otherwise: in
+production the `pbbls` plant has eleven pods, `arkaik` six, and `femfolk` and
+`melogram` none; only `krabs` is one plant with one pod of the same name. A
+pod-scoped token would have made the pbbls repo hold eleven tokens and left two
+repos with nothing to mint. **The token is scoped to a plant** — decisions 2 and
+6 read "plant" where they say "pod" — and everything below §2 that says the
+token's pod now means the plant's pods, with these consequences:
+
+- `RepoToken.pod` is `plant`; `token:mint|revoke` take `--plant`; the prefix is
+  `ariko_<plant>_`. No pod-scoped token was ever minted, so nothing migrates.
+- Scope: the plant's pods (`parents` has `plant:<plant>`), and the beans under
+  any of them or directly under the plant.
+- A narrative slug naming one of the plant's pods means the pod. A **new bean**
+  needs `pod:` — one of the plant's pods — since the door can no longer infer
+  it. `pod:` on an existing bean must name the pod it is in (so re-posting the
+  payload that created it is safe); on a pod narrative it is refused.
+- An essay's `about` is **optional**: omitted, the essay is about the plant and
+  is written with `parents: ["plant:<plant>"]` and no `about` (the sprout model's
+  plant-level entry; one or the other, never both). This is what lets a plant
+  with no pods take essays.
+- Ownership (`source.externalId`) is the plant.
+- Ping returns `{ plant, pods: [{ slug, name, visibility }], beans: [{ slug,
+  name, pod, visibility, projected? }] }`, `pod: null` for a bean directly
+  under the plant; 404 when the plant is gone.
+- The write result carries `written` refs in write order; the route maps them
+  to admin links (`pod:x` → `/admin/pod/x`), since the slug alone no longer says
+  which kind it was.
+
 ## 3. Doors
 
 All three live under `/api/articles` (not `/admin`: they are token-gated, not
