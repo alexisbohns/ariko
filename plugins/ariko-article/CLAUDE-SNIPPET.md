@@ -5,15 +5,16 @@ When asked to write an article about this project for Ariko, post it as a
 repo. (The `ariko-article` skill has the full guidance; this section is enough
 without it.)
 
-- **Env:** `ARIKO_TOKEN` (this repo's token, scoped to its pod) and `ARIKO_URL`
+- **Env:** `ARIKO_TOKEN` (this repo's token, scoped to its plant) and `ARIKO_URL`
   (default `https://www.ariko.app`). In a cloud session they come from the
   environment preset; `www.ariko.app` must be on its network allowlist.
 - **1. Ping first:** `curl -fsS -H "Authorization: Bearer $ARIKO_TOKEN" "${ARIKO_URL:-https://www.ariko.app}/api/articles/ping"`
-  returns `{ pod, plant, beans }`. If it fails, stop and say why: token unset,
+  returns `{ plant, pods, beans }` — the project, its pods, and the beans
+  (features) in them, each with its `pod`. If it fails, stop and say why: token unset,
   Ariko unreachable (allowlist), or 401 (token revoked or mistyped).
-- **2. Pick the kind:** an **essay** is a dated piece about the pod and/or some
-  of its beans; a **narrative** rewrites what the pod or one feature (bean) *is
-  now*. Ask if the request does not say.
+- **2. Pick the kind:** an **essay** is a dated piece about some pods and/or
+  beans, or the whole project; a **narrative** rewrites what one pod or one
+  feature (bean) *is now*. Ask if the request does not say.
 - **3. Draft in a temp folder**, markdown, EN and optionally FR (an adaptation
   in "tu", not a literal translation). Images as local paths for now.
 - **4. Show the draft and wait for an explicit yes.** Upload nothing before.
@@ -24,17 +25,18 @@ without it.)
   renamed SVG fails at upload). Replace each local path with its `url`: Ariko
   refuses any image URL that did not come from this endpoint.
 - **6. Post** with `curl -sS -w '\nHTTP %{http_code}\n' -X POST -H "Authorization: Bearer $ARIKO_TOKEN" -H "content-type: application/json" --data @payload.json "${ARIKO_URL:-https://www.ariko.app}/api/articles"` (no `-f`: the error body matters), JSON:
-  `{ "essays": [{ "slug", "date": "YYYY-MM-DD", "name", "description"?, "content", "about": ["<pod or bean slug>"] }],
-     "narratives": [{ "slug": "<pod or bean slug>", "name"?, "description"?, "content" }] }`.
+  `{ "essays": [{ "slug", "date": "YYYY-MM-DD", "name", "description"?, "content", "about"?: ["<pod or bean slug>"] }],
+     "narratives": [{ "slug": "<pod or bean slug>", "pod"?, "name"?, "description"?, "content" }] }`.
+  Omit `about` for an essay about the whole project.
   `name` / `description` / `content` are a string or `{ "en", "fr" }`; posting
   only `{ "en" }` keeps a stored French half (and vice versa). A new bean needs
-  `name`. Never send `state`, `visibility`, `kind`, `type`, `parents` or
+  `name` and `pod` (one of the ping's pods). Never send `state`, `visibility`, `kind`, `type`, `parents` or
   `exhibited` — they are refused — and no other key: an unknown one is refused
   by name too.
 - **Only private things are writable.** A pod or bean the maintainer has
   published is refused (`already reviewed`), even if its narrative is blank. An
   essay can be re-posted only while it is still a draft this door wrote for this
-  pod.
+  project.
 - **7. Report** the `admin` URLs from the response: the maintainer publishes
   there. A 409 is `{ error: "refused", refused: [...], written: [...] }`: fix
   what `refused` names and re-post the whole payload. Nothing was written

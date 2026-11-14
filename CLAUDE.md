@@ -648,20 +648,21 @@ Orientation lives in
 A sibling repo's agent posts **drafts** to Ariko directly — local or cloud
 session, no CI, nothing committed to the sibling
 ([`specs/2026-11-14-article-door-v2-design.md`](docs/superpowers/specs/2026-11-14-article-door-v2-design.md)).
-It holds a **per-repo token** scoped to its pod, minted here:
+It holds a **per-repo token** scoped to its **plant** — a repo is a plant, and
+pbbls alone has eleven pods — minted here:
 
 ```bash
-npm run token:mint -- --pod pbbls --env ../pbbls/.env
-npm run token:mint -- --pod pbbls --pod arkaik --sheet ~/Desktop/ariko-cloud-setup.md
+npm run token:mint -- --plant pbbls --env ../pbbls/.env
+npm run token:mint -- --plant pbbls --plant arkaik --sheet ~/Desktop/ariko-cloud-setup.md
 npm run token:list
-npm run token:revoke -- --pod pbbls
+npm run token:revoke -- --plant pbbls
 ```
 
 Minting writes to the database `.env.local` names — production — and says
 which before it starts. It prints a setup card per repo for its Claude Code
 cloud preset (env vars, `www.ariko.app` on the allowlist, `enabledPlugins`, the
 `CLAUDE.md` snippet). Every guard runs **before the first mint**: an unknown
-pod, a repeated `--pod`, `--env` with more than one pod, an `--env` file git
+plant, a repeated `--plant`, `--env` with more than one plant, an `--env` file git
 tracks or does not ignore (`envTargetProblem`: `rev-parse` → `ls-files` →
 `check-ignore`), a `--sheet` inside any work tree, an `--env` file whose ariko
 block is unterminated (`upsertEnvBlock` throws; the script dry-runs it first).
@@ -678,10 +679,16 @@ with no database at all; every refusal is the same 401 body. Rules the tests
 pin, each of which passes `tsc`, `npm test` **and** `npm run build` while
 quietly becoming false:
 
-- **A repo writes inside its pod only.** `writeArticlesV2` resolves every
-  `about` and narrative slug against the token's pod; a slug elsewhere is
-  refused by name. The pod is the one stored beside the token's hash — the
-  `ariko_<pod>_` prefix is for humans and is never parsed as a claim.
+- **A repo writes inside its plant only.** `writeArticlesV2` resolves every
+  `about` and narrative slug against the token's plant — its pods, and the
+  beans under them or directly under it; a slug elsewhere is refused by name.
+  A slug naming one of the plant's pods means the pod. A new bean names its
+  `pod:` (one of the plant's); `pod:` on an existing bean must be the pod it is
+  in, so re-posting the payload that created it stays safe — moving is the
+  admin's. An essay with no `about` is about the plant: it is written with a
+  `plant:` parent and no `about`, one or the other, never both. The plant is the
+  one stored beside the token's hash — the `ariko_<plant>_` prefix is for
+  humans and is never parsed as a claim.
 - **Only private things are writable, and absent means public.** A pod or bean
   with no `visibility` is public (`lib/data.ts` and `filterPublic` read it so),
   so the store checks `(visibility ?? "public") === "public"` and every write
@@ -694,10 +701,10 @@ quietly becoming false:
   `parents`, `exhibited` are refused keys, and so is any other key, by name
   (`unknown key descripton`) — a typo must not be a silently dropped field.
   Essays are written `draft`, `kind: "essay"`; no code path writes `published`.
-- **An essay is replaceable only by the door that wrote it, for that pod.**
+- **An essay is replaceable only by the door that wrote it, for that plant.**
   `ownsEssay`: kind `essay`, `source.kind` `article-door`, `source.externalId`
-  the pod, and still a draft. A published or private sprout is `(already
-  reviewed)`; the maintainer's own draft or another pod's essay is `(not
+  the plant, and still a draft. A published or private sprout is `(already
+  reviewed)`; the maintainer's own draft or another plant's essay is `(not
   written by this door)`.
 - **Halves are merged, never replaced.** `{ en }` keeps a stored `fr` on
   `content`, `name` and `description`, and the reverse — the admin's "halves
@@ -725,7 +732,7 @@ quietly becoming false:
   re-posting the whole payload is safe. "Nothing was written" is true only when
   `written` is empty — the skill says so.
 - **The asset door has no rate limit.** A leaked token can fill Ariko's
-  Cloudinary quota; the answer is `npm run token:revoke -- --pod <slug>`, which
+  Cloudinary quota; the answer is `npm run token:revoke -- --plant <slug>`, which
   the skill's troubleshooting and the README both say.
 
 The legacy `ARTICLES_TOKEN` shape (`container` / `narrative` / `articles`)

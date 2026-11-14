@@ -6,8 +6,8 @@
 // later mint replaces rather than duplicates. The Mongo half is
 // lib/repo-token-store.ts.
 //
-// The `ariko_<pod>_` prefix is for a human reading an .env. Authorization is a
-// hash lookup and NEVER parses the prefix as a claim — the pod a token writes
+// The `ariko_<plant>_` prefix is for a human reading an .env. Authorization is a
+// hash lookup and NEVER parses the prefix as a claim — the plant a token writes
 // to is the one stored beside its hash.
 
 import { createHash, randomBytes } from "node:crypto";
@@ -17,8 +17,8 @@ export const ARIKO_URL = "https://www.ariko.app";
 export const ENV_BLOCK_START = "# >>> ariko";
 export const ENV_BLOCK_END = "# <<< ariko";
 
-export function generateToken(pod: string): string {
-  return `ariko_${pod}_${randomBytes(24).toString("base64url")}`;
+export function generateToken(plant: string): string {
+  return `ariko_${plant}_${randomBytes(24).toString("base64url")}`;
 }
 
 // A routing hint only (repo token vs legacy); the legacy ARTICLES_TOKEN must never start with `ariko_`.
@@ -30,9 +30,9 @@ export function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-export function envBlock({ pod, token, date }: { pod: string; token: string; date: string }): string {
+export function envBlock({ plant, token, date }: { plant: string; token: string; date: string }): string {
   return [
-    `${ENV_BLOCK_START} (minted ${date} by \`npm run token:mint -- --pod ${pod}\`)`,
+    `${ENV_BLOCK_START} (minted ${date} by \`npm run token:mint -- --plant ${plant}\`)`,
     "# Drafts for Ariko: the ariko-article skill reads these.",
     "# CLOUD SESSIONS do not see this file. In the Claude Code cloud environment",
     "# preset for this repo, also:",
@@ -91,9 +91,9 @@ const SETTINGS_SNIPPET = `{
   "enabledPlugins": { "ariko-article@ariko": true }
 }`;
 
-export function setupCard({ pod, token, claudeSnippet }: { pod: string; token: string; claudeSnippet: string }): string {
+export function setupCard({ plant, token, claudeSnippet }: { plant: string; token: string; claudeSnippet: string }): string {
   return [
-    `## ${pod}`,
+    `## ${plant}`,
     "",
     "**1. Cloud preset → Environment variables** (paste as is):",
     "",
@@ -118,7 +118,7 @@ export function setupCard({ pod, token, claudeSnippet }: { pod: string; token: s
     "````",
     "",
     "**5. Check:** open a cloud session in this repo and ask it to ping Ariko;",
-    `it should answer with the pod \`${pod}\`.`,
+    `it should answer with the plant \`${plant}\`.`,
     "",
   ].join("\n");
 }

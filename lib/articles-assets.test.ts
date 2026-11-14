@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { handleAssetUpload } from "./articles-assets";
 
-const ok = async () => ({ ok: true as const, pod: "pbbls" });
+const ok = async () => ({ ok: true as const, plant: "pbbls" });
 const no = async () => ({ ok: false as const });
 const fakeUpload = async () => ({ kind: "image" as const, storageKey: "k", url: "https://res.cloudinary.com/ariko/k.png", width: 10, height: 20 });
 

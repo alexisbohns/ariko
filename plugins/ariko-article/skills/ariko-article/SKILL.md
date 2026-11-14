@@ -11,13 +11,14 @@ description: >
 
 # Writing for Ariko
 
-Ariko is the maintainer's portfolio. This repo is one **pod** there; its
-features are **beans**. You write one of two things:
+Ariko is the maintainer's portfolio. This repo is one **plant** there; the
+plant is split into **pods** (an app, a platform, an area of the product) and
+its features are **beans** inside them. You write one of two things:
 
 | Kind | What it is | Lands as |
 |---|---|---|
-| **Essay** | A dated piece — a redesign told, a decision explained, a release looked back on — about the pod and/or some of its beans. | A draft sprout of kind `essay`, shown in the journals of what it is `about`. |
-| **Narrative** | What the pod, or one feature, **is now** and how it got there. Rewritten in place, never appended. | The pod's or bean's `content`. |
+| **Essay** | A dated piece — a redesign told, a decision explained, a release looked back on — about some pods and/or beans, or about the whole project. | A draft sprout of kind `essay`, shown in the journals of what it is `about` (or the plant's, with no `about`). |
+| **Narrative** | What one pod, or one feature, **is now** and how it got there. Rewritten in place, never appended. | The pod's or bean's `content`. |
 
 "Write about how we redesigned the feed" → essay. "Update the feed's
 narrative" / "describe what the feed does now" → narrative. If you cannot tell,
@@ -34,11 +35,19 @@ door never publishes; the maintainer does, in the admin.
 curl -fsS -H "Authorization: Bearer $ARIKO_TOKEN" "${ARIKO_URL:-https://www.ariko.app}/api/articles/ping"
 ```
 
-It returns `{ "pod", "plant", "beans": [{ "slug", "name", "visibility", "projected"? }] }`
-— your scope. You may only write about that pod and those beans (or a new bean
-you create with a narrative in the same post). A bean with `"visibility":
-"public"` cannot take a narrative; a `"projected": true` bean can be an
-essay's `about` but never takes one.
+It returns your scope:
+
+```json
+{ "plant": "pbbls",
+  "pods":  [{ "slug": "pbbls-ios", "name": "…", "visibility": "private" }, …],
+  "beans": [{ "slug": "feed", "name": "…", "pod": "pbbls-ios", "visibility": "private", "projected"?: true }, …] }
+```
+
+You may only write about the plant, those pods and those beans (or a new bean
+you create with a narrative in the same post). A pod or bean with
+`"visibility": "public"` cannot take a narrative; a `"projected": true` bean can
+be an essay's `about` but never takes one. A bean's `"pod": null` means it sits
+directly under the plant.
 
 If it fails, **stop and say exactly which**:
 
@@ -47,8 +56,8 @@ If it fails, **stop and say exactly which**:
 - connection refused, DNS failure, or a proxy 403 → "Ariko is unreachable —
   add `www.ariko.app` to this cloud environment's allowed domains."
 - `401` → "The token was refused — it was revoked or mistyped; re-mint it with
-  `npm run token:mint -- --pod <pod>` in the Ariko repo."
-- `404` → the pod was deleted in Ariko; tell the maintainer.
+  `npm run token:mint -- --plant <plant>` in the Ariko repo."
+- `404` → the plant was deleted in Ariko; tell the maintainer.
 
 ## 1. Draft — outside the repo
 
@@ -58,7 +67,7 @@ in the repo, never committed**: the repo does not store content or assets.
 - Markdown. GFM tables, `>` quotes, code, headings, `![alt](path)` images —
   the inline form only; `![alt][id]` reference images are refused.
 - Mention another Ariko entity inline with `:entity[Label]{ref=bean:slug}` —
-  this is how you point at something outside your pod.
+  this is how you point at something outside your plant.
 - English always; French when asked, as an **adaptation** in "tu", not a
   literal translation. Both go in `{ "en": "…", "fr": "…" }`.
 - Essay slug: kebab-case, specific (`feed-redesign-2026`), not a bean's slug.
@@ -116,18 +125,29 @@ curl -sS -w '\nHTTP %{http_code}\n' -X POST -H "Authorization: Bearer $ARIKO_TOK
     "name": { "en": "Redrawing the feed", "fr": "Redessiner le fil" },
     "description": { "en": "One line.", "fr": "Une ligne." },
     "content": { "en": "…", "fr": "…" },
-    "about": ["pbbls", "feed"]
+    "about": ["pbbls-ios", "feed"]
   }],
   "narratives": [{
     "slug": "feed",
+    "content": { "en": "…", "fr": "…" }
+  }, {
+    "slug": "offline-mode",
+    "pod": "pbbls-ios",
+    "name": { "en": "Offline mode", "fr": "Mode hors ligne" },
+    "description": { "en": "One line.", "fr": "Une ligne." },
     "content": { "en": "…", "fr": "…" }
   }]
 }
 ```
 
-- `about`: bare slugs from the ping — the pod's, its beans'. At least one.
-- A narrative's `slug` is the pod's or a bean's. A **new** bean needs `name`
-  (and should get a `description`); it is created private under the pod.
+- `about`: bare slugs from the ping — pods' and beans'. **Omit it** for an essay
+  about the whole project (it lands in the plant's journal); if present, list
+  at least one.
+- A narrative's `slug` is a pod's or a bean's from the ping. A **new** bean
+  needs `name` and `pod` (one of the ping's pods — it is created private there)
+  and should get a `description`. `pod` on an existing bean must be the pod it
+  is already in (moving a bean is the maintainer's, in the admin); a pod's own
+  narrative takes no `pod`.
 - **Refused keys** — never send: `state`, `visibility`, `kind`, `type`,
   `parents`, `exhibited`. Publishing is the maintainer's, in the admin. Any
   other key is refused by name as well (`unknown key descripton` — a typo is an
@@ -137,18 +157,18 @@ curl -sS -w '\nHTTP %{http_code}\n' -X POST -H "Authorization: Bearer $ARIKO_TOK
   Posting a plain string means English. An omitted `description` on a re-post
   leaves the stored one alone.
 - **Re-posting.** An essay slug can be re-posted only while it is still a
-  **draft this door wrote for this pod**; then it is replaced. Otherwise it is
+  **draft this door wrote for this plant**; then it is replaced. Otherwise it is
   refused: `(already reviewed)` once the maintainer published it, or
   `(not written by this door)` if it is the maintainer's own sprout or another
-  pod's. A pod or bean is rewritten in place only while it is private.
+  plant's. A pod or bean is rewritten in place only while it is private.
 
 Responses:
 
-- `200` → `{ ok, essays, narratives, admin: ["/admin/sprout/…", …] }`.
+- `200` → `{ ok, essays, narratives, admin: ["/admin/bean/…", "/admin/sprout/…", …] }`.
 - `400` → the payload's shape or an image URL; the message names the field.
 - `409` → `{ "error": "refused", "refused": [...], "written": [...] }`.
   `refused` lists what was turned away and why — already published
-  (`already reviewed`), outside the pod, or a new bean lacking a name. The
+  (`already reviewed`), outside the plant, or a new bean lacking a name or a pod. The
   batch is checked whole before anything is written, so **nothing was written
   unless `written` lists something**: that happens only when a race interrupted
   the batch mid-way, and what it lists is private/draft. Either way, fix what
@@ -167,8 +187,8 @@ and publish it there.
 
 - **A token leaked** (pasted in a chat, committed, shown in a log): tell the
   maintainer at once. The image door has no rate limit, so a leaked token is
-  revoked, not waited out: `npm run token:revoke -- --pod <pod>` in the Ariko
-  repo, then `npm run token:mint -- --pod <pod>` for a new one.
+  revoked, not waited out: `npm run token:revoke -- --plant <plant>` in the Ariko
+  repo, then `npm run token:mint -- --plant <plant>` for a new one.
 - **Everything is `401` after it worked**: the token was re-minted or revoked —
   minting a new one revokes the previous one. Get the new value.
 - **`(already reviewed)` on something you meant to update**: the maintainer

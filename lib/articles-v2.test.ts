@@ -52,10 +52,17 @@ test("essay fields", () => {
   assert.match((v({ essays: [essay({ date: "14/11/2026" })] }) as { error: string }).error, /date is required \(YYYY-MM-DD\)/);
   assert.match((v({ essays: [essay({ name: "  " })] }) as { error: string }).error, /name is required/);
   assert.match((v({ essays: [essay({ content: " " })] }) as { error: string }).error, /content is required/);
-  assert.match((v({ essays: [essay({ about: [] })] }) as { error: string }).error, /about must name at least one/);
+  assert.match((v({ essays: [essay({ about: [] })] }) as { error: string }).error, /omit it for an essay about the whole plant/);
+  const { about: _omit, ...plantLevel } = essay();
+  assert.deepEqual(v({ essays: [plantLevel] }), { ok: true });
   assert.match((v({ essays: [essay({ about: ["pod:pbbls"] })] }) as { error: string }).error, /about takes bare slugs/);
   assert.match((v({ essays: [essay({ about: ["feed", "feed"] })] }) as { error: string }).error, /about repeats feed/);
   assert.match((v({ essays: [essay(), essay()] }) as { error: string }).error, /duplicate essay slug: feed-redesign/);
+});
+
+test("a narrative's pod is a bare slug", () => {
+  assert.deepEqual(v({ narratives: [narrative({ pod: "pbbls-web", name: "Feed" })] }), { ok: true });
+  assert.match((v({ narratives: [narrative({ pod: "pod:pbbls-web" })] }) as { error: string }).error, /feed: pod must be a bare pod slug/);
 });
 
 test("narrative fields", () => {
