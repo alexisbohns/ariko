@@ -11,30 +11,66 @@
 // it creates (private). Relations hand-authored in the admin are kept:
 // mergeMirrored over the STORED list, never over `undefined` — the v2 door is
 // an edit path for drafts a human may already have touched.
+//
+// ABSENT `visibility` MEANS PUBLIC (lib/data.ts), so every "is it reviewed?"
+// check here reads `(visibility ?? "public") === "public"` and every write
+// filter demands `visibility: "private"` outright — never `$ne: "public"`.
+// A slug equal to the pod's always means the pod. A bean listed under two pods
+// can be written by either pod's token (accepted).
 
 import { getDb } from "./db";
 import { resolveText, POD_PREFIX, BEAN_PREFIX, type Bean, type Pod, type Sprout, type Text } from "./data";
 import { extractRefs, mergeMirrored } from "./entity-refs";
-import { containerStillWritableFilter } from "./articles-store";
-import { createSprout, SlugExistsError } from "./botanical";
+import { createBean, createSprout, SlugExistsError } from "./botanical";
 import type { ArticlesV2 } from "./articles-v2";
 
 export type V2Result =
   | { ok: true; essays: string[]; narratives: string[] }
-  | { ok: false; refused: string[] };
+  | { ok: false; refused: string[]; written: string[] };
 
-const REPLACEABLE = (state: Sprout["state"]) => state === undefined || state === "draft";
+const isPublic = (x: { visibility?: string }) => (x.visibility ?? "public") === "public";
+
+// containerStillWritableFilter's twin for the v2 door: writable iff PRIVATE or
+// its resolved content is blank. The legacy filter says `$ne: "public"`, which
+// lets an absent visibility (public, per lib/data.ts) through.
+function podStillWritableFilter(): Record<string, unknown> {
+  const resolvedEn = { $ifNull: ["$content.en", ""] };
+  const resolvedFr = { $ifNull: ["$content.fr", ""] };
+  const resolvedText = {
+    $cond: [
+      { $eq: [{ $type: "$content" }, "object"] },
+      { $cond: [{ $ne: [resolvedEn, ""] }, resolvedEn, resolvedFr] },
+      { $ifNull: ["$content", ""] },
+    ],
+  };
+  return {
+    $or: [{ visibility: "private" }, { $expr: { $eq: [{ $trim: { input: resolvedText } }, ""] } }],
+  };
+}
+
+const asParts = (text: Text): Record<string, string | undefined> =>
+  typeof text === "string" ? { en: text } : { ...text };
+
+// Posted languages overwrite; stored languages the post does not mention stay.
+// Two plain strings stay a plain string.
+function mergeText(stored: Text | undefined, posted: Text): Text {
+  if (stored === undefined || (typeof stored === "string" && typeof posted === "string")) return posted;
+  return { ...asParts(stored), ...asParts(posted) } as Text;
+}
+
+const ownsEssay = (s: Sprout, pod: string) =>
+  s.kind === "essay" && s.source?.kind === "article-door" && s.source.externalId === pod;
 
 export async function writeArticlesV2(pod: string, payload: ArticlesV2): Promise<V2Result> {
   const db = await getDb();
   const essays = payload.essays ?? [];
   const narratives = payload.narratives ?? [];
   const refused: string[] = [];
+  const written: string[] = [];
+  const failed = (...why: string[]): V2Result => ({ ok: false, refused: why, written });
 
-  const podDoc = await db
-    .collection<Pod>("pods")
-    .findOne({ slug: pod }, { projection: { _id: 0, slug: 1, visibility: 1, content: 1, relations: 1 } });
-  if (!podDoc) return { ok: false, refused: [`pod:${pod} (unknown)`] };
+  const podDoc = await db.collection<Pod>("pods").findOne({ slug: pod }, { projection: { _id: 0 } });
+  if (!podDoc) return failed(`pod:${pod} (unknown)`);
 
   const podBeans = await db
     .collection<Bean>("beans")
@@ -56,13 +92,13 @@ export async function writeArticlesV2(pod: string, payload: ArticlesV2): Promise
 
   for (const n of narratives) {
     if (n.slug === pod) {
-      if (podDoc.visibility === "public" && resolveText(podDoc.content).trim() !== "")
+      if (isPublic(podDoc) && resolveText(podDoc.content).trim() !== "")
         refused.push(`pod:${pod} (already reviewed)`);
       continue;
     }
     const bean = beanBySlug.get(n.slug);
     if (bean) {
-      if (bean.visibility === "public") refused.push(`bean:${n.slug} (already reviewed)`);
+      if (isPublic(bean)) refused.push(`bean:${n.slug} (already reviewed)`);
       else if (bean.projected) refused.push(`bean:${n.slug} (projected)`);
     } else if (elsewhereSlugs.has(n.slug)) {
       refused.push(`bean:${n.slug} (not in pod ${pod})`);
@@ -76,7 +112,6 @@ export async function writeArticlesV2(pod: string, payload: ArticlesV2): Promise
   // --- Essays: scope and refusals ---
   const inScope = (slug: string) => slug === pod || beanBySlug.has(slug) || created.has(slug);
   const toRef = (slug: string) => (slug === pod ? `${POD_PREFIX}${slug}` : `${BEAN_PREFIX}${slug}`);
-  const scopeRefs = new Set([`${POD_PREFIX}${pod}`, ...[...beanBySlug.keys()].map((s) => `${BEAN_PREFIX}${s}`)]);
 
   const stored = await db
     .collection<Sprout>("sprouts")
@@ -88,60 +123,81 @@ export async function writeArticlesV2(pod: string, payload: ArticlesV2): Promise
     for (const a of e.about) if (!inScope(a)) refused.push(`${e.slug}: about ${a} is not in pod ${pod}`);
     const existing = storedBySlug.get(e.slug);
     if (!existing) continue;
-    if (!REPLACEABLE(existing.state)) refused.push(`sprout:${e.slug} (already reviewed)`);
-    else if (!existing.about?.length || !existing.about.every((r) => scopeRefs.has(r)))
-      refused.push(`sprout:${e.slug} (not in pod ${pod})`);
+    if (existing.state === "published" || existing.state === "private")
+      refused.push(`sprout:${e.slug} (already reviewed)`);
+    else if (!ownsEssay(existing, pod) || (existing.state ?? "draft") !== "draft")
+      refused.push(`sprout:${e.slug} (not written by this door)`);
   }
 
-  if (refused.length > 0) return { ok: false, refused };
+  if (refused.length > 0) return failed(...refused);
 
   // --- Writes: narratives first, so a bean created here exists for an essay's about ---
   for (const n of narratives) {
-    const set: Record<string, unknown> = { content: n.content };
-    if (n.name !== undefined) set.name = n.name;
-    if (n.description !== undefined && resolveText(n.description).trim() !== "") set.description = n.description;
+    const set: Record<string, unknown> = {};
+    const base = n.slug === pod ? podDoc : beanBySlug.get(n.slug);
+    const stamp = (field: "name" | "description" | "content", posted: Text | undefined) => {
+      if (posted !== undefined) set[field] = mergeText(base?.[field] as Text | undefined, posted);
+    };
+    stamp("content", n.content);
+    stamp("name", n.name);
+    if (n.description !== undefined && resolveText(n.description).trim() !== "") stamp("description", n.description);
 
     if (n.slug === pod) {
       set.relations = mergeMirrored(podDoc.relations, extractRefs(n.content));
-      const r = await db.collection("pods").updateOne({ slug: pod, ...containerStillWritableFilter() }, { $set: set });
-      if (r.matchedCount === 0) return { ok: false, refused: [`pod:${pod} (already reviewed)`] };
+      const r = await db.collection("pods").updateOne({ slug: pod, ...podStillWritableFilter() }, { $set: set });
+      if (r.matchedCount === 0) return failed(`pod:${pod} (already reviewed)`);
+      written.push(`${POD_PREFIX}${pod}`);
     } else if (created.has(n.slug)) {
-      await db.collection("beans").insertOne({
-        slug: n.slug,
-        ...set,
-        relations: mergeMirrored(undefined, extractRefs(n.content)),
-        parents: [`${POD_PREFIX}${pod}`],
-        visibility: "private",
-      });
+      try {
+        await createBean({
+          slug: n.slug,
+          name: n.name as Text,
+          description: n.description ?? "",
+          podSlug: pod,
+          plantSlug: null,
+          content: n.content,
+          relations: mergeMirrored(undefined, extractRefs(n.content)),
+        });
+      } catch (err) {
+        if (err instanceof SlugExistsError) return failed(`bean:${n.slug} (created meanwhile)`);
+        throw err;
+      }
+      written.push(`${BEAN_PREFIX}${n.slug}`);
     } else {
       set.relations = mergeMirrored(beanBySlug.get(n.slug)?.relations, extractRefs(n.content));
       const r = await db
         .collection("beans")
-        .updateOne({ slug: n.slug, visibility: { $ne: "public" }, projected: { $exists: false } }, { $set: set });
-      if (r.matchedCount === 0) return { ok: false, refused: [`bean:${n.slug} (already reviewed)`] };
+        .updateOne({ slug: n.slug, visibility: "private", projected: { $exists: false } }, { $set: set });
+      if (r.matchedCount === 0) return failed(`bean:${n.slug} (already reviewed)`);
+      written.push(`${BEAN_PREFIX}${n.slug}`);
     }
   }
 
   for (const e of essays) {
     const about = e.about.map(toRef);
-    const description: Text = e.description ?? "";
     const existing = storedBySlug.get(e.slug);
     if (existing) {
+      const set: Record<string, unknown> = {
+        name: mergeText(existing.name, e.name),
+        content: mergeText(existing.content, e.content),
+        date: e.date,
+        about,
+        relations: mergeMirrored(existing.relations, extractRefs(e.content)),
+      };
+      if (e.description !== undefined && resolveText(e.description).trim() !== "")
+        set.description = mergeText(existing.description, e.description);
       const r = await db.collection<Sprout>("sprouts").updateOne(
-        { slug: e.slug, state: { $nin: ["published", "private"] } },
         {
-          $set: {
-            name: e.name,
-            description,
-            content: e.content,
-            date: e.date,
-            about,
-            relations: mergeMirrored(existing.relations, extractRefs(e.content)),
-          },
-          $unset: { parents: "" },
+          slug: e.slug,
+          kind: "essay",
+          "source.kind": "article-door",
+          "source.externalId": pod,
+          $or: [{ state: "draft" }, { state: { $exists: false } }],
         },
+        { $set: set, $unset: { parents: "" } },
       );
-      if (r.matchedCount === 0) return { ok: false, refused: [`sprout:${e.slug} (already reviewed)`] };
+      if (r.matchedCount === 0) return failed(`sprout:${e.slug} (already reviewed)`);
+      written.push(`sprout:${e.slug}`);
     } else {
       try {
         await createSprout({
@@ -149,7 +205,7 @@ export async function writeArticlesV2(pod: string, payload: ArticlesV2): Promise
           name: e.name,
           kind: "essay",
           date: e.date,
-          description,
+          description: e.description ?? "",
           about,
           content: e.content,
           state: "draft",
@@ -158,9 +214,10 @@ export async function writeArticlesV2(pod: string, payload: ArticlesV2): Promise
           relations: mergeMirrored(undefined, extractRefs(e.content)),
         });
       } catch (err) {
-        if (err instanceof SlugExistsError) return { ok: false, refused: [`sprout:${e.slug} (created meanwhile)`] };
+        if (err instanceof SlugExistsError) return failed(`sprout:${e.slug} (created meanwhile)`);
         throw err;
       }
+      written.push(`sprout:${e.slug}`);
     }
   }
 

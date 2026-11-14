@@ -22,14 +22,28 @@ export interface RepoToken {
   revokedAt?: string;
 }
 
+// Indexes are ensured once per process; a rejection resets so the next call retries.
+let indexes: Promise<void> | null = null;
+
 async function tokens() {
   const db = await getDb();
   const col = db.collection<RepoToken>("tokens");
-  await col.createIndex({ hash: 1 }, { unique: true });
-  await col.createIndex({ pod: 1 });
+  indexes ??= Promise.all([
+    col.createIndex({ hash: 1 }, { unique: true }),
+    col.createIndex({ pod: 1 }),
+  ]).then(
+    () => undefined,
+    (err) => {
+      indexes = null;
+      throw err;
+    },
+  );
+  await indexes;
   return { db, col };
 }
 
+// Concurrent mints for one pod can race and leave two live tokens; minting is
+// CLI-only, so that is accepted.
 export async function mintToken(pod: string, label: string): Promise<string> {
   const { db, col } = await tokens();
   const exists = await db.collection("pods").findOne({ slug: pod }, { projection: { _id: 1 } });
@@ -67,7 +81,8 @@ export async function authorizeRepo(header: string | null): Promise<RepoAuth> {
   const { col } = await tokens();
   const doc = await col.findOne({ hash: hashToken(token), revokedAt: { $exists: false } });
   if (!doc) return { ok: false };
-  // Best effort: a failed timestamp must not refuse an authorized request.
+  // Best effort: a failed timestamp must not refuse an authorized request, and
+  // the write may be lost when a serverless instance freezes after responding.
   col.updateOne({ hash: doc.hash }, { $set: { lastUsedAt: new Date().toISOString() } }).catch(() => {});
   return { ok: true, pod: doc.pod };
 }

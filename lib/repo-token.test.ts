@@ -85,6 +85,15 @@ test("upsertEnvBlock leaves a block whose marker merely starts with ours alone",
   assert.ok(out.endsWith(block));
 });
 
+test("upsertEnvBlock replaces a block in a CRLF file", () => {
+  const block = envBlock({ pod: "p", token: "ariko_p_new", date: "d" });
+  const existing = "A=1\r\n# >>> ariko (old)\r\nARIKO_TOKEN=old\r\n# <<< ariko\r\nB=2\r\n";
+  const out = upsertEnvBlock(existing, block);
+  assert.ok(out.includes("ariko_p_new"));
+  assert.equal(out.includes("ARIKO_TOKEN=old"), false);
+  assert.ok(out.includes("B=2"));
+});
+
 test("setupCard has the five steps, the token and the snippets", () => {
   const card = setupCard({ pod: "pbbls", token: "ariko_pbbls_x", claudeSnippet: "## Writing for Ariko\n…" });
   assert.match(card, /^## pbbls$/m);

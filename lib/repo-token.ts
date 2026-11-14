@@ -46,7 +46,11 @@ export function envBlock({ pod, token, date }: { pod: string; token: string; dat
 }
 
 // Whole-word match: `# >>> ariko-cli config` is somebody else's block, not ours.
-const isMarker = (line: string, marker: string) => line === marker || line.startsWith(marker + " ");
+// A CRLF file leaves a trailing \r on every split line; ignore it for the compare.
+const isMarker = (line: string, marker: string) => {
+  const l = line.replace(/\r$/, "");
+  return l === marker || l.startsWith(marker + " ");
+};
 
 /**
  * Replace the marked block, else append it after a blank line. Markers match
