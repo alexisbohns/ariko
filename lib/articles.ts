@@ -49,7 +49,7 @@ export interface ArticlesPayload {
 export const MAX_CONTENT_BYTES = 512 * 1024;
 const MAX_CONTENT_LABEL = `${MAX_CONTENT_BYTES / 1024} KiB`;
 
-const SLUG = /^[a-z0-9][a-z0-9-]*$/;
+export const SLUG = /^[a-z0-9][a-z0-9-]*$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const LANGS = ["en", "fr"] as const;
 
@@ -71,7 +71,7 @@ function tooBig(value: string): boolean {
 //
 // `required` additionally demands one part be non-blank after trimming, which
 // is what `name` needs — `{ en: "  " }` is a name in no language at all.
-function validateText(
+export function validateText(
   value: unknown,
   label: string,
   { required }: { required: boolean },

@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toMediaImage, uploadOptions, type Storage } from "./storage";
+import { ALLOWED_TYPES } from "./upload-input";
 
 test("toMediaImage maps a Cloudinary result to a MediaImage descriptor", () => {
   const m = toMediaImage({
@@ -53,4 +54,20 @@ test("upload options omit context entirely when there is no filename", () => {
 
 test("the folder is caller-supplied, so verification can target a scratch folder", () => {
   assert.equal(uploadOptions("beanstalk/scratch").folder, "beanstalk/scratch");
+});
+
+test("upload options make Cloudinary enforce raster formats from the bytes, derived from ALLOWED_TYPES", () => {
+  const o = uploadOptions("beanstalk");
+  const formats = o.allowed_formats as string[];
+  assert.ok(Array.isArray(formats));
+  assert.deepEqual(
+    [...formats].sort(),
+    ["avif", "gif", "jpeg", "jpg", "png", "webp"],
+  );
+  assert.ok(!formats.includes("svg"), "svg must never be an allowed format");
+  // every declared type is covered, so the two lists cannot drift apart
+  for (const t of ALLOWED_TYPES) {
+    const ext = t.replace("image/", "");
+    assert.ok(formats.includes(ext) || (ext === "jpeg" && formats.includes("jpg")), t);
+  }
 });

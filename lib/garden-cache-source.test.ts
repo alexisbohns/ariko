@@ -115,6 +115,7 @@ const GARDEN_WRITERS = new Set([
   "updatePodVisibility",
   "updateSproutMedia",
   "writeArticles",
+  "writeArticlesV2",
   "upsertDigestDrafts",
   "runSync",
   "makeSink",
@@ -139,6 +140,7 @@ const GARDEN_WRITERS = new Set([
  */
 const FOREIGN_WRITERS = new Set([
   "writeArticles",
+  "writeArticlesV2",
   "upsertDigestDrafts",
   "runSync",
   "makeSink",
@@ -175,6 +177,11 @@ const FOREIGN_MODULES: { path: string; writers: Set<string>; readers: Set<string
   {
     path: "lib/articles-store.ts",
     writers: new Set(["writeArticles"]),
+    readers: new Set([]),
+  },
+  {
+    path: "lib/articles-v2-store.ts",
+    writers: new Set(["writeArticlesV2"]),
     readers: new Set([]),
   },
   {

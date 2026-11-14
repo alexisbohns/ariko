@@ -1,5 +1,6 @@
 import { v2 as cloudinary } from "cloudinary";
 import type { MediaImage } from "./data";
+import { ALLOWED_TYPES } from "./upload-input";
 
 export interface Storage {
   uploadImage(bytes: Buffer, filename?: string): Promise<MediaImage>;
@@ -33,6 +34,11 @@ cloudinary.config({ secure: true });
 // scratch Cloudinary the way there is a scratch Mongo database.
 export const UPLOAD_FOLDER = process.env.CLOUDINARY_FOLDER || "beanstalk";
 
+const ALLOWED_FORMATS: string[] = ALLOWED_TYPES.flatMap((t) => {
+  const ext = t.slice("image/".length);
+  return ext === "jpeg" ? ["jpg", "jpeg"] : [ext];
+});
+
 /**
  * Pure. The options object handed to Cloudinary's uploader — extracted so the
  * one thing worth pinning here is testable without a network call.
@@ -45,11 +51,18 @@ export const UPLOAD_FOLDER = process.env.CLOUDINARY_FOLDER || "beanstalk";
  * pointed at, leaving the stored URL resolving to different bytes. Letting
  * Cloudinary mint the id makes every upload a distinct asset. The original
  * name survives as non-identifying context.
+ *
+ * `allowed_formats` makes Cloudinary refuse anything that is not a raster
+ * format, judged from the uploaded BYTES. `checkUploadFile` can only read the
+ * declared MIME type, which the client controls: an SVG (script-carrying) or
+ * HTML file labelled image/png passes it. Derived from ALLOWED_TYPES so the two
+ * lists cannot drift; image/jpeg is both `jpg` and `jpeg` to Cloudinary.
  */
 export function uploadOptions(folder: string, filename?: string): Record<string, unknown> {
   return {
     folder,
     resource_type: "image",
+    allowed_formats: ALLOWED_FORMATS,
     ...(filename ? { context: { original_filename: filename } } : {}),
   };
 }

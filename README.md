@@ -176,6 +176,34 @@ whose entity cards all resolve to nothing while the articles are still drafts. R
 the sprouts from the admin; `publishCascade` — untouched — then flips the beans and the container
 public together, so the narrative, the cards and the articles all go live in the same act.
 
+### Writing for Ariko from another repo (per-repo tokens)
+
+`POST /api/articles` also takes a **per-repo token** (`ariko_<pod>_…`), so a sibling repo's agent —
+local or in a Claude Code cloud session — posts essays and pod/bean narratives, with images, as
+**drafts**, with nothing committed to the sibling. The token is scoped to one pod and minted here:
+
+```bash
+npm run token:mint   -- --pod pbbls --env ../pbbls/.env      # or: --pod a --pod b --sheet ~/Desktop/setup.md
+npm run token:list
+npm run token:revoke -- --pod pbbls                           # a leaked token: revoke, then mint again
+```
+
+Minting writes to the database `.env.local` names (production) and prints a setup card per repo for
+its cloud preset. Per repo: mint a token, put `ARIKO_TOKEN` in its gitignored `.env` **and** in the
+cloud environment's variables, allow `www.ariko.app` on the environment's network, enable the
+`ariko-article@ariko` plugin in its `.claude/settings.json`, and paste
+`plugins/ariko-article/CLAUDE-SNIPPET.md` into its `CLAUDE.md` (the setup card has all of it).
+
+* `GET /api/articles/ping` returns `{ pod, plant, beans }` — the token's scope.
+* `POST /api/articles/assets` takes one raster image (`multipart/form-data`, field `file`, 4 MB) and
+  returns `{ url, width, height }`. It has **no rate limit**; revoke a leaked token at once.
+* `POST /api/articles` takes `{ essays?, narratives? }` and returns `{ ok, essays, narratives, admin }`.
+  Only **private** pods and beans are writable; halves (`en` / `fr`) are merged, never replaced;
+  every image must be a URL from the assets door. A `409` is `{ error: "refused", refused, written }`.
+
+The rules and the reasons are in `CLAUDE.md` ("Writing for Ariko from another repo") and
+`docs/superpowers/specs/2026-11-14-article-door-v2-design.md`.
+
 ### Lab Note pipeline (C1 · GitHub connector)
 
 Merging a PR whose body contains a `## Lab Note` section posts a bilingual

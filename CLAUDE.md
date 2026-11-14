@@ -498,6 +498,9 @@ while quietly becoming false.
   third party**, and a pasted link's `provider` is derived server-side rather
   than read from the payload. The credential never leaves the server, and a
   stored provider cannot be set by whoever posted the form.
+  `uploadOptions` (`lib/storage.ts`) sets `allowed_formats`, so the raster rule
+  is enforced from the uploaded bytes for the admin and the article door alike —
+  `checkUploadFile` only sees a MIME type the client chose.
 - **A new admin data route goes under `/admin`, not `/api`.** `middleware.ts`
   matches `/admin/:path*`, so `app/admin/(chrome)/palette/route.ts` inherits
   the session gate with zero new auth code — a route group's name never reaches the
@@ -639,6 +642,97 @@ with `/plugin install garden-plant@ariko`, beside the Lab Note plugin.
 Orientation lives in
 [`README.md`](README.md); the sequenced plan lives in
 [`docs/superpowers/ROADMAP.md`](docs/superpowers/ROADMAP.md).
+
+## Writing for Ariko from another repo
+
+A sibling repo's agent posts **drafts** to Ariko directly — local or cloud
+session, no CI, nothing committed to the sibling
+([`specs/2026-11-14-article-door-v2-design.md`](docs/superpowers/specs/2026-11-14-article-door-v2-design.md)).
+It holds a **per-repo token** scoped to its pod, minted here:
+
+```bash
+npm run token:mint -- --pod pbbls --env ../pbbls/.env
+npm run token:mint -- --pod pbbls --pod arkaik --sheet ~/Desktop/ariko-cloud-setup.md
+npm run token:list
+npm run token:revoke -- --pod pbbls
+```
+
+Minting writes to the database `.env.local` names — production — and says
+which before it starts. It prints a setup card per repo for its Claude Code
+cloud preset (env vars, `www.ariko.app` on the allowlist, `enabledPlugins`, the
+`CLAUDE.md` snippet). Every guard runs **before the first mint**: an unknown
+pod, a repeated `--pod`, `--env` with more than one pod, an `--env` file git
+tracks or does not ignore (`envTargetProblem`: `rev-parse` → `ls-files` →
+`check-ignore`), a `--sheet` inside any work tree, an `--env` file whose ariko
+block is unterminated (`upsertEnvBlock` throws; the script dry-runs it first).
+A token minted and then lost to a failed write cannot be recovered — Ariko
+stores hashes — so a failed write prints the cards instead of dropping them.
+
+Three doors, all token-gated: `GET /api/articles/ping` (scope), `POST
+/api/articles/assets` (one raster image, uploaded server-side), `POST
+/api/articles` (`{ essays, narratives }`). `authorizeRepo` and the token
+store are `lib/repo-token-store.ts`; the pure half (hashing, setup card, `.env`
+block, target guards) is `lib/repo-token.ts`. A bearer that does not start
+`ariko_` is refused without a database read, so the legacy token path works
+with no database at all; every refusal is the same 401 body. Rules the tests
+pin, each of which passes `tsc`, `npm test` **and** `npm run build` while
+quietly becoming false:
+
+- **A repo writes inside its pod only.** `writeArticlesV2` resolves every
+  `about` and narrative slug against the token's pod; a slug elsewhere is
+  refused by name. The pod is the one stored beside the token's hash — the
+  `ariko_<pod>_` prefix is for humans and is never parsed as a claim.
+- **Only private things are writable, and absent means public.** A pod or bean
+  with no `visibility` is public (`lib/data.ts` and `filterPublic` read it so),
+  so the store checks `(visibility ?? "public") === "public"` and every write
+  filter demands `visibility: "private"` outright — never `$ne: "public"`,
+  which would match the absent field and write over reviewed work. A public pod
+  is refused **even with a blank narrative**: writing it would put the door's
+  text live with no review, the one thing this door exists not to do. Refusal
+  text is `(already reviewed)`.
+- **The door cannot publish.** `state`, `visibility`, `kind`, `type`,
+  `parents`, `exhibited` are refused keys, and so is any other key, by name
+  (`unknown key descripton`) — a typo must not be a silently dropped field.
+  Essays are written `draft`, `kind: "essay"`; no code path writes `published`.
+- **An essay is replaceable only by the door that wrote it, for that pod.**
+  `ownsEssay`: kind `essay`, `source.kind` `article-door`, `source.externalId`
+  the pod, and still a draft. A published or private sprout is `(already
+  reviewed)`; the maintainer's own draft or another pod's essay is `(not
+  written by this door)`.
+- **Halves are merged, never replaced.** `{ en }` keeps a stored `fr` on
+  `content`, `name` and `description`, and the reverse — the admin's "halves
+  are edited one at a time" rule applied to this door. An omitted `description`
+  on a re-post leaves the stored one. Replacing the other half to match what was
+  posted would delete a translation the maintainer wrote, with nothing failing.
+- **Every image is Ariko-hosted, and the host judges the bytes.**
+  `lib/article-images.ts` parses each `![](url)` URL and matches its
+  **normalized** path against `https://res.cloudinary.com/<cloud>/image/upload/
+  (v…/)<folder>/` — the shape `uploadImage` returns. A raw prefix check is not
+  enough: `/<cloud>/../other/` passes it, and so does `/<cloud>/image/fetch/<url>`,
+  which is a proxied hotlink. Reference-style images are refused. This is what
+  makes the draft the maintainer approved the draft that is stored. And
+  `checkUploadFile` can only read a MIME type the client chose, so
+  `uploadOptions` sets `allowed_formats` and Cloudinary refuses a non-raster
+  upload from its bytes: an SVG renamed `.png` fails (502, fixed body `upload
+  failed` — the provider's message can carry account detail and stays in the
+  log).
+- **Hand-authored relations survive a re-post** — `mergeMirrored` over the
+  stored list, never over `undefined`.
+- **A 409 says what, if anything, was written.** Every refusal is collected
+  before any write and the body is `{ error: "refused", refused, written }`.
+  `written` is non-empty only when a race interrupted a batch mid-way; what it
+  lists is private or draft, the route invalidates the cache for it, and
+  re-posting the whole payload is safe. "Nothing was written" is true only when
+  `written` is empty — the skill says so.
+- **The asset door has no rate limit.** A leaked token can fill Ariko's
+  Cloudinary quota; the answer is `npm run token:revoke -- --pod <slug>`, which
+  the skill's troubleshooting and the README both say.
+
+The legacy `ARTICLES_TOKEN` shape (`container` / `narrative` / `articles`)
+still works until it is retired; each token refuses the other's shape by name.
+Sibling agents get the flow as `plugins/ariko-article/`; its
+`CLAUDE-SNIPPET.md` is the self-sufficient fallback pasted into each sibling's
+`CLAUDE.md`, and every setup card embeds it.
 
 ## Lab Note requirement — read before opening a PR
 
