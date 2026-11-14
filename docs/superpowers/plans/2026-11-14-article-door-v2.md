@@ -1329,6 +1329,7 @@ import { isV2Shape, validateArticlesV2, type ArticlesV2 } from "../../../lib/art
 import { writeArticlesV2 } from "../../../lib/articles-v2-store";
 import { authorizeRepo } from "../../../lib/repo-token-store";
 import { cloudinaryCloudName } from "../../../lib/article-images";
+import { UPLOAD_FOLDER } from "../../../lib/storage";
 import { isDuplicateKeyError } from "../../../lib/seeds";
 import { revalidateGarden } from "../../../lib/garden-cache";
 
@@ -1370,7 +1371,8 @@ async function v2(pod: string, body: unknown): Promise<Response> {
       { error: "a repo token posts { essays, narratives } — see the ariko-article skill" },
       { status: 400 },
     );
-  const valid = validateArticlesV2(body, { cloud: cloudinaryCloudName(process.env.CLOUDINARY_URL) });
+  const cloud = cloudinaryCloudName(process.env.CLOUDINARY_URL);
+  const valid = validateArticlesV2(body, { host: cloud ? { cloud, folder: UPLOAD_FOLDER } : undefined });
   if (!valid.ok) return Response.json({ error: valid.error }, { status: 400 });
 
   let result;

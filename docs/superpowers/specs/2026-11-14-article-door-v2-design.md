@@ -102,7 +102,8 @@ interface RepoToken {
   ```
 
   It refuses a file that git tracks (`git ls-files --error-unmatch` in that
-  file's repo) — several sibling repos are public, and a tracked `.env` there
+  file's repo), and, inside a work tree, one that is not gitignored
+  (`git check-ignore`) — several sibling repos are public, and a tracked `.env` there
   would publish the token on the next push.
 
   `--sheet <path>` writes every card into one markdown file, to have open while
@@ -111,7 +112,7 @@ interface RepoToken {
   delete it once the presets are done. Without `--env` or `--sheet`, the cards
   go to stdout only. Ariko itself stores hashes, so a lost sheet means
   re-minting, never recovering.
-- `lib/repo-token.ts` exports `authorizeRepo(header): Promise<{ ok: true; pod } |
+- `lib/repo-token-store.ts` (the Mongo half; `lib/repo-token.ts` is the pure half) exports `authorizeRepo(header): Promise<{ ok: true; pod } |
   { ok: false; status: 401 }>`: hash the bearer, find a non-revoked document by
   hash. A missing header, unknown hash and revoked token are all 401 with the
   same body — the door does not say which.
@@ -210,8 +211,11 @@ non-blank content is refused. A new bean is created private under the pod.
 Hand-authored `relations` are preserved (`contentPatch`'s required parameter).
 
 **Image rule.** Every image URL in every posted `content` part — markdown
-`![…](url)` — must be on Ariko's Cloudinary cloud (`res.cloudinary.com/<our
-cloud>/`). Anything else is refused by name. This is what makes the draft the
+`![…](url)` — must be an upload on Ariko's Cloudinary cloud: parsed as a URL,
+`https://res.cloudinary.com`, normalized path
+`/<cloud>/image/upload/(v…/)?<folder>/` — the shape `uploadImage` returns. A
+raw prefix check is not enough: `/<cloud>/../other/` and `/<cloud>/image/fetch/<remote>`
+both start with the prefix, and the second is a proxied hotlink. Anything else is refused by name. This is what makes the draft the
 maintainer approved in the session the draft that is stored: no hotlink can
 change or vanish after review.
 
