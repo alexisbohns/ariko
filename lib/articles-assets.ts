@@ -1,0 +1,45 @@
+// lib/articles-assets.ts
+//
+// One image per request, uploaded server-side (spec 2026-11-14 §3.2). One per
+// request because Vercel caps a request body at ~4.5 MB; server-side because
+// the Cloudinary credential never leaves Ariko (CLAUDE.md, "Images upload
+// through uploadImageAction, never from the browser to a third party" — the
+// same rule, for a repo instead of a browser). The same checkUploadFile the
+// admin picker uses: 4 MB, raster only.
+//
+// Not tied to an article: an asset uploaded for a draft that is never posted is
+// an orphan, which `npm run check:orphans` sweeps. The skill uploads only after
+// the maintainer approves, which keeps that rare.
+
+import { checkUploadFile, uploadedFilename } from "./upload-input";
+import type { MediaImage } from "./data";
+import type { RepoAuth } from "./repo-token-store";
+
+export interface AssetDeps {
+  authorize: (header: string | null) => Promise<RepoAuth>;
+  upload: (bytes: Buffer, filename?: string) => Promise<MediaImage>;
+}
+
+export async function handleAssetUpload(request: Request, deps: AssetDeps): Promise<Response> {
+  const repo = await deps.authorize(request.headers.get("authorization"));
+  if (!repo.ok) return Response.json({ error: "unauthorized" }, { status: 401 });
+
+  let file: FormDataEntryValue | null;
+  try {
+    file = (await request.formData()).get("file");
+  } catch {
+    return Response.json({ error: "body must be multipart/form-data with a file field" }, { status: 400 });
+  }
+  if (!(file instanceof Blob)) return Response.json({ error: "no file was sent (field name: file)" }, { status: 400 });
+
+  const check = checkUploadFile({ size: file.size, type: file.type });
+  if (!check.ok) return Response.json({ error: check.error }, { status: 400 });
+
+  try {
+    const media = await deps.upload(Buffer.from(await file.arrayBuffer()), uploadedFilename(file));
+    return Response.json({ url: media.url, width: media.width, height: media.height });
+  } catch (err) {
+    console.error(`[articles/assets] upload failed for pod ${repo.pod}`, err);
+    return Response.json({ error: err instanceof Error ? err.message : "upload failed" }, { status: 502 });
+  }
+}
