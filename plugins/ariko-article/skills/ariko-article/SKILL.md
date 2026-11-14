@@ -80,10 +80,17 @@ approval. **Upload nothing before an explicit yes.** Revise as often as asked.
 One request per file:
 
 ```bash
-curl -fsS -H "Authorization: Bearer $ARIKO_TOKEN" \
-  -F "file=@/abs/path/shot.png" "${ARIKO_URL:-https://www.ariko.app}/api/articles/assets"
+curl -sS -w '\nHTTP %{http_code}\n' -H "Authorization: Bearer $ARIKO_TOKEN" \
+  -F "file=@/abs/path/shot.png;type=image/png" "${ARIKO_URL:-https://www.ariko.app}/api/articles/assets"
 # → { "url": "https://res.cloudinary.com/…", "width": 1170, "height": 2532 }
+# → HTTP 200
 ```
+
+Always declare the type: curl sends `.webp` and `.avif` as
+`application/octet-stream`, which Ariko refuses with a 400. `type=` must match
+the file's real format — `image/png`, `image/jpeg`, `image/gif`, `image/webp`
+or `image/avif`. (No `-f` here: it would hide the error body, which says what
+was wrong. `-w` prints the status after the body.)
 
 Replace each local path in the markdown with its returned `url`. Ariko accepts
 **only** URLs this endpoint returned — an upload on its own image host — and
@@ -97,7 +104,7 @@ refuses any other image URL, hotlinks included.
 ## 4. Post
 
 ```bash
-curl -sS -X POST -H "Authorization: Bearer $ARIKO_TOKEN" -H "content-type: application/json" \
+curl -sS -w '\nHTTP %{http_code}\n' -X POST -H "Authorization: Bearer $ARIKO_TOKEN" -H "content-type: application/json" \
   --data @payload.json "${ARIKO_URL:-https://www.ariko.app}/api/articles"
 ```
 
@@ -146,6 +153,8 @@ Responses:
   unless `written` lists something**: that happens only when a race interrupted
   the batch mid-way, and what it lists is private/draft. Either way, fix what
   `refused` names and **re-post the whole payload** — it is safe to repeat.
+  A rare 409 may carry only `{ "error": "refused: a slug was taken mid-write; …" }`
+  (no `refused` list): someone created that slug a moment ago. Re-ping and retry.
 
 ## 5. Report
 

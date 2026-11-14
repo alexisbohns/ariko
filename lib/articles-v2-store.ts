@@ -3,8 +3,8 @@
 // Mongo glue for the v2 article door (spec 2026-11-14 §3.3). The token names a
 // pod; everything this module writes must be inside it: the pod itself, a bean
 // whose parents include `pod:<pod>`, or a bean this same payload creates under
-// it. Every refusal is collected before any write (all-or-nothing, as
-// writeArticles does), and the writes re-assert their preconditions in their
+// it. Every refusal is pre-checked before any write; a mid-batch race returns
+// what was written in `written`. The writes re-assert their preconditions in their
 // filters so a human publishing mid-write turns into a refusal, not a clobber.
 //
 // It never writes `state: "published"` or `visibility` on anything but a bean

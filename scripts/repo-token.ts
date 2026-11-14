@@ -13,6 +13,7 @@
 import { parseArgs } from "node:util";
 import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, chmodSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { resolve, dirname, join } from "node:path";
 import { homedir } from "node:os";
 import { closeDb, getDb } from "../lib/db";
@@ -29,7 +30,7 @@ import {
 const git: GitRunner = (args, cwd) => spawnSync("git", args, { cwd, stdio: "ignore" });
 const expand = (p: string) => resolve(p.startsWith("~/") ? join(homedir(), p.slice(2)) : p);
 const today = () => new Date().toISOString().slice(0, 10);
-const SNIPPET = resolve(dirname(new URL(import.meta.url).pathname), "../plugins/ariko-article/CLAUDE-SNIPPET.md");
+const SNIPPET = resolve(dirname(fileURLToPath(import.meta.url)), "../plugins/ariko-article/CLAUDE-SNIPPET.md");
 
 function fail(message: string): never {
   console.error(`✗ ${message}`);
@@ -75,10 +76,21 @@ async function mint(pods: string[], envPath?: string, sheetPath?: string, label?
   console.log(`Minting in database "${process.env.MONGODB_DB ?? "beanstalk"}" — previous tokens for these pods are revoked.\n`);
   const cards: string[] = [];
   let envBlockText: string | undefined;
-  for (const pod of pods) {
-    const token = await mintToken(pod, label ?? `${pod} — ${today()}`);
-    cards.push(setupCard({ pod, token, claudeSnippet: snippet }));
-    if (env) envBlockText = envBlock({ pod, token, date: today() });
+  try {
+    for (const pod of pods) {
+      const token = await mintToken(pod, label ?? `${pod} — ${today()}`);
+      cards.push(setupCard({ pod, token, claudeSnippet: snippet }));
+      if (env) envBlockText = envBlock({ pod, token, date: today() });
+    }
+  } catch (err) {
+    // Tokens already minted are live and unrecoverable (hashes only): show
+    // them, then fail. Earlier ones are NOT rolled back.
+    if (cards.length > 0) {
+      console.error(`✗ minting stopped after ${cards.length} of ${pods.length} pod(s) — the card(s) minted so far follow`);
+      console.log(cards.join("\n---\n\n"));
+    }
+    console.error(`✗ ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(1);
   }
   const body = cards.join("\n---\n\n");
 
@@ -93,7 +105,9 @@ async function mint(pods: string[], envPath?: string, sheetPath?: string, label?
   };
   if (env && envBlockText) {
     try {
-      writeFileSync(env, upsertEnvBlock(envBefore, envBlockText));
+      const created = !existsSync(env);
+      writeFileSync(env, upsertEnvBlock(envBefore, envBlockText), created ? { mode: 0o600 } : undefined);
+      if (created) chmodSync(env, 0o600);
       console.log(`✓ ${env} — ARIKO_TOKEN written (ariko block)`);
     } catch (err) {
       lost(env, err);
@@ -105,6 +119,9 @@ async function mint(pods: string[], envPath?: string, sheetPath?: string, label?
       `> Ariko stores only hashes: a lost token is re-minted, never recovered.\n\n` +
       `# Ariko cloud setup — ${today()}\n\n`;
     try {
+      // Private BEFORE the tokens land in it: an existing file keeps its old
+      // mode through a write, so tighten it first; a new one is created 0600.
+      if (existsSync(sheet)) chmodSync(sheet, 0o600);
       writeFileSync(sheet, header + body, { mode: 0o600 });
       chmodSync(sheet, 0o600);
       console.log(`✓ ${sheet} — ${pods.length} setup card(s), mode 600`);
