@@ -13,6 +13,11 @@
       "name": "garden-plant",
       "source": "./plugins/garden-plant",
       "description": "Describe a project as a pod, beans and sprouts in a garden.yml — Ariko plants it with one reviewed command."
+    },
+    {
+      "name": "ariko-article",
+      "source": "./plugins/ariko-article",
+      "description": "Write an essay or a feature narrative and post it to Ariko as a draft — images included, after your approval."
     }
   ]
 }
