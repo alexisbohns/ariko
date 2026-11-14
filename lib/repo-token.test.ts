@@ -10,6 +10,7 @@ import {
   hashToken,
   looksLikeRepoToken,
   setupCard,
+  SKILL_SETUP,
   sheetTargetProblem,
   upsertEnvBlock,
 } from "./repo-token";
@@ -94,17 +95,21 @@ test("upsertEnvBlock replaces a block in a CRLF file", () => {
   assert.ok(out.includes("B=2"));
 });
 
-test("setupCard has the five steps, the token and the snippets", () => {
-  const card = setupCard({ plant: "pbbls", token: "ariko_pbbls_x", claudeSnippet: "## Writing for Ariko\n…" });
+test("setupCard has the three per-repo steps and nothing for the repo itself", () => {
+  const card = setupCard({ plant: "pbbls", token: "ariko_pbbls_x" });
   assert.match(card, /^## pbbls$/m);
   assert.match(card, /ARIKO_TOKEN=ariko_pbbls_x/);
   assert.match(card, /www\.ariko\.app/);
-  assert.match(card, /"ariko-article@ariko": true/);
-  assert.match(card, /## Writing for Ariko/);
   assert.match(card, /ping Ariko/);
   assert.match(card, /answer with the plant `pbbls`/);
-  const fenced = card.split("````md\n")[1].split("\n````")[0];
-  assert.equal(fenced, "## Writing for Ariko\n…");
+  // Cloud sessions ignore a repo's enabledPlugins; the skill is account-level.
+  assert.doesNotMatch(card, /enabledPlugins|settings\.json|CLAUDE\.md/);
+});
+
+test("SKILL_SETUP points at the account skill and the user-level plugin", () => {
+  assert.match(SKILL_SETUP, /npm run skill:zip/);
+  assert.match(SKILL_SETUP, /claude\.ai/);
+  assert.match(SKILL_SETUP, /\/plugin install ariko-article@ariko/);
 });
 
 // A fake git that answers per subcommand (args[0]).

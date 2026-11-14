@@ -151,6 +151,21 @@ token's pod now means the plant's pods, with these consequences:
   to admin links (`pod:x` → `/admin/pod/x`), since the slug alone no longer says
   which kind it was.
 
+### 2.2 Amendment (2026-11-14): the skill is per account, nothing goes in a repo
+
+The setup below (card steps 3–4, §4's checklist items 4–5) put an
+`enabledPlugins` entry and a "Writing for Ariko" section in every sibling. The
+Claude Code docs settle the open question against it: a cloud session does
+**not** install the plugins a repo's `.claude/settings.json` enables, and never
+reads user-level settings, plugins or skills — but it does load **skills
+enabled on the claude.ai account**. So the skill is installed once: uploaded to
+the account (`npm run skill:zip` builds the zip) for cloud sessions, and
+`/plugin install ariko-article@ariko` at user scope for local ones. The
+`CLAUDE.md` fallback is deleted: it put ~40 lines in every session of every
+sibling for an occasional task, and every edit to the flow meant editing five
+repos. A setup card is now three steps — env vars, allowlist, a ping — and the
+sheet says once, at the top, how the skill is installed.
+
 ## 3. Doors
 
 All three live under `/api/articles` (not `/admin`: they are token-gated, not

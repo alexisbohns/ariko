@@ -13,7 +13,6 @@
 import { parseArgs } from "node:util";
 import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, chmodSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { resolve, dirname, join } from "node:path";
 import { homedir } from "node:os";
 import { closeDb, getDb } from "../lib/db";
@@ -22,6 +21,7 @@ import {
   envBlock,
   envTargetProblem,
   setupCard,
+  SKILL_SETUP,
   sheetTargetProblem,
   upsertEnvBlock,
   type GitRunner,
@@ -30,7 +30,6 @@ import {
 const git: GitRunner = (args, cwd) => spawnSync("git", args, { cwd, stdio: "ignore" });
 const expand = (p: string) => resolve(p.startsWith("~/") ? join(homedir(), p.slice(2)) : p);
 const today = () => new Date().toISOString().slice(0, 10);
-const SNIPPET = resolve(dirname(fileURLToPath(import.meta.url)), "../plugins/ariko-article/CLAUDE-SNIPPET.md");
 
 function fail(message: string): never {
   console.error(`✗ ${message}`);
@@ -64,7 +63,6 @@ async function mint(plants: string[], envPath?: string, sheetPath?: string, labe
     const problem = sheetTargetProblem(sheet, git);
     if (problem) fail(problem);
   }
-  const snippet = readFileSync(SNIPPET, "utf8");
   const known = new Set(
     (await (await getDb()).collection("plants").find({ slug: { $in: plants } }, { projection: { slug: 1 } }).toArray()).map(
       (p) => p.slug as string,
@@ -79,7 +77,7 @@ async function mint(plants: string[], envPath?: string, sheetPath?: string, labe
   try {
     for (const plant of plants) {
       const token = await mintToken(plant, label ?? `${plant} — ${today()}`);
-      cards.push(setupCard({ plant, token, claudeSnippet: snippet }));
+      cards.push(setupCard({ plant, token }));
       if (env) envBlockText = envBlock({ plant, token, date: today() });
     }
   } catch (err) {
@@ -117,7 +115,9 @@ async function mint(plants: string[], envPath?: string, sheetPath?: string, labe
     const header =
       `> **Delete this file once the cloud presets are set up.** It holds live tokens.\n` +
       `> Ariko stores only hashes: a lost token is re-minted, never recovered.\n\n` +
-      `# Ariko cloud setup — ${today()}\n\n`;
+      `# Ariko cloud setup — ${today()}\n\n` +
+      SKILL_SETUP +
+      `\n---\n\n`;
     try {
       // Private BEFORE the tokens land in it: an existing file keeps its old
       // mode through a write, so tighten it first; a new one is created 0600.
@@ -129,7 +129,7 @@ async function mint(plants: string[], envPath?: string, sheetPath?: string, labe
       lost(sheet, err);
     }
   }
-  if (!env && !sheet) console.log(body);
+  if (!env && !sheet) console.log(SKILL_SETUP + "\n---\n\n" + body);
 }
 
 async function main() {

@@ -660,8 +660,8 @@ npm run token:revoke -- --plant pbbls
 
 Minting writes to the database `.env.local` names — production — and says
 which before it starts. It prints a setup card per repo for its Claude Code
-cloud preset (env vars, `www.ariko.app` on the allowlist, `enabledPlugins`, the
-`CLAUDE.md` snippet). Every guard runs **before the first mint**: an unknown
+cloud preset — env vars, `www.ariko.app` on the allowlist, a ping to check —
+and **nothing for the repo itself**. Every guard runs **before the first mint**: an unknown
 plant, a repeated `--plant`, `--env` with more than one plant, an `--env` file git
 tracks or does not ignore (`envTargetProblem`: `rev-parse` → `ls-files` →
 `check-ignore`), a `--sheet` inside any work tree, an `--env` file whose ariko
@@ -737,9 +737,14 @@ quietly becoming false:
 
 The legacy `ARTICLES_TOKEN` shape (`container` / `narrative` / `articles`)
 still works until it is retired; each token refuses the other's shape by name.
-Sibling agents get the flow as `plugins/ariko-article/`; its
-`CLAUDE-SNIPPET.md` is the self-sufficient fallback pasted into each sibling's
-`CLAUDE.md`, and every setup card embeds it.
+Sibling agents get the flow as the `ariko-article` skill
+(`plugins/ariko-article/`), installed **once per account, never per repo**: a
+cloud session ignores a repo's `enabledPlugins` and never sees user-level
+plugins, but it loads skills enabled on the claude.ai account — so
+`npm run skill:zip` builds the zip uploaded there, and locally it is
+`/plugin install ariko-article@ariko` at user scope. Nothing is pasted into a
+sibling's `CLAUDE.md`: a skill costs one description in context until it is
+used, and an edit to it reaches every repo with one re-upload.
 
 ## Lab Note requirement — read before opening a PR
 
