@@ -1386,7 +1386,12 @@ async function v2(pod: string, body: unknown): Promise<Response> {
       );
     throw err;
   }
-  if (!result.ok) return Response.json({ error: "refused", refused: result.refused }, { status: 409 });
+  if (!result.ok) {
+    // A mid-batch race can leave earlier items written (all private/draft);
+    // say so, and invalidate for them, rather than claim nothing happened.
+    if (result.written.length > 0) revalidateGarden();
+    return Response.json({ error: "refused", refused: result.refused, written: result.written }, { status: 409 });
+  }
   revalidateGarden();
   const admin = [
     ...result.narratives.map((s) => (s === pod ? `/admin/pod/${s}` : `/admin/bean/${s}`)),

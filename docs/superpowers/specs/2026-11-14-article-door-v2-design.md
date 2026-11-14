@@ -113,7 +113,7 @@ interface RepoToken {
   go to stdout only. Ariko itself stores hashes, so a lost sheet means
   re-minting, never recovering.
 - `lib/repo-token-store.ts` (the Mongo half; `lib/repo-token.ts` is the pure half) exports `authorizeRepo(header): Promise<{ ok: true; pod } |
-  { ok: false; status: 401 }>`: hash the bearer, find a non-revoked document by
+  { ok: false }>` (the route answers 401): hash the bearer, find a non-revoked document by
   hash. A missing header, unknown hash and revoked token are all 401 with the
   same body — the door does not say which.
 - **Transition.** `ARTICLES_TOKEN` keeps working on the legacy payload shape
@@ -193,16 +193,29 @@ narrative slug must be the pod or one of its beans, or — for a bean that does
 not exist — is created under the pod. Anything else is refused by name, e.g.
 `about "arkaik-graph" is not in pod pbbls`.
 
+**What "public" means here.** A pod or bean with no `visibility` field is
+public — `lib/data.ts` and `filterPublic` read it that way — so this door
+treats it as reviewed and refuses it. Writable means `visibility: "private"`.
+
+**Halves are merged, never replaced.** A post carrying only `{ en }` keeps a
+stored `fr` (and vice versa) on `content`, `name` and `description` — the
+admin's "halves are edited one at a time" rule, applied to this door. An
+omitted `description` on a re-post leaves the stored one alone.
+
+**A bean under two pods** can be written by either pod's token. A slug equal
+to the pod's always names the pod.
+
 **Essays.** Written through `createSprout` as `state: "draft"`,
 `kind: "essay"`, with `about` set and no `parents` (`updateSproutAnchor`'s
 one-field rule). Re-posting a slug:
 
 - no sprout with that slug → create;
-- a **draft** whose derived plant (`resolveSproutPlant`) is the token pod's
-  plant and whose `about` is all inside the pod → replace `name`,
+- a **draft essay this door wrote for this pod** (`kind: "essay"`,
+  `source: { kind: "article-door", externalId: <pod> }`) → replace `name`,
   `description`, `content`, `date`, `about`;
-- a published sprout, or a draft belonging elsewhere → refused
-  (`already reviewed` / `not in pod pbbls`).
+- a published or private sprout → refused (`already reviewed`); any other
+  sprout — the maintainer's own draft, another pod's essay — → refused
+  (`not written by this door`).
 
 **Narratives.** The pod or bean's `content` (and `name` / `description` when
 given) through the existing store logic, with its existing refusals: a
@@ -220,7 +233,9 @@ maintainer approved in the session the draft that is stored: no hotlink can
 change or vanish after review.
 
 **All-or-nothing**, as today: every refusal is collected before any write and
-returned together (`409` with `refused: [...]`); `400` for shape. After a
+returned together (`409` with `refused: [...]`). If a write loses a race
+mid-batch, the 409 also lists what was already `written` (all private or
+draft), and the route still invalidates for those; `400` for shape. After a
 successful write, `revalidateGarden()`.
 
 ## 4. The `ariko-article` plugin
