@@ -15,6 +15,8 @@
 // ABSENT `visibility` MEANS PUBLIC (lib/data.ts), so every "is it reviewed?"
 // check here reads `(visibility ?? "public") === "public"` and every write
 // filter demands `visibility: "private"` outright — never `$ne: "public"`.
+// A pod is writable only while PRIVATE (even blank: a public one would put the
+// door's text live unreviewed); a bean, only while private and not projected.
 // A slug equal to the pod's always means the pod. A bean listed under two pods
 // can be written by either pod's token (accepted).
 
@@ -29,24 +31,6 @@ export type V2Result =
   | { ok: false; refused: string[]; written: string[] };
 
 const isPublic = (x: { visibility?: string }) => (x.visibility ?? "public") === "public";
-
-// containerStillWritableFilter's twin for the v2 door: writable iff PRIVATE or
-// its resolved content is blank. The legacy filter says `$ne: "public"`, which
-// lets an absent visibility (public, per lib/data.ts) through.
-function podStillWritableFilter(): Record<string, unknown> {
-  const resolvedEn = { $ifNull: ["$content.en", ""] };
-  const resolvedFr = { $ifNull: ["$content.fr", ""] };
-  const resolvedText = {
-    $cond: [
-      { $eq: [{ $type: "$content" }, "object"] },
-      { $cond: [{ $ne: [resolvedEn, ""] }, resolvedEn, resolvedFr] },
-      { $ifNull: ["$content", ""] },
-    ],
-  };
-  return {
-    $or: [{ visibility: "private" }, { $expr: { $eq: [{ $trim: { input: resolvedText } }, ""] } }],
-  };
-}
 
 const asParts = (text: Text): Record<string, string | undefined> =>
   typeof text === "string" ? { en: text } : { ...text };
@@ -92,8 +76,9 @@ export async function writeArticlesV2(pod: string, payload: ArticlesV2): Promise
 
   for (const n of narratives) {
     if (n.slug === pod) {
-      if (isPublic(podDoc) && resolveText(podDoc.content).trim() !== "")
-        refused.push(`pod:${pod} (already reviewed)`);
+      // Only a PRIVATE pod is writable, even with blank content: on a public one
+      // the door's text would go live unreviewed.
+      if (isPublic(podDoc)) refused.push(`pod:${pod} (already reviewed)`);
       continue;
     }
     const bean = beanBySlug.get(n.slug);
@@ -143,8 +128,8 @@ export async function writeArticlesV2(pod: string, payload: ArticlesV2): Promise
     if (n.description !== undefined && resolveText(n.description).trim() !== "") stamp("description", n.description);
 
     if (n.slug === pod) {
-      set.relations = mergeMirrored(podDoc.relations, extractRefs(n.content));
-      const r = await db.collection("pods").updateOne({ slug: pod, ...podStillWritableFilter() }, { $set: set });
+      set.relations = mergeMirrored(podDoc.relations, extractRefs(set.content as Text));
+      const r = await db.collection("pods").updateOne({ slug: pod, visibility: "private" }, { $set: set });
       if (r.matchedCount === 0) return failed(`pod:${pod} (already reviewed)`);
       written.push(`${POD_PREFIX}${pod}`);
     } else if (created.has(n.slug)) {
@@ -164,7 +149,7 @@ export async function writeArticlesV2(pod: string, payload: ArticlesV2): Promise
       }
       written.push(`${BEAN_PREFIX}${n.slug}`);
     } else {
-      set.relations = mergeMirrored(beanBySlug.get(n.slug)?.relations, extractRefs(n.content));
+      set.relations = mergeMirrored(beanBySlug.get(n.slug)?.relations, extractRefs(set.content as Text));
       const r = await db
         .collection("beans")
         .updateOne({ slug: n.slug, visibility: "private", projected: { $exists: false } }, { $set: set });
@@ -177,12 +162,13 @@ export async function writeArticlesV2(pod: string, payload: ArticlesV2): Promise
     const about = e.about.map(toRef);
     const existing = storedBySlug.get(e.slug);
     if (existing) {
+      const content = mergeText(existing.content, e.content);
       const set: Record<string, unknown> = {
         name: mergeText(existing.name, e.name),
-        content: mergeText(existing.content, e.content),
+        content,
         date: e.date,
         about,
-        relations: mergeMirrored(existing.relations, extractRefs(e.content)),
+        relations: mergeMirrored(existing.relations, extractRefs(content)),
       };
       if (e.description !== undefined && resolveText(e.description).trim() !== "")
         set.description = mergeText(existing.description, e.description);

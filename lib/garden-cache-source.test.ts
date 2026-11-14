@@ -177,7 +177,7 @@ const FOREIGN_MODULES: { path: string; writers: Set<string>; readers: Set<string
   {
     path: "lib/articles-store.ts",
     writers: new Set(["writeArticles"]),
-    readers: new Set(["containerStillWritableFilter"]),
+    readers: new Set([]),
   },
   {
     path: "lib/articles-v2-store.ts",

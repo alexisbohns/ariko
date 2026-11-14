@@ -195,3 +195,23 @@ test("a new bean is created privately via createBean's shape", { skip: !hasDb },
   assert.equal(b?.visibility, "private");
   assert.equal(b?.description, "D");
 });
+
+test("relations are mirrored from the MERGED content, keeping a ref only the French half carries", { skip: !hasDb }, async () => {
+  const db = await getDb();
+  await db.collection("beans").updateOne(
+    { slug: BEAN },
+    { $set: { content: { en: "EN", fr: `FR :entity[x]{ref=bean:${OTHER_BEAN}}` } } },
+  );
+  const r = await writeArticlesV2(POD, { narratives: [{ slug: BEAN, content: { en: "EN2" } }] });
+  assert.equal(r.ok, true);
+  const b = await db.collection("beans").findOne({ slug: BEAN });
+  assert.ok(b?.relations.some((x: { ref: string }) => x.ref === `bean:${OTHER_BEAN}`));
+});
+
+test("a public pod is refused even when its content is blank", { skip: !hasDb }, async () => {
+  const db = await getDb();
+  await db.collection("pods").updateOne({ slug: POD }, { $set: { visibility: "public" } });
+  const r = await writeArticlesV2(POD, { narratives: [{ slug: POD, content: "y" }] });
+  assert.deepEqual(r, { ok: false, refused: [`pod:${POD} (already reviewed)`], written: [] });
+  assert.equal((await db.collection("pods").findOne({ slug: POD }))?.content, undefined);
+});
