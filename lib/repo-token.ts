@@ -21,6 +21,7 @@ export function generateToken(pod: string): string {
   return `ariko_${pod}_${randomBytes(24).toString("base64url")}`;
 }
 
+// A routing hint only (repo token vs legacy); the legacy ARTICLES_TOKEN must never start with `ariko_`.
 export function looksLikeRepoToken(token: string): boolean {
   return token.startsWith("ariko_");
 }
@@ -44,14 +45,34 @@ export function envBlock({ pod, token, date }: { pod: string; token: string; dat
   ].join("\n");
 }
 
-/** Replace the marked block if present, else append it after a blank line. */
+/**
+ * Replace the marked block, else append it after a blank line. Markers match
+ * as whole lines only. Every existing block is removed and the new one takes
+ * the first one's place; an unterminated block is refused rather than guessed.
+ */
 export function upsertEnvBlock(existing: string, block: string): string {
-  const start = existing.indexOf(ENV_BLOCK_START);
-  const end = existing.indexOf(ENV_BLOCK_END);
-  if (start !== -1 && end > start) {
-    const after = existing.slice(end + ENV_BLOCK_END.length).replace(/^\n/, "");
-    return existing.slice(0, start) + block + after;
+  const lines = existing.split("\n");
+  const out: string[] = [];
+  let placed = false;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].startsWith(ENV_BLOCK_START)) {
+      let end = -1;
+      for (let j = i + 1; j < lines.length; j++)
+        if (lines[j].startsWith(ENV_BLOCK_END)) {
+          end = j;
+          break;
+        }
+      if (end === -1) throw new Error("env file has an unterminated ariko block — fix it by hand");
+      if (!placed) {
+        out.push(...block.replace(/\n$/, "").split("\n"));
+        placed = true;
+      }
+      i = end;
+      continue;
+    }
+    out.push(lines[i]);
   }
+  if (placed) return out.join("\n");
   if (existing === "") return block;
   return existing.replace(/\n*$/, "\n\n") + block;
 }
@@ -97,16 +118,29 @@ export function setupCard({ pod, token, claudeSnippet }: { pod: string; token: s
 
 export type GitRunner = (args: string[], cwd: string) => { status: number | null };
 
+const gitFailure = (path: string) => `could not run git to check ${path}`;
+
 /** null when the path is safe to write a token into; else why not. */
 export function envTargetProblem(path: string, git: GitRunner): string | null {
-  const { status } = git(["ls-files", "--error-unmatch", basename(path)], dirname(path));
-  return status === 0
-    ? `${path} is tracked by git — a token written there would be published on the next push`
-    : null;
+  const cwd = dirname(path);
+  const base = basename(path);
+  const inside = git(["rev-parse", "--is-inside-work-tree"], cwd);
+  if (inside.status === null) return gitFailure(path);
+  if (inside.status !== 0) return null; // not a repository: nothing can publish it
+  const tracked = git(["ls-files", "--error-unmatch", base], cwd);
+  if (tracked.status === null) return gitFailure(path);
+  if (tracked.status === 0)
+    return `${path} is tracked by git — a token written there would be published on the next push`;
+  const ignored = git(["check-ignore", "-q", base], cwd);
+  if (ignored.status === null) return gitFailure(path);
+  return ignored.status === 0
+    ? null
+    : `${path} is not gitignored — add it to that repo's .gitignore first`;
 }
 
 export function sheetTargetProblem(path: string, git: GitRunner): string | null {
   const { status } = git(["rev-parse", "--is-inside-work-tree"], dirname(path));
+  if (status === null) return gitFailure(path);
   return status === 0
     ? `${path} is inside a git repository — write the sheet somewhere no commit can pick it up`
     : null;

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { isV2Shape, validateArticlesV2 } from "./articles-v2";
 
-const CLOUD = "ariko";
+const HOST = { cloud: "ariko", folder: "beanstalk" };
 const IMG = "https://res.cloudinary.com/ariko/image/upload/v1/beanstalk/x.png";
 const essay = (over: Record<string, unknown> = {}) => ({
   slug: "feed-redesign",
@@ -13,7 +13,7 @@ const essay = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 const narrative = (over: Record<string, unknown> = {}) => ({ slug: "feed", content: "Now…", ...over });
-const v = (body: unknown) => validateArticlesV2(body, { cloud: CLOUD });
+const v = (body: unknown) => validateArticlesV2(body, { host: HOST });
 
 test("isV2Shape keys on essays/narratives", () => {
   assert.equal(isV2Shape({ essays: [] }), true);
@@ -69,4 +69,20 @@ test("images: every content part is checked, in both languages", () => {
   assert.match((r as { error: string }).error, /^feed-redesign: content\.fr: https:\/\/example\.com\/a\.png is not hosted by Ariko/);
   const n = v({ narratives: [narrative({ content: "![x](./a.png)" })] });
   assert.match((n as { error: string }).error, /^feed: content: \.\/a\.png is not hosted by Ariko/);
+});
+
+test("unknown keys are refused by name", () => {
+  assert.deepEqual(v({ essays: [essay({ descripton: "x" })] }), {
+    ok: false,
+    error: "feed-redesign: unknown key descripton",
+  });
+  assert.deepEqual(v({ narratives: [narrative({ date: "2026-11-14" })] }), {
+    ok: false,
+    error: "feed: unknown key date",
+  });
+});
+
+test("an essay's problems with several images come back in one message", () => {
+  const r = v({ essays: [essay({ content: "![a](https://a.test/1.png) ![b](https://b.test/2.png)" })] }) as { error: string };
+  assert.match(r.error, /1\.png is not hosted by Ariko.*; .*2\.png is not hosted/);
 });

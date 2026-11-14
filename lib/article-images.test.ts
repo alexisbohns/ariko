@@ -17,25 +17,51 @@ test("markdownImages ignores links and code", () => {
   assert.deepEqual(markdownImages(md), { urls: [], references: 0 });
 });
 
-test("imageProblems accepts Ariko's Cloudinary cloud only", () => {
-  const ok = "![a](https://res.cloudinary.com/ariko/image/upload/v1/beanstalk/x.png)";
-  assert.deepEqual(imageProblems(ok, "ariko"), []);
-  const other = "![a](https://res.cloudinary.com/someone-else/image/upload/x.png)";
-  assert.equal(imageProblems(other, "ariko").length, 1);
+const HOST = { cloud: "ariko", folder: "beanstalk" };
+const OK = "https://res.cloudinary.com/ariko/image/upload/v1/beanstalk/x.png";
+
+test("imageProblems accepts Ariko's Cloudinary upload folder only", () => {
+  assert.deepEqual(imageProblems(`![a](${OK})`, HOST), []);
+  assert.deepEqual(
+    imageProblems("![a](https://res.cloudinary.com/ariko/image/upload/beanstalk/x.png)", HOST),
+    [],
+  );
+  const other = "![a](https://res.cloudinary.com/someone-else/image/upload/v1/beanstalk/x.png)";
+  assert.equal(imageProblems(other, HOST).length, 1);
+  const elsewhere = "![a](https://res.cloudinary.com/ariko/image/upload/v1/other/x.png)";
+  assert.equal(imageProblems(elsewhere, HOST).length, 1);
   const hotlink = "![a](https://example.com/x.png)";
-  assert.match(imageProblems(hotlink, "ariko")[0], /https:\/\/example\.com\/x\.png is not hosted by Ariko/);
+  assert.match(imageProblems(hotlink, HOST)[0], /https:\/\/example\.com\/x\.png is not hosted by Ariko/);
   const data = "![a](data:image/png;base64,AAAA)";
-  assert.equal(imageProblems(data, "ariko").length, 1);
+  assert.equal(imageProblems(data, HOST).length, 1);
   const local = "![a](./shots/a.png)";
-  assert.match(imageProblems(local, "ariko")[0], /upload it to \/api\/articles\/assets/);
+  assert.match(imageProblems(local, HOST)[0], /upload it to \/api\/articles\/assets/);
+});
+
+for (const url of [
+  "https://res.cloudinary.com/ariko/../other/image/upload/x.png",
+  "https://res.cloudinary.com/ariko/%2e%2e/other/x.png",
+  "https://res.cloudinary.com/ariko/image/fetch/https://evil.com/x.png",
+  "https://user:pw@res.cloudinary.com/ariko/image/upload/v1/beanstalk/x.png",
+  "http://res.cloudinary.com/ariko/image/upload/v1/beanstalk/x.png",
+  "https://res.cloudinary.com.evil.test/ariko/image/upload/v1/beanstalk/x.png",
+]) {
+  test(`imageProblems refuses ${url}`, () => {
+    assert.equal(imageProblems(`![a](${url})`, HOST).length, 1);
+  });
+}
+
+test("imageProblems reports every bad image of one content part", () => {
+  const md = "![a](https://a.test/1.png)\n\n![b](https://b.test/2.png)";
+  assert.equal(imageProblems(md, HOST).length, 2);
 });
 
 test("imageProblems refuses reference-style images by name", () => {
-  assert.match(imageProblems("![a][one]\n\n[one]: https://x.test/1.png", "ariko")[0], /reference-style/);
+  assert.match(imageProblems("![a][one]\n\n[one]: https://x.test/1.png", HOST)[0], /reference-style/);
 });
 
-test("imageProblems with no configured cloud refuses every image", () => {
-  assert.equal(imageProblems("![a](https://res.cloudinary.com/ariko/x.png)", undefined).length, 1);
+test("imageProblems with no configured host refuses every image", () => {
+  assert.equal(imageProblems(`![a](${OK})`, undefined).length, 1);
   assert.deepEqual(imageProblems("no images here", undefined), []);
 });
 

@@ -14,7 +14,7 @@
 import { isTimelineDate } from "./sprout-date";
 import type { Text } from "./data";
 import { SLUG, validateText } from "./articles";
-import { imageProblems } from "./article-images";
+import { imageProblems, type ImageHost } from "./article-images";
 
 export interface EssayInput {
   slug: string;
@@ -40,6 +40,8 @@ export interface ArticlesV2 {
 type Check = { ok: true } | { ok: false; error: string };
 
 const REFUSED_KEYS = ["state", "visibility", "kind", "type", "parents", "exhibited"] as const;
+const ESSAY_KEYS = ["slug", "date", "name", "description", "content", "about"];
+const NARRATIVE_KEYS = ["slug", "name", "description", "content"];
 const LEGACY_KEYS = ["container", "narrative", "articles"] as const;
 
 export function isV2Shape(body: unknown): boolean {
@@ -50,18 +52,20 @@ function parts(text: Text): [string, string][] {
   return typeof text === "string" ? [["", text]] : Object.entries(text).map(([k, v]) => [k, v ?? ""]);
 }
 
-function checkImages(who: string, content: Text, cloud: string | undefined): Check {
+function checkImages(who: string, content: Text, host: ImageHost | undefined): Check {
   for (const [lang, md] of parts(content)) {
-    const problems = imageProblems(md, cloud);
+    const problems = imageProblems(md, host);
     if (problems.length > 0)
-      return { ok: false, error: `${who}: content${lang ? `.${lang}` : ""}: ${problems[0]}` };
+      return { ok: false, error: `${who}: content${lang ? `.${lang}` : ""}: ${problems.join("; ")}` };
   }
   return { ok: true };
 }
 
-function checkCommon(raw: Record<string, unknown>, who: string): Check {
+function checkCommon(raw: Record<string, unknown>, who: string, allowed: string[]): Check {
   for (const key of REFUSED_KEYS)
     if (key in raw) return { ok: false, error: `${who}: ${key} is not accepted on this door` };
+  for (const key of Object.keys(raw))
+    if (!allowed.includes(key)) return { ok: false, error: `${who}: unknown key ${key}` };
   if (typeof raw.slug !== "string" || !SLUG.test(raw.slug))
     return { ok: false, error: `${who}: slug must match ^[a-z0-9][a-z0-9-]*$` };
   if (raw.description !== undefined) {
@@ -83,7 +87,7 @@ function eachObject(list: unknown, label: string): Check | Record<string, unknow
 const whoOf = (raw: Record<string, unknown>) =>
   typeof raw.slug === "string" && raw.slug !== "" ? raw.slug : "(missing slug)";
 
-export function validateArticlesV2(body: unknown, opts: { cloud: string | undefined }): Check {
+export function validateArticlesV2(body: unknown, opts: { host: ImageHost | undefined }): Check {
   if (typeof body !== "object" || body === null || Array.isArray(body))
     return { ok: false, error: "body must be an object" };
   const b = body as Record<string, unknown>;
@@ -100,7 +104,7 @@ export function validateArticlesV2(body: unknown, opts: { cloud: string | undefi
   const seenEssays = new Set<string>();
   for (const raw of essays) {
     const who = whoOf(raw);
-    const common = checkCommon(raw, who);
+    const common = checkCommon(raw, who, ESSAY_KEYS);
     if (!common.ok) return common;
     if (seenEssays.has(raw.slug as string)) return { ok: false, error: `duplicate essay slug: ${raw.slug}` };
     seenEssays.add(raw.slug as string);
@@ -117,14 +121,14 @@ export function validateArticlesV2(body: unknown, opts: { cloud: string | undefi
       if (seenAbout.has(a)) return { ok: false, error: `${who}: about repeats ${a}` };
       seenAbout.add(a);
     }
-    const images = checkImages(who, raw.content as Text, opts.cloud);
+    const images = checkImages(who, raw.content as Text, opts.host);
     if (!images.ok) return images;
   }
 
   const seenNarratives = new Set<string>();
   for (const raw of narratives) {
     const who = whoOf(raw);
-    const common = checkCommon(raw, who);
+    const common = checkCommon(raw, who, NARRATIVE_KEYS);
     if (!common.ok) return common;
     if (seenNarratives.has(raw.slug as string))
       return { ok: false, error: `duplicate narrative slug: ${raw.slug}` };
@@ -133,7 +137,7 @@ export function validateArticlesV2(body: unknown, opts: { cloud: string | undefi
       const name = validateText(raw.name, `${who}: name`, { required: true });
       if (!name.ok) return name;
     }
-    const images = checkImages(who, raw.content as Text, opts.cloud);
+    const images = checkImages(who, raw.content as Text, opts.host);
     if (!images.ok) return images;
   }
   return { ok: true };
