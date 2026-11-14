@@ -48,7 +48,7 @@ function resolveContainer(ref: string): { collection: "plants" | "pods" | "beans
 // resolveText's fallback (content.en, else content.fr, else "") is
 // reproduced with $cond/$ifNull; $type distinguishes the LocalizedText object
 // shape from a plain string; $trim mirrors the JS-side .trim().
-function containerStillWritableFilter(): Record<string, unknown> {
+export function containerStillWritableFilter(): Record<string, unknown> {
   const resolvedEn = { $ifNull: ["$content.en", ""] };
   const resolvedFr = { $ifNull: ["$content.fr", ""] };
   const resolvedText = {
