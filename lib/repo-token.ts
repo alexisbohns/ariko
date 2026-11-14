@@ -45,6 +45,9 @@ export function envBlock({ pod, token, date }: { pod: string; token: string; dat
   ].join("\n");
 }
 
+// Whole-word match: `# >>> ariko-cli config` is somebody else's block, not ours.
+const isMarker = (line: string, marker: string) => line === marker || line.startsWith(marker + " ");
+
 /**
  * Replace the marked block, else append it after a blank line. Markers match
  * as whole lines only. Every existing block is removed and the new one takes
@@ -55,10 +58,10 @@ export function upsertEnvBlock(existing: string, block: string): string {
   const out: string[] = [];
   let placed = false;
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].startsWith(ENV_BLOCK_START)) {
+    if (isMarker(lines[i], ENV_BLOCK_START)) {
       let end = -1;
       for (let j = i + 1; j < lines.length; j++)
-        if (lines[j].startsWith(ENV_BLOCK_END)) {
+        if (isMarker(lines[j], ENV_BLOCK_END)) {
           end = j;
           break;
         }

@@ -77,6 +77,14 @@ test("upsertEnvBlock ignores marker text in the middle of another line", () => {
   assert.equal(out.match(/^# >>> ariko/gm)?.length, 1);
 });
 
+test("upsertEnvBlock leaves a block whose marker merely starts with ours alone", () => {
+  const theirs = "# >>> ariko-cli config\nY=1\n# <<< ariko-cli\nZ=1\n";
+  const block = envBlock({ pod: "p", token: "ariko_p_a", date: "d" });
+  const out = upsertEnvBlock(theirs, block);
+  assert.ok(out.startsWith(theirs));
+  assert.ok(out.endsWith(block));
+});
+
 test("setupCard has the five steps, the token and the snippets", () => {
   const card = setupCard({ pod: "pbbls", token: "ariko_pbbls_x", claudeSnippet: "## Writing for Ariko\n…" });
   assert.match(card, /^## pbbls$/m);
