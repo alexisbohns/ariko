@@ -53,3 +53,11 @@ test("ping returns the pod, its plant and its beans", { skip: !hasDb }, async ()
     ],
   });
 });
+
+test("ping for a pod that no longer exists is 404", { skip: !hasDb }, async () => {
+  const db = await getDb();
+  await db.collection("pods").deleteOne({ slug: `${P}pod` });
+  const res = await GET(req(`Bearer ${token}`));
+  assert.equal(res.status, 404);
+  assert.match((await res.json()).error, /no longer exists/);
+});

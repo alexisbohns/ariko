@@ -40,6 +40,7 @@ export async function handleAssetUpload(request: Request, deps: AssetDeps): Prom
     return Response.json({ url: media.url, width: media.width, height: media.height });
   } catch (err) {
     console.error(`[articles/assets] upload failed for pod ${repo.pod}`, err);
-    return Response.json({ error: err instanceof Error ? err.message : "upload failed" }, { status: 502 });
+    // The provider's message stays in the log: it can carry account detail.
+    return Response.json({ error: "upload failed" }, { status: 502 });
   }
 }

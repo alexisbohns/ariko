@@ -31,6 +31,18 @@ test("400 with no file", async () => {
 test("400 for SVG, naming the rule", async () => {
   const res = await handleAssetUpload(form(new Blob(["<svg/>"], { type: "image/svg+xml" }), "a.svg"), { authorize: ok, upload: fakeUpload });
   assert.equal(res.status, 400);
+  assert.match((await res.json()).error, /image\/svg\+xml is not a supported image/);
+});
+
+test("400 for a body that is not multipart", async () => {
+  const req = new Request("http://localhost/api/articles/assets", {
+    method: "POST",
+    headers: { authorization: "Bearer x", "content-type": "application/json" },
+    body: JSON.stringify({ file: "x" }),
+  });
+  const res = await handleAssetUpload(req, { authorize: ok, upload: fakeUpload });
+  assert.equal(res.status, 400);
+  assert.match((await res.json()).error, /multipart/);
 });
 
 test("200 returns url, width and height", async () => {
@@ -39,11 +51,12 @@ test("200 returns url, width and height", async () => {
   assert.deepEqual(await res.json(), { url: "https://res.cloudinary.com/ariko/k.png", width: 10, height: 20 });
 });
 
-test("an upload failure is a 502 with the message", async () => {
+test("an upload failure is a 502 with an opaque body", async () => {
   const res = await handleAssetUpload(form(new Blob(["x"], { type: "image/png" })), {
     authorize: ok,
     upload: async () => { throw new Error("cloudinary down"); },
   });
   assert.equal(res.status, 502);
-  assert.match((await res.json()).error, /cloudinary down/);
+  // the provider's message stays in the server log, never in the response
+  assert.deepEqual(await res.json(), { error: "upload failed" });
 });

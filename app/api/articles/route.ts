@@ -60,6 +60,8 @@ async function v2(pod: string, body: unknown): Promise<Response> {
   try {
     result = await writeArticlesV2(pod, body as ArticlesV2);
   } catch (err) {
+    // Should be unreachable: createBean/createSprout map a duplicate to
+    // SlugExistsError, which the store reports as refused with `written`. Kept as a safety net.
     if (isDuplicateKeyError(err))
       return Response.json(
         { error: "refused: a slug was taken mid-write; re-read with /api/articles/ping and retry" },

@@ -3,7 +3,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { POST } from "../app/api/articles/route";
 import { getDb, closeDb } from "./db";
-import { mintToken } from "./repo-token-store";
+import { mintToken, revokePod } from "./repo-token-store";
 
 const hasDb = Boolean(process.env.MONGODB_URI);
 const P = "test-route-v2-";
@@ -58,13 +58,15 @@ test("repo token + legacy shape → 400 naming the v2 shape", { skip: !hasDb }, 
 });
 
 test("legacy token + v2 shape → 400 asking for a repo token", async () => {
+  const prior = process.env.ARTICLES_TOKEN;
   process.env.ARTICLES_TOKEN = "tok_art_test";
   try {
     const res = await POST(req({ essays: [essay] }, "Bearer tok_art_test"));
     assert.equal(res.status, 400);
     assert.match((await res.json()).error, /needs a repo token/);
   } finally {
-    delete process.env.ARTICLES_TOKEN;
+    if (prior === undefined) delete process.env.ARTICLES_TOKEN;
+    else process.env.ARTICLES_TOKEN = prior;
   }
 });
 
@@ -84,4 +86,12 @@ test("an image not hosted by Ariko → 400", { skip: !hasDb }, async () => {
   );
   assert.equal(res.status, 400);
   assert.match((await res.json()).error, /not hosted by Ariko/);
+});
+
+// Last on purpose: minting revokes the pod's previous token, so every test
+// above that uses `token` must have run.
+test("a revoked repo token → 401", { skip: !hasDb }, async () => {
+  const dead = await mintToken(POD, "to be revoked");
+  await revokePod(POD);
+  assert.equal((await POST(req({ essays: [essay] }, `Bearer ${dead}`))).status, 401);
 });
