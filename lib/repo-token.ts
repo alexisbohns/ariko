@@ -84,14 +84,20 @@ export function upsertEnvBlock(existing: string, block: string): string {
   return existing.replace(/\n*$/, "\n\n") + block;
 }
 
-const SETTINGS_SNIPPET = `{
-  "extraKnownMarketplaces": {
-    "ariko": { "source": { "source": "github", "repo": "alexisbohns/ariko" } }
-  },
-  "enabledPlugins": { "ariko-article@ariko": true }
-}`;
+// Said once at the top of a sheet, not on every card: the skill is NOT a
+// per-repo thing. Cloud sessions ignore a repo's `enabledPlugins` and never
+// see user-level plugins, but they load skills enabled on the claude.ai
+// account — so one upload serves every repo, and an update is one re-upload.
+export const SKILL_SETUP = [
+  "**The skill, once for every repo (nothing goes in the repos):**",
+  "",
+  "- **Cloud:** `npm run skill:zip` in the Ariko repo, then upload the zip at",
+  "  claude.ai → Settings → Capabilities → Skills. Re-upload when the skill changes.",
+  "- **Local:** `/plugin install ariko-article@ariko` once, at user scope.",
+  "",
+].join("\n");
 
-export function setupCard({ plant, token, claudeSnippet }: { plant: string; token: string; claudeSnippet: string }): string {
+export function setupCard({ plant, token }: { plant: string; token: string }): string {
   return [
     `## ${plant}`,
     "",
@@ -105,19 +111,7 @@ export function setupCard({ plant, token, claudeSnippet }: { plant: string; toke
     "**2. Cloud preset → Network access:** add `www.ariko.app` to the allowed domains",
     "(or use full access). Nothing else: images go through Ariko.",
     "",
-    "**3. Repo → `.claude/settings.json`** (merge into it):",
-    "",
-    "```json",
-    SETTINGS_SNIPPET,
-    "```",
-    "",
-    "**4. Repo → `CLAUDE.md`** (paste this section):",
-    "",
-    "````md",
-    claudeSnippet.trimEnd(),
-    "````",
-    "",
-    "**5. Check:** open a cloud session in this repo and ask it to ping Ariko;",
+    "**3. Check:** open a cloud session in this repo and ask it to ping Ariko;",
     `it should answer with the plant \`${plant}\`.`,
     "",
   ].join("\n");

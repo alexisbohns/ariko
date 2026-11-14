@@ -191,9 +191,10 @@ npm run token:revoke -- --plant pbbls                         # a leaked token: 
 
 Minting writes to the database `.env.local` names (production) and prints a setup card per repo for
 its cloud preset. Per repo: mint a token, put `ARIKO_TOKEN` in its gitignored `.env` **and** in the
-cloud environment's variables, allow `www.ariko.app` on the environment's network, enable the
-`ariko-article@ariko` plugin in its `.claude/settings.json`, and paste
-`plugins/ariko-article/CLAUDE-SNIPPET.md` into its `CLAUDE.md` (the setup card has all of it).
+cloud environment's variables, and allow `www.ariko.app` on the environment's network. Nothing goes
+in the repo. The skill is installed once per account: `npm run skill:zip` and upload the zip at
+claude.ai → Settings → Capabilities → Skills (cloud sessions load account skills, not a repo's
+`enabledPlugins`), and `/plugin install ariko-article@ariko` at user scope for local sessions.
 
 * `GET /api/articles/ping` returns `{ plant, pods, beans }` — the token's scope.
 * `POST /api/articles/assets` takes one raster image (`multipart/form-data`, field `file`, 4 MB) and
