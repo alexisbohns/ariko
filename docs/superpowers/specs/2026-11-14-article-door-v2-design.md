@@ -196,6 +196,9 @@ not exist — is created under the pod. Anything else is refused by name, e.g.
 **What "public" means here.** A pod or bean with no `visibility` field is
 public — `lib/data.ts` and `filterPublic` read it that way — so this door
 treats it as reviewed and refuses it. Writable means `visibility: "private"`.
+This holds even for a public pod whose narrative is still blank: writing it
+would put the door's text live with no review, which is the one thing this
+door exists not to do.
 
 **Halves are merged, never replaced.** A post carrying only `{ en }` keeps a
 stored `fr` (and vice versa) on `content`, `name` and `description` — the
