@@ -189,6 +189,12 @@ test("a narrative on a bean of another pod of the plant, or directly under the p
   assert.deepEqual(r.ok && r.written, [`bean:${OTHER_BEAN}`, `pod:${OTHER_POD}`, `bean:${PLANT_BEAN}`]);
 });
 
+test("a narrative on another plant's pod is refused, not taken for a new bean", { skip: !hasDb }, async () => {
+  const r = await writeArticlesV2(PLANT, { narratives: [{ slug: FOREIGN_POD, pod: POD, name: "N", content: "x" }] });
+  assert.deepEqual(r, { ok: false, refused: [`pod:${FOREIGN_POD} (not in plant ${PLANT})`], written: [] });
+  assert.equal(await (await getDb()).collection("beans").countDocuments({ slug: FOREIGN_POD }), 0);
+});
+
 test("a narrative on another plant's bean is refused", { skip: !hasDb }, async () => {
   const r = await writeArticlesV2(PLANT, { narratives: [{ slug: FOREIGN_BEAN, content: "x" }] });
   assert.deepEqual(r, { ok: false, refused: [`bean:${FOREIGN_BEAN} (not in plant ${PLANT})`], written: [] });

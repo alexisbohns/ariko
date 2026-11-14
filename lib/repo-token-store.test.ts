@@ -53,6 +53,18 @@ test("mintToken refuses an unknown plant", { skip: !hasDb }, async () => {
   await assert.rejects(mintToken("test-repo-token-nope", "x"), /unknown plant/);
 });
 
+test("a token document without a plant authorizes nothing", { skip: !hasDb }, async () => {
+  const token = "ariko_stray_" + "x".repeat(32);
+  const db = await getDb();
+  const { hashToken } = await import("./repo-token");
+  await db.collection("tokens").insertOne({ pod: "stray", hash: hashToken(token), label: "stray", createdAt: "2026-11-14", plant: undefined });
+  try {
+    assert.deepEqual(await authorizeRepo(`Bearer ${token}`), { ok: false });
+  } finally {
+    await db.collection("tokens").deleteOne({ hash: hashToken(token) });
+  }
+});
+
 test("authorizeRepo: no header, non-repo token, unknown token", async () => {
   // The first two never touch the database, so they run without one.
   assert.deepEqual(await authorizeRepo(null), { ok: false });

@@ -81,7 +81,8 @@ export async function authorizeRepo(header: string | null): Promise<RepoAuth> {
   if (!looksLikeRepoToken(token)) return { ok: false };
   const { col } = await tokens();
   const doc = await col.findOne({ hash: hashToken(token), revokedAt: { $exists: false } });
-  if (!doc) return { ok: false };
+  // A document without a plant (a stray from before plant scope) authorizes nothing.
+  if (!doc?.plant) return { ok: false };
   // Best effort: a failed timestamp must not refuse an authorized request, and
   // the write may be lost when a serverless instance freezes after responding.
   col.updateOne({ hash: doc.hash }, { $set: { lastUsedAt: new Date().toISOString() } }).catch(() => {});

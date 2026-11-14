@@ -100,6 +100,13 @@ export async function writeArticlesV2(plant: string, payload: ArticlesV2): Promi
     )
     .toArray();
   const elsewhereSlugs = new Set(elsewhere.map((b) => b.slug));
+  // Another plant's POD: refused, never mistaken for a new bean — creating one
+  // would put a bean and a pod under the same slug.
+  const foreignPods = await db
+    .collection<Pod>("pods")
+    .find({ slug: { $in: narrativeBeanSlugs } }, { projection: { _id: 0, slug: 1 } })
+    .toArray();
+  const foreignPodSlugs = new Set(foreignPods.map((p) => p.slug));
   // new bean slug → the pod it is created under
   const created = new Map<string, string>();
 
@@ -119,7 +126,10 @@ export async function writeArticlesV2(plant: string, payload: ArticlesV2): Promi
       if (n.pod !== undefined && !(bean.parents ?? []).includes(`${POD_PREFIX}${n.pod}`))
         refused.push(`bean:${n.slug} (not in pod ${n.pod} — move it in the admin)`);
       else if (isPublic(bean)) refused.push(`bean:${n.slug} (already reviewed)`);
-      else if (bean.projected) refused.push(`bean:${n.slug} (projected)`);
+      // Same test as the write filter (`projected: { $exists: false }`).
+      else if (bean.projected !== undefined) refused.push(`bean:${n.slug} (projected)`);
+    } else if (foreignPodSlugs.has(n.slug)) {
+      refused.push(`pod:${n.slug} (not in plant ${plant})`);
     } else if (elsewhereSlugs.has(n.slug)) {
       refused.push(`bean:${n.slug} (not in plant ${plant})`);
     } else if (n.name === undefined) {
