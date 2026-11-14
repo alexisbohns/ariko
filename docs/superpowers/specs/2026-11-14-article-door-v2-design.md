@@ -64,6 +64,53 @@ interface RepoToken {
   token for that pod (one live token per repo), inserts the new hash and prints
   the token **once**. `token:list` prints pod, label, created, last used,
   revoked. `token:revoke -- --pod <slug>` revokes.
+- **Minting hands over the setup, not just the secret.** The maintainer
+  configures one Claude Code cloud environment preset per repo, so `token:mint`
+  prints a **setup card** per pod and can write it where it is needed:
+
+  ```bash
+  npm run token:mint -- --pod pbbls --env ../pbbls/.env
+  npm run token:mint -- --pod pbbls --pod arkaik --pod femfolk --sheet ~/Desktop/ariko-cloud-setup.md
+  ```
+
+  `--pod` is repeatable. Each card holds, for one repo:
+  1. **Cloud preset → Environment variables:** `ARIKO_TOKEN=<token>` and
+     `ARIKO_URL=https://www.ariko.app`, ready to paste.
+  2. **Cloud preset → Network access:** add `www.ariko.app` to the allowed
+     domains (or use full access). Nothing else: images go through Ariko,
+     never straight to Cloudinary.
+  3. **Repo → `.claude/settings.json`:** the `extraKnownMarketplaces` /
+     `enabledPlugins` snippet (§4).
+  4. **Repo → `CLAUDE.md`:** the "Writing for Ariko" fallback section, to
+     paste (§4).
+  5. **Check:** open a cloud session in that repo and ask it to ping Ariko; it
+     should answer with the pod's name.
+
+  `--env <path>` writes the token into that repo's `.env`, inside a marked
+  block that a later mint **replaces** rather than appends to:
+
+  ```bash
+  # >>> ariko (minted 2026-11-14 by `npm run token:mint -- --pod pbbls`)
+  # Drafts for Ariko: the ariko-article skill reads these.
+  # CLOUD SESSIONS do not see this file. In the Claude Code cloud environment
+  # preset for this repo, also:
+  #   - Environment variables: ARIKO_TOKEN and ARIKO_URL, same values as below
+  #   - Network access: allow www.ariko.app
+  ARIKO_TOKEN=ariko_pbbls_…
+  ARIKO_URL=https://www.ariko.app
+  # <<< ariko
+  ```
+
+  It refuses a file that git tracks (`git ls-files --error-unmatch` in that
+  file's repo) — several sibling repos are public, and a tracked `.env` there
+  would publish the token on the next push.
+
+  `--sheet <path>` writes every card into one markdown file, to have open while
+  creating the presets. It refuses a path inside any git working tree (the
+  Ariko repo is public), writes it `0600`, and the sheet's first line says to
+  delete it once the presets are done. Without `--env` or `--sheet`, the cards
+  go to stdout only. Ariko itself stores hashes, so a lost sheet means
+  re-minting, never recovering.
 - `lib/repo-token.ts` exports `authorizeRepo(header): Promise<{ ok: true; pod } |
   { ok: false; status: 401 }>`: hash the bearer, find a non-revoked document by
   hash. A missing header, unknown hash and revoked token are all 401 with the
