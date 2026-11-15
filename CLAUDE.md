@@ -413,7 +413,8 @@ while quietly becoming false.
   a thin island that imports **types only** from them — `lib/garden-map.ts`
   reaches `lib/data.ts` and so `node:fs`, which fails the build from a client
   file. It reads `loadRawGarden` and `listSeeds`, never the cache, because a map
-  of "what waits" that lagged a write shows a garden you already changed. The canvas has no write path: each node is a `next/link` to the page where the
+  of "what waits" that lagged a write shows a garden you already changed. The
+  canvas has no write path: each node is a `next/link` to the page where the
   decision lives, and for a plant, pod, bean or sprout a soft click opens THAT
   PAGE in a side sheet over the map ([`specs/2026-11-15-map-entity-sheet-design.md`](docs/superpowers/specs/2026-11-15-map-entity-sheet-design.md)):
   five `(..)` interceptors under `map/@entity/` wrap the standalone page modules
@@ -432,7 +433,8 @@ while quietly becoming false.
   `data-editor-dirty`, so a close or a node click asks first. The `@` / `/` menu
   is portalled to `document.body` for the same containing-block reason. In
   `next dev` the interception table is built at startup: restart the dev server
-  after adding the first interceptor or nothing intercepts. It is the one route `resolveColumn` calls `"bleed"` — a canvas in a
+  after adding the first interceptor or nothing intercepts. The map is the one
+  route `resolveColumn` calls `"bleed"` — a canvas in a
   1024px column defeats itself — so `AdminMain` gives it `fixed inset-0 z-0`
   under the chrome's `z-40` plates. A published sprout is **not** drawn (a
   hairball) but still counts toward "bean has no journal", and a machine-
