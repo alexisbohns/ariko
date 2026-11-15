@@ -1204,7 +1204,9 @@ export function layoutGardenMap(map: GardenMap): PositionedMap {
   graph.setGraph({ rankdir: "LR", nodesep: 24, ranksep: 80, marginx: 24, marginy: 24 });
   graph.setDefaultEdgeLabel(() => ({}));
 
-  for (const node of map.nodes) graph.setNode(node.id, KIND_SIZE[node.kind]);
+  // A COPY per node: dagre writes x/y onto the label it is handed, so passing
+  // the shared KIND_SIZE entry stacked every node of one kind on one point.
+  for (const node of map.nodes) graph.setNode(node.id, { ...KIND_SIZE[node.kind] });
   for (const edge of map.edges) graph.setEdge(edge.source, edge.target);
   dagre.layout(graph);
 
