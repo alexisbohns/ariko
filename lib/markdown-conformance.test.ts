@@ -11,6 +11,7 @@ import { headlessExtensions, normalizeEmptyListMarkers } from "./entity-markdown
 import { extractRefs } from "./entity-refs";
 import { MAX_CONTENT_BYTES } from "./articles";
 import { ENTITY_FIXTURES } from "./entity-fixtures";
+import { STAGING_FIXTURES, NONCANONICAL_FIXTURES, MALFORMED_FIXTURES, INERT_FIXTURES, DOOR_ONLY_FIXTURES } from "./staging-fixtures";
 
 // C1's durable half: MarkdownManager (used for `editorVerdict` below) does
 // NOT enforce the ProseMirror schema — `manager.parse` happily returns a
@@ -140,6 +141,70 @@ for (const [name, source] of Object.entries(SCHEMA_CHECK_FIXTURES)) {
     });
   });
 }
+
+// The staging grammar (spec 2026-11-15 §8): the same meaning-not-bytes
+// contract as FIXTURES above, plus stability — a block the editor rewrites
+// must be rewritten ONCE, or every save of an untouched article is a diff.
+// The canonical fixtures' byte equality lives in lib/staging-editor.test.ts.
+test("staging: the editor and the site mean the same thing", () => {
+  for (const [name, md] of Object.entries({ ...STAGING_FIXTURES, ...NONCANONICAL_FIXTURES, ...INERT_FIXTURES })) {
+    const once = roundTrip(md);
+    assert.equal(render(once), render(md), `${name}: render changed`);
+    assert.equal(roundTrip(once), once, `${name}: not stable after one pass`);
+  }
+});
+
+// Each name here is pinned by its own KNOWN DIVERGENCE test below, which
+// says what differs; the loop keeps holding every other malformed fixture.
+const MALFORMED_DIVERGENT = new Set(["emptyCallout"]);
+
+test("staging: a malformed block survives the editor as the same text", () => {
+  for (const [name, { md }] of Object.entries(MALFORMED_FIXTURES)) {
+    if (MALFORMED_DIVERGENT.has(name)) continue;
+    assert.equal(render(roundTrip(md)), render(md), name);
+  }
+});
+
+test("staging: every staging fixture parses to a schema-valid document", () => {
+  for (const [name, md] of Object.entries({ ...STAGING_FIXTURES, ...NONCANONICAL_FIXTURES, ...Object.fromEntries(Object.entries(MALFORMED_FIXTURES).map(([k, v]) => [k, v.md])), ...INERT_FIXTURES })) {
+    assert.doesNotThrow(() => PMNode.fromJSON(schema, manager.parse(normalizeEmptyListMarkers(md)) as never).check(), name);
+  }
+});
+
+test("KNOWN DIVERGENCE: a staged block nested in a text block renders unwrapped, and the editor keeps its fences as text", () => {
+  // The door refuses nesting and the editor cannot make it (the `/` menu is
+  // off inside a text block), so only hand-written stored markdown has it.
+  // Pinned so a change in either parser shows up here first.
+  //
+  // The round trip is pinned too: the editor writes the callout's fence
+  // longer than the fence-shaped text in its body (lib/staging-editor.ts's
+  // fenceLength), so the stored `::::` survives. Written as the canonical
+  // `:::`, the inner `:::` closed the callout on the next parse and a stray
+  // `:::` paragraph appeared on the page.
+  const md = DOOR_ONLY_FIXTURES.nested.md;
+  assert.match(render(md), /<staged-callout>/);
+  assert.doesNotMatch(render(md), /<staged-gallery/);
+  assert.equal(roundTrip(md), md);
+  assert.equal(render(roundTrip(md)), render(md));
+});
+
+test("KNOWN DIVERGENCE: a labelled callout with no body keeps its words, but its fences become visible text", () => {
+  // remark unwraps the refused callout to its children, label included, so
+  // the page reads "Label only". The editor does not claim it either, so the
+  // opener is paragraph text — and the stock text serializer escapes its
+  // brackets, after which remark no longer sees a directive at all and draws
+  // the whole thing literally. No word is lost: only the fences, which the
+  // author wrote, become visible. The door refuses this block
+  // (`callout: needs some text`) and the editor's `/` menu cannot make one,
+  // so only hand-written stored markdown reaches it. Pinned so a fix in
+  // either parser shows up here as a diff.
+  const md = MALFORMED_FIXTURES.emptyCallout.md;
+  assert.equal(render(md), "<p>Label only</p>");
+  assert.equal(roundTrip(md), ":::callout\\[Label only\\]\n:::");
+  assert.match(render(roundTrip(md)), /Label only/);
+  assert.notEqual(render(roundTrip(md)), render(md));
+  assert.equal(roundTrip(roundTrip(md)), roundTrip(md), "stable after one pass");
+});
 
 test("I2 fix: an empty list item ahead of a card is not silently rewritten as an orphaned card on save", () => {
   // Before the fix: marked's block-start check misreads "- \n" (a bullet

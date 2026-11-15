@@ -4,6 +4,7 @@ import { Paragraph } from "@tiptap/extension-paragraph";
 import { TableKit } from "@tiptap/extension-table";
 import { Image } from "@tiptap/extension-image";
 import { ListItem, TaskList, TaskItem } from "@tiptap/extension-list";
+import { stagingNodes } from "./staging-editor";
 
 /**
  * The EDITOR's half of the entity grammar (compose spec §2.2).
@@ -248,6 +249,9 @@ const InlineImageParagraph = Paragraph.extend({
  * Every node the editor and the tests share. The entity nodes are NOT here: the
  * editor uses `.extend()`ed copies carrying React node views
  * (components/editor/entity-views.tsx), while the tests use the bare ones.
+ * The five staging nodes (lib/staging-editor.ts) are left out for the same
+ * reason: the editor layers React node views on them, and headlessExtensions
+ * below carries the bare ones into every test.
  * Everything else must be identical in both, or a node the editor cannot
  * represent gets silently dropped on save — which is exactly how images and
  * task lists were lost before this split existed.
@@ -322,4 +326,4 @@ export const baseExtensions = [
  * the editor layers on top. One definition, so a node added later cannot be
  * tested by one file and missed by the other.
  */
-export const headlessExtensions = [...baseExtensions, EntityCard, EntityMention];
+export const headlessExtensions = [...baseExtensions, EntityCard, EntityMention, ...stagingNodes];
