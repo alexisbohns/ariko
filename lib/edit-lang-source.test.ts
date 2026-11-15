@@ -86,12 +86,12 @@ test("save posts the half the editor is drawing itself, after hidden, so it wins
   );
 });
 
-// Every place a content editor is mounted. ContentCard stands in for the pod
-// page, which renders the editor through it.
+// Every place a content editor is mounted.
 const EDITOR_MOUNTS = [
   "app/admin/(chrome)/sprout/[slug]/page.tsx",
+  "app/admin/(chrome)/pod/[slug]/page.tsx",
+  "app/admin/(chrome)/bean/[id]/page.tsx",
   "app/admin/(chrome)/plant/[slug]/narrative/page.tsx",
-  "app/admin/_components/content-card.tsx",
 ];
 
 for (const path of EDITOR_MOUNTS) {
@@ -105,28 +105,10 @@ for (const path of EDITOR_MOUNTS) {
   });
 }
 
-// Every page that renders the editor through ContentCard: the pod page and the
-// bean page. Each reads its half from the URL (`editLang(`) and hands the card
-// the hrefs that switch it (`langHrefs=`) — the two things ContentCard cannot
-// supply for itself.
-const CONTENT_CARD_CALLERS = [
-  "app/admin/(chrome)/pod/[slug]/page.tsx",
-  "app/admin/(chrome)/bean/[id]/page.tsx",
-];
-
-for (const path of CONTENT_CARD_CALLERS) {
-  test(`${path} hands ContentCard its language`, () => {
-    const text = source(path);
-    assert.match(text, /editLang\(/);
-    assert.match(text, /langHrefs=\{/);
-  });
-}
-
-// Every file under app/ that renders <ProseEditor> or <ContentCard>, found by
-// scanning rather than trusted from the hard-coded lists above — so a NEW
-// mount that nobody added to EDITOR_MOUNTS (or to CONTENT_CARD_CALLERS)
-// fails loudly here instead of shipping unchecked, exactly the failure class
-// this file exists to catch.
+// Every file under app/ that renders <ProseEditor>, found by scanning rather
+// than trusted from the hard-coded list above — so a NEW mount that nobody added
+// to EDITOR_MOUNTS fails loudly here instead of shipping unchecked, exactly the
+// failure class this file exists to catch.
 
 function walkTsx(dir: string): string[] {
   let files: string[] = [];
@@ -140,7 +122,7 @@ function walkTsx(dir: string): string[] {
   return files;
 }
 
-test("every file under app/ that renders <ProseEditor> or <ContentCard> is one this file checks", () => {
+test("every file under app/ that renders <ProseEditor> is one this file checks", () => {
   const appDir = join(process.cwd(), "app");
   const files = walkTsx(appDir).map((f) => relative(process.cwd(), f));
 
@@ -154,18 +136,6 @@ test("every file under app/ that renders <ProseEditor> or <ContentCard> is one t
         `${path} renders <ProseEditor> but is not in EDITOR_MOUNTS — add it so this file checks ` +
           "it goes through editorHalves, keys on lang, and hands the editor its langSwitch and lang",
       );
-    }
-    // A file rendering <ContentCard> instead hands ITS language down through
-    // ContentCard's own props (lib/edit-lang.ts's editLang / editLangHrefs),
-    // which is what the CONTENT_CARD_CALLERS loop above checks.
-    if (/<ContentCard\b/.test(text)) {
-      assert.ok(
-        CONTENT_CARD_CALLERS.includes(path),
-        `${path} renders <ContentCard> but nothing in this file checks it passes lang= and ` +
-          "langHrefs= — add it to CONTENT_CARD_CALLERS and a test covering it",
-      );
-      assert.match(text, /\blang=\{/, `${path} renders <ContentCard> and must pass it lang=`);
-      assert.match(text, /langHrefs=\{/, `${path} renders <ContentCard> and must pass it langHrefs=`);
     }
   }
 });

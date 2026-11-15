@@ -44,18 +44,16 @@ export function ProseEditor({
    * No frame, and a bigger type — for a page where the editor is not a card's
    * content but the page's own body.
    *
-   * A prop rather than a global change, because the other shape is still real:
-   * `ContentCard` puts this component inside a card, where the box is one
-   * border inside another but is also what separates the writing surface from
-   * the card's header and its neighbours. On a page whose body IS the editor
-   * there is nothing to separate it from, and a rectangle drawn around the
-   * page's only content is a rectangle drawn around nothing.
+   * A prop rather than a global change, because the other shape is still
+   * available: framed, the box is what separates the writing surface from a
+   * card's header and its neighbours. On a page whose body IS the editor there
+   * is nothing to separate it from, and a rectangle drawn around the page's only
+   * content is a rectangle drawn around nothing. Every admin page that mounts the
+   * editor is that kind of page today, so the framed shape has no caller.
    *
    * Which pages are which is deliberately not listed here — `float`'s comment
    * below says why an enumeration goes quietly false, and this one had already
-   * done it twice: it named a path that had since moved, and it named the
-   * sprout page as a `ContentCard` caller after the sprout page stopped being
-   * one.
+   * done it more than once.
    */
   bare?: boolean;
   /**
@@ -65,8 +63,7 @@ export function ProseEditor({
    * Two shapes, deliberately not a list of pages — the pages move, and an
    * enumeration in a comment goes quietly false when they do. OFF is the editor
    * as one item among several, with the commit as an inline row and its "No
-   * changes to save" and "Could not save" lines beside a live button, whether
-   * it arrives through `ContentCard` or renders this component directly. ON is
+   * changes to save" and "Could not save" lines beside a live button. ON is
    * a page whose whole body is the editor, where that row sits a screen-height
    * below the caret and the author has to go looking for it.
    *
@@ -180,9 +177,9 @@ export function ProseEditor({
   // render. A later `entities` change recomputes this array, but the
   // running editor never sees it — the @ and / pickers stay frozen with
   // the entity list that existed at mount. Harmless in practice:
-  // ContentCard is a server component that rebuilds `entities` fresh on
-  // every page request (app/admin/_components/content-card.tsx), so
-  // ProseEditor is never kept mounted across an `entities` change — but
+  // The admin pages are server components that rebuild `entities` fresh on
+  // every request, so ProseEditor is never kept mounted across an
+  // `entities` change — but
   // that is a property of how this component happens to be used, not
   // something this hook enforces.
   // Read once at mount, like everything in this array. `insertImage`'s

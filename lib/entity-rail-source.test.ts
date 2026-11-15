@@ -145,12 +145,11 @@ test("every admin page that renders the prose editor renders EntityRail around i
   // all pass.
   const files = walk("app").filter((f) => f.endsWith(".tsx"));
   const renders = (f: string, name: string) => new RegExp(`<${name}\\b`).test(source(f));
-  // The editor reaches a page directly or through ContentCard, and nothing
-  // else. A third wrapper would be a page this test cannot see, so it fails
-  // here until it is added to the line below.
+  // The editor reaches a page directly, and nothing else. A wrapper component
+  // would be a page this test cannot see, so it fails here until it is handled.
   const wrappers = files.filter((f) => !f.endsWith("/page.tsx") && renders(f, "ProseEditor"));
-  assert.deepEqual(wrappers, ["app/admin/_components/content-card.tsx"]);
-  const pages = files.filter((f) => f.endsWith("/page.tsx") && (renders(f, "ProseEditor") || renders(f, "ContentCard")));
+  assert.deepEqual(wrappers, []);
+  const pages = files.filter((f) => f.endsWith("/page.tsx") && renders(f, "ProseEditor"));
   assert.deepEqual([...pages].sort(), [...RAIL_PAGES].sort(), "the pages hosting the editor are exactly RAIL_PAGES");
   for (const page of pages) {
     assert.ok(renders(page, "EntityRail"), `${page} renders the prose editor and must render <EntityRail>`);

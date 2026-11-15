@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
 import { resolveText, textPart } from "@/lib/data";
 import { getFullDataset, loadRawGarden } from "@/lib/store";
-import { editLang, editLangHrefs } from "@/lib/edit-lang";
+import { editLang, editLangHrefs, editorHalves } from "@/lib/edit-lang";
+import { entityOptions } from "@/lib/entity-options";
 import { editContainerContentAction } from "@/app/admin/actions";
-import { ContentCard } from "@/app/admin/_components/content-card";
+import { ProseEditor } from "@/components/editor/prose-editor";
 import { beanDetail, type BeanDetailView } from "@/lib/bean-detail";
 import { beanCoverFor } from "@/lib/bean-cover";
 import { visibilityOf } from "@/lib/plant-visibility";
@@ -46,8 +47,10 @@ export const dynamic = "force-dynamic";
  * form in this repo documents. What the view model is still FOR here is the
  * sprout list and the parent slugs.
  *
- * The narrative is edited here too, through the same `ContentCard` the pod page
- * mounts, one half at a time per `?lang=` (lib/edit-lang.ts). The bean's other
+ * The narrative is edited here too, in a bare editor with a floating commit — the
+ * sprout and pod pages' shape, with no card around the page's own prose — one half
+ * at a time per `?lang=` (lib/edit-lang.ts). The load goes through `editorHalves`,
+ * STRICT per half, so neither half is ever loaded into the other's editor. The bean's other
  * actions (meta, visibility, tags, cover, keyword) redirect to the bare bean URL
  * and drop `?lang=`; accepted for this slice — the editor reopens on English,
  * the documented default, and nothing mis-saves.
@@ -97,6 +100,7 @@ export default async function AdminBeanPage({
   const bean = raw.beans?.find((b) => b.slug === id);
   if (!bean) notFound();
 
+  const ref = `bean:${bean.slug}`;
   const lineage = resolveLineage(bean.parents, raw, { lang: "en", hrefs: ADMIN_HREFS });
 
   // `beanDetail` gives Sprout[]; SproutTable takes TimelineEntry[], because an
@@ -216,14 +220,18 @@ export default async function AdminBeanPage({
           {/* A projected bean has no editor at all, not a disabled one: the action
               bounces its ref anyway, and a surface that cannot save is noise. */}
           {readOnly ? null : (
-            <ContentCard
-              raw={raw}
-              content={bean.content}
-              selfRef={`bean:${bean.slug}`}
+            <ProseEditor
+              key={lang}
+              bare
+              float
+              {...editorHalves(bean.content, lang)}
+              langSwitch={{
+                current: lang,
+                hrefs: editLangHrefs(`/admin/bean/${encodeURIComponent(bean.slug)}`, query),
+              }}
+              entities={entityOptions(raw, ref)}
               action={editContainerContentAction}
-              hidden={{ ref: `bean:${bean.slug}` }}
-              lang={lang}
-              langHrefs={editLangHrefs(`/admin/bean/${encodeURIComponent(bean.slug)}`, query)}
+              hidden={{ ref, lang }}
             />
           )}
 
