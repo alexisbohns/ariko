@@ -89,3 +89,14 @@ test("a nav item, a scope key list and an icon exist for the map", async () => {
   const { NAV_ITEMS } = await import("./admin-nav");
   assert.ok(NAV_ITEMS.some((item) => item.id === "map" && item.href === "/admin/map"));
 });
+
+test("the card's link opts back in to pointer events", () => {
+  // React Flow gives every node wrapper an inline `pointer-events: none` unless
+  // the node is selectable, draggable or has a click/hover handler — ours has
+  // none of those, on purpose. `pointer-events` INHERITS, so the `next/link`
+  // inside the card receives no clicks and every node is a dead label. The
+  // inline style beats any stylesheet rule on an ancestor, so the opt-in has to
+  // sit on the link itself; a render test without React Flow cannot see the
+  // wrapper at all, which is why this is a source test.
+  assert.match(code(read(CARD)), /pointer-events-auto/);
+});

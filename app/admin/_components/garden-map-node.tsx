@@ -57,7 +57,7 @@ export function MapNodeCard({
       <div className="flex min-w-0 items-center gap-2">
         <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
         {node.href ? (
-          <Link href={node.href} className="truncate font-medium underline-offset-4 hover:underline">
+          <Link href={node.href} className="pointer-events-auto truncate font-medium underline-offset-4 hover:underline">
             {node.label}
           </Link>
         ) : (
