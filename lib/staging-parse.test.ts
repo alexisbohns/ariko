@@ -109,3 +109,32 @@ test("a name that is not a block is not this function's", () => {
   const r = parse(DOOR_ONLY_FIXTURES.unknownContainer.md);
   assert.equal(r.ok, false);
 });
+
+test("a figure's image title is not its caption: strict refuses it, lenient ignores it", () => {
+  const md = `:::figure\n![a](https://e.com/a.png "A title")\n:::`;
+  const r = parse(md, true);
+  assert.equal(r.ok, false);
+  if (!r.ok) assert.match(r.problem, /figure: an image title is not a caption — write the caption on its own line/);
+  const l = parse(md);
+  assert.ok(l.ok && l.value.block === "figure");
+  assert.equal(l.value.caption, null);
+});
+
+test("a stray image between compare's sides is refused, not dropped", () => {
+  const md = `::::compare\n![](https://e.com/a.png)\n:::do\nYes.\n:::\n:::dont\nNo.\n:::\n::::`;
+  for (const strict of [false, true]) {
+    const r = parse(md, strict);
+    assert.equal(r.ok, false, `strict=${strict}`);
+    if (!r.ok) assert.match(r.problem, /compare: needs one :::do and one :::dont/);
+  }
+});
+
+test("a [label] on a compare side: strict refuses it by name, lenient ignores it", () => {
+  const md = `::::compare\n:::do[Yes]\nYes.\n:::\n:::dont\nNo.\n:::\n::::`;
+  const r = parse(md, true);
+  assert.equal(r.ok, false);
+  if (!r.ok) assert.match(r.problem, /compare: do takes no \[label\]/);
+  const l = parse(md);
+  assert.ok(l.ok && l.value.block === "compare");
+  assert.equal(l.value.do.text.source, "Yes.");
+});

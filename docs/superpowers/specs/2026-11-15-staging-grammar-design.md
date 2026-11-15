@@ -107,8 +107,12 @@ The Spine is truly a masterclass.
   (`frame`, `size`, `dark`; `by`, `role`), omits a value equal to its default,
   writes a value bare when it is `[A-Za-z0-9_-]+` and quoted (with `&` and `"`
   as character references) otherwise, and always uses `:::` for the five blocks
-  and `::::` for `compare`. A caption whose first characters would start a
-  block (`#`, `>`, `-`, `+`, `*`, `1.`, `:`) is backslash-escaped. A gallery
+  and `::::` for `compare`. A caption or a side's text is markdown source and
+  is written verbatim, except that a line which would start or interrupt a
+  block (`- x`, `2. x`, `===`, a fence, `:::`, a table row, HTML) is
+  backslash-escaped — decided by parsing the line, not by a list of
+  characters. Alt text is escaped as plain text. A callout label is written as
+  its source. Hard breaks in a caption become spaces. A gallery
   left with one image serializes as a figure rather than losing the image. The door does not require canonical form on input;
   the editor writes it on save.
 

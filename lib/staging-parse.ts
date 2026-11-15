@@ -164,6 +164,12 @@ export function parseStagedBlock(node: MdNode, source: string, opts: { strict: b
       const dark = attrs.dark !== undefined && attrs.dark !== null;
       if (dark && media.images.length !== 2) return fail("figure: dark needs two images, light then dark");
       if (!dark && media.images.length !== 1) return fail("figure: needs exactly one image");
+      // A gallery's titles are its per-image captions; a figure has exactly one
+      // caption, the line under its image. A title here would be a second
+      // caption that renders nowhere, so the door names the right spelling and
+      // the renderer (and the editor, on save) let it go.
+      if (opts.strict && media.images.some((i) => i.title !== null))
+        return fail("figure: an image title is not a caption — write the caption on its own line");
       const frame = resolveFrame(attrs.frame);
       return {
         ok: true,
@@ -177,12 +183,16 @@ export function parseStagedBlock(node: MdNode, source: string, opts: { strict: b
       return { ok: true, value: { block: "gallery", frame: resolveFrame(attrs.frame), images: media.images, caption: media.caption } };
     }
     case "compare": {
-      const sides = kids.filter((n) => !(n.type === "paragraph" && !plainText(n).trim()));
-      const [a, b] = sides;
-      if (sides.length !== 2 || a.type !== "containerDirective" || a.name !== "do" || b.type !== "containerDirective" || b.name !== "dont")
+      // No filtering of "empty" paragraphs: remark makes none from blank
+      // lines, so a paragraph here is something the author wrote — and one
+      // whose plain text is empty is an image with no alt, which dropping
+      // would delete from the post without a word.
+      const [a, b] = kids;
+      if (kids.length !== 2 || a.type !== "containerDirective" || a.name !== "do" || b.type !== "containerDirective" || b.name !== "dont")
         return fail("compare: needs one :::do and one :::dont, in that order");
       const side = (n: MdNode, who: "do" | "dont"): Side | string => {
         if (opts.strict && Object.keys(n.attributes ?? {}).length > 0) return `compare: ${who} takes no attributes`;
+        if (opts.strict && (n.children ?? []).some(isLabel)) return `compare: ${who} takes no [label]`;
         const media = splitMedia((n.children ?? []).filter((k) => !isLabel(k)), source, `compare: ${who}`);
         if (typeof media === "string") return media;
         if (media.images.length > 1) return `compare: each side holds at most one image`;
