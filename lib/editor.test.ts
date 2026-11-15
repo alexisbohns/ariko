@@ -333,6 +333,46 @@ test("11. the staging rows are withheld inside a list item, and offered in plain
   editor.destroy();
 });
 
+test("11b. the staging rows are withheld in a table's header and body cells", () => {
+  const editor = makeEditor({ content: "| h |\n| --- |\n| c |", contentType: "markdown" });
+  const cells: Record<string, number> = {};
+  editor.state.doc.descendants((node, pos) => {
+    if ((node.type.name === "tableHeader" || node.type.name === "tableCell") && !(node.type.name in cells)) {
+      cells[node.type.name] = pos + 2; // inside the cell's paragraph
+    }
+  });
+  assert.deepEqual(Object.keys(cells).sort(), ["tableCell", "tableHeader"]);
+  for (const [name, pos] of Object.entries(cells)) {
+    editor.commands.setTextSelection(pos);
+    assert.equal(stagingAllowedAt(editor), false, name);
+  }
+  editor.destroy();
+});
+
+test("13. a pasted image URL must be absolute http(s) with no whitespace or control characters", () => {
+  const { srcProblem } = require("../components/editor/staging-views.js") as typeof import("../components/editor/staging-views.js");
+  for (const ok of ["", "  ", "https://res.cloudinary.com/x/image/upload/a.png", "http://example.com/a.png"]) {
+    assert.equal(srcProblem(ok), null, ok);
+  }
+  for (const bad of ["javascript:alert(1)", "/relative.png", "a.png", "https://a b.png", "https://a\u0007.png", "data:image/png;base64,xx"]) {
+    assert.equal(srcProblem(bad), "Use an https:// image URL", bad);
+  }
+});
+
+test("14. no staging view deletes its node: closing a popover discards the draft, never the block", () => {
+  // Source text, on lib/prose-commit-source.test.ts's reasoning: a property
+  // of the file as written, which no headless render can observe. The first
+  // version deleted an empty block on close, and every close reason — a
+  // focus-out, the click that picked the `/` row, a file dialog's blur —
+  // became a way to lose one.
+  const { readFileSync } = require("node:fs") as typeof import("node:fs");
+  const { join } = require("node:path") as typeof import("node:path");
+  const source = readFileSync(join(process.cwd(), "components/editor/staging-views.tsx"), "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/.*$/gm, "");
+  assert.doesNotMatch(source, /deleteNode|deleteSelection|deleteRange/);
+});
+
 test("12. a callout label typed with brackets is escaped into a label that stays one directive, and escaping is idempotent", () => {
   const { escapeLabel } = require("../components/editor/staging-views.js") as typeof import("../components/editor/staging-views.js");
   const { calloutOpener } = require("./staging-markdown.js") as typeof import("./staging-markdown.js");

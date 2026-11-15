@@ -1,7 +1,9 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
+import { unstable_rethrow } from "next/navigation";
 import Markdown from "react-markdown";
+import type { NodeViewRenderer } from "@tiptap/core";
 import {
   NodeViewContent,
   NodeViewWrapper,
@@ -59,11 +61,14 @@ import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@/compone
  * field the serializer drops is a field the preview drops too, and an author
  * sees it before the visitor does.
  *
- * NOTHING IS WRITTEN UNTIL SAVE. Every popover edits a DRAFT; Save is the one
- * `updateAttributes`, and Escape or a click outside throws the draft away. A
- * field written on every keystroke would make the half-typed caption the
- * stored one the moment the author looked away, and would make each letter
- * its own undo step.
+ * NOTHING IS WRITTEN UNTIL SAVE, AND NOTHING IS DELETED BY A CLOSE. Every
+ * popover edits a DRAFT; Save is the one `updateAttributes`, and Escape, a
+ * click outside or focus leaving all throw the draft away and leave the node
+ * as stored. A media block left empty stays on screen as a dashed placeholder
+ * and serializes to "" — gone from the saved article, deletable like any atom.
+ * A first version deleted an empty block on close, and every close reason
+ * became a way to lose one: a stray focus-out, the click that finished
+ * picking the row from the `/` menu, a file dialog's blur.
  *
  * Uploads go through the host's `upload` (prose-editor.tsx, which owns the
  * server action), never from here: lib/editor.test.ts builds these extensions
@@ -94,6 +99,23 @@ const FIGURE_ACCEPT = [...ALLOWED_TYPES, "image/svg+xml"].join(",");
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
+const SRC_SHAPE = /^https?:\/\/[^\s\u0000-\u001f\u007f]+$/;
+
+/**
+ * Why a pasted image URL cannot be saved, or null. An empty slot is not a
+ * problem here — whether a block needs the image is the block's own rule.
+ * Anything else that is not an absolute http(s) URL is refused before Save:
+ * the serializer writes what it is given, so `javascript:…` or a relative
+ * path reaches the stored article, the sanitizer drops it on render, and the
+ * figure the author saw in the popover is simply missing from the page.
+ */
+export function srcProblem(src: string): string | null {
+  const s = src.trim();
+  return s === "" || SRC_SHAPE.test(s) ? null : "Use an https:// image URL";
+}
+
+const srcsOk = (...srcs: string[]) => srcs.every((s) => srcProblem(s) === null);
+
 function Preview({ markdown, lang }: { markdown: string; lang: Lang }) {
   return (
     <Markdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={stagingComponents(lang)}>
@@ -102,37 +124,63 @@ function Preview({ markdown, lang }: { markdown: string; lang: Lang }) {
   );
 }
 
+type UploadInto = (file: File, purpose?: "figure-svg") => Promise<StagingUploadResult | null>;
+
 /**
- * Draft, open state and the empty-block rule, shared by every popover.
+ * Draft, open state and uploads, shared by every popover.
  *
- * A block whose markdown is "" (an atom with no image, lib/staging-markdown.ts)
- * already vanishes on save. Cancelled while still empty it is also DELETED,
- * so the author is not left looking at an empty box the document no longer
- * contains — and the same test, made once at mount, is what opens a block
- * freshly inserted from `/`. Local state rather than a transient attribute:
- * an attribute would be stored, serialized and undone like any other.
+ * A block whose markdown is "" (a freshly inserted media atom) opens on
+ * mount — local state rather than a transient attribute, which would be
+ * stored, serialized and undone like any other.
+ *
+ * `generation` counts drafts. An upload resolves seconds after it starts, and
+ * the popover may have been closed — its draft discarded — and reopened on a
+ * fresh one in the meantime; a result tagged with an older generation is
+ * dropped, or a file picked into an abandoned draft would appear in the new
+ * one as if the author had chosen it there.
  */
 function useDraft<T>(props: NodeViewProps, stored: T, empty: boolean) {
+  const opts = optionsOf(props);
   const [open, setOpen] = useState(empty);
   const [draft, setDraft] = useState<T>(stored);
-  // Uploads in flight inside THIS form: Save waits for them, or it would
-  // commit the slot as it was before the image arrived.
+  const generation = useRef(0);
+  // Uploads in flight from this node's popover, of any generation: Save
+  // waits for them, and the form says so even after a reopen remounted the
+  // slot that started one.
   const [uploads, setUploads] = useState(0);
+  const reset = () => {
+    generation.current += 1;
+    setDraft(stored);
+  };
   const onOpenChange = (next: boolean) => {
-    if (next) {
-      setDraft(stored);
-      setOpen(true);
-      return;
-    }
-    setOpen(false);
-    if (empty) props.deleteNode();
+    reset();
+    setOpen(next);
   };
   const save = (value: Record<string, unknown>) => {
+    generation.current += 1;
     props.updateAttributes(value);
     setOpen(false);
   };
-  const onLocalBusy = (busy: boolean) => setUploads((n) => n + (busy ? 1 : -1));
-  return { open, onOpenChange, draft, setDraft, save, busy: uploads > 0, onLocalBusy };
+  const uploadInto: UploadInto = async (file, purpose) => {
+    const gen = generation.current;
+    setUploads((n) => n + 1);
+    opts.onUploadBusy(true);
+    try {
+      const r = await opts.upload(file, purpose);
+      return gen === generation.current ? r : null;
+    } catch (e) {
+      // A redirect from the session check must still navigate (insertImage's
+      // rule in prose-editor.tsx); only a real failure becomes a message.
+      unstable_rethrow(e);
+      return gen === generation.current ? { ok: false, error: e instanceof Error ? e.message : "upload failed" } : null;
+    } finally {
+      // Paired in `finally`: a busy count that leaked on a throw would leave
+      // the article's commit and the EN/FR switch dead until a reload.
+      setUploads((n) => n - 1);
+      opts.onUploadBusy(false);
+    }
+  };
+  return { open, onOpenChange, draft, setDraft, save, busy: uploads > 0, uploadInto, opts };
 }
 
 function PopoverForm({
@@ -141,6 +189,7 @@ function PopoverForm({
   trigger,
   title,
   canSave,
+  busy = false,
   onSave,
   children,
 }: {
@@ -149,6 +198,7 @@ function PopoverForm({
   trigger: ReactNode;
   title: string;
   canSave: boolean;
+  busy?: boolean;
   onSave: () => void;
   children: ReactNode;
 }) {
@@ -165,6 +215,11 @@ function PopoverForm({
         >
           <PopoverTitle>{title}</PopoverTitle>
           {children}
+          {busy ? (
+            <p className="text-xs text-muted-foreground" aria-live="polite">
+              Uploading image…
+            </p>
+          ) : null}
           {/* Disabled until the draft differs from what is stored AND is a
               block the site will draw: a Save that commits a figure with no
               image, or a quote with no `by`, writes markdown the renderer
@@ -214,12 +269,14 @@ function Field({
   onChange,
   placeholder,
   required,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   required?: boolean;
+  error?: string | null;
 }) {
   const id = useId();
   return (
@@ -227,7 +284,20 @@ function Field({
       <Label htmlFor={id} className="text-xs">
         {label}
       </Label>
-      <Input id={id} value={value} placeholder={placeholder} required={required} onChange={(e) => onChange(e.target.value)} />
+      <Input
+        id={id}
+        value={value}
+        placeholder={placeholder}
+        required={required}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${id}-error` : undefined}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {error ? (
+        <p id={`${id}-error`} className="text-xs text-destructive">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -245,36 +315,27 @@ function ImageSlot({
   value,
   onPatch,
   svg,
-  opts,
-  onLocalBusy,
+  uploadInto,
 }: {
   label: string;
   value: Slot;
   onPatch: (p: Partial<Slot>) => void;
   svg: boolean;
-  opts: StagingViewOptions;
-  onLocalBusy: (busy: boolean) => void;
+  uploadInto: UploadInto;
 }) {
   const fileId = useId();
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pick = async (file: File) => {
     setError(null);
-    setBusy(true);
-    onLocalBusy(true);
-    opts.onUploadBusy(true);
+    setPending(true);
     try {
-      const r = await opts.upload(file, svg && file.type === "image/svg+xml" ? "figure-svg" : undefined);
+      const r = await uploadInto(file, svg && file.type === "image/svg+xml" ? "figure-svg" : undefined);
+      if (!r) return; // a discarded draft's upload: see useDraft
       if (r.ok) onPatch({ src: r.url });
       else setError(r.error);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "upload failed");
     } finally {
-      // Paired in `finally`: a busy count that leaked on a throw would leave
-      // the article's commit and the EN/FR switch dead until a reload.
-      setBusy(false);
-      onLocalBusy(false);
-      opts.onUploadBusy(false);
+      setPending(false);
     }
   };
   return (
@@ -288,7 +349,7 @@ function ImageSlot({
           id={fileId}
           type="file"
           accept={svg ? FIGURE_ACCEPT : RASTER_ACCEPT}
-          disabled={busy}
+          disabled={pending}
           className="text-xs file:mr-2 file:rounded-md file:border file:bg-background file:px-2 file:py-1"
           onChange={(e) => {
             const file = e.target.files?.[0];
@@ -297,13 +358,14 @@ function ImageSlot({
           }}
         />
       </div>
-      <Field label="…or image URL" value={value.src} onChange={(src) => onPatch({ src })} placeholder="https://res.cloudinary.com/…" />
+      <Field
+        label="…or image URL"
+        value={value.src}
+        onChange={(src) => onPatch({ src })}
+        placeholder="https://res.cloudinary.com/…"
+        error={srcProblem(value.src)}
+      />
       <Field label="Alt text" value={value.alt} onChange={(alt) => onPatch({ alt })} placeholder="Describe the image" />
-      {busy ? (
-        <p className="text-xs text-muted-foreground" aria-live="polite">
-          Uploading…
-        </p>
-      ) : null}
       {error ? (
         <p className="text-xs text-destructive" role="alert">
           Could not upload: {error}
@@ -313,18 +375,24 @@ function ImageSlot({
   );
 }
 
+// Marks the node view's triggers for `withTriggerEvents` below.
+const TRIGGER_ATTR = "data-staging-trigger";
+
 /**
- * The media block's face: its published self, as a button. INERT inside —
- * every staged image is a real `<a href>` to the original (staged-image.tsx),
- * and a click landing on that anchor would navigate the editor away from
- * unsaved prose. Inert also hands the click to the BUTTON, which is the
- * element ProseMirror's node view lets through (Tiptap's `stopEvent` passes
- * events whose target is a button), so opening the popover does not also
- * select or drag the node.
+ * The media block's face: its published self, as a control. A `div` with the
+ * button role (Base UI's `nativeButton={false}` supplies the role, the tab
+ * stop and Enter/Space), never a `<button>`: the preview is a `<figure>` whose
+ * images are real `<a href>`s (staged-image.tsx), and neither may sit inside a
+ * button. The preview is INERT — no anchor is focusable or clickable, so a
+ * click cannot navigate the editor away from unsaved prose, and the trigger
+ * itself is the event target.
  */
 function MediaTrigger({ label, markdown, lang, placeholder }: { label: string; markdown: string; lang: Lang; placeholder: string }) {
   return (
     <PopoverTrigger
+      nativeButton={false}
+      render={<div />}
+      {...{ [TRIGGER_ATTR]: "" }}
       aria-label={label}
       className="block w-full cursor-pointer rounded-xl text-left outline-none ring-offset-4 ring-offset-background hover:ring-2 hover:ring-ring/40 focus-visible:ring-3 focus-visible:ring-ring/50"
     >
@@ -345,14 +413,15 @@ function MediaTrigger({ label, markdown, lang, placeholder }: { label: string; m
 
 const figureOf = (a: Record<string, unknown>): FigureFields => a as unknown as FigureFields;
 
+const imageName = (src: string, alt: string) => (!src.trim() ? "no image" : alt.trim() || "image without alt text");
+
 function FigureView(props: NodeViewProps) {
-  const opts = optionsOf(props);
   const stored = figureOf(props.node.attrs);
   const markdown = serializeFigure(stored);
   const f = useDraft(props, stored, markdown === "");
   const d = f.draft;
   const patch = (p: Partial<FigureFields>) => f.setDraft((x) => ({ ...x, ...p }));
-  const canSave = !f.busy && d.src.trim() !== "" && !same(d, stored);
+  const canSave = !f.busy && d.src.trim() !== "" && srcsOk(d.src, d.darkSrc) && !same(d, stored);
   return (
     <NodeViewWrapper className="not-prose my-4" data-drag-handle>
       <PopoverForm
@@ -360,8 +429,16 @@ function FigureView(props: NodeViewProps) {
         onOpenChange={f.onOpenChange}
         title="Figure"
         canSave={canSave}
+        busy={f.busy}
         onSave={() => f.save({ ...d })}
-        trigger={<MediaTrigger label="Edit figure" markdown={markdown} lang={opts.lang} placeholder="Figure — add an image" />}
+        trigger={
+          <MediaTrigger
+            label={`Edit figure: ${imageName(stored.src, stored.alt)}`}
+            markdown={markdown}
+            lang={f.opts.lang}
+            placeholder="Empty figure — add an image"
+          />
+        }
       >
         <RadioRow
           legend="Frame"
@@ -374,21 +451,13 @@ function FigureView(props: NodeViewProps) {
           onChange={(frame) => patch({ frame, size: d.size === DEFAULT_SIZE[d.frame] ? DEFAULT_SIZE[frame] : d.size })}
         />
         <RadioRow legend="Size" options={SIZES} labels={SIZE_LABELS} value={d.size} onChange={(size) => patch({ size })} />
-        <ImageSlot
-          label="Image"
-          value={{ src: d.src, alt: d.alt }}
-          onPatch={(p) => patch(p)}
-          svg
-          opts={opts}
-          onLocalBusy={f.onLocalBusy}
-        />
+        <ImageSlot label="Image" value={{ src: d.src, alt: d.alt }} onPatch={(p) => patch(p)} svg uploadInto={f.uploadInto} />
         <ImageSlot
           label="Dark-mode image (optional)"
           value={{ src: d.darkSrc, alt: d.darkAlt }}
           onPatch={(p) => patch({ ...(p.src !== undefined ? { darkSrc: p.src } : {}), ...(p.alt !== undefined ? { darkAlt: p.alt } : {}) })}
           svg
-          opts={opts}
-          onLocalBusy={f.onLocalBusy}
+          uploadInto={f.uploadInto}
         />
         <Field label="Caption" value={d.caption} onChange={(caption) => patch({ caption })} />
       </PopoverForm>
@@ -400,7 +469,6 @@ const galleryOf = (a: Record<string, unknown>): GalleryFields => a as unknown as
 const EMPTY_IMAGE: GalleryImage = { src: "", alt: "", title: "" };
 
 function GalleryView(props: NodeViewProps) {
-  const opts = optionsOf(props);
   const stored = galleryOf(props.node.attrs);
   const markdown = serializeGallery(stored);
   const f = useDraft(props, stored, markdown === "");
@@ -423,7 +491,9 @@ function GalleryView(props: NodeViewProps) {
   // Empty slots are dropped on save rather than stored: the serializer skips
   // them anyway, and a stored blank would reopen as a slot nobody added.
   const kept = { ...d, images: images.filter((m) => m.src.trim()) };
-  const canSave = !f.busy && kept.images.length >= 2 && !same(kept, stored);
+  const canSave =
+    !f.busy && kept.images.length >= 2 && srcsOk(...kept.images.map((m) => m.src)) && !same(kept, stored);
+  const count = stored.images.filter((m) => m.src.trim()).length;
   return (
     <NodeViewWrapper className="not-prose my-4" data-drag-handle>
       <PopoverForm
@@ -431,20 +501,21 @@ function GalleryView(props: NodeViewProps) {
         onOpenChange={f.onOpenChange}
         title="Gallery"
         canSave={canSave}
+        busy={f.busy}
         onSave={() => f.save({ ...kept })}
-        trigger={<MediaTrigger label="Edit gallery" markdown={markdown} lang={opts.lang} placeholder="Gallery — add two images or more" />}
+        trigger={
+          <MediaTrigger
+            label={`Edit gallery: ${count ? `${count} images` : "no images"}`}
+            markdown={markdown}
+            lang={f.opts.lang}
+            placeholder="Empty gallery — add two images"
+          />
+        }
       >
         <RadioRow legend="Frame" options={FRAMES} labels={FRAME_LABELS} value={d.frame} onChange={(frame) => f.setDraft((x) => ({ ...x, frame }))} />
         {images.map((m, i) => (
           <div key={i} className="flex flex-col gap-1.5">
-            <ImageSlot
-              label={`Image ${i + 1}`}
-              value={{ src: m.src, alt: m.alt }}
-              onPatch={(p) => patchAt(i, p)}
-              svg={false}
-              opts={opts}
-              onLocalBusy={f.onLocalBusy}
-            />
+            <ImageSlot label={`Image ${i + 1}`} value={{ src: m.src, alt: m.alt }} onPatch={(p) => patchAt(i, p)} svg={false} uploadInto={f.uploadInto} />
             <Field label={`Image ${i + 1} title`} value={m.title} onChange={(title) => patchAt(i, { title })} />
             <div className="flex gap-1 self-end">
               <Button type="button" size="icon-sm" variant="ghost" aria-label={`Move image ${i + 1} up`} disabled={f.busy || i === 0} onClick={() => move(i, -1)}>
@@ -485,15 +556,16 @@ function GalleryView(props: NodeViewProps) {
 const compareOf = (a: Record<string, unknown>): CompareFields => a as unknown as CompareFields;
 
 function CompareView(props: NodeViewProps) {
-  const opts = optionsOf(props);
   const stored = compareOf(props.node.attrs);
   const markdown = serializeCompare(stored);
   const f = useDraft(props, stored, markdown === "");
   const d = f.draft;
-  const labels = COMPARE_LABELS[opts.lang];
+  const labels = COMPARE_LABELS[f.opts.lang];
   const patchSide = (side: keyof CompareFields, p: Partial<SideFields>) =>
     f.setDraft((x) => ({ ...x, [side]: { ...x[side], ...p } }));
-  const canSave = !f.busy && d.do.text.trim() !== "" && d.dont.text.trim() !== "" && !same(d, stored);
+  const canSave =
+    !f.busy && d.do.text.trim() !== "" && d.dont.text.trim() !== "" && srcsOk(d.do.src, d.dont.src) && !same(d, stored);
+  const name = (t: string) => t.trim() || "no text";
   return (
     <NodeViewWrapper className="not-prose my-4" data-drag-handle>
       <PopoverForm
@@ -501,22 +573,31 @@ function CompareView(props: NodeViewProps) {
         onOpenChange={f.onOpenChange}
         title="Do / Don't"
         canSave={canSave}
+        busy={f.busy}
         onSave={() => f.save({ do: { ...d.do }, dont: { ...d.dont } })}
-        trigger={<MediaTrigger label="Edit do / don't" markdown={markdown} lang={opts.lang} placeholder="Do / Don't — describe both sides" />}
+        trigger={
+          <MediaTrigger
+            label={`Edit do / don't: ${name(stored.do.text)} / ${name(stored.dont.text)}`}
+            markdown={markdown}
+            lang={f.opts.lang}
+            placeholder="Empty do / don't — add both texts"
+          />
+        }
       >
         {COMPARE_SIDES.map((side) => (
-          <div key={side} className="flex flex-col gap-2">
-            <p className="text-xs font-medium">{labels[side]}</p>
+          // A fieldset per side, so "Do" and "Don't" NAME their halves for
+          // assistive tech — two identical "Text" fields otherwise.
+          <fieldset key={side} className="flex flex-col gap-2">
+            <legend className="mb-1 text-xs font-medium">{labels[side]}</legend>
             <Field label="Text" value={d[side].text} required onChange={(text) => patchSide(side, { text })} />
             <ImageSlot
               label="Image (optional)"
               value={{ src: d[side].src, alt: d[side].alt }}
               onPatch={(p) => patchSide(side, p)}
               svg={false}
-              opts={opts}
-              onLocalBusy={f.onLocalBusy}
+              uploadInto={f.uploadInto}
             />
-          </div>
+          </fieldset>
         ))}
       </PopoverForm>
     </NodeViewWrapper>
@@ -526,23 +607,22 @@ function CompareView(props: NodeViewProps) {
 // ── Text blocks ────────────────────────────────────────────────────────────
 
 /** The trigger of a text block's line: the label or the attribution. Out of
- *  the editable flow (`contentEditable={false}`), so the caret never lands in
- *  the chrome around the body. */
+ *  the editable flow (`contentEditable={false}` on its wrapper), so the caret
+ *  never lands in the chrome around the body. */
 function LineTrigger({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
   return (
     <PopoverTrigger
+      nativeButton={false}
+      render={<div />}
+      {...{ [TRIGGER_ATTR]: "" }}
       aria-label={label}
-      className={`cursor-pointer rounded-md text-left outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 ${className ?? ""}`}
+      className={`w-fit cursor-pointer rounded-md text-left outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 ${className ?? ""}`}
     >
       {children}
     </PopoverTrigger>
   );
 }
 
-// The label is markdown SOURCE (lib/staging-markdown.ts's calloutOpener), so
-// it is drawn through the site's chain — `*Note*` reads as emphasis here
-// exactly as it will there — with the paragraph unwrapped: the label sits in
-// the same <p> CalloutLabel draws.
 /**
  * The label as the author typed it → label SOURCE for calloutOpener, which
  * writes it verbatim between `[` and `]`. An unescaped `]` ends the label
@@ -567,12 +647,17 @@ export function escapeLabel(text: string): string {
   return run % 2 === 1 ? `${out}\\` : out;
 }
 
+// The label is markdown SOURCE (lib/staging-markdown.ts's calloutOpener), so
+// it is drawn through the site's chain — `*Note*` reads as emphasis here
+// exactly as it will there — with the paragraph unwrapped: the label sits in
+// the same <p> CalloutLabel draws.
 const inlineComponents = (lang: Lang) => ({ ...stagingComponents(lang), p: ({ children }: { children?: ReactNode }) => <>{children}</> });
 
 function CalloutView(props: NodeViewProps) {
-  const opts = optionsOf(props);
   const label = (props.node.attrs.label as string | null) ?? "";
   const f = useDraft(props, { label }, false);
+  // Against the stored SOURCE, through the same escape Save applies — or an
+  // untouched label that holds an escaped bracket would light Save up.
   const canSave = escapeLabel(f.draft.label.trim()) !== label.trim();
   return (
     <NodeViewWrapper as="aside" className={CALLOUT_CLASS}>
@@ -584,10 +669,12 @@ function CalloutView(props: NodeViewProps) {
           canSave={canSave}
           onSave={() => f.save({ label: escapeLabel(f.draft.label.trim()) || null })}
           trigger={
-            <LineTrigger label={label ? "Edit callout label" : "Add a callout label"}>
+            // The trigger names its stored value (CLAUDE.md, "An icon trigger
+            // names its stored value"), and an empty one says so.
+            <LineTrigger label={`Edit callout label: ${label || "none"}`}>
               {label ? (
                 <span className={CALLOUT_LABEL_CLASS}>
-                  <Markdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={inlineComponents(opts.lang)}>
+                  <Markdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={inlineComponents(f.opts.lang)}>
                     {label}
                   </Markdown>
                 </span>
@@ -608,8 +695,7 @@ function CalloutView(props: NodeViewProps) {
 function QuoteView(props: NodeViewProps) {
   const by = String(props.node.attrs.by ?? "");
   const role = (props.node.attrs.role as string | null) ?? "";
-  const stored = { by, role };
-  const f = useDraft(props, stored, false);
+  const f = useDraft(props, { by, role }, false);
   const d = f.draft;
   const canSave = d.by.trim() !== "" && !same({ by: d.by.trim(), role: d.role.trim() }, { by: by.trim(), role: role.trim() });
   return (
@@ -629,7 +715,7 @@ function QuoteView(props: NodeViewProps) {
             // An empty `by` writes a `:::quote` the site refuses to draw
             // (lib/staging-markdown.ts's quoteOpener), so its absence is
             // drawn as the one thing still missing, not as blank.
-            <LineTrigger label={by ? `Edit attribution: ${by}` : "Add attribution"}>
+            <LineTrigger label={`Edit attribution: ${by ? `${by}${role ? `, ${role}` : ""}` : "none"}`}>
               {by ? (
                 <>
                   — {by}
@@ -650,6 +736,28 @@ function QuoteView(props: NodeViewProps) {
 }
 
 /**
+ * Keys and clicks on a trigger belong to the trigger, not to ProseMirror.
+ * With a `<button>` Tiptap's default `stopEvent` already said so; a `div`
+ * trigger is not one it recognises, and without this an Enter on a focused
+ * trigger would ALSO reach the editor's keymap — splitting or replacing the
+ * selected node. `mousedown` and drag events still go to the default, so a
+ * click selects the atom (Backspace deletes it) and dragging still works.
+ */
+function withTriggerEvents(render: NodeViewRenderer): NodeViewRenderer {
+  return (props) => {
+    const view = render(props) as ReturnType<NodeViewRenderer> & { stopEvent?: (event: Event) => boolean };
+    const base = view.stopEvent?.bind(view);
+    view.stopEvent = (event: Event) => {
+      const t = event.target;
+      const passThrough = event.type === "mousedown" || event.type.startsWith("drag") || event.type === "drop";
+      if (!passThrough && t instanceof Element && t.closest(`[${TRIGGER_ATTR}]`)) return true;
+      return base ? base(event) : false;
+    };
+    return view;
+  };
+}
+
+/**
  * The five staging nodes with their views, bound to this editor's upload,
  * busy reporting and language. `.extend()`ed copies of lib/staging-editor.ts's
  * headless nodes — the schema and markdown stay there, once — exactly as
@@ -662,7 +770,7 @@ export function stagingExtensions(opts: StagingViewOptions) {
         return { ...this.parent?.(), ...opts };
       },
       addNodeView() {
-        return ReactNodeViewRenderer(View);
+        return withTriggerEvents(ReactNodeViewRenderer(View));
       },
     });
   return [
