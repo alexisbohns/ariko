@@ -63,4 +63,7 @@ export const SECTION_KEYS: Readonly<Record<ScopedId, readonly string[]>> = {
   beans: ["plant", "pod"],
   sprouts: SPROUT_KEYS,
   screens: SCREEN_FILTER_KEYS,
+  // The map's scope is a plant; its `view` is NOT a scope key, so a plant
+  // switch drops it deliberately — a different tree is a different question.
+  map: ["plant"],
 };

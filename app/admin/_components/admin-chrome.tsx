@@ -296,6 +296,9 @@ export function AdminChrome({ plants }: { plants: PlantMark[] }) {
 export function AdminMain({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const column = resolveColumn(pathname);
+  // A bleed page owns the whole viewport. `z-0` keeps it UNDER the chrome
+  // (`Chrome` is `fixed z-40`), so the plates float over the canvas.
+  if (column === "bleed") return <main className="fixed inset-0 z-0">{children}</main>;
   return (
     <main className={`${RAIL_CLEARANCE} pb-20 pt-24`}>
       <div className={column === "wide" ? WIDE_COLUMN : READING_COLUMN}>{children}</div>

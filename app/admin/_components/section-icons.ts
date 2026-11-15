@@ -1,4 +1,4 @@
-import { Bean, Flower2, Images, Inbox, Package, Sprout, Waypoints } from "lucide-react";
+import { Bean, Flower2, Images, Inbox, Network, Package, Sprout, Waypoints } from "lucide-react";
 import type { ComponentType } from "react";
 import type { NavId } from "@/lib/admin-nav";
 
@@ -31,4 +31,5 @@ export const SECTION_ICONS: Record<NavId, ComponentType<{ className?: string }>>
   sprouts: Sprout,
   screens: Images,
   beanstalk: Waypoints,
+  map: Network,
 };

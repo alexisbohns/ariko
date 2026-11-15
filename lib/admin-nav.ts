@@ -29,7 +29,8 @@ export type NavId =
   | "beans"
   | "sprouts"
   | "screens"
-  | "beanstalk";
+  | "beanstalk"
+  | "map";
 
 export interface NavItem {
   id: NavId;
@@ -78,6 +79,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { id: "sprouts", href: "/admin/sprouts", label: "Sprouts" },
   { id: "screens", href: "/admin/screens", label: "Screens" },
   { id: "beanstalk", href: "/admin/beanstalk", label: "Beanstalk" },
+  { id: "map", href: "/admin/map", label: "Map" },
 ];
 
 /** The two ids a scope never touches — Overview already IS the scope, and
@@ -142,6 +144,7 @@ const SECTIONS: ReadonlyArray<readonly [string, string]> = [
   ["/admin/sprout", "/admin/sprouts"],
   ["/admin/screens", "/admin/screens"],
   ["/admin/beanstalk", "/admin/beanstalk"],
+  ["/admin/map", "/admin/map"],
 ];
 
 /**
@@ -167,8 +170,10 @@ export function resolveNavItem(pathname: string): string | null {
   return null;
 }
 
-/** Which measure a route reads in — see `components/page-column.tsx`. */
-export type Column = "wide" | "reading";
+/** Which measure a route reads in — see `components/page-column.tsx`. `bleed`
+ *  is no measure at all: the map's canvas fills the viewport and the floating
+ *  chrome sits over it. */
+export type Column = "wide" | "reading" | "bleed";
 
 /**
  * The admin's column, from its pathname.
@@ -192,9 +197,16 @@ export type Column = "wide" | "reading";
  * why that matters). A special case for a path the caller cannot receive is
  * dead code that reads like a live rule, and it is worth a paragraph because
  * it will look like an omission to whoever next greps for "login" here.
+ *
+ * **The map is the one `"bleed"`.** A node-and-edge canvas in a 1024px column
+ * defeats its own purpose, so `AdminMain` gives it the whole viewport and the
+ * chrome's floating plates sit over it. It is named by path here rather than
+ * by a flag on `NavItem` because it is a fact about one page, not a property
+ * every section could have.
  */
 export function resolveColumn(pathname: string): Column {
   const path = normalizePath(pathname);
+  if (path === "/admin/map") return "bleed";
   if (path === ROOT_PATH) return "wide";
   return NAV_ITEMS.some((item) => item.href === path) ? "wide" : "reading";
 }
