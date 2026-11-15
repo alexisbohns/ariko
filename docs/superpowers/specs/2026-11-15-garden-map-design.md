@@ -87,8 +87,10 @@ and what is **missing**.
   7 items unscoped and 7 scoped — Overview comes in, Beanstalk drops out — inside the Alt+1–9 hotkeys).
 - `resolveColumn` gains a third member, `"bleed"`, for `/admin/map`: the canvas
   fills the viewport and the floating chrome plates sit over it. `AdminMain` in
-  `admin-chrome.tsx` handles it. Minimap and controls sit bottom-right, away from
-  the left rail and the two top clusters.
+  `admin-chrome.tsx` handles it. The minimap sits bottom-right (from `lg` up)
+  and the zoom controls bottom-left (from `md` up); the view toolbar is
+  bottom-centre. All three keep clear of the vertically centred left rail and the
+  two top clusters.
 
 ## Data flow
 
