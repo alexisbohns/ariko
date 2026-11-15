@@ -243,7 +243,9 @@ drives exactly the schema the editor drives.
   parses, so they come back byte for byte.
 
 Each tokenizer matches the opening fence through its **matching** closing fence
-— counting fence length, skipping fenced code — and claims a block only when it
+— counting fence length, and treating fenced code as remark does: an opener
+inside code is code, but a closer inside code still closes the container — and
+claims a block only when it
 is valid by §2.2. An invalid block is not claimed: it stays plain text in the
 editor and remark unwraps it the same way, so the two parsers agree on
 malformed input too. Each `renderMarkdown` writes the canonical form (§2.2) and

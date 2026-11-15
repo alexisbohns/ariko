@@ -7,7 +7,7 @@ import { MarkdownManager } from "@tiptap/markdown";
 import { getSchema, type JSONContent } from "@tiptap/core";
 import { Node as PMNode } from "@tiptap/pm/model";
 import { remarkPlugins, rehypePlugins } from "./markdown";
-import { headlessExtensions, normalizeEmptyListMarkers } from "./entity-markdown";
+import { headlessExtensions, prepareEditorMarkdown } from "./entity-markdown";
 import { extractRefs } from "./entity-refs";
 import { MAX_CONTENT_BYTES } from "./articles";
 import { ENTITY_FIXTURES } from "./entity-fixtures";
@@ -45,12 +45,13 @@ const manager = new MarkdownManager({
 const render = (source: string): string =>
   renderToStaticMarkup(createElement(Markdown, { remarkPlugins, rehypePlugins }, source));
 
-// normalizeEmptyListMarkers mirrors what components/editor/prose-editor.tsx
-// applies to `initialMarkdown` before it ever reaches the editor (I2) — this
+// prepareEditorMarkdown mirrors what components/editor/prose-editor.tsx
+// applies to `initialMarkdown` before it ever reaches the editor (I2, the
+// BOM, and container openers marked would read as lazy list text) — this
 // keeps `roundTrip` an accurate stand-in for what the real editor does with
 // stored markdown, not just what MarkdownManager does on its own.
 const roundTrip = (source: string): string =>
-  manager.serialize(manager.parse(normalizeEmptyListMarkers(source))).trim();
+  manager.serialize(manager.parse(prepareEditorMarkdown(source))).trim();
 
 const FIXTURES: Record<string, string> = {
   heading: "## Execution",
@@ -137,7 +138,7 @@ const SCHEMA_CHECK_FIXTURES: Record<string, string> = {
 for (const [name, source] of Object.entries(SCHEMA_CHECK_FIXTURES)) {
   test(`${JSON.stringify(name)} (${JSON.stringify(source)}) parses to a schema-valid document`, () => {
     assert.doesNotThrow(() => {
-      PMNode.fromJSON(schema, manager.parse(normalizeEmptyListMarkers(source)) as never).check();
+      PMNode.fromJSON(schema, manager.parse(prepareEditorMarkdown(source)) as never).check();
     });
   });
 }
@@ -167,7 +168,95 @@ test("staging: a malformed block survives the editor as the same text", () => {
 
 test("staging: every staging fixture parses to a schema-valid document", () => {
   for (const [name, md] of Object.entries({ ...STAGING_FIXTURES, ...NONCANONICAL_FIXTURES, ...Object.fromEntries(Object.entries(MALFORMED_FIXTURES).map(([k, v]) => [k, v.md])), ...INERT_FIXTURES })) {
-    assert.doesNotThrow(() => PMNode.fromJSON(schema, manager.parse(normalizeEmptyListMarkers(md)) as never).check(), name);
+    assert.doesNotThrow(() => PMNode.fromJSON(schema, manager.parse(prepareEditorMarkdown(md)) as never).check(), name);
+  }
+});
+
+// A staged block is not only a top-level thing: remark draws one inside a
+// list item, a task item or a blockquote, and the editor can build one there.
+// Each of these once parsed to a document ProseMirror rejects on the next
+// keystroke (a text block's prose arrived as bare text nodes in a list item),
+// drifted an indent per save, or — the lazy rows — moved a top-level callout
+// into the list above it. Held to the same contract as the fixtures:
+// schema-valid, the same page after a save, and stable after one.
+const STAGING_IN_CONTAINERS: Record<string, string> = {
+  itemTight: "- item\n  :::callout\n  Body.\n  :::",
+  itemLoose: "- item\n\n  :::callout\n  Body.\n  :::",
+  itemQuote: "- item\n  :::quote{by=A}\n  Words.\n  :::",
+  itemLabelled: "- item\n  :::callout[L]\n  x\n  :::",
+  lazyAfterItem: "- item\n:::callout\nx\n:::",
+  lazyAfterList: "- a\n- b\n:::callout\nx\n:::",
+  editorBuiltTwoParagraphs: "- item\n   :::callout[L]\n   Body one.\n   \n   Body two.\n   :::",
+  openerOnMarkerLine: "- :::callout[L]\n  x\n  :::",
+  nestedItem: "- a\n  - :::callout\n    x\n    :::",
+  itemFigure: "- item\n  :::figure\n  ![a](/a.png)\n  :::",
+  itemFigureLoose: "- item\n\n  :::figure\n  ![a](/a.png)\n  :::",
+  figureOnMarkerLine: "- :::figure\n  ![a](/a.png)\n  :::",
+  taskItem: "- [ ] a\n  :::callout\n  x\n  :::",
+  orderedItem: "1. a\n   :::callout\n   x\n   :::",
+  orderedSecondItem: "1. a\n2. b\n   :::figure\n   ![a](/a.png)\n   :::",
+  blockquoted: "> :::callout\n> x\n> :::",
+  bom: "\uFEFF:::callout\nx\n:::",
+};
+
+for (const [name, md] of Object.entries(STAGING_IN_CONTAINERS)) {
+  test(`staging in a container: ${name} is schema-valid, means the same, and is stable`, () => {
+    assert.doesNotThrow(() => PMNode.fromJSON(schema, manager.parse(prepareEditorMarkdown(md)) as never).check());
+    const once = roundTrip(md);
+    assert.equal(render(once), render(md), "render changed");
+    assert.equal(roundTrip(once), once, "not stable after one pass");
+  });
+}
+
+test("KNOWN DIVERGENCE: prose after a block in a tight list item saves the item loose", () => {
+  // Upstream, and not only ours: the stock list item handler wrapped only the
+  // item's FIRST run of prose in a paragraph, so `after` below a block —
+  // a code fence or a card as much as a callout — was a bare text node in the
+  // item, a document the editor froze on. lib/entity-markdown.ts's list item
+  // now wraps it. A paragraph after a block is always written with a blank
+  // line before it (renderNestedMarkdownContent), so the item saves loose:
+  // the page wraps its prose in <p>. Every word and block survives, and the
+  // result is stable.
+  for (const md of [
+    "- item\n  :::callout\n  x\n  :::\n  after\n- next",
+    "- :::callout\n  x\n  :::\n  after",
+    "- item\n  ::entity{ref=bean:x}\n  after",
+  ]) {
+    assert.doesNotThrow(() => PMNode.fromJSON(schema, manager.parse(prepareEditorMarkdown(md)) as never).check(), md);
+    const once = roundTrip(md);
+    assert.match(render(once), /<p>after<\/p>/, md);
+    assert.doesNotMatch(render(md), /<p>after<\/p>/, md);
+    assert.equal(roundTrip(once), once, md);
+  }
+});
+
+test("KNOWN DIVERGENCE: a staged block after a blank line in an ordered item saves tight", () => {
+  // @tiptap's ordered-list tokenizer trims an item's block content before
+  // lexing it, so the blank line between the item's text and the callout is
+  // gone before the node could remember it (the `spaced` attribute that keeps
+  // a bullet item loose). The item comes back tight: the page drops the <p>
+  // around "a". Every word and the block survive, and it is stable. The
+  // tight form is in STAGING_IN_CONTAINERS and holds exactly.
+  const md = "1. a\n\n   :::callout\n   x\n   :::";
+  const once = roundTrip(md);
+  assert.equal(once, "1. a\n   :::callout\n   x\n   :::");
+  assert.match(render(md), /<p>a<\/p>/);
+  assert.doesNotMatch(render(once), /<p>a<\/p>/);
+  assert.match(render(once), /<staged-callout><p>x<\/p><\/staged-callout>/);
+  assert.equal(roundTrip(once), once);
+});
+
+test("KNOWN DIVERGENCE: a text block whose body is only a definition is dropped on save", () => {
+  // remark claims `:::callout\n[1]: https://e.com\n:::` — a definition is a
+  // child — and draws an empty box. marked consumes the definition and leaves
+  // the body empty; the node holds one empty paragraph so the document stays
+  // valid, and an empty text block writes no fence (lib/staging-editor.ts),
+  // so the box goes. A definition renders nothing on the page either way:
+  // no word is lost, only an empty frame.
+  for (const md of [":::callout\n[1]: https://e.com\n:::", ":::callout\n[^1]: x\n:::", ":::quote{by=A}\n[1]: https://e.com\n:::"]) {
+    assert.doesNotThrow(() => PMNode.fromJSON(schema, manager.parse(prepareEditorMarkdown(md)) as never).check(), md);
+    assert.match(render(md), /<staged-(callout|quote)[^>]*><\/staged-/, md);
+    assert.equal(roundTrip(md), "", md);
   }
 });
 
@@ -176,16 +265,28 @@ test("KNOWN DIVERGENCE: a staged block nested in a text block renders unwrapped,
   // off inside a text block), so only hand-written stored markdown has it.
   // Pinned so a change in either parser shows up here first.
   //
-  // The round trip is pinned too: the editor writes the callout's fence
-  // longer than the fence-shaped text in its body (lib/staging-editor.ts's
-  // fenceLength), so the stored `::::` survives. Written as the canonical
-  // `:::`, the inner `:::` closed the callout on the next parse and a stray
-  // `:::` paragraph appeared on the page.
+  // What is true, and only this: the INNER block is text to the editor, and
+  // the page draws it the same after a save only when that text needs no
+  // escaping. A gallery's lines survive verbatim — and the editor writes the
+  // callout's fence longer than the fence-shaped text in its body
+  // (lib/staging-editor.ts's fenceLength), so the stored `::::` holds; written
+  // as the canonical `:::`, the inner `:::` closed the callout on the next
+  // parse and a stray `:::` paragraph appeared on the page. A LABELLED inner
+  // callout does not survive: its brackets are escaped as text, so remark no
+  // longer sees a directive and draws `:::callout[Label]` and `:::` as words,
+  // where it had unwrapped them to "Label" and the body. No word is lost.
   const md = DOOR_ONLY_FIXTURES.nested.md;
   assert.match(render(md), /<staged-callout>/);
   assert.doesNotMatch(render(md), /<staged-gallery/);
-  assert.equal(roundTrip(md), md);
   assert.equal(render(roundTrip(md)), render(md));
+  assert.equal(roundTrip(roundTrip(md)), roundTrip(md));
+
+  const labelled = "::::quote{by=A}\nq\n:::callout[Label]\nx\n:::\n::::";
+  assert.match(render(labelled), /<staged-quote data-by="A"><p>q<\/p><p>Label<\/p><p>x<\/p><\/staged-quote>/);
+  const once = roundTrip(labelled);
+  assert.match(render(once), /:::callout\[Label\]/);
+  assert.match(render(once), /\bx\b/);
+  assert.equal(roundTrip(once), once);
 });
 
 test("KNOWN DIVERGENCE: a labelled callout with no body keeps its words, but its fences become visible text", () => {
@@ -195,9 +296,12 @@ test("KNOWN DIVERGENCE: a labelled callout with no body keeps its words, but its
   // brackets, after which remark no longer sees a directive at all and draws
   // the whole thing literally. No word is lost: only the fences, which the
   // author wrote, become visible. The door refuses this block
-  // (`callout: needs some text`) and the editor's `/` menu cannot make one,
-  // so only hand-written stored markdown reaches it. Pinned so a fix in
-  // either parser shows up here as a diff.
+  // (`callout: needs some text`). The EDITOR can reach the empty state — an
+  // author clears a callout's body — but never writes this markdown: an
+  // empty text block saves as its label, a plain paragraph, with no fence
+  // (lib/staging-editor.test.ts pins it). So only hand-written stored
+  // markdown reaches this. Pinned so a fix in either parser shows up here as
+  // a diff.
   const md = MALFORMED_FIXTURES.emptyCallout.md;
   assert.equal(render(md), "<p>Label only</p>");
   assert.equal(roundTrip(md), ":::callout\\[Label only\\]\n:::");
@@ -218,14 +322,14 @@ test("I2 fix: an empty list item ahead of a card is not silently rewritten as an
   // card ends up inside the list, not next to it.
   const source = "- \n  ::entity{ref=bean:x}";
   assert.equal(render(roundTrip(source)), render(source));
-  const json = manager.parse(normalizeEmptyListMarkers(source)) as JSONContent;
+  const json = manager.parse(prepareEditorMarkdown(source)) as JSONContent;
   assert.equal(json.content?.[0]?.type, "bulletList");
   assert.equal(json.content?.[0]?.content?.[0]?.type, "listItem");
   assert.equal(json.content?.[0]?.content?.[0]?.content?.[0]?.type, "entityCard");
   // And it stays schema-valid — C1's fix (listItem content "block+") is what
   // lets a list item whose only real content is a card exist at all.
   assert.doesNotThrow(() => {
-    PMNode.fromJSON(schema, manager.parse(normalizeEmptyListMarkers(source)) as never).check();
+    PMNode.fromJSON(schema, manager.parse(prepareEditorMarkdown(source)) as never).check();
   });
 });
 
@@ -492,7 +596,7 @@ const remarkVerdict = (md: string): "card" | "mention" | "none" => {
 
 const editorVerdict = (md: string): "card" | "mention" | "none" => {
   // normalizeEmptyListMarkers: see roundTrip above — same reasoning.
-  const json = JSON.stringify(manager.parse(normalizeEmptyListMarkers(md)));
+  const json = JSON.stringify(manager.parse(prepareEditorMarkdown(md)));
   if (json.includes('"entityCard"')) return "card";
   if (json.includes('"entityMention"')) return "mention";
   return "none";
@@ -518,7 +622,7 @@ for (const { md, expect } of ENTITY_FIXTURES) {
   // do: MarkdownManager has no schema opinion at all.
   test(`${JSON.stringify(md)} parses to a schema-valid document`, () => {
     assert.doesNotThrow(() => {
-      PMNode.fromJSON(schema, manager.parse(normalizeEmptyListMarkers(md)) as never).check();
+      PMNode.fromJSON(schema, manager.parse(prepareEditorMarkdown(md)) as never).check();
     });
   });
 }

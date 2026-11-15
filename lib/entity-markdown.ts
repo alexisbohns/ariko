@@ -59,6 +59,78 @@ export function normalizeEmptyListMarkers(markdown: string): string {
   return markdown.replace(/^( {0,3}(?:[-*+]|\d{1,9}[.)]))[ \t]$/gm, "$1");
 }
 
+// A byte-order mark is invisible and remark ignores it, but marked reads it
+// as the first character of the first paragraph — so a document opening with
+// `\uFEFF:::callout` was never claimed (the opener no longer starts the
+// line), and the mark itself was saved back as content.
+export function stripBom(markdown: string): string {
+  return markdown.replace(/^\uFEFF/, "");
+}
+
+// marked's list tokenizer keeps reading an item through any line that does
+// not start a block IT knows — so `- item\n:::callout\nx\n:::` hands the
+// whole container to the item as lazy continuation, while remark, for which
+// a container interrupts a paragraph, ends the list and draws the callout
+// below it. The editor then saved the callout indented under the item, and
+// the page moved it into the list. A blank line before such an opener ends
+// the list for marked exactly where remark ends it, and changes nothing for
+// remark: the opener already interrupted whatever came before it.
+//
+// Only an opener that no list item in the same run of non-blank lines would
+// hold — one indented less than the outermost item's content. An opener
+// indented into a BULLET item belongs there in both parsers, and a blank line
+// before it would loosen the list.
+//
+// An ORDERED item is the exception, and the reverse case: @tiptap's own
+// ordered-list tokenizer reads every line up to a blank one as the item's
+// paragraph unless it recognizes the line as a block, and a container is not
+// one it recognizes — so `1. a\n   :::callout` kept the callout as item prose,
+// saved it under-indented, and the page drew it below the list. A blank line
+// moves it to the item's block content, which that tokenizer trims before
+// lexing, so the item does not turn loose. Fenced code is skipped: a code
+// sample about the grammar is not the grammar.
+const OPENER = /^( {0,3}):{3,}[A-Za-z]/;
+const LIST_ITEM = /^( *)([-*+]|(\d{1,9})[.)])( +|$)/;
+const CODE_FENCE = /^\s*(`{3,}|~{3,})/;
+
+export function separateContainerOpeners(markdown: string): string {
+  const out: string[] = [];
+  let fence: string | null = null;
+  let itemOffset: number | null = null;
+  let ordered: number | null = null;
+  for (const line of markdown.split("\n")) {
+    const code = CODE_FENCE.exec(line);
+    if (fence) {
+      if (code && code[1][0] === fence[0] && code[1].length >= fence.length) fence = null;
+    } else if (code) {
+      fence = code[1];
+    } else {
+      const open = OPENER.exec(line);
+      const prev = out[out.length - 1];
+      const indent = open?.[1].length ?? 0;
+      const lazy = itemOffset === null || indent < itemOffset || (ordered !== null && indent >= ordered);
+      if (open && prev !== undefined && prev.trim() && lazy) out.push("");
+    }
+    if (!line.trim()) itemOffset = ordered = null;
+    else {
+      const item = LIST_ITEM.exec(line);
+      if (item) {
+        itemOffset ??= item[0].length;
+        ordered = item[3] ? item[0].length : null;
+      }
+    }
+    out.push(line);
+  }
+  return out.join("\n");
+}
+
+/** Everything stored markdown goes through before marked sees it — the
+ *  editor's one entry point (components/editor/prose-editor.tsx) and the
+ *  conformance suite's `roundTrip` call this, so the two cannot drift. */
+export function prepareEditorMarkdown(markdown: string): string {
+  return separateContainerOpeners(normalizeEmptyListMarkers(stripBom(markdown)));
+}
+
 // Shares two rules with lib/entity-refs.ts's BLOCK/INLINE: the {0,3} leading-space
 // allowance (four is an indented code block) and "ref can appear anywhere in the
 // braces". Deliberately does NOT share those regexes' looseness: entity-refs.ts's
@@ -205,7 +277,57 @@ export const EntityMention = Node.create({
 // isn't configurable through it. bulletList/orderedList still find this node
 // by NAME (`listItem`), the same way they'd find StarterKit's own, so nothing
 // else about list behavior changes.
-const CardLeadingListItem = ListItem.extend({ content: "block+" });
+//
+// Its parseMarkdown is wrapped for a second, upstream gap of the same class.
+// In a tight item, marked lexes prose as `text` tokens, and the stock handler
+// wraps only the FIRST one in a paragraph: text after a block —
+// `- item\n  ```\n  c\n  ```\n  after`, or the same with a card or a staged
+// callout — came back as bare text nodes directly in the list item,
+// schema-invalid and fatal on the next keystroke. Consecutive inline nodes
+// are gathered into one paragraph instead. The item then saves loose (the
+// renderer always writes a blank line before a later paragraph), which
+// lib/markdown-conformance.test.ts pins as a KNOWN DIVERGENCE: a layout
+// change, where the stock result was a frozen editor.
+const INLINE_TYPES = new Set(["text", "hardBreak", "image", "entityMention"]);
+
+function wrapStrayInline(content: JSONContent[]): JSONContent[] {
+  const out: JSONContent[] = [];
+  for (const node of content) {
+    if (!INLINE_TYPES.has(node.type ?? "")) {
+      out.push(node);
+      continue;
+    }
+    const last = out[out.length - 1];
+    if (last?.type === "paragraph" && (last as { stray?: boolean }).stray) last.content!.push(node);
+    else out.push({ type: "paragraph", content: [node], stray: true } as JSONContent);
+  }
+  for (const node of out) {
+    delete (node as { stray?: boolean }).stray;
+    // marked keeps a later paragraph's indent beyond the item's content
+    // column — the renderer's three spaces under a two-wide `- ` leave one —
+    // and the stock handler stores it as text. Leading whitespace is never
+    // content in a paragraph, but stored it was written back plus one more
+    // space per save, until the fourth save turned the paragraph into code.
+    const first = node.type === "paragraph" ? node.content?.[0] : undefined;
+    if (first?.type === "text" && first.text) {
+      first.text = first.text.replace(/^[ \t]+/, "");
+      // An empty text node is itself schema-invalid; the paragraph stays.
+      if (!first.text) node.content!.shift();
+    }
+  }
+  return out;
+}
+
+const CardLeadingListItem = ListItem.extend({
+  content: "block+",
+  parseMarkdown: (token: MarkdownToken, helpers: MarkdownParseHelpers) => {
+    const result = ListItem.config.parseMarkdown!(token, helpers);
+    if (result && !Array.isArray(result) && "type" in result && result.type === "listItem" && result.content) {
+      return { ...result, content: wrapStrayInline(result.content) };
+    }
+    return result;
+  },
+});
 
 // @tiptap/extension-paragraph's OWN parseMarkdown special-cases a paragraph
 // token holding ONLY an image token: instead of nesting the image as inline

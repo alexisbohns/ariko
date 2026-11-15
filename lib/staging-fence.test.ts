@@ -32,9 +32,21 @@ test("an unclosed container runs to the end", () => {
   assert.equal(findContainerEnd(src), src.length);
 });
 
-test("a fence inside fenced code is opaque", () => {
+test("a closer inside fenced code still closes (remark's rule)", () => {
   const src = ":::callout\n```\n:::\n```\nreal\n:::\nafter";
-  assert.equal(src.slice(0, findContainerEnd(src)!), ":::callout\n```\n:::\n```\nreal\n:::\n");
+  assert.equal(src.slice(0, findContainerEnd(src)!), ":::callout\n```\n:::\n");
+});
+
+test("an opener inside fenced code is code, not a nested container", () => {
+  // `:::::gallery` would otherwise sit on the stack above `::::callout`, and
+  // the `::::` closer could not reach the callout under it.
+  const src = "::::callout\n```\n:::::gallery\n```\n::::\nz\n::::\nafter";
+  assert.equal(src.slice(0, findContainerEnd(src)!), "::::callout\n```\n:::::gallery\n```\n::::\n");
+});
+
+test("a closer shorter than the container is code content", () => {
+  const src = "::::callout\n```\n:::\n```\n::::\nafter";
+  assert.equal(src.slice(0, findContainerEnd(src)!), "::::callout\n```\n:::\n```\n::::\n");
 });
 
 test("an indented closer (up to 3 spaces) counts; 4 does not", () => {
@@ -65,7 +77,16 @@ function firstContainer(node: Node): Node | null {
   return null;
 }
 
+// Code inside a container, where remark's closing rule is least intuitive.
+const CODE_CASES: Record<string, string> = {
+  closerInCode: ":::callout\n```\n:::\n```\n:::",
+  openerInCode: "::::callout\n```\n:::::gallery\n```\n::::\nz\n::::",
+  shortCloserInCode: "::::callout\n```\n:::\n```\n::::",
+  tildeCode: ":::callout\n~~~\n:::\n~~~\n:::",
+};
+
 const CORPUS: Array<[string, string]> = [
+  ...Object.entries(CODE_CASES),
   ...Object.entries(STAGING_FIXTURES),
   ...Object.entries(NONCANONICAL_FIXTURES),
   ...Object.entries(MALFORMED_FIXTURES).map(([name, f]): [string, string] => [name, f.md]),

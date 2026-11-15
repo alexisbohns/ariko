@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { MarkdownManager } from "@tiptap/markdown";
-import { headlessExtensions, normalizeEmptyListMarkers } from "./entity-markdown";
+import { headlessExtensions, normalizeEmptyListMarkers, separateContainerOpeners, stripBom, prepareEditorMarkdown } from "./entity-markdown";
 
 // The editor's parse/serialize pair, headless — no DOM, no React. This is the
 // same manager components/editor/prose-editor.tsx builds minus the node
@@ -194,4 +194,37 @@ test("a mention's marks are dropped, on parse as well as on serialize", () => {
     ],
   };
   assert.equal(manager.serialize(doc).trim(), ":entity[X]{ref=bean:y}");
+});
+
+test("stripBom: removes only a leading byte-order mark", () => {
+  assert.equal(stripBom("﻿:::callout\nx\n:::"), ":::callout\nx\n:::");
+  assert.equal(stripBom("a﻿b"), "a﻿b");
+});
+
+test("separateContainerOpeners: a blank line ends a list where remark ends it", () => {
+  // Lazy continuation in marked, a new block in remark.
+  assert.equal(separateContainerOpeners("- item\n:::callout\nx\n:::"), "- item\n\n:::callout\nx\n:::");
+  assert.equal(separateContainerOpeners("- a\n- b\n:::callout\nx\n:::"), "- a\n- b\n\n:::callout\nx\n:::");
+  // Interrupting a paragraph: harmless, remark already split there.
+  assert.equal(separateContainerOpeners("Some prose.\n:::callout\nx\n:::"), "Some prose.\n\n:::callout\nx\n:::");
+});
+
+test("separateContainerOpeners: an opener indented into a bullet item stays tight", () => {
+  for (const md of ["- item\n  :::callout\n  x\n  :::", "- a\n  - b\n    :::callout\n    x\n    :::", ":::callout\nx\n:::", "- item\n\n:::callout\nx\n:::"]) {
+    assert.equal(separateContainerOpeners(md), md, md);
+  }
+});
+
+test("separateContainerOpeners: an opener in an ordered item is moved to the item's block content", () => {
+  assert.equal(separateContainerOpeners("1. a\n   :::callout\n   x\n   :::"), "1. a\n\n   :::callout\n   x\n   :::");
+});
+
+test("separateContainerOpeners: fenced code is left alone", () => {
+  for (const md of ["```md\nintro\n:::figure\n![a](/a.png)\n:::\n```", "~~~\n- a\n:::callout\n~~~"]) {
+    assert.equal(separateContainerOpeners(md), md, md);
+  }
+});
+
+test("prepareEditorMarkdown: the BOM, the empty list marker and the openers, in one pass", () => {
+  assert.equal(prepareEditorMarkdown("﻿- \n  ::entity{ref=bean:x}\n:::callout\nx\n:::"), "-\n  ::entity{ref=bean:x}\n\n:::callout\nx\n:::");
 });

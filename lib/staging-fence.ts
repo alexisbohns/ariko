@@ -15,8 +15,14 @@
  * A closer of length L closes every open container whose opener is ≤ L,
  * innermost first: `:::` inside `::::compare` closes only the inner `:::do`,
  * `::::` closes both, and same-length nesting closes both at the first closer.
- * A closer shorter than the outermost opener pops nothing. Fenced code is
- * opaque, and up to three spaces of indent still count.
+ * A closer shorter than the outermost opener pops nothing. Up to three spaces
+ * of indent still count.
+ *
+ * Fenced code is HALF opaque, which is remark's rule and not an intuitive
+ * one: an opener inside code is code, but a closer inside code still closes —
+ * `:::callout\n```\n:::\n```\n:::` is a callout holding an empty code block,
+ * closed at the inner `:::`, with the rest of the fence left outside. Treating
+ * code as wholly opaque over-read such a block by two lines.
  *
  * Server-safe: no imports, so the editor's tokenizers and the public zone can
  * both take it.
@@ -41,20 +47,20 @@ export function findContainerEnd(src: string): number | null {
     const next = nl === -1 ? src.length : nl + 1;
 
     const fence = CODE.exec(line);
-    if (code) {
+    const close = CLOSE.exec(line);
+    if (close && stack[stack.length - 1] <= close[1].length) {
+      // A closing container ends any code open inside it.
+      const len = close[1].length;
+      while (stack.length > 0 && stack[stack.length - 1] <= len) stack.pop();
+      if (stack.length === 0) return next;
+      code = null;
+    } else if (code) {
       if (fence && fence[1][0] === code[0] && fence[1].length >= code.length && !line.slice(fence[0].length).trim()) code = null;
     } else if (fence) {
       code = fence[1];
-    } else {
-      const close = CLOSE.exec(line);
+    } else if (!close) {
       const open = OPEN.exec(line);
-      if (close) {
-        const len = close[1].length;
-        while (stack.length > 0 && stack[stack.length - 1] <= len) stack.pop();
-        if (stack.length === 0) return next;
-      } else if (open) {
-        stack.push(open[1].length);
-      }
+      if (open) stack.push(open[1].length);
     }
     offset = next;
   }
