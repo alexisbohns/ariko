@@ -203,9 +203,19 @@ export type Column = "wide" | "reading" | "bleed";
  * chrome's floating plates sit over it. It is named by path here rather than
  * by a flag on `NavItem` because it is a fact about one page, not a property
  * every section could have.
+ *
+ * **While the map's entity sheet is open the URL is not the authority; the
+ * active layout segment is.** The sheet's URL is `/admin/<tier>/<slug>` — a
+ * reading path — but the router is still on the map, which stays mounted
+ * beneath it. `segment` is the `(chrome)` layout's active segment
+ * (`useSelectedLayoutSegment()`), and `"map"` there means bleed whatever the
+ * path says. Answering anything else changes the shape of the tree `AdminMain`
+ * returns, which remounts the map and any editor open in the sheet (losing
+ * unsaved text) and squeezes the canvas to zero height in the reading column.
  */
-export function resolveColumn(pathname: string): Column {
+export function resolveColumn(pathname: string, segment?: string | null): Column {
   const path = normalizePath(pathname);
+  if (segment === "map") return "bleed";
   if (path === "/admin/map") return "bleed";
   if (path === ROOT_PATH) return "wide";
   return NAV_ITEMS.some((item) => item.href === path) ? "wide" : "reading";
