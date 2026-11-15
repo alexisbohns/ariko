@@ -491,3 +491,29 @@ not a second one that looks like it.
   that every page rendering the prose editor renders the rail.
 - **Lists stay out of the way:** a block's panel opening while the `@` / `/`
   menu is open closes the menu first.
+
+## 12. Amendment (2026-11-15): "Make it a figure"
+
+**The observation.** Testing #127 on production, the maintainer clicked the
+kosymoz moon close-up to resize it — but it was a plain `![](…)` image the
+agent had left unstaged, and the editor offered only Bold / Italic / Code /
+Link. Turning it into a figure meant deleting it, inserting `/figure` and
+pasting its URL back.
+
+**The decision.**
+
+- When the selection is a plain `image` node, the bubble menu shows **"Make it
+  a figure"** in place of the text marks (meaningless on an image).
+- It is **enabled only for an image alone on its line**: the only content of
+  its paragraph (whitespace and hard breaks aside), in a place a staged block
+  may live — not inside a list item, a table cell, a callout or a quote (the
+  `/` menu's own rule, §4.2). Otherwise it is shown disabled, with a short
+  reason as its description, so the action stays discoverable.
+- **One transaction, one undo**: the paragraph is replaced by a
+  `stagedFigure` with `frame=none`, `size=l`, the image's `src` and `alt`, and
+  its `title`, if any, as the caption. Nothing else is guessed — the paragraph
+  after it is not pulled in as a caption.
+- The new figure's **panel opens**, as for a figure inserted from `/`, so the
+  author picks a frame and size at once.
+- The decision is a pure function (`lib/staging-convert.ts`) tested headless;
+  the menu only calls it.
