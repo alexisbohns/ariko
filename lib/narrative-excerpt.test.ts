@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { narrativeExcerpt } from "./narrative-excerpt";
+import { STAGING_FIXTURES } from "./staging-fixtures";
 
 /**
  * The hub's narrative preview draws ONE line of text, from a document that can
@@ -75,4 +76,15 @@ test("text over the budget is cut on a word boundary, with an ellipsis", () => {
 test("a single word longer than the budget is still cut", () => {
   const text = narrativeExcerpt("supercalifragilisticexpialidocious", 10);
   assert.equal(text, "supercalif…");
+});
+
+test("a document opening with a figure previews its first sentence of prose", () => {
+  const md = `${STAGING_FIXTURES.phoneFigure}\n\nThe lake opens the evening.`;
+  assert.equal(narrativeExcerpt(md), "Scenes zoom in on the subject when the phone is upright. The lake opens the evening.");
+});
+
+test("fence lines and a callout's label never reach a preview", () => {
+  const out = narrativeExcerpt(`${STAGING_FIXTURES.callout}\n\n${STAGING_FIXTURES.compare}`);
+  assert.doesNotMatch(out, /:::|callout|In two words|\{|compare/);
+  assert.match(out, /^When you only have a few shades/);
 });
