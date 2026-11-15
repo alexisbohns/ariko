@@ -108,7 +108,7 @@ and what is **missing**.
 page.tsx (force-dynamic)
   loadRawGarden() + listSeeds()                    // live readers, never the cache
     → lib/garden-map.ts         pure: nodes, edges, flags, stats, view dimming
-    → lib/garden-map-layout.ts  pure: dagre, LR, fixed size per node kind
+    → lib/garden-map-layout.ts  pure: deterministic column layout, fixed size per node kind
     → <GardenMap/>              thin @xyflow/react island, draws positioned nodes
 ```
 
@@ -118,8 +118,25 @@ page.tsx (force-dynamic)
   `lib/palette.ts` / `lib/palette-items.ts` already document, and a source test
   pins it.
 - Layout runs on the server; the client ships no layout code.
-- New dependencies: `@xyflow/react`, `@dagre/dagre` (verify exact current
-  versions and React 19 compatibility at install).
+
+### Layout
+
+A file tree, not a left-to-right graph. Plants stand side by side across the
+top; each plant's pods stand in a row under it; a pod's beans stack in an
+indented column under it with a trunk line down the left; a bean's draft
+sprouts and its seed count sit indented right under that bean. What hangs
+directly off a plant (its own beans and sprouts) is a first column with no head
+card, to the left of its pods. The Unrooted and Inbox buckets are roots too and
+come last, after every plant. Every node is placed once, under its **primary
+parent** (the source of the first edge into it); its other edges are kept and
+drawn but move nothing, so a bean shared by two pods stands under the first.
+A plant-to-pod edge leaves the plant's bottom and enters the pod's top; every
+other edge leaves a trunk handle near the left of the parent's bottom and
+enters the child's left, so a smoothstep draws the elbow. Nothing is ever
+dropped: a node no root reaches goes into a final block.
+- New dependency: `@xyflow/react` (verify the exact current version and React 19
+  compatibility at install). The layout is our own arithmetic, so there is no
+  graph-layout dependency.
 - Live reads: the admin and every server action read the live garden. A map
   reading the cached one would show a pre-write garden.
 

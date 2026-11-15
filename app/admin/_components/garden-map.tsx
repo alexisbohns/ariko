@@ -20,11 +20,18 @@ import { MapNodeCard } from "./garden-map-node";
  * The garden map's canvas: draws a finished, positioned map and nothing else.
  *
  * It composes no data and holds no state. The page reads the garden, the
- * builder decides every flag, dagre decides every coordinate — this file hands
- * them to React Flow. `import type` from `lib/` only: `lib/garden-map.ts`
+ * builder decides every flag, `lib/garden-map-layout.ts` decides every
+ * coordinate — this file hands them to React Flow. `import type` from `lib/` only: `lib/garden-map.ts`
  * reaches `lib/data.ts`, which opens with `node:fs`, and a runtime import from
  * here fails `npm run build` rather than anything earlier
  * (`lib/garden-map-source.test.ts`).
+ *
+ * The layout is a file tree, not a left-to-right graph: plants in a row, pods
+ * under them in a row, beans in an indented column under their pod. So an edge
+ * does not run side to side. A plant-to-pod edge drops from the plant's bottom
+ * into the pod's top; every other edge leaves a "trunk" handle near the left of
+ * its parent's bottom edge and enters the child's left side, which a smoothstep
+ * draws down-then-right.
  *
  * Read-only on purpose: nodes cannot be dragged, connected or selected, so
  * there is no layout state to lose and no write path to mis-fire. Each card's
@@ -34,14 +41,33 @@ import { MapNodeCard } from "./garden-map-node";
 
 type GardenNodeData = { node: PositionedNode };
 
+/** Where the trunk handle sits from a card's left edge: `LAYOUT.INDENT / 2` in
+ *  `lib/garden-map-layout.ts`, which this file may not import as a value. It
+ *  puts the trunk line at the middle of the indent a child steps in by. */
+const TRUNK_LEFT = 14;
+
+const HANDLE = "pointer-events-none opacity-0";
+
 function GardenNode({ data }: NodeProps<Node<GardenNodeData>>) {
   // Handles exist because React Flow cannot draw an edge to a node without
-  // them; they are invisible and inert.
+  // them; they are invisible and inert. Four, because which one an edge uses
+  // depends on the edge (`PositionedEdge`), not on the node.
   return (
     <>
-      <Handle type="target" position={Position.Left} isConnectable={false} className="pointer-events-none opacity-0" />
+      <Handle id="top" type="target" position={Position.Top} isConnectable={false} className={HANDLE} />
+      <Handle id="left" type="target" position={Position.Left} isConnectable={false} className={HANDLE} />
       <MapNodeCard node={data.node} />
-      <Handle type="source" position={Position.Right} isConnectable={false} className="pointer-events-none opacity-0" />
+      <Handle id="bottom" type="source" position={Position.Bottom} isConnectable={false} className={HANDLE} />
+      {/* The default bottom handle is `left: 50%`; only `left` is overridden so
+          its translateX(-50%) still centres it on the trunk. */}
+      <Handle
+        id="trunk"
+        type="source"
+        position={Position.Bottom}
+        isConnectable={false}
+        className={HANDLE}
+        style={{ left: TRUNK_LEFT }}
+      />
     </>
   );
 }
@@ -92,6 +118,8 @@ export function GardenMap({ map }: { map: PositionedMap }) {
         id: edge.id,
         source: edge.source,
         target: edge.target,
+        sourceHandle: edge.sourceHandle,
+        targetHandle: edge.targetHandle,
         type: "smoothstep",
         selectable: false,
         focusable: false,

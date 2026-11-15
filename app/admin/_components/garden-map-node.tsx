@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
  * (see `lib/garden-map-source.test.ts`).
  *
  * The card is sized by `lib/garden-map-layout.ts` (`KIND_SIZE`), not by its
- * content: it fills the box dagre reserved for it.
+ * content: it fills the box the layout reserved for it.
  */
 
 const KIND_ICON: Record<MapNodeKind, ComponentType<{ className?: string }>> = {

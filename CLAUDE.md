@@ -398,11 +398,13 @@ while quietly becoming false.
   `/admin/map` ([`specs/2026-11-15-garden-map-design.md`](docs/superpowers/specs/2026-11-15-garden-map-design.md))
   draws `Plant → Pod → Bean` with draft sprouts as leaves and inbox seeds as one
   count leaf per parent ("62 seeds", linking to the plant-level inbox) — 62
-  individual seed nodes made the map unreadable — with `stats` weighted by that
+  individual seed nodes made the map unreadable — laid out as a file tree (plants
+  in a row, each plant's pods in a row under it, a pod's beans in an indented
+  column, a bean's draft sprouts and seed count indented under it), with `stats` weighted by that
   count. What
   waits is an amber ring *and* the word "Waiting"; what is missing is a chip.
-  `lib/garden-map.ts` decides every flag and `lib/garden-map-layout.ts` (dagre,
-  on the server) every coordinate, so `app/admin/_components/garden-map.tsx` is
+  `lib/garden-map.ts` decides every flag and `lib/garden-map-layout.ts` (a deterministic
+  column layout, on the server) every coordinate, so `app/admin/_components/garden-map.tsx` is
   a thin island that imports **types only** from them — `lib/garden-map.ts`
   reaches `lib/data.ts` and so `node:fs`, which fails the build from a client
   file. It reads `loadRawGarden` and `listSeeds`, never the cache, because a map

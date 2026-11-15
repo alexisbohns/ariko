@@ -78,9 +78,31 @@ test("nodes cannot be dragged, connected or selected", () => {
   assert.match(src, /elementsSelectable=\{false\}/);
 });
 
-test("layout runs on the server: dagre is imported by the layout module and nowhere in the client", () => {
-  assert.match(code(read("lib/garden-map-layout.ts")), /@dagrejs\/dagre/);
-  for (const file of [ISLAND, CARD]) assert.doesNotMatch(code(read(file)), /dagre/, file);
+test("layout is pure and runs on the server: no react, xyflow or next in the layout module, no layout import in the client", () => {
+  // The layout is plain arithmetic over the builder's nodes, so it can be run
+  // by `npm test` and shipped by neither bundle. A framework import there would
+  // make it a thing that needs rendering to test.
+  const layout = code(read("lib/garden-map-layout.ts"));
+  assert.doesNotMatch(layout, /from\s+["'](?:react|react-dom|@xyflow\/|next)\b/);
+  assert.doesNotMatch(layout, /^import\s+["'](?:react|react-dom|@xyflow\/|next)\b/m);
+  assert.doesNotMatch(layout, /dagre/);
+  // And the island draws finished coordinates: it never imports the layout as
+  // a value (the type-only rule above lets `PositionedMap` through).
+  for (const file of [ISLAND, CARD]) {
+    assert.doesNotMatch(code(read(file)), /^import\s+(?!type\b)[^;]*from\s+["']@\/lib\/garden-map-layout["']/m, file);
+    assert.doesNotMatch(code(read(file)), /dagre/, file);
+  }
+});
+
+test("every card declares the four handles the layout's edges name", () => {
+  // An edge naming a handle the node does not render is dropped by React Flow
+  // with a console warning and nothing else: the line just is not there.
+  const src = code(read(ISLAND));
+  for (const id of ["top", "left", "bottom", "trunk"]) {
+    assert.match(src, new RegExp(`id="${id}"`), id);
+  }
+  assert.match(src, /sourceHandle: edge\.sourceHandle/);
+  assert.match(src, /targetHandle: edge\.targetHandle/);
 });
 
 test("a nav item, a scope key list and an icon exist for the map", async () => {
