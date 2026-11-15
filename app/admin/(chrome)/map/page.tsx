@@ -46,13 +46,15 @@ export default async function AdminMapPage({
       gaps: built.stats.gaps,
     };
     map = layoutGardenMap(built);
-  } catch {
+  } catch (error) {
+    console.error("admin map: could not build the garden map", error);
     map = null;
   }
 
   if (map === null) {
     return (
       <div className="flex size-full items-center justify-center p-6">
+        <h1 className="sr-only">Garden map</h1>
         <Alert variant="destructive" role="alert" className="max-w-md">
           <AlertDescription>Couldn&apos;t load the garden.</AlertDescription>
         </Alert>
@@ -63,6 +65,7 @@ export default async function AdminMapPage({
   if (map.nodes.length === 0) {
     return (
       <div className="flex size-full items-center justify-center p-6">
+        <h1 className="sr-only">Garden map</h1>
         <p className="text-sm text-muted-foreground">
           {scope ? "Nothing in this plant yet." : "The garden is empty."}
         </p>
@@ -72,6 +75,7 @@ export default async function AdminMapPage({
 
   return (
     <div className="relative size-full">
+      <h1 className="sr-only">Garden map</h1>
       {/* Keyed by scope: `fitView` runs once, on mount, so a plant change must
           remount to re-fit. `?view=` is deliberately not in the key — it only
           dims nodes, and the author keeps their pan and zoom. */}

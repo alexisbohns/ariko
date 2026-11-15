@@ -125,3 +125,16 @@ test("the toolbar and controls survive a narrow viewport", () => {
   // A forest with more than ~55 nodes in one rank cannot fit at 0.1.
   assert.match(island, /minZoom=\{0\.05\}/);
 });
+
+test("the card's link does not prefetch, and the page logs and names itself", () => {
+  // Every node link is in the viewport at low zoom: default prefetching would
+  // fire one dynamic admin request per node, each running the chrome layout's
+  // database read.
+  assert.match(code(read(CARD)), /prefetch=\{false\}/);
+  const page = code(read(PAGE));
+  // A caught error that is neither logged nor shown hides a broken database.
+  assert.match(page, /catch \(error\)/);
+  assert.match(page, /console\.error\("admin map: could not build the garden map", error\)/);
+  // One heading in every branch: the canvas has none of its own.
+  assert.equal((page.match(/<h1 className="sr-only">Garden map<\/h1>/g) ?? []).length, 3);
+});
