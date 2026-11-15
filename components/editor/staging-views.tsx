@@ -1,9 +1,22 @@
 "use client";
 
-import { useId, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ComponentType,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { unstable_rethrow } from "next/navigation";
 import Markdown from "react-markdown";
-import type { NodeViewRenderer } from "@tiptap/core";
+import type { Editor, NodeViewRenderer } from "@tiptap/core";
+import type { Transaction } from "@tiptap/pm/state";
 import {
   NodeViewContent,
   NodeViewWrapper,
@@ -47,7 +60,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ChoiceLabel, NativeRadio } from "@/components/ui/native-controls";
-import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
+import { useRailPanel } from "@/app/admin/_components/rail-panel";
 
 /**
  * The staging blocks as seen while writing (spec 2026-11-15 §4.2).
@@ -61,10 +74,17 @@ import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@/compone
  * field the serializer drops is a field the preview drops too, and an author
  * sees it before the visitor does.
  *
+ * THE FORM IS IN THE RAIL'S PANEL (spec §11). Each block's preview — or the
+ * callout's label line, the quote's attribution line — opens its form in the
+ * page's `EntityRail` panel, through `useRailPanel()`. It was a popover
+ * anchored under the block until a tall figure pushed its own form below the
+ * viewport. Every editor page hosts a rail for this
+ * (lib/entity-rail-source.test.ts); outside one, a block draws and edits
+ * nothing.
+ *
  * NOTHING IS WRITTEN UNTIL SAVE, AND NOTHING IS DELETED BY A CLOSE. Every
- * popover edits a DRAFT; Save is the one `updateAttributes`, and Escape, a
- * click outside or focus leaving all throw the draft away and leave the node
- * as stored. A media block left empty stays on screen as a dashed placeholder
+ * form edits a DRAFT; Save is the one `updateAttributes`, and Escape or the
+ * panel's ✕ throw the draft away and leave the node as stored. A media block left empty stays on screen as a dashed placeholder
  * and serializes to "" — gone from the saved article, deletable like any atom.
  * A first version deleted an empty block on close, and every close reason
  * became a way to lose one: a stray focus-out, the click that finished
@@ -107,7 +127,7 @@ const SRC_SHAPE = /^https?:\/\/[^\s\u0000-\u001f\u007f]+$/;
  * Anything else that is not an absolute http(s) URL is refused before Save:
  * the serializer writes what it is given, so `javascript:…` or a relative
  * path reaches the stored article, the sanitizer drops it on render, and the
- * figure the author saw in the popover is simply missing from the page.
+ * figure the author saw in the form is simply missing from the page.
  */
 export function srcProblem(src: string): string | null {
   const s = src.trim();
@@ -127,39 +147,168 @@ function Preview({ markdown, lang }: { markdown: string; lang: Lang }) {
 type UploadInto = (file: File, purpose?: "figure-svg") => Promise<StagingUploadResult | null>;
 
 /**
- * Draft, open state and uploads, shared by every popover.
+ * What a staging form, rendered in the rail's panel, knows about its node.
  *
- * A block whose markdown is "" (a freshly inserted media atom) opens on
- * mount — local state rather than a transient attribute, which would be
- * stored, serialized and undone like any other.
+ * The form is NOT inside the node view any more: `EntityRail` renders it, in
+ * a panel outside the page wrapper, from a `ReactNode` the node view handed
+ * over when it opened. So it cannot read `props.node` — that would be the
+ * node as it was at open, and a Save built from it would write over anything
+ * that changed since. It reads the node from the editor's CURRENT state,
+ * through the node view's live `getPos`, every time (`useLiveAttrs`), and
+ * writes through the node view's `updateAttributes`, which resolves its
+ * position at call time.
+ */
+interface NodeSource {
+  editor: Editor;
+  /** The node's type, so a position that now holds something else reads as gone. */
+  typeName: string;
+  getPos: () => number | undefined;
+  update: (attrs: Record<string, unknown>) => void;
+  /** Closes this node's panel, and only this node's. */
+  close: () => void;
+  opts: StagingViewOptions;
+}
+
+/**
+ * Which block a panel was opened for, held as a RANGE mapped through every
+ * transaction since — not as a node view, and not as a node.
+ *
+ * The node view is not enough. ProseMirror reuses a node view for any node of
+ * the same type it can match, so one transaction that changes A's attrs AND
+ * inserts X before A (a redo of a grouped history step, say) can leave A's
+ * view drawing X, its `getPos` now X's. A form reading through that view
+ * would show X under A's panel, and Save would write A's draft into X. The
+ * range is what tells them apart: X's arrival maps A's start past X, and the
+ * view's position no longer agrees with it.
+ *
+ * The start maps with `assoc` 1, so an insertion AT it pushes it forward (the
+ * new node is before the block); the end with -1, so one at the end stays
+ * after it. A replacement of the block itself — `updateAttributes` on a leaf
+ * is `setNodeMarkup`, which replaces it — keeps both: ProseMirror maps a
+ * range's own endpoints outward. A deletion collapses the range, and its
+ * width stops matching the node's size. Registered when the panel opens,
+ * before the form subscribes, so it has mapped each transaction by the time
+ * the form reads.
+ */
+interface Tracked {
+  start: number;
+  end: number;
+  stop: () => void;
+}
+
+function track(editor: Editor, pos: number): Tracked {
+  const size = editor.state.doc.nodeAt(pos)?.nodeSize ?? 0;
+  const onTransaction = ({ transaction }: { transaction: Transaction }) => {
+    if (!transaction.docChanged) return;
+    tracked.start = transaction.mapping.map(tracked.start, 1);
+    tracked.end = transaction.mapping.map(tracked.end, -1);
+  };
+  const tracked: Tracked = { start: pos, end: pos + size, stop: () => editor.off("transaction", onTransaction) };
+  editor.on("transaction", onTransaction);
+  return tracked;
+}
+
+const positionOf = (src: NodeSource): number | undefined => {
+  try {
+    return src.getPos();
+  } catch {
+    return undefined; // a destroyed node view has no position to report
+  }
+};
+
+function liveAttrs(src: NodeSource, tracked: Tracked): Record<string, unknown> | null {
+  if (src.editor.isDestroyed) return null;
+  const pos = positionOf(src);
+  if (pos !== tracked.start) return null; // the view now draws another node
+  const node = src.editor.state.doc.nodeAt(pos);
+  if (!node || node.type.name !== src.typeName) return null;
+  return node.nodeSize === tracked.end - tracked.start ? node.attrs : null;
+}
+
+/**
+ * The node's attributes as the editor holds them NOW, or null once it is
+ * gone. ProseMirror reuses an unchanged node — and an unchanged node's
+ * `attrs` object — across transactions, so the snapshot is stable until this
+ * node's attributes actually change, which is what `useSyncExternalStore`
+ * needs from it.
+ */
+function useLiveAttrs(src: NodeSource, tracked: Tracked): Record<string, unknown> | null {
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      src.editor.on("transaction", onChange);
+      return () => {
+        src.editor.off("transaction", onChange);
+      };
+    },
+    [src],
+  );
+  const read = () => liveAttrs(src, tracked);
+  return useSyncExternalStore(subscribe, read, read);
+}
+
+// A number per attrs OBJECT, to key the form on. ProseMirror never mutates
+// attrs, so a new object is a new value — an undo, a redo, a save — and the
+// draft built from the old one must not be what a Save writes back.
+const attrsIds = new WeakMap<object, number>();
+let nextAttrsId = 0;
+function attrsKey(attrs: object): number {
+  let id = attrsIds.get(attrs);
+  if (id === undefined) attrsIds.set(attrs, (id = ++nextAttrsId));
+  return id;
+}
+
+type FormProps = { src: NodeSource; attrs: Record<string, unknown> };
+
+/**
+ * The panel's content: the form for the node as it stands, remounted on a
+ * fresh draft whenever the stored attributes change underneath it, and
+ * closing its own panel if the node is deleted while it is open (the node
+ * view's unmount closes it too; this is the half that does not wait for
+ * React to get round to that).
+ */
+function LiveForm({ src, tracked, Form }: { src: NodeSource; tracked: Tracked; Form: ComponentType<FormProps> }) {
+  const attrs = useLiveAttrs(src, tracked);
+  // Save re-checks at the moment it writes, not only at the last render.
+  const bound = useMemo<NodeSource>(
+    () => ({ ...src, update: (a) => void (liveAttrs(src, tracked) && src.update(a)) }),
+    [src, tracked],
+  );
+  const gone = attrs === null;
+  useEffect(() => {
+    if (gone) src.close();
+  }, [gone, src]);
+  return attrs ? <Form key={attrsKey(attrs)} src={bound} attrs={attrs} /> : null;
+}
+
+/**
+ * Draft and uploads, shared by every form.
+ *
+ * The draft is local state of a component that exists only while its panel
+ * is open — `EntityRail` unmounts a page panel on close — so closing is what
+ * discards it, with nothing to reset by hand.
  *
  * `generation` counts drafts. An upload resolves seconds after it starts, and
- * the popover may have been closed — its draft discarded — and reopened on a
+ * the panel may have been closed — its draft discarded — and reopened on a
  * fresh one in the meantime; a result tagged with an older generation is
  * dropped, or a file picked into an abandoned draft would appear in the new
- * one as if the author had chosen it there.
+ * one as if the author had chosen it there. Unmounting is a new generation.
  */
-function useDraft<T>(props: NodeViewProps, stored: T, empty: boolean) {
-  const opts = optionsOf(props);
-  const [open, setOpen] = useState(empty);
+function useDraft<T>(src: NodeSource, stored: T) {
+  const opts = src.opts;
   const [draft, setDraft] = useState<T>(stored);
   const generation = useRef(0);
-  // Uploads in flight from this node's popover, of any generation: Save
-  // waits for them, and the form says so even after a reopen remounted the
-  // slot that started one.
+  useEffect(() => {
+    const gen = generation;
+    return () => {
+      gen.current += 1;
+    };
+  }, []);
+  // Uploads in flight from this form, so Save waits for them.
   const [uploads, setUploads] = useState(0);
-  const reset = () => {
-    generation.current += 1;
-    setDraft(stored);
-  };
-  const onOpenChange = (next: boolean) => {
-    reset();
-    setOpen(next);
-  };
   const save = (value: Record<string, unknown>) => {
     generation.current += 1;
-    props.updateAttributes(value);
-    setOpen(false);
+    src.update(value);
+    src.close();
   };
   const uploadInto: UploadInto = async (file, purpose) => {
     const gen = generation.current;
@@ -180,57 +329,45 @@ function useDraft<T>(props: NodeViewProps, stored: T, empty: boolean) {
       opts.onUploadBusy(false);
     }
   };
-  return { open, onOpenChange, draft, setDraft, save, busy: uploads > 0, uploadInto, opts };
+  return { draft, setDraft, save, busy: uploads > 0, uploadInto, opts };
 }
 
-function PopoverForm({
-  open,
-  onOpenChange,
-  trigger,
-  title,
+function PanelForm({
   canSave,
   busy = false,
   onSave,
   children,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  trigger: ReactNode;
-  title: string;
   canSave: boolean;
   busy?: boolean;
   onSave: () => void;
   children: ReactNode;
 }) {
+  // No title here: the panel's heading is the form's title (`useStagedPanel`'s
+  // `title`), drawn by the rail's own shell.
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      {trigger}
-      <PopoverContent align="start" className="max-h-[70vh] w-80 overflow-y-auto">
-        <form
-          className="flex flex-col gap-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (canSave) onSave();
-          }}
-        >
-          <PopoverTitle>{title}</PopoverTitle>
-          {children}
-          {busy ? (
-            <p className="text-xs text-muted-foreground" aria-live="polite">
-              Uploading image…
-            </p>
-          ) : null}
-          {/* Disabled until the draft differs from what is stored AND is a
-              block the site will draw: a Save that commits a figure with no
-              image, or a quote with no `by`, writes markdown the renderer
-              unwraps (lib/staging-markdown.ts's notes on serializeCompare and
-              quoteOpener lean on exactly this). */}
-          <Button type="submit" size="sm" className="self-end" disabled={!canSave}>
-            Save
-          </Button>
-        </form>
-      </PopoverContent>
-    </Popover>
+    <form
+      className="flex flex-col gap-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (canSave) onSave();
+      }}
+    >
+      {children}
+      {busy ? (
+        <p className="text-xs text-muted-foreground" aria-live="polite">
+          Uploading image…
+        </p>
+      ) : null}
+      {/* Disabled until the draft differs from what is stored AND is a
+          block the site will draw: a Save that commits a figure with no
+          image, or a quote with no `by`, writes markdown the renderer
+          unwraps (lib/staging-markdown.ts's notes on serializeCompare and
+          quoteOpener lean on exactly this). */}
+      <Button type="submit" size="sm" className="self-end" disabled={!canSave}>
+        Save
+      </Button>
+    </form>
   );
 }
 
@@ -379,22 +516,155 @@ function ImageSlot({
 const TRIGGER_ATTR = "data-staging-trigger";
 
 /**
+ * Closes the editor's `@` and `/` menus (spec §11: "lists stay out of the
+ * way"). A block's panel opening over an open menu would leave the list
+ * floating over the prose with focus gone into the panel. Each suggestion
+ * plugin is keyed by its extension's name, `suggestion-entity` /
+ * `suggestion-block` (editor-extensions.ts), and exits on a transaction
+ * carrying `{ exit: true }` under its own key — what @tiptap/suggestion's
+ * `exitSuggestion` dispatches for one key. Both, in one transaction, and
+ * only when one is open, so an ordinary click dispatches nothing.
+ * `lib/editor.test.ts` pins the name coupling.
+ */
+export function exitMenus(editor: Editor): void {
+  if (editor.isDestroyed) return;
+  const { state } = editor;
+  const open = state.plugins.filter((p) => {
+    const key = (p as unknown as { key: string }).key;
+    return key.startsWith("suggestion-") && (p.getState(state) as { active?: boolean } | undefined)?.active;
+  });
+  if (open.length === 0) return;
+  const tr = state.tr;
+  for (const p of open) tr.setMeta(p, { exit: true });
+  editor.view.dispatch(tr);
+}
+
+interface StagedPanel {
+  /** False outside an `EntityRail`: the trigger then draws, inert, and edits nothing. */
+  available: boolean;
+  expanded: boolean;
+  triggerProps: Record<string, unknown>;
+}
+
+/**
+ * A node view's door to the rail's panel (spec §11), replacing the popover
+ * each view used to own.
+ *
+ * The form goes to `EntityRail` as a node built HERE, so its `NodeSource` is
+ * built here too, once per node view, over a ref that tracks the node view's
+ * latest props. A media block whose markdown is "" (freshly inserted) opens
+ * on mount, as the popover did; and a node view that unmounts — its node
+ * deleted, dragged, the editor gone — closes its own panel, never anyone
+ * else's.
+ */
+function useStagedPanel(
+  props: NodeViewProps,
+  title: string,
+  Form: ComponentType<FormProps>,
+  openOnMount: boolean,
+): StagedPanel {
+  const panel = useRailPanel();
+  const id = useId();
+  const trigger = useRef<HTMLDivElement>(null);
+  const live = useRef(props);
+  useLayoutEffect(() => {
+    live.current = props;
+  });
+  const { editor } = props;
+  const typeName = props.node.type.name;
+  const options = optionsOf(props);
+  const close = panel?.close;
+  const src = useMemo<NodeSource>(
+    () => ({
+      editor,
+      typeName,
+      getPos: () => live.current.getPos(),
+      update: (attrs) => live.current.updateAttributes(attrs),
+      close: () => close?.(id),
+      opts: options,
+    }),
+    [editor, typeName, close, id, options],
+  );
+  const show = (onInsert = false) => {
+    if (!panel) return;
+    // Not on insert: the `/` menu that inserted this block closes itself, and
+    // this runs inside that pick's dispatch (Tiptap renders a new node view
+    // synchronously), where a second dispatch would be a nested one.
+    const pos = positionOf(src);
+    if (typeof pos !== "number") return;
+    if (!onInsert) exitMenus(editor);
+    const tracked = track(editor, pos);
+    panel.open({
+      id,
+      title,
+      content: <LiveForm src={src} tracked={tracked} Form={Form} />,
+      returnFocus: trigger.current,
+      onClose: tracked.stop,
+    });
+  };
+  // Mount and unmount only. `show` reads `panel` at mount, which is the
+  // rail the node view mounted under; `close` is stable for its lifetime.
+  useEffect(() => {
+    if (openOnMount) show(true);
+    return () => close?.(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const expanded = panel?.openId === id;
+  const toggle = () => (expanded ? panel?.close(id) : show());
+  if (!panel) return { available: false, expanded: false, triggerProps: {} };
+  return {
+    available: true,
+    expanded,
+    triggerProps: {
+      ref: trigger,
+      role: "button",
+      tabIndex: 0,
+      "aria-expanded": expanded,
+      // Only while expanded: a page panel exists only while it is open.
+      "aria-controls": expanded ? panel.panelId : undefined,
+      [TRIGGER_ATTR]: "",
+      onClick: toggle,
+      onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault(); // Space would scroll the page
+        toggle();
+      },
+    },
+  };
+}
+
+/**
  * The media block's face: its published self, as a control. A `div` with the
- * button role (Base UI's `nativeButton={false}` supplies the role, the tab
- * stop and Enter/Space), never a `<button>`: the preview is a `<figure>` whose
- * images are real `<a href>`s (staged-image.tsx), and neither may sit inside a
+ * button role, never a `<button>`: the preview is a `<figure>` whose images
+ * are real `<a href>`s (staged-image.tsx), and neither may sit inside a
  * button. The preview is INERT — no anchor is focusable or clickable, so a
  * click cannot navigate the editor away from unsaved prose, and the trigger
- * itself is the event target.
+ * itself is the event target. Without a rail to open a panel in, it is the
+ * preview and nothing more.
  */
-function MediaTrigger({ label, markdown, lang, placeholder }: { label: string; markdown: string; lang: Lang; placeholder: string }) {
+function MediaTrigger({
+  panel,
+  label,
+  markdown,
+  lang,
+  placeholder,
+}: {
+  panel: StagedPanel;
+  label: string;
+  markdown: string;
+  lang: Lang;
+  placeholder: string;
+}) {
   return (
-    <PopoverTrigger
-      nativeButton={false}
-      render={<div />}
-      {...{ [TRIGGER_ATTR]: "" }}
-      aria-label={label}
-      className="block w-full cursor-pointer rounded-xl text-left outline-none ring-offset-4 ring-offset-background hover:ring-2 hover:ring-ring/40 focus-visible:ring-3 focus-visible:ring-ring/50"
+    <div
+      {...panel.triggerProps}
+      aria-label={panel.available ? label : undefined}
+      className={
+        "block w-full rounded-xl text-left outline-none " +
+        (panel.available
+          ? "cursor-pointer ring-offset-4 ring-offset-background hover:ring-2 hover:ring-ring/40 focus-visible:ring-3 focus-visible:ring-ring/50 aria-expanded:ring-2 aria-expanded:ring-ring/60"
+          : "")
+      }
     >
       {markdown ? (
         <div inert className="pointer-events-none">
@@ -405,7 +675,7 @@ function MediaTrigger({ label, markdown, lang, placeholder }: { label: string; m
           {placeholder}
         </span>
       )}
-    </PopoverTrigger>
+    </div>
   );
 }
 
@@ -415,52 +685,51 @@ const figureOf = (a: Record<string, unknown>): FigureFields => a as unknown as F
 
 const imageName = (src: string, alt: string) => (!src.trim() ? "no image" : alt.trim() || "image without alt text");
 
-function FigureView(props: NodeViewProps) {
-  const stored = figureOf(props.node.attrs);
-  const markdown = serializeFigure(stored);
-  const f = useDraft(props, stored, markdown === "");
+function FigureForm({ src, attrs }: FormProps) {
+  const stored = figureOf(attrs);
+  const f = useDraft(src, stored);
   const d = f.draft;
   const patch = (p: Partial<FigureFields>) => f.setDraft((x) => ({ ...x, ...p }));
   const canSave = !f.busy && d.src.trim() !== "" && srcsOk(d.src, d.darkSrc) && !same(d, stored);
   return (
+    <PanelForm canSave={canSave} busy={f.busy} onSave={() => f.save({ ...d })}>
+      <RadioRow
+        legend="Frame"
+        options={FRAMES}
+        labels={FRAME_LABELS}
+        value={d.frame}
+        // A size still at the old frame's default follows the new frame's:
+        // a phone wants `m` and a desktop `l`, and a size the author never
+        // chose should not be the one thing that does not move.
+        onChange={(frame) => patch({ frame, size: d.size === DEFAULT_SIZE[d.frame] ? DEFAULT_SIZE[frame] : d.size })}
+      />
+      <RadioRow legend="Size" options={SIZES} labels={SIZE_LABELS} value={d.size} onChange={(size) => patch({ size })} />
+      <ImageSlot label="Image" value={{ src: d.src, alt: d.alt }} onPatch={(p) => patch(p)} svg uploadInto={f.uploadInto} />
+      <ImageSlot
+        label="Dark-mode image (optional)"
+        value={{ src: d.darkSrc, alt: d.darkAlt }}
+        onPatch={(p) => patch({ ...(p.src !== undefined ? { darkSrc: p.src } : {}), ...(p.alt !== undefined ? { darkAlt: p.alt } : {}) })}
+        svg
+        uploadInto={f.uploadInto}
+      />
+      <Field label="Caption" value={d.caption} onChange={(caption) => patch({ caption })} />
+    </PanelForm>
+  );
+}
+
+function FigureView(props: NodeViewProps) {
+  const stored = figureOf(props.node.attrs);
+  const markdown = serializeFigure(stored);
+  const panel = useStagedPanel(props, "Figure", FigureForm, markdown === "");
+  return (
     <NodeViewWrapper className="not-prose my-4" data-drag-handle>
-      <PopoverForm
-        open={f.open}
-        onOpenChange={f.onOpenChange}
-        title="Figure"
-        canSave={canSave}
-        busy={f.busy}
-        onSave={() => f.save({ ...d })}
-        trigger={
-          <MediaTrigger
-            label={`Edit figure: ${imageName(stored.src, stored.alt)}`}
-            markdown={markdown}
-            lang={f.opts.lang}
-            placeholder="Empty figure — add an image"
-          />
-        }
-      >
-        <RadioRow
-          legend="Frame"
-          options={FRAMES}
-          labels={FRAME_LABELS}
-          value={d.frame}
-          // A size still at the old frame's default follows the new frame's:
-          // a phone wants `m` and a desktop `l`, and a size the author never
-          // chose should not be the one thing that does not move.
-          onChange={(frame) => patch({ frame, size: d.size === DEFAULT_SIZE[d.frame] ? DEFAULT_SIZE[frame] : d.size })}
-        />
-        <RadioRow legend="Size" options={SIZES} labels={SIZE_LABELS} value={d.size} onChange={(size) => patch({ size })} />
-        <ImageSlot label="Image" value={{ src: d.src, alt: d.alt }} onPatch={(p) => patch(p)} svg uploadInto={f.uploadInto} />
-        <ImageSlot
-          label="Dark-mode image (optional)"
-          value={{ src: d.darkSrc, alt: d.darkAlt }}
-          onPatch={(p) => patch({ ...(p.src !== undefined ? { darkSrc: p.src } : {}), ...(p.alt !== undefined ? { darkAlt: p.alt } : {}) })}
-          svg
-          uploadInto={f.uploadInto}
-        />
-        <Field label="Caption" value={d.caption} onChange={(caption) => patch({ caption })} />
-      </PopoverForm>
+      <MediaTrigger
+        panel={panel}
+        label={`Edit figure: ${imageName(stored.src, stored.alt)}`}
+        markdown={markdown}
+        lang={optionsOf(props).lang}
+        placeholder="Empty figure — add an image"
+      />
     </NodeViewWrapper>
   );
 }
@@ -468,10 +737,9 @@ function FigureView(props: NodeViewProps) {
 const galleryOf = (a: Record<string, unknown>): GalleryFields => a as unknown as GalleryFields;
 const EMPTY_IMAGE: GalleryImage = { src: "", alt: "", title: "" };
 
-function GalleryView(props: NodeViewProps) {
-  const stored = galleryOf(props.node.attrs);
-  const markdown = serializeGallery(stored);
-  const f = useDraft(props, stored, markdown === "");
+function GalleryForm({ src, attrs }: FormProps) {
+  const stored = galleryOf(attrs);
+  const f = useDraft(src, stored);
   const d = f.draft;
   // Two empty slots on a fresh gallery: it needs two to be one.
   const images = d.images.length ? d.images : [EMPTY_IMAGE, EMPTY_IMAGE];
@@ -493,113 +761,112 @@ function GalleryView(props: NodeViewProps) {
   const kept = { ...d, images: images.filter((m) => m.src.trim()) };
   const canSave =
     !f.busy && kept.images.length >= 2 && srcsOk(...kept.images.map((m) => m.src)) && !same(kept, stored);
+  return (
+    <PanelForm canSave={canSave} busy={f.busy} onSave={() => f.save({ ...kept })}>
+      <RadioRow legend="Frame" options={FRAMES} labels={FRAME_LABELS} value={d.frame} onChange={(frame) => f.setDraft((x) => ({ ...x, frame }))} />
+      {images.map((m, i) => (
+        <div key={i} className="flex flex-col gap-1.5">
+          <ImageSlot label={`Image ${i + 1}`} value={{ src: m.src, alt: m.alt }} onPatch={(p) => patchAt(i, p)} svg={false} uploadInto={f.uploadInto} />
+          <Field label={`Image ${i + 1} title`} value={m.title} onChange={(title) => patchAt(i, { title })} />
+          <div className="flex gap-1 self-end">
+            <Button type="button" size="icon-sm" variant="ghost" aria-label={`Move image ${i + 1} up`} disabled={f.busy || i === 0} onClick={() => move(i, -1)}>
+              <ArrowUp />
+            </Button>
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              aria-label={`Move image ${i + 1} down`}
+              disabled={f.busy || i === images.length - 1}
+              onClick={() => move(i, 1)}
+            >
+              <ArrowDown />
+            </Button>
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              aria-label={`Remove image ${i + 1}`}
+              disabled={f.busy}
+              onClick={() => setImages((imgs) => imgs.filter((_, j) => j !== i))}
+            >
+              <X />
+            </Button>
+          </div>
+        </div>
+      ))}
+      <Button type="button" size="sm" variant="outline" onClick={() => setImages((imgs) => [...imgs, EMPTY_IMAGE])}>
+        Add image
+      </Button>
+      <Field label="Caption" value={d.caption} onChange={(caption) => f.setDraft((x) => ({ ...x, caption }))} />
+    </PanelForm>
+  );
+}
+
+function GalleryView(props: NodeViewProps) {
+  const stored = galleryOf(props.node.attrs);
+  const markdown = serializeGallery(stored);
+  const panel = useStagedPanel(props, "Gallery", GalleryForm, markdown === "");
   const count = stored.images.filter((m) => m.src.trim()).length;
   return (
     <NodeViewWrapper className="not-prose my-4" data-drag-handle>
-      <PopoverForm
-        open={f.open}
-        onOpenChange={f.onOpenChange}
-        title="Gallery"
-        canSave={canSave}
-        busy={f.busy}
-        onSave={() => f.save({ ...kept })}
-        trigger={
-          <MediaTrigger
-            label={`Edit gallery: ${count ? `${count} images` : "no images"}`}
-            markdown={markdown}
-            lang={f.opts.lang}
-            placeholder="Empty gallery — add two images"
-          />
-        }
-      >
-        <RadioRow legend="Frame" options={FRAMES} labels={FRAME_LABELS} value={d.frame} onChange={(frame) => f.setDraft((x) => ({ ...x, frame }))} />
-        {images.map((m, i) => (
-          <div key={i} className="flex flex-col gap-1.5">
-            <ImageSlot label={`Image ${i + 1}`} value={{ src: m.src, alt: m.alt }} onPatch={(p) => patchAt(i, p)} svg={false} uploadInto={f.uploadInto} />
-            <Field label={`Image ${i + 1} title`} value={m.title} onChange={(title) => patchAt(i, { title })} />
-            <div className="flex gap-1 self-end">
-              <Button type="button" size="icon-sm" variant="ghost" aria-label={`Move image ${i + 1} up`} disabled={f.busy || i === 0} onClick={() => move(i, -1)}>
-                <ArrowUp />
-              </Button>
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                aria-label={`Move image ${i + 1} down`}
-                disabled={f.busy || i === images.length - 1}
-                onClick={() => move(i, 1)}
-              >
-                <ArrowDown />
-              </Button>
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                aria-label={`Remove image ${i + 1}`}
-                disabled={f.busy}
-                onClick={() => setImages((imgs) => imgs.filter((_, j) => j !== i))}
-              >
-                <X />
-              </Button>
-            </div>
-          </div>
-        ))}
-        <Button type="button" size="sm" variant="outline" onClick={() => setImages((imgs) => [...imgs, EMPTY_IMAGE])}>
-          Add image
-        </Button>
-        <Field label="Caption" value={d.caption} onChange={(caption) => f.setDraft((x) => ({ ...x, caption }))} />
-      </PopoverForm>
+      <MediaTrigger
+        panel={panel}
+        label={`Edit gallery: ${count ? `${count} images` : "no images"}`}
+        markdown={markdown}
+        lang={optionsOf(props).lang}
+        placeholder="Empty gallery — add two images"
+      />
     </NodeViewWrapper>
   );
 }
 
 const compareOf = (a: Record<string, unknown>): CompareFields => a as unknown as CompareFields;
 
-function CompareView(props: NodeViewProps) {
-  const stored = compareOf(props.node.attrs);
-  const markdown = serializeCompare(stored);
-  const f = useDraft(props, stored, markdown === "");
+function CompareForm({ src, attrs }: FormProps) {
+  const stored = compareOf(attrs);
+  const f = useDraft(src, stored);
   const d = f.draft;
   const labels = COMPARE_LABELS[f.opts.lang];
   const patchSide = (side: keyof CompareFields, p: Partial<SideFields>) =>
     f.setDraft((x) => ({ ...x, [side]: { ...x[side], ...p } }));
   const canSave =
     !f.busy && d.do.text.trim() !== "" && d.dont.text.trim() !== "" && srcsOk(d.do.src, d.dont.src) && !same(d, stored);
+  return (
+    <PanelForm canSave={canSave} busy={f.busy} onSave={() => f.save({ do: { ...d.do }, dont: { ...d.dont } })}>
+      {COMPARE_SIDES.map((side) => (
+        // A fieldset per side, so "Do" and "Don't" NAME their halves for
+        // assistive tech — two identical "Text" fields otherwise.
+        <fieldset key={side} className="flex flex-col gap-2">
+          <legend className="mb-1 text-xs font-medium">{labels[side]}</legend>
+          <Field label="Text" value={d[side].text} required onChange={(text) => patchSide(side, { text })} />
+          <ImageSlot
+            label="Image (optional)"
+            value={{ src: d[side].src, alt: d[side].alt }}
+            onPatch={(p) => patchSide(side, p)}
+            svg={false}
+            uploadInto={f.uploadInto}
+          />
+        </fieldset>
+      ))}
+    </PanelForm>
+  );
+}
+
+function CompareView(props: NodeViewProps) {
+  const stored = compareOf(props.node.attrs);
+  const markdown = serializeCompare(stored);
+  const panel = useStagedPanel(props, "Do / Don't", CompareForm, markdown === "");
   const name = (t: string) => t.trim() || "no text";
   return (
     <NodeViewWrapper className="not-prose my-4" data-drag-handle>
-      <PopoverForm
-        open={f.open}
-        onOpenChange={f.onOpenChange}
-        title="Do / Don't"
-        canSave={canSave}
-        busy={f.busy}
-        onSave={() => f.save({ do: { ...d.do }, dont: { ...d.dont } })}
-        trigger={
-          <MediaTrigger
-            label={`Edit do / don't: ${name(stored.do.text)} / ${name(stored.dont.text)}`}
-            markdown={markdown}
-            lang={f.opts.lang}
-            placeholder="Empty do / don't — add both texts"
-          />
-        }
-      >
-        {COMPARE_SIDES.map((side) => (
-          // A fieldset per side, so "Do" and "Don't" NAME their halves for
-          // assistive tech — two identical "Text" fields otherwise.
-          <fieldset key={side} className="flex flex-col gap-2">
-            <legend className="mb-1 text-xs font-medium">{labels[side]}</legend>
-            <Field label="Text" value={d[side].text} required onChange={(text) => patchSide(side, { text })} />
-            <ImageSlot
-              label="Image (optional)"
-              value={{ src: d[side].src, alt: d[side].alt }}
-              onPatch={(p) => patchSide(side, p)}
-              svg={false}
-              uploadInto={f.uploadInto}
-            />
-          </fieldset>
-        ))}
-      </PopoverForm>
+      <MediaTrigger
+        panel={panel}
+        label={`Edit do / don't: ${name(stored.do.text)} / ${name(stored.dont.text)}`}
+        markdown={markdown}
+        lang={optionsOf(props).lang}
+        placeholder="Empty do / don't — add both texts"
+      />
     </NodeViewWrapper>
   );
 }
@@ -609,17 +876,29 @@ function CompareView(props: NodeViewProps) {
 /** The trigger of a text block's line: the label or the attribution. Out of
  *  the editable flow (`contentEditable={false}` on its wrapper), so the caret
  *  never lands in the chrome around the body. */
-function LineTrigger({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
+function LineTrigger({
+  panel,
+  label,
+  className,
+  children,
+}: {
+  panel: StagedPanel;
+  label: string;
+  className?: string;
+  children: ReactNode;
+}) {
   return (
-    <PopoverTrigger
-      nativeButton={false}
-      render={<div />}
-      {...{ [TRIGGER_ATTR]: "" }}
-      aria-label={label}
-      className={`w-fit cursor-pointer rounded-md text-left outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 ${className ?? ""}`}
+    <div
+      {...panel.triggerProps}
+      aria-label={panel.available ? label : undefined}
+      className={
+        "w-fit rounded-md text-left outline-none " +
+        (panel.available ? "cursor-pointer hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 aria-expanded:underline " : "") +
+        (className ?? "")
+      }
     >
       {children}
-    </PopoverTrigger>
+    </div>
   );
 }
 
@@ -653,51 +932,63 @@ export function escapeLabel(text: string): string {
 // the same <p> CalloutLabel draws.
 const inlineComponents = (lang: Lang) => ({ ...stagingComponents(lang), p: ({ children }: { children?: ReactNode }) => <>{children}</> });
 
-function CalloutView(props: NodeViewProps) {
-  const label = (props.node.attrs.label as string | null) ?? "";
-  const f = useDraft(props, { label }, false);
+
+function CalloutForm({ src, attrs }: FormProps) {
+  const label = (attrs.label as string | null) ?? "";
+  const f = useDraft(src, { label });
   // Against the stored SOURCE, through the same escape Save applies — or an
   // untouched label that holds an escaped bracket would light Save up.
   const canSave = escapeLabel(f.draft.label.trim()) !== label.trim();
   return (
+    <PanelForm canSave={canSave} onSave={() => f.save({ label: escapeLabel(f.draft.label.trim()) || null })}>
+      <Field label="Label" value={f.draft.label} onChange={(v) => f.setDraft({ label: v })} placeholder="Note" />
+    </PanelForm>
+  );
+}
+
+function CalloutView(props: NodeViewProps) {
+  const label = (props.node.attrs.label as string | null) ?? "";
+  const panel = useStagedPanel(props, "Callout label", CalloutForm, false);
+  return (
     <NodeViewWrapper as="aside" className={CALLOUT_CLASS}>
       <div contentEditable={false} className="pt-4">
-        <PopoverForm
-          open={f.open}
-          onOpenChange={f.onOpenChange}
-          title="Callout"
-          canSave={canSave}
-          onSave={() => f.save({ label: escapeLabel(f.draft.label.trim()) || null })}
-          trigger={
-            // The trigger names its stored value (CLAUDE.md, "An icon trigger
-            // names its stored value"), and an empty one says so.
-            <LineTrigger label={`Edit callout label: ${label || "none"}`}>
-              {label ? (
-                <span className={CALLOUT_LABEL_CLASS}>
-                  <Markdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={inlineComponents(f.opts.lang)}>
-                    {label}
-                  </Markdown>
-                </span>
-              ) : (
-                <span className="text-sm text-muted-foreground">Add a label (optional)</span>
-              )}
-            </LineTrigger>
-          }
-        >
-          <Field label="Label" value={f.draft.label} onChange={(v) => f.setDraft({ label: v })} placeholder="Note" />
-        </PopoverForm>
+        {/* The trigger names its stored value (CLAUDE.md, "An icon trigger
+            names its stored value"), and an empty one says so. */}
+        <LineTrigger panel={panel} label={`Edit callout label: ${label || "none"}`}>
+          {label ? (
+            <span className={CALLOUT_LABEL_CLASS}>
+              <Markdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={inlineComponents(optionsOf(props).lang)}>
+                {label}
+              </Markdown>
+            </span>
+          ) : (
+            <span className="text-sm text-muted-foreground">Add a label (optional)</span>
+          )}
+        </LineTrigger>
       </div>
       <NodeViewContent className="pb-4" />
     </NodeViewWrapper>
   );
 }
 
+function QuoteForm({ src, attrs }: FormProps) {
+  const by = String(attrs.by ?? "");
+  const role = (attrs.role as string | null) ?? "";
+  const f = useDraft(src, { by, role });
+  const d = f.draft;
+  const canSave = d.by.trim() !== "" && !same({ by: d.by.trim(), role: d.role.trim() }, { by: by.trim(), role: role.trim() });
+  return (
+    <PanelForm canSave={canSave} onSave={() => f.save({ by: d.by.trim(), role: d.role.trim() || null })}>
+      <Field label="By" value={d.by} required onChange={(v) => f.setDraft((x) => ({ ...x, by: v }))} />
+      <Field label="Role (optional)" value={d.role} onChange={(v) => f.setDraft((x) => ({ ...x, role: v }))} />
+    </PanelForm>
+  );
+}
+
 function QuoteView(props: NodeViewProps) {
   const by = String(props.node.attrs.by ?? "");
   const role = (props.node.attrs.role as string | null) ?? "";
-  const f = useDraft(props, { by, role }, false);
-  const d = f.draft;
-  const canSave = d.by.trim() !== "" && !same({ by: d.by.trim(), role: d.role.trim() }, { by: by.trim(), role: role.trim() });
+  const panel = useStagedPanel(props, "Attribution", QuoteForm, false);
   return (
     <NodeViewWrapper as="figure" className={QUOTE_CLASS}>
       <span aria-hidden="true" contentEditable={false} className={QUOTE_MARK_CLASS}>
@@ -705,31 +996,19 @@ function QuoteView(props: NodeViewProps) {
       </span>
       <NodeViewContent<"blockquote"> as="blockquote" className={QUOTE_BODY_CLASS} />
       <div contentEditable={false} className={QUOTE_BY_CLASS}>
-        <PopoverForm
-          open={f.open}
-          onOpenChange={f.onOpenChange}
-          title="Attribution"
-          canSave={canSave}
-          onSave={() => f.save({ by: d.by.trim(), role: d.role.trim() || null })}
-          trigger={
-            // An empty `by` writes a `:::quote` the site refuses to draw
-            // (lib/staging-markdown.ts's quoteOpener), so its absence is
-            // drawn as the one thing still missing, not as blank.
-            <LineTrigger label={`Edit attribution: ${by ? `${by}${role ? `, ${role}` : ""}` : "none"}`}>
-              {by ? (
-                <>
-                  — {by}
-                  {role ? `, ${role}` : ""}
-                </>
-              ) : (
-                <span className="text-destructive">— Who said this? (required)</span>
-              )}
-            </LineTrigger>
-          }
-        >
-          <Field label="By" value={d.by} required onChange={(v) => f.setDraft((x) => ({ ...x, by: v }))} />
-          <Field label="Role (optional)" value={d.role} onChange={(v) => f.setDraft((x) => ({ ...x, role: v }))} />
-        </PopoverForm>
+        {/* An empty `by` writes a `:::quote` the site refuses to draw
+            (lib/staging-markdown.ts's quoteOpener), so its absence is drawn
+            as the one thing still missing, not as blank. */}
+        <LineTrigger panel={panel} label={`Edit attribution: ${by ? `${by}${role ? `, ${role}` : ""}` : "none"}`}>
+          {by ? (
+            <>
+              — {by}
+              {role ? `, ${role}` : ""}
+            </>
+          ) : (
+            <span className="text-destructive">— Who said this? (required)</span>
+          )}
+        </LineTrigger>
       </div>
     </NodeViewWrapper>
   );

@@ -147,7 +147,7 @@ export function ProseEditor({
   // one-at-a-time guard would never fire.
   const imageBusyRef = useRef(false);
 
-  // Uploads in flight from a staging block's popover (staging-views.tsx). A
+  // Uploads in flight from a staging block's form (staging-views.tsx). A
   // COUNT, not a flag: a gallery can upload three slots at once, and the
   // first to settle must not re-enable a commit the other two still gate.
   // The ref is the count; the state is only whether it is non-zero, for the
@@ -533,9 +533,9 @@ export function ProseEditor({
 
       {/* Disabled mid-upload in both shapes: saving now would persist a
           document missing the image that is seconds from being inserted, and
-          the author would have to notice and save again. A staging popover's
+          the author would have to notice and save again. A staging form's
           upload counts (`stagingBusy`): its image is not in the document until
-          that popover's own Save, which waits for it. */}
+          that form's own Save, which waits for it. */}
       {float ? (
         // Nothing at all until the editor exists. `immediatelyRender: false`
         // leaves `editor` null through SSR and the first client render, so

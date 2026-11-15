@@ -5,6 +5,7 @@ import { visibilityOf } from "@/lib/plant-visibility";
 import { loadRawGarden } from "@/lib/store";
 import { editContainerContentAction } from "../../../actions";
 import { ContentCard } from "../../../_components/content-card";
+import { EntityRail } from "../../../_components/entity-rail";
 import { PodVisibility } from "../../../_components/pod-visibility";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -44,63 +45,67 @@ export default async function AdminPodPage({
   return (
     <>
       <LineageChrome lineage={lineage} as={Link} />
-      <article>
+      {/* A rail with no items: no cluster draws, but the editor's staging
+          blocks open their forms in its panel (spec 2026-11-15 §11). */}
+      <EntityRail label="Pod panels" items={[]}>
+        <article>
 
-        <div className="flex flex-col gap-8">
-          <div className="flex flex-col gap-3">
-            <h1 className="font-heading text-2xl font-medium tracking-tight">
-              {resolveText(pod.name)}
-            </h1>
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline">pod:{pod.slug}</Badge>
-              <PodVisibility
-                slug={pod.slug}
-                visibility={visibilityOf(pod)}
-                error={visibilityError}
-                lang={lang}
-              />
+          <div className="flex flex-col gap-8">
+            <div className="flex flex-col gap-3">
+              <h1 className="font-heading text-2xl font-medium tracking-tight">
+                {resolveText(pod.name)}
+              </h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline">pod:{pod.slug}</Badge>
+                <PodVisibility
+                  slug={pod.slug}
+                  visibility={visibilityOf(pod)}
+                  error={visibilityError}
+                  lang={lang}
+                />
+              </div>
+              {resolveText(pod.description ?? "").trim() ? (
+                <p className="text-sm text-muted-foreground">{resolveText(pod.description)}</p>
+              ) : null}
             </div>
-            {resolveText(pod.description ?? "").trim() ? (
-              <p className="text-sm text-muted-foreground">{resolveText(pod.description)}</p>
+
+            {error && !visibilityError ? (
+              <Alert variant="destructive" role="alert">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
             ) : null}
+
+            <ContentCard
+              raw={raw}
+              content={pod.content}
+              selfRef={`pod:${pod.slug}`}
+              action={editContainerContentAction}
+              hidden={{ ref: `pod:${pod.slug}` }}
+              lang={lang}
+              langHrefs={editLangHrefs(`/admin/pod/${encodeURIComponent(pod.slug)}`, query)}
+            />
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="font-heading text-base tracking-tight">Inside</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="flex flex-col gap-1 text-sm">
+                  {beans.map((bean) => (
+                    <li key={bean.slug}>
+                      <a href={`/admin/bean/${bean.slug}`} className="underline-offset-4 hover:underline">
+                        {resolveText(bean.name)}
+                      </a>{" "}
+                      <span className="font-heading text-xs text-muted-foreground">bean:{bean.slug}</span>
+                    </li>
+                  ))}
+                  {beans.length === 0 ? <li className="text-muted-foreground">nothing yet</li> : null}
+                </ul>
+              </CardContent>
+            </Card>
           </div>
-
-          {error && !visibilityError ? (
-            <Alert variant="destructive" role="alert">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : null}
-
-          <ContentCard
-            raw={raw}
-            content={pod.content}
-            selfRef={`pod:${pod.slug}`}
-            action={editContainerContentAction}
-            hidden={{ ref: `pod:${pod.slug}` }}
-            lang={lang}
-            langHrefs={editLangHrefs(`/admin/pod/${encodeURIComponent(pod.slug)}`, query)}
-          />
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-heading text-base tracking-tight">Inside</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="flex flex-col gap-1 text-sm">
-                {beans.map((bean) => (
-                  <li key={bean.slug}>
-                    <a href={`/admin/bean/${bean.slug}`} className="underline-offset-4 hover:underline">
-                      {resolveText(bean.name)}
-                    </a>{" "}
-                    <span className="font-heading text-xs text-muted-foreground">bean:{bean.slug}</span>
-                  </li>
-                ))}
-                {beans.length === 0 ? <li className="text-muted-foreground">nothing yet</li> : null}
-              </ul>
-            </CardContent>
-          </Card>
-        </div>
-      </article>
+        </article>
+      </EntityRail>
     </>
   );
 }

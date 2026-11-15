@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, readdirSync } from "node:fs";
+import { join, relative } from "node:path";
 
 /**
  * The claim `entity-rail.tsx`'s docblock rests on, enforced rather than written
@@ -52,33 +52,108 @@ const RAIL_PANELS = [
 const RAIL_PAGES = [
   "app/admin/(chrome)/sprout/[slug]/page.tsx",
   "app/admin/(chrome)/bean/[id]/page.tsx",
+  // Rails with no items, there to host the staging blocks' panel (§11).
+  "app/admin/(chrome)/plant/[slug]/narrative/page.tsx",
+  "app/admin/(chrome)/pod/[slug]/page.tsx",
 ];
+
+// The page-panel door (spec 2026-11-15 §11): what something inside the page
+// may hand the rail.
+const RAIL_PANEL = "app/admin/_components/rail-panel.tsx";
 
 function source(path: string): string {
   return readFileSync(join(process.cwd(), path), "utf8");
 }
 
-test(`${ENTITY_RAIL} imports no server action and no module that would let it compose a payload`, () => {
-  const text = source(ENTITY_RAIL);
+for (const file of [ENTITY_RAIL, RAIL_PANEL])
+test(`${file} imports no server action and no module that would let it compose a payload`, () => {
+  const text = source(file);
   for (const spec of ["../actions", "@/app/admin/actions", "@/lib/data", "@/lib/botanical"]) {
     assert.ok(
       !text.includes(`from "${spec}"`) && !text.includes(`from '${spec}'`),
-      `${ENTITY_RAIL} must not import from "${spec}" — its panels are ` +
+      `${file} must not import from "${spec}" — its panels are ` +
         `server-rendered by the page and handed down, which is what keeps the ` +
         `island from being able to compose a write (including the delete)`,
     );
   }
 });
 
-test(`${ENTITY_RAIL} names no form field`, () => {
+for (const file of [ENTITY_RAIL, RAIL_PANEL])
+test(`${file} names no form field`, () => {
   // The cheap half of the same rule. A field name appearing here is the first
   // symptom of a payload being assembled client-side.
-  const text = source(ENTITY_RAIL);
-  for (const field of ["\"slug\"", "\"confirm\"", "\"media\"", "\"state\""]) {
+  const text = source(file);
+  for (const field of ["\"slug\"", "\"confirm\"", "\"media\"", "\"state\"", "\"src\"", "\"by\"", "\"label\""]) {
     assert.ok(
       !text.includes(field),
-      `${ENTITY_RAIL} must not name the form field ${field}`,
+      `${file} must not name the form field ${field}`,
     );
+  }
+});
+
+test(`${RAIL_PANEL}'s page panel carries a title, a node and a focus target, and its API an id and two verbs — nothing a payload is built from`, () => {
+  // The page panel is the door a CLIENT component opens, at run time, so the
+  // "server-rendered and handed down" half of this file's rule cannot hold for
+  // its content. What can hold is the shape: the rail receives an opaque
+  // ReactNode and the things a shell needs to draw and dismiss it. A field
+  // added here — an `onSave`, a `value`, a `fields` — is the shell starting
+  // to know what is inside it.
+  const text = source(RAIL_PANEL);
+  const body = /export interface PagePanel \{([\s\S]*?)\n\}/.exec(text)?.[1];
+  assert.ok(body, "PagePanel is declared");
+  const keys = [...body.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/^\s*(\w+)\??:/gm)].map((m) => m[1]);
+  assert.deepEqual(keys, ["id", "title", "content", "returnFocus", "onClose"]);
+  assert.match(text, /content: ReactNode;/);
+  // And the API the rail hands back: state, the panel's DOM id for an
+  // opener's aria-controls, and the two verbs. Nothing an opener could post.
+  const api = /export interface RailPanelApi \{([\s\S]*?)\n\}/.exec(text)?.[1];
+  assert.ok(api, "RailPanelApi is declared");
+  const apiKeys = [...api.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/^\s*(\w+)\??:/gm)].map((m) => m[1]);
+  assert.deepEqual(apiKeys, ["openId", "panelId", "open", "close"]);
+  // It imports React and nothing else: the editor's node views import it, and
+  // lib/editor.test.ts builds them headless.
+  const imports = [...text.matchAll(/from\s+["']([^"']+)["']/g)].map((m) => m[1]);
+  assert.deepEqual(imports, ["react"]);
+});
+
+test(`${ENTITY_RAIL} unmounts a page panel on close and keeps rail panels mounted`, () => {
+  // Both halves of §11's "a page panel is not kept mounted". Rail panels are
+  // mapped unconditionally and go inert (the media picker's upload-before-Save
+  // argument); the page panel renders only while `page` is set, which is what
+  // discards a staging form's draft. Flip either and every check passes.
+  const text = source(ENTITY_RAIL);
+  assert.match(text, /\{page \? \(\s*<PanelShell/, "the page panel is conditional on being open");
+  assert.match(text, /items\.map\(\(item\) => \(\s*<PanelShell/, "rail panels are always rendered");
+  assert.match(text, /inert=\{!open\}/);
+  // One shell for both — the look is literally the same code.
+  assert.equal(text.match(/<aside\b/g)?.length, 1, "one <aside>, inside PanelShell");
+});
+
+/** Every file under `dir`, recursively, as repo-relative paths. */
+function walk(dir: string): string[] {
+  return readdirSync(join(process.cwd(), dir), { withFileTypes: true }).flatMap((e) => {
+    const path = join(dir, e.name);
+    return e.isDirectory() ? walk(path) : [relative(".", path)];
+  });
+}
+
+test("every admin page that renders the prose editor renders EntityRail around it", () => {
+  // The staging blocks open their forms in the rail's panel (§11). A page with
+  // the editor and no rail draws every figure, gallery, callout and quote with
+  // no way to edit them — `useRailPanel()` returns null and the trigger is
+  // inert — and nothing else fails: `tsc`, `npm test` and `npm run build`
+  // all pass.
+  const files = walk("app").filter((f) => f.endsWith(".tsx"));
+  const renders = (f: string, name: string) => new RegExp(`<${name}\\b`).test(source(f));
+  // The editor reaches a page directly or through ContentCard, and nothing
+  // else. A third wrapper would be a page this test cannot see, so it fails
+  // here until it is added to the line below.
+  const wrappers = files.filter((f) => !f.endsWith("/page.tsx") && renders(f, "ProseEditor"));
+  assert.deepEqual(wrappers, ["app/admin/_components/content-card.tsx"]);
+  const pages = files.filter((f) => f.endsWith("/page.tsx") && (renders(f, "ProseEditor") || renders(f, "ContentCard")));
+  assert.deepEqual([...pages].sort(), [...RAIL_PAGES].sort(), "the pages hosting the editor are exactly RAIL_PAGES");
+  for (const page of pages) {
+    assert.ok(renders(page, "EntityRail"), `${page} renders the prose editor and must render <EntityRail>`);
   }
 });
 

@@ -454,3 +454,40 @@ door + skill.
 - Flush justified gallery rows (decision 7).
 - Migrating the twelve pbbls quotes or any published content to the new
   blocks — that is an editorial act in the admin, after deploy.
+
+## 11. Amendment (2026-11-15, after merge): the editing surface is the rail's panel
+
+**The observation.** On production the figure popover anchored under its
+block. A tall figure (the kosymoz lake, `size=l`) pushed the whole form below
+the viewport, so the author could see "Figure / Frame" and nothing else. A
+popover is the wrong surface for a form this size beside a block this size.
+
+**The decision** (the maintainer's): a staged block is edited in the same
+right-hand panel as the entity rail's Source and About panels — one surface,
+not a second one that looks like it.
+
+- **`EntityRail` gains a page-opened panel.** A context the rail provides
+  (`useRailPanel()`) lets something inside the page open a panel with a title
+  and a `ReactNode`, and close it. It uses the rail's shell exactly — right
+  edge, `PANEL_WIDTH`, the heading and ✕, Escape, focus back to the element
+  that opened it, the `right-56` page push at ≥1216px and full width below.
+  **One panel at a time:** opening a page panel closes a rail panel and the
+  reverse. The rail still composes no payload and learns no field name: the
+  node arrives from the caller, as every rail panel's does.
+- **A page panel is not kept mounted.** Rail panels stay mounted because the
+  media picker uploads before Save; a staging form's draft is discarded on
+  close by design (§4.2), and an upload it started is the same orphan trade
+  as the `/image` command's. So a page panel unmounts on close — which is
+  also what resets its draft.
+- **The staging node views open that panel** instead of a Popover: the
+  preview (or the callout's label line, the quote's attribution line) is the
+  trigger; the form inside is unchanged — draft, validity-gated Save, upload
+  busy accounting, never deleting its node. Save closes the panel.
+- **Every editor page hosts a rail.** The sprout and bean pages already render
+  `EntityRail`; the plant-narrative and pod pages render one with no items,
+  which `EntityRail` already supports (its wrapper element is the same with or
+  without items). Without a host, `useRailPanel()` returns null and the node
+  view falls back to nothing editable — `lib/entity-rail-source.test.ts` pins
+  that every page rendering the prose editor renders the rail.
+- **Lists stay out of the way:** a block's panel opening while the `@` / `/`
+  menu is open closes the menu first.

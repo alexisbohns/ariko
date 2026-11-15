@@ -318,9 +318,19 @@ while quietly becoming false.
   `npm run check:orphans` then has to sweep. Hand-rolling a dismissible surface
   instead of taking `Dialog.Root` — correctly, since the page behind it stays
   live — means re-supplying the two halves that are not about modality: Escape
-  dismisses, and closing puts focus back on the trigger, without which `inert`
-  swallows the Close button, focus falls to `document.body`, and the next Tab
-  restarts at the top of the document. The page makes room with a **relative
+  dismisses, and closing puts focus back on the trigger when focus was inside
+  the panel (or already on `document.body`), without which `inert` swallows the
+  Close button, focus falls to `document.body`, and the next Tab restarts at the
+  top of the document — but never when the author had clicked back into the
+  page, where taking focus would steal the caret from the prose. The rail also
+  hosts PAGE panels: `useRailPanel()` (`app/admin/_components/rail-panel.tsx`)
+  lets something inside the page — a staged block in the editor — open a panel
+  in the same `PanelShell`, one panel at a time across both kinds. A page panel
+  is the opposite case to the media picker and UNMOUNTS on close, because its
+  draft is meant to be discarded. Every page that renders the prose editor
+  renders an `EntityRail` (the narrative and pod pages with no items) so a block
+  always has its host; `lib/entity-rail-source.test.ts` pins that and the API's
+  shape, `lib/staging-panel.test.tsx` the behaviour. The page makes room with a **relative
   offset**, never a transform: `transform` makes the wrapper a containing block
   for its `position: fixed` descendants, and the wrapper holds the whole page
   body — so a panel opening dropped the editor's floating commit to the end of
@@ -530,8 +540,11 @@ while quietly becoming false.
   conformance suite share. Figure, gallery and compare are atoms rebuilt from
   their fields in canonical form (`lib/staging-markdown.ts`); one left empty
   serializes to nothing, and no view ever deletes its node, because every
-  reason a popover closes — a focus-out, the click that picked the `/` row, a
-  file dialog's blur — was a way to lose one. The `/` rows are withheld in a
+  reason an editing surface closes — a focus-out, the click that picked the `/`
+  row, a file dialog's blur — was a way to lose one. A block is edited in the
+  rail's page panel, not a popover: a popover anchored under a tall figure
+  opened below the viewport on production. The panel tracks its block by
+  position range and closes rather than write to a different node. The `/` rows are withheld in a
   list item, a table cell (a GFM cell is one line: a figure saved there came
   back as literal text and a callout vanished), and the whole `/` menu stays
   shut in a callout or quote, whose schema refuses a staged child. Every staged image is an `<a href>` to its

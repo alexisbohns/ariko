@@ -154,7 +154,7 @@ test("a callout label round-trips as source", () => {
   }
 });
 
-test("a compare with an image but no text is still written — the popover's Save guards validity", () => {
+test("a compare with an image but no text is still written — the form's Save guards validity", () => {
   const md = serializeCompare({ do: { src: "https://e.com/a.png", alt: "a", text: "" }, dont: { src: "", alt: "", text: "" } });
   assert.notEqual(md, "");
   assert.match(md, /:::do\n!\[a\]\(https:\/\/e\.com\/a\.png\)\n:::/);

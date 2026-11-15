@@ -36,7 +36,7 @@ const STATIC_BLOCKS: BlockCommand[] = [
   { id: "code", label: "Code block", run: (e, r) => e.chain().focus().deleteRange(r).toggleCodeBlock().run() },
   { id: "table", label: "Table", run: (e, r) => e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 2, withHeaderRow: true }).run() },
   // The staging blocks (spec 2026-11-15 §4.2). A media block goes in EMPTY —
-  // its node view opens the popover on mount, and an empty atom serializes to
+  // its node view opens its form in the rail's panel on mount, and an empty atom serializes to
   // "" — so a cancelled insert leaves nothing behind. A text block goes in
   // with one paragraph, the caret's landing place; its schema demands one.
   // `attributed-quote`, not `quote`: that id is the blockquote's, and the `/`
@@ -142,7 +142,7 @@ export interface BuildEditorExtensionsOptions {
    */
   onInsertImage: () => void;
   /**
-   * Upload one file for a staging popover's image slot. The HOST implements
+   * Upload one file for a staging form's image slot. The HOST implements
    * it (prose-editor.tsx, through `uploadImageAction`) so the node views
    * never import a server action, and this list stays buildable headless.
    * A headless caller passes a stub.
@@ -331,7 +331,7 @@ export function buildEditorExtensions({
     // in step with that.
     Markdown.configure({ indentation: { style: "space", size: 3 } }),
     ...entityExtensions(entities),
-    // The five staging nodes, with their preview-and-popover views. Like the
+    // The five staging nodes, with their preview-and-panel views. Like the
     // entity nodes they are absent from `baseExtensions`, and spread here
     // rather than there for the same reason: the views are React.
     ...stagingExtensions({ upload, onUploadBusy, lang }),

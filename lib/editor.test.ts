@@ -308,12 +308,12 @@ test("9. /callout inserts an empty callout with a paragraph inside; /figure inse
   assert.equal(editor.getJSON().content?.[0]?.type, "stagedCallout");
   assert.equal(editor.getJSON().content?.[0]?.content?.[0]?.type, "paragraph");
   run("figure");
-  assert.ok(JSON.stringify(editor.getJSON()).includes('"stagedFigure"'), "the figure node exists before its popover saves");
+  assert.ok(JSON.stringify(editor.getJSON()).includes('"stagedFigure"'), "the figure node exists before its form saves");
   assert.doesNotMatch(editor.getMarkdown(), /:::figure/);
   editor.destroy();
 });
 
-test("10. /quote inserts a quote whose body is editable and whose `by` is empty until the popover sets it", () => {
+test("10. /quote inserts a quote whose body is editable and whose `by` is empty until its form sets it", () => {
   const editor = makeEditor();
   buildBlocks(() => {}).find((b) => b.id === "attributed-quote")!.run(editor, { from: 1, to: 1 });
   const node = editor.getJSON().content?.[0];
@@ -359,7 +359,7 @@ test("13. a pasted image URL must be absolute http(s) with no whitespace or cont
   }
 });
 
-test("14. no staging view deletes its node: closing a popover discards the draft, never the block", () => {
+test("14. no staging view deletes its node: closing its panel discards the draft, never the block", () => {
   // Source text, on lib/prose-commit-source.test.ts's reasoning: a property
   // of the file as written, which no headless render can observe. The first
   // version deleted an empty block on close, and every close reason — a
@@ -371,6 +371,36 @@ test("14. no staging view deletes its node: closing a popover discards the draft
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/\/\/.*$/gm, "");
   assert.doesNotMatch(source, /deleteNode|deleteSelection|deleteRange/);
+});
+
+test("14b. a staged block's panel closes the open `@` / `/` menu first, by the suggestion plugins' own keys", () => {
+  // exitMenus (staging-views.tsx) finds the two menus by the `suggestion-`
+  // prefix of their extension names in editor-extensions.ts. Rename either
+  // and a panel opens over a menu left floating on the prose — so the
+  // coupling is driven here against the real plugins, not described.
+  const { exitMenus } = require("../components/editor/staging-views.js") as typeof import("../components/editor/staging-views.js");
+  const seen: unknown[] = [];
+  const extensions = buildEditorExtensions({
+    entities: ENTITIES,
+    onMenu: (m) => seen.push(m),
+    getMenu: () => null,
+    onInsertImage: () => {},
+    upload: async () => ({ ok: false, error: "none" }),
+    onUploadBusy: () => {},
+    lang: "en",
+  });
+  const editor = new Editor({ extensions, content: "" });
+  const active = () =>
+    editor.state.plugins
+      .filter((p) => (p as unknown as { key: string }).key.startsWith("suggestion-"))
+      .map((p) => Boolean((p.getState(editor.state) as { active?: boolean }).active));
+  assert.equal(active().length, 2, "both suggestion plugins carry the prefix exitMenus looks for");
+  editor.commands.insertContent("/");
+  assert.deepEqual(active().sort(), [false, true], "typing / opens the block menu");
+  exitMenus(editor);
+  assert.deepEqual(active(), [false, false]);
+  assert.equal(seen.at(-1), null, "the host was told the menu closed");
+  editor.destroy();
 });
 
 test("12. a callout label typed with brackets is escaped into a label that stays one directive, and escaping is idempotent", () => {

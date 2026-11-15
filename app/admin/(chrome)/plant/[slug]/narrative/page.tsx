@@ -6,6 +6,7 @@ import { entityOptions } from "@/lib/entity-options";
 import { hubHref, narrativeHref } from "@/lib/plant-path";
 import { editContainerContentAction } from "../../../../actions";
 import { ProseEditor } from "@/components/editor/prose-editor";
+import { EntityRail } from "../../../../_components/entity-rail";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +34,11 @@ export const dynamic = "force-dynamic";
  * the exhibition strip, which has nothing to do with prose. The eyebrow, the
  * name and one link back are the whole chrome this page needs.
  *
+ * It does render an `EntityRail` — with no items, so no cluster draws — because
+ * the editor's staging blocks open their forms in the rail's panel (spec
+ * 2026-11-15 §11) and a page without one would leave every figure on it
+ * uneditable. `lib/entity-rail-source.test.ts` pins it.
+ *
  * `loadRawGarden`, never the cached reader: this page loads stored markdown
  * into an editor and posts it back, so a cached read is not a slow page, it is
  * an author saving a stale body over a newer one.
@@ -57,44 +63,46 @@ export default async function AdminPlantNarrativePage({
   const ref = `plant:${plant.slug}`;
 
   return (
-    <article className="flex flex-col gap-8">
-      <a
-        href={hubHref(plant.slug)}
-        className="self-start text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-      >
-        ← {name}
-      </a>
+    <EntityRail label="Narrative panels" items={[]}>
+      <article className="flex flex-col gap-8">
+        <a
+          href={hubHref(plant.slug)}
+          className="self-start text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+        >
+          ← {name}
+        </a>
 
-      <div className="flex flex-col gap-1">
-        <p className="font-heading text-xs uppercase tracking-[0.15em] text-muted-foreground">
-          Narrative
-        </p>
-        <h1 className="font-heading text-2xl font-medium tracking-tight">{name}</h1>
-      </div>
+        <div className="flex flex-col gap-1">
+          <p className="font-heading text-xs uppercase tracking-[0.15em] text-muted-foreground">
+            Narrative
+          </p>
+          <h1 className="font-heading text-2xl font-medium tracking-tight">{name}</h1>
+        </div>
 
-      {/* The content action's only rejection path. It redirects HERE now
-          (`narrativeHref`, app/admin/actions.ts), because here is where the
-          editor lives — a banner on the hub would describe an edit made on a
-          page the author had already left. */}
-      {error ? (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
+        {/* The content action's only rejection path. It redirects HERE now
+            (`narrativeHref`, app/admin/actions.ts), because here is where the
+            editor lives — a banner on the hub would describe an edit made on a
+            page the author had already left. */}
+        {error ? (
+          <Alert variant="destructive" role="alert">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
 
-      {/* Moved from the hub, `bare` included: this page IS the frame,
-          so a card around the editor would be a frame around the only thing on
-          it. The load goes through `editorHalves` — STRICT per half, so
-          neither half is ever loaded into the other's editor. */}
-      <ProseEditor
-        key={lang}
-        bare
-        {...editorHalves(plant.content, lang)}
-        langSwitch={{ current: lang, hrefs: editLangHrefs(narrativeHref(plant.slug), query) }}
-        entities={entityOptions(raw, ref)}
-        action={editContainerContentAction}
-        hidden={{ ref, lang }}
-      />
-    </article>
+        {/* Moved from the hub, `bare` included: this page IS the frame,
+            so a card around the editor would be a frame around the only thing on
+            it. The load goes through `editorHalves` — STRICT per half, so
+            neither half is ever loaded into the other's editor. */}
+        <ProseEditor
+          key={lang}
+          bare
+          {...editorHalves(plant.content, lang)}
+          langSwitch={{ current: lang, hrefs: editLangHrefs(narrativeHref(plant.slug), query) }}
+          entities={entityOptions(raw, ref)}
+          action={editContainerContentAction}
+          hidden={{ ref, lang }}
+        />
+      </article>
+    </EntityRail>
   );
 }
