@@ -1,0 +1,415 @@
+import {
+  BEAN_PREFIX,
+  PLANT_PREFIX,
+  POD_PREFIX,
+  aboutRefs,
+  byDateDesc,
+  hasNarrative,
+  parentsWithPrefix,
+  resolveSproutPlant,
+  resolveText,
+  textPart,
+  type RawGarden,
+  type Sprout,
+  type Seed,
+  type Text,
+} from "./data";
+import { beanCoverFor, fillCoverFor, podCoverFrom } from "./bean-cover";
+import { cloudinaryThumb } from "./image-url";
+import { hubHref } from "./plant-path";
+import { visibilityOf } from "./plant-visibility";
+import { stateOf } from "./sprout-state";
+
+/**
+ * The garden map's model — what is drawn, what waits, what is missing.
+ *
+ * (spec: docs/superpowers/specs/2026-11-15-garden-map-design.md)
+ *
+ * PURE, and server-only by reach: it imports `lib/data.ts`, which opens with
+ * `node:fs`. The client island therefore imports TYPES from here and nothing
+ * else (`lib/garden-map-source.test.ts` pins it) — the `lib/palette.ts` /
+ * `lib/palette-items.ts` trap, a fourth time.
+ *
+ * Nothing here re-derives what the garden already decides. A sprout's plant is
+ * `resolveSproutPlant`'s answer; visibility is `visibilityOf`'s; a sprout's
+ * state is `stateOf`'s; "has a narrative" is `hasNarrative`'s. The map adds
+ * the drawing and the flags, not a second opinion about the data.
+ */
+
+export type MapNodeKind = "plant" | "pod" | "bean" | "sprout" | "seed" | "bucket";
+
+/**
+ * What can be missing on a node.
+ *
+ *  - `no-narrative` — plant, pod or bean with nothing in `content`.
+ *  - `no-fr` — has an English narrative and an empty French half. Never raised
+ *    beside `no-narrative`, and never for a French-only narrative.
+ *  - `no-children` — a plant with no pods and no beans, a pod with no beans, a
+ *    bean with no journal entry of ANY state.
+ */
+export type MapGap = "no-narrative" | "no-fr" | "no-children";
+
+/** `all` is also `lib/admin-filters.ts`'s `NO_FILTER`, so an `all` view is the
+ *  absent query rather than `?view=all`. */
+export type MapView = "all" | "review" | "gaps";
+export const MAP_VIEWS: readonly MapView[] = ["all", "review", "gaps"];
+
+export function mapViewOf(raw: unknown): MapView {
+  return typeof raw === "string" && (MAP_VIEWS as readonly string[]).includes(raw)
+    ? (raw as MapView)
+    : "all";
+}
+
+export interface MapNode {
+  /** `plant:slug` · `pod:slug` · `bean:slug` · `sprout:slug` · `seeds:<parent id>` ·
+   *  `bucket:unrooted` · `bucket:inbox`. The first three are the garden's own
+   *  prefixed refs, which is what lets a sprout's `about` name a node directly. */
+  id: string;
+  kind: MapNodeKind;
+  label: string;
+  /** The admin page this node opens. Absent on a bucket. */
+  href?: string;
+  /** A seed node stands for this many inbox seeds: one count node per parent,
+   *  not one node per seed. Absent everywhere else (read as 1). */
+  count?: number;
+  /** A ready-to-draw THUMBNAIL url: a plant's logo, a bean's cover, a pod's
+   *  borrowed one. Absent — never an empty string — when there is none, and
+   *  always absent on a bucket, a sprout and a seed count. */
+  image?: string;
+  /** Waits for the maintainer's review. */
+  waiting: boolean;
+  gaps: MapGap[];
+  /** The active view does not match this node. Dimmed, never hidden. */
+  dim: boolean;
+}
+
+export interface MapEdge {
+  id: string;
+  source: string;
+  target: string;
+}
+
+export interface GardenMap {
+  nodes: MapNode[];
+  edges: MapEdge[];
+  /** Over the whole (scoped) map, whatever the view. */
+  stats: { total: number; waiting: number; gaps: number };
+}
+
+export interface MapOptions {
+  /** A plant slug, or null for the whole garden. */
+  scope?: string | null;
+  view?: MapView;
+}
+
+/**
+ * The pixel size each kind's thumbnail is requested at: 2x the card the map
+ * draws it into (plant 72px square, pod 200x70, bean 44px square), so it stays
+ * sharp on a retina display. The transform is `lib/image-url.ts`'s
+ * `cloudinaryThumb`, which already guards host, version segment, SVG and a
+ * URL that is already transformed — this adds the sizes, not a second helper.
+ */
+export const MAP_THUMB = {
+  plant: { w: 144, h: 144 },
+  pod: { w: 400, h: 140 },
+  bean: { w: 88, h: 88 },
+} as const;
+
+const UNROOTED = "bucket:unrooted";
+const INBOX = "bucket:inbox";
+const enc = encodeURIComponent;
+
+function narrativeGaps(content: Text | undefined): MapGap[] {
+  if (!hasNarrative(content)) return ["no-narrative"];
+  const en = textPart(content, "en").trim() !== "";
+  const fr = textPart(content, "fr").trim() !== "";
+  return en && !fr ? ["no-fr"] : [];
+}
+
+export function buildGardenMap(
+  raw: RawGarden,
+  seeds: Seed[],
+  opts: MapOptions = {},
+): GardenMap {
+  const scope = opts.scope ?? null;
+  const view = opts.view ?? "all";
+
+  const plants = raw.plants ?? [];
+  const pods = raw.pods ?? [];
+  const beans = raw.beans ?? [];
+  const sprouts = raw.sprouts ?? [];
+
+  const plantSlugs = new Set(plants.map((p) => p.slug));
+  const podSlugs = new Set(pods.map((p) => p.slug));
+
+  // Containment parents that RESOLVE. A dangling ref is not a parent.
+  const podPlants = (pod: { parents?: string[] }) =>
+    parentsWithPrefix(pod.parents, PLANT_PREFIX).filter((s) => plantSlugs.has(s));
+  const beanPods = (bean: { parents?: string[] }) =>
+    parentsWithPrefix(bean.parents, POD_PREFIX).filter((s) => podSlugs.has(s));
+  const beanPlants = (bean: { parents?: string[] }) =>
+    parentsWithPrefix(bean.parents, PLANT_PREFIX).filter((s) => plantSlugs.has(s));
+
+  // Beans with a journal entry of ANY state — published ones are not drawn, but
+  // they are why a bean is not "empty".
+  const beansWithJournal = new Set<string>();
+  for (const sprout of sprouts) {
+    for (const ref of aboutRefs(sprout)) {
+      if (ref.startsWith(BEAN_PREFIX)) beansWithJournal.add(ref.slice(BEAN_PREFIX.length));
+    }
+  }
+
+  // Every sprout that is ABOUT each bean, ANY state (this is the admin and
+  // read-only, so the public zone's published-only rule does not apply),
+  // newest first. One pass over the sprouts, not a scan per bean.
+  const sproutsByBean = new Map<string, Sprout[]>();
+  for (const sprout of sprouts) {
+    const seen = new Set<string>();
+    for (const ref of aboutRefs(sprout)) {
+      if (!ref.startsWith(BEAN_PREFIX) || seen.has(ref)) continue;
+      seen.add(ref);
+      const slug = ref.slice(BEAN_PREFIX.length);
+      const list = sproutsByBean.get(slug);
+      if (list) list.push(sprout);
+      else sproutsByBean.set(slug, [sprout]);
+    }
+  }
+  for (const list of sproutsByBean.values()) list.sort(byDateDesc);
+
+  // Beans per pod, in garden order, from one pass over the beans.
+  const beansByPod = new Map<string, typeof beans>();
+  for (const bean of beans) {
+    for (const podSlug of beanPods(bean)) {
+      const list = beansByPod.get(podSlug);
+      if (list) list.push(bean);
+      else beansByPod.set(podSlug, [bean]);
+    }
+  }
+
+  // Absent, not empty: the card draws an initial tile for a node with no image.
+  const withImage = (url: string | undefined, size: { w: number; h: number }): { image?: string } =>
+    url ? { image: cloudinaryThumb(url, { width: size.w, height: size.h }) } : {};
+
+  const nodes = new Map<string, MapNode>();
+  const edges: MapEdge[] = [];
+  const edgeIds = new Set<string>();
+  const connect = (source: string, target: string): void => {
+    const id = `${source}>${target}`;
+    if (edgeIds.has(id)) return;
+    edgeIds.add(id);
+    edges.push({ id, source, target });
+  };
+  const bucket = (id: string, label: string): string => {
+    if (!nodes.has(id)) {
+      nodes.set(id, { id, kind: "bucket", label, waiting: false, gaps: [], dim: false });
+    }
+    return id;
+  };
+  const labelOf = (text: Text | undefined, fallback: string): string =>
+    resolveText(text) || fallback;
+
+  // ---- plants ----
+  const keptPlants = plants.filter((p) => scope === null || p.slug === scope);
+  for (const plant of keptPlants) {
+    const hasChildren =
+      pods.some((p) => podPlants(p).includes(plant.slug)) ||
+      beans.some((b) => beanPlants(b).includes(plant.slug));
+    nodes.set(`plant:${plant.slug}`, {
+      id: `plant:${plant.slug}`,
+      kind: "plant",
+      label: labelOf(plant.name, plant.slug),
+      href: hubHref(plant.slug),
+      waiting: visibilityOf(plant) !== "public",
+      gaps: [...narrativeGaps(plant.content), ...(hasChildren ? [] : (["no-children"] as const))],
+      ...withImage(plant.logo?.url, MAP_THUMB.plant),
+      dim: false,
+    });
+  }
+
+  // ---- pods ----
+  const keptPods = pods.filter((p) => scope === null || podPlants(p).includes(scope));
+  for (const pod of keptPods) {
+    const id = `pod:${pod.slug}`;
+    const hasBeans = beans.some((b) => beanPods(b).includes(pod.slug));
+    nodes.set(id, {
+      id,
+      kind: "pod",
+      label: labelOf(pod.name, pod.slug),
+      href: `/admin/pod/${enc(pod.slug)}`,
+      waiting: visibilityOf(pod) !== "public",
+      gaps: [...narrativeGaps(pod.content), ...(hasBeans ? [] : (["no-children"] as const))],
+      // A pod has no cover of its own; it borrows the first one its beans offer.
+      ...withImage(
+        podCoverFrom(
+          (beansByPod.get(pod.slug) ?? []).map((b) => beanCoverFor(b, sproutsByBean.get(b.slug) ?? [])),
+        )?.image.url,
+        MAP_THUMB.pod,
+      ),
+      dim: false,
+    });
+  }
+  for (const pod of keptPods) {
+    const parents = podPlants(pod).filter((s) => nodes.has(`plant:${s}`));
+    if (parents.length === 0) connect(bucket(UNROOTED, "Unrooted"), `pod:${pod.slug}`);
+    for (const s of parents) connect(`plant:${s}`, `pod:${pod.slug}`);
+  }
+
+  // ---- beans ----
+  const keptPodSlugs = new Set(keptPods.map((p) => p.slug));
+  const keptBeans = beans.filter(
+    (b) =>
+      scope === null ||
+      beanPlants(b).includes(scope) ||
+      beanPods(b).some((s) => keptPodSlugs.has(s)),
+  );
+  for (const bean of keptBeans) {
+    const id = `bean:${bean.slug}`;
+    // Machine-projected beans are source-owned and journal-less by
+    // construction: every one would flag, which is noise rather than signal.
+    const gaps: MapGap[] =
+      bean.projected !== undefined
+        ? []
+        : [
+            ...narrativeGaps(bean.content),
+            ...(beansWithJournal.has(bean.slug) ? [] : (["no-children"] as const)),
+          ];
+    nodes.set(id, {
+      id,
+      kind: "bean",
+      label: labelOf(bean.name, bean.slug),
+      href: `/admin/bean/${enc(bean.slug)}`,
+      waiting: visibilityOf(bean) !== "public",
+      gaps,
+      ...withImage(fillCoverFor(bean, sproutsByBean.get(bean.slug) ?? [])?.url, MAP_THUMB.bean),
+      dim: false,
+    });
+  }
+  for (const bean of keptBeans) {
+    const parents = [
+      ...beanPods(bean).map((s) => `pod:${s}`),
+      ...beanPlants(bean).map((s) => `plant:${s}`),
+    ].filter((id) => nodes.has(id));
+    if (parents.length === 0) connect(bucket(UNROOTED, "Unrooted"), `bean:${bean.slug}`);
+    for (const parent of parents) connect(parent, `bean:${bean.slug}`);
+  }
+
+  // ---- draft sprouts ----
+  for (const sprout of sprouts) {
+    if (stateOf(sprout) !== "draft") continue;
+    const plant = resolveSproutPlant(sprout, raw);
+    if (scope !== null && plant?.slug !== scope) continue;
+
+    const id = `sprout:${sprout.slug}`;
+    nodes.set(id, {
+      id,
+      kind: "sprout",
+      label: labelOf(sprout.name, sprout.slug),
+      href: `/admin/sprout/${enc(sprout.slug)}`,
+      waiting: true,
+      gaps: [],
+      dim: false,
+    });
+
+    // What the entry is ABOUT: only pod: and bean: refs name a node a sprout
+    // hangs off (a malformed `about` holding `sprout:`, `plant:` or a bucket id
+    // must never become an edge), and only the ones that exist here.
+    const aboutTargets = aboutRefs(sprout).filter(
+      (ref) => (ref.startsWith(POD_PREFIX) || ref.startsWith(BEAN_PREFIX)) && nodes.has(ref),
+    );
+    // A resolved sprout hangs off what it is about, else its plant. An
+    // UNRESOLVED one (ambiguous or dangling) still links to every existing node
+    // it is about, so the map keeps what it concerns, and falls to Unrooted
+    // only when there is none. Scoped, an unresolved sprout was skipped above.
+    let targets: string[] = aboutTargets;
+    if (plant !== null && targets.length === 0 && nodes.has(`plant:${plant.slug}`)) {
+      targets = [`plant:${plant.slug}`];
+    }
+    if (targets.length === 0) targets = [bucket(UNROOTED, "Unrooted")];
+    for (const target of targets) connect(target, id);
+  }
+
+  // ---- inbox seeds ----
+  const gardenRefs = new Set<string>([
+    ...plants.map((p) => `plant:${p.slug}`),
+    ...pods.map((p) => `pod:${p.slug}`),
+    ...beans.map((b) => `bean:${b.slug}`),
+  ]);
+  // One count node per parent: 62 inbox seeds on one plant would stack into a
+  // column no one can read. Each seed still resolves exactly as it always did
+  // (garden-wide, then scope); the survivors are then grouped by target, in
+  // order of first appearance.
+  const seedCounts = new Map<string, number>();
+  for (const seed of seeds) {
+    if (seed.status !== "inbox") continue;
+    const s = seed.suggested;
+    const candidates = [
+      s?.beanSlug ? `bean:${s.beanSlug}` : null,
+      s?.podSlug ? `pod:${s.podSlug}` : null,
+      s?.plantSlug ? `plant:${s.plantSlug}` : null,
+    ];
+    // Resolved against the whole garden first, so the most specific suggestion
+    // wins the same way in every scope; scope then decides whether it is drawn.
+    const target = candidates.find((c): c is string => c !== null && gardenRefs.has(c));
+    if (scope !== null && (target === undefined || !nodes.has(target))) continue;
+    const key = target ?? INBOX;
+    seedCounts.set(key, (seedCounts.get(key) ?? 0) + 1);
+  }
+
+  // The plant a parent sits under, for the inbox link: a plant is itself, a pod
+  // is its first resolving plant, a bean its first resolving plant else its
+  // first resolving pod's first plant. Nothing resolving is no plant.
+  const plantOfRef = (ref: string): string | undefined => {
+    if (ref.startsWith(PLANT_PREFIX)) return ref.slice(PLANT_PREFIX.length);
+    if (ref.startsWith(POD_PREFIX)) {
+      const pod = pods.find((p) => p.slug === ref.slice(POD_PREFIX.length));
+      return pod ? podPlants(pod)[0] : undefined;
+    }
+    if (ref.startsWith(BEAN_PREFIX)) {
+      const bean = beans.find((b) => b.slug === ref.slice(BEAN_PREFIX.length));
+      if (!bean) return undefined;
+      const direct = beanPlants(bean)[0];
+      if (direct !== undefined) return direct;
+      const pod = pods.find((p) => p.slug === beanPods(bean)[0]);
+      return pod ? podPlants(pod)[0] : undefined;
+    }
+    return undefined;
+  };
+  for (const [key, count] of seedCounts) {
+    const id = `seeds:${key}`;
+    // The inbox narrows on a seed's OWN suggested plant, and a seed counted
+    // here may sit under a bean or pod it named more specifically than its
+    // plant. So this link is the plant-level inbox, not an exact list of
+    // these seeds.
+    const plantSlug = key === INBOX ? undefined : plantOfRef(key);
+    nodes.set(id, {
+      id,
+      kind: "seed",
+      label: `${count} ${count === 1 ? "seed" : "seeds"}`,
+      href: plantSlug === undefined ? "/admin/inbox" : `/admin/inbox?plant=${enc(plantSlug)}`,
+      count,
+      waiting: true,
+      gaps: [],
+      dim: false,
+    });
+    if (key === INBOX) bucket(INBOX, "Inbox");
+    connect(key, id);
+  }
+
+  // ---- view + stats ----
+  const weigh = (list: MapNode[]): number => list.reduce((sum, n) => sum + (n.count ?? 1), 0);
+  const matches = (n: MapNode): boolean =>
+    view === "review" ? n.waiting : view === "gaps" ? n.gaps.length > 0 : true;
+  // A bucket carries no flags, so dimming it would only grey the parent of lit children.
+  const list = [...nodes.values()].map((n) => ({ ...n, dim: n.kind !== "bucket" && !matches(n) }));
+  return {
+    nodes: list,
+    edges,
+    // Weighted: a "62 seeds" node is 62 things waiting. A bucket is
+    // scaffolding, so it is never part of `total`.
+    stats: {
+      total: weigh(list.filter((n) => n.kind !== "bucket")),
+      waiting: weigh(list.filter((n) => n.waiting)),
+      gaps: weigh(list.filter((n) => n.gaps.length > 0)),
+    },
+  };
+}

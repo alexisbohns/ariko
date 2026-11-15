@@ -276,7 +276,11 @@ export function AdminChrome({ plants }: { plants: PlantMark[] }) {
  * page is outside `app/admin/(chrome)/` now and this layout does not wrap it,
  * so that branch — and `resolveColumn`'s `"bare"` with it — was unreachable
  * code claiming a route this component never sees. The login page draws its own
- * `<main>`; the two surviving measures are the two the chrome actually offsets.
+ * `<main>`; the two column measures are the two the chrome actually offsets.
+ *
+ * There is a third kind of page now, `"bleed"` (the garden map): it is not a
+ * measure at all and offsets nothing — `AdminMain` hands it the whole viewport
+ * and the chrome floats over it.
  *
  * The measure itself is `components/page-column.tsx`, shared with the public
  * zone, and the shared-surfaces slice is what put it there. What this page used
@@ -296,6 +300,9 @@ export function AdminChrome({ plants }: { plants: PlantMark[] }) {
 export function AdminMain({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const column = resolveColumn(pathname);
+  // A bleed page owns the whole viewport. `z-0` keeps it UNDER the chrome
+  // (`Chrome` is `fixed z-40`), so the plates float over the canvas.
+  if (column === "bleed") return <main className="fixed inset-0 z-0">{children}</main>;
   return (
     <main className={`${RAIL_CLEARANCE} pb-20 pt-24`}>
       <div className={column === "wide" ? WIDE_COLUMN : READING_COLUMN}>{children}</div>

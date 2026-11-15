@@ -51,7 +51,8 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
     zones, which is what makes the author's column the visitor's column.
     `resolveColumn()` in `lib/admin-nav.ts` picks it: a section index is
     `WIDE_COLUMN`, the welcome page is too — it holds two tables — and
-    everything else reads. There is no `bare` any more: login left the chrome
+    everything else reads — except the garden map, which is `bleed`: no column at
+    all (see the garden-map bullet). There is no `bare` any more: login left the chrome
     group, so `resolveColumn`'s only caller can no longer be asked about it,
     and a special case for a path that cannot arrive is dead code reading as a
     live rule. Chrome clearance goes **outside** the measure, never inside it.
@@ -393,6 +394,38 @@ while quietly becoming false.
   first byte. The projection is spelled as the four fields rather than as an
   exclusion, so adding a field to the switcher means widening it deliberately
   rather than by default.
+- **The garden map is a read-only, live-garden reader, and a `bleed` page.**
+  `/admin/map` ([`specs/2026-11-15-garden-map-design.md`](docs/superpowers/specs/2026-11-15-garden-map-design.md))
+  draws `Plant → Pod → Bean` with draft sprouts as leaves and inbox seeds as one
+  count leaf per parent ("62 seeds", linking to the plant-level inbox) — 62
+  individual seed nodes made the map unreadable — laid out as a bloom: plants as
+  pills (a round logo medallion and a 24px name) in a row, each plant's pods and
+  beans hanging below on soft Bezier edges, every bean stack centred in its
+  column under its pod (nothing indented), and a plant's own beans fanning out as
+  a grid of tiles; pods show their cover, beans a square thumbnail
+  (`MapNode.image`, a ready Cloudinary thumbnail from the builder, drawn as a
+  plain lazy `<img>`; no image draws an initial) — each card a stretched link
+  whose name stays the one tab stop, with `stats` weighted by that
+  count. What
+  waits is an amber ring *and* the word "Waiting"; what is missing is a chip.
+  `lib/garden-map.ts` decides every flag and `lib/garden-map-layout.ts` (a deterministic
+  column layout, on the server) every coordinate, so `app/admin/_components/garden-map.tsx` is
+  a thin island that imports **types only** from them — `lib/garden-map.ts`
+  reaches `lib/data.ts` and so `node:fs`, which fails the build from a client
+  file. It reads `loadRawGarden` and `listSeeds`, never the cache, because a map
+  of "what waits" that lagged a write shows a garden you already changed. It has
+  no write path: each node is a `next/link` to the page where the decision
+  lives. It is the one route `resolveColumn` calls `"bleed"` — a canvas in a
+  1024px column defeats itself — so `AdminMain` gives it `fixed inset-0 z-0`
+  under the chrome's `z-40` plates. A published sprout is **not** drawn (a
+  hairball) but still counts toward "bean has no journal", and a machine-
+  projected bean is exempt from every gap. A draft sprout whose plant does not
+  resolve (ambiguous or dangling) still links to every pod and bean its `about`
+  names that exists, and falls to the Unrooted node only when it names nothing
+  that does. Seeds resolve against the whole garden first and the scope filters
+  them afterwards, so the most specific suggestion wins the same way in every
+  scope. `lib/garden-map.test.ts` pins the rules,
+  `lib/garden-map-source.test.ts` the boundary.
 - **`lib/palette.ts` is server-only; `lib/palette-items.ts` is the client
   half.** `lib/palette.ts` imports `lib/data.ts`, which opens with `node:fs`.
   Importing the wrong one from the palette component does not merely bloat the

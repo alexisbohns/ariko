@@ -50,7 +50,7 @@ export const SCREEN_FILTER_KEYS = ["plant", "bean", "tag"] as const;
  * Beanstalk" — is what makes this a `Record` TypeScript checks exhaustively:
  * a new `NavId` fails to compile here until it is either given a key list or
  * added to `lib/admin-nav.ts`'s `UNSCOPED_IDS`. Keyed by route string, as this
- * map once was, a seventh section could compile while `navHref` (which decides
+ * map once was, the next section could compile while `navHref` (which decides
  * by excluding Overview and Beanstalk) and this map (which decided by including
  * a route) silently disagreed about it.
  *
@@ -63,4 +63,7 @@ export const SECTION_KEYS: Readonly<Record<ScopedId, readonly string[]>> = {
   beans: ["plant", "pod"],
   sprouts: SPROUT_KEYS,
   screens: SCREEN_FILTER_KEYS,
+  // The map's scope is a plant; its `view` is NOT a scope key, so a plant
+  // switch drops it deliberately — a different tree is a different question.
+  map: ["plant"],
 };

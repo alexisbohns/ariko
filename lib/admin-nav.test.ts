@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import { NAV_ITEMS, navHref, navItems, resolveColumn, resolveNavItem } from "./admin-nav";
 import { hubHref, narrativeHref } from "./plant-path";
 
-test("the six sections are the nav, in order", () => {
+test("the seven sections are the nav, in order", () => {
   assert.deepEqual(
     NAV_ITEMS.map((i) => i.id),
-    ["inbox", "pods", "beans", "sprouts", "screens", "beanstalk"],
+    ["inbox", "pods", "beans", "sprouts", "screens", "beanstalk", "map"],
   );
   assert.deepEqual(
     NAV_ITEMS.map((i) => i.href),
@@ -17,11 +17,12 @@ test("the six sections are the nav, in order", () => {
       "/admin/sprouts",
       "/admin/screens",
       "/admin/beanstalk",
+      "/admin/map",
     ],
   );
   assert.deepEqual(
     NAV_ITEMS.map((i) => i.label),
-    ["Inbox", "Pods", "Beans", "Sprouts", "Screens", "Beanstalk"],
+    ["Inbox", "Pods", "Beans", "Sprouts", "Screens", "Beanstalk", "Map"],
   );
 });
 
@@ -116,7 +117,7 @@ test("unscoped, the rail is NAV_ITEMS in order", () => {
 test("the shortcut digit is the item's position in the rail as drawn", () => {
   assert.deepEqual(
     navItems(null).map((i) => i.hotkey),
-    ["1", "2", "3", "4", "5", "6"],
+    ["1", "2", "3", "4", "5", "6", "7"],
   );
 });
 
@@ -127,7 +128,7 @@ test("scoped, the digits follow the rail's new shape rather than the old one", (
   const items = navItems("ariko");
   assert.deepEqual(
     items.map((i) => `${i.id}:${i.hotkey}`),
-    ["overview:1", "inbox:2", "pods:3", "beans:4", "sprouts:5", "screens:6"],
+    ["overview:1", "inbox:2", "pods:3", "beans:4", "sprouts:5", "screens:6", "map:7"],
   );
 });
 
@@ -143,7 +144,7 @@ test("scoped, Overview leads and Beanstalk steps aside", () => {
   const items = navItems("ariko");
   assert.deepEqual(
     items.map((i) => i.id),
-    ["overview", "inbox", "pods", "beans", "sprouts", "screens"],
+    ["overview", "inbox", "pods", "beans", "sprouts", "screens", "map"],
   );
   assert.equal(items[0].href, "/admin/plant/ariko");
   assert.equal(items[0].label, "Overview");
@@ -172,8 +173,27 @@ test("Beanstalk never carries a scope — the docblock's reason it isn't in a sc
   assert.equal(navHref(beanstalk, "ariko"), "/admin/beanstalk");
 });
 
-test("every section index reads in the wide column", () => {
-  for (const item of NAV_ITEMS) assert.equal(resolveColumn(item.href), "wide", item.href);
+test("every section index reads in the wide column, except the map, which bleeds", () => {
+  for (const item of NAV_ITEMS) {
+    assert.equal(resolveColumn(item.href), item.id === "map" ? "bleed" : "wide", item.href);
+  }
+});
+
+test("the map is the only bleed — its filter query does not change that", () => {
+  assert.equal(resolveColumn("/admin/map"), "bleed");
+  assert.equal(resolveColumn("/admin/map/"), "bleed");
+  assert.equal(resolveColumn("/admin/mapping"), "reading");
+});
+
+test("the map lights its own rail item, and only on a segment boundary", () => {
+  assert.equal(resolveNavItem("/admin/map"), "/admin/map");
+  assert.equal(resolveNavItem("/admin/mapping"), null);
+});
+
+test("navHref carries the scope to the map", () => {
+  const map = NAV_ITEMS.find((item) => item.id === "map")!;
+  assert.equal(navHref(map, "ariko"), "/admin/map?plant=ariko");
+  assert.equal(navHref(map, null), "/admin/map");
 });
 
 test("the welcome page is wide too — it holds two tables", () => {
