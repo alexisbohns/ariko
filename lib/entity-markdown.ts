@@ -1,9 +1,18 @@
-import { Node, type JSONContent, type MarkdownParseHelpers, type MarkdownRendererHelpers, type MarkdownToken, type RenderContext } from "@tiptap/core";
+import {
+  Node,
+  type JSONContent,
+  type MarkdownLexerConfiguration,
+  type MarkdownParseHelpers,
+  type MarkdownRendererHelpers,
+  type MarkdownToken,
+  type RenderContext,
+} from "@tiptap/core";
 import { StarterKit } from "@tiptap/starter-kit";
 import { Paragraph } from "@tiptap/extension-paragraph";
+import { CodeBlock } from "@tiptap/extension-code-block";
 import { TableKit } from "@tiptap/extension-table";
 import { Image } from "@tiptap/extension-image";
-import { ListItem, TaskList, TaskItem } from "@tiptap/extension-list";
+import { ListItem, OrderedList, ORDERED_LIST_MARKER_PATTERN, TaskList, TaskItem } from "@tiptap/extension-list";
 import { claimsBlock, stagingNodes } from "./staging-editor";
 
 /**
@@ -416,6 +425,97 @@ const InlineImageParagraph = Paragraph.extend({
   },
 });
 
+// A fenced code block marked hands over with its fence indented — which is
+// every fence inside a list item written by this editor (a `- ` item's content
+// starts at column 2 and children are written three in, so the fence arrives
+// one space deep), and any fence a document indents 1-3 spaces. CommonMark and
+// remark read all of those as code. @tiptap/extension-code-block's own
+// parseMarkdown refuses a token unless its `raw` STARTS with a backtick or
+// tilde and returns `[]`, so the code was silently dropped — on the editor's
+// next save for a list item (its first save wrote the fence one space deeper,
+// its second erased it), on the first load for a top-level fence.
+//
+// The guard is kept, widened to the indentation CommonMark allows: marked
+// emits `type: "code"` for an indented block too, and `codeBlockStyle` is how
+// the stock handler tells that one. Four spaces is not a fence.
+const FENCED_RAW = /^ {0,3}(?:`{3,}|~{3,})/;
+
+const IndentedFenceCodeBlock = CodeBlock.extend({
+  parseMarkdown: (token: MarkdownToken, helpers: MarkdownParseHelpers) => {
+    if (token.type !== "code") return [];
+    if (token.raw && !FENCED_RAW.test(token.raw) && token.codeBlockStyle !== "indented") return [];
+    return helpers.createNode(
+      "codeBlock",
+      { language: (token.lang as string | undefined) || null },
+      token.text ? [helpers.createTextNode(token.text)] : [],
+    );
+  },
+});
+
+// @tiptap/extension-list's ordered-list tokenizer takes a list item's
+// continuation lines apart with `nextLine.slice(min(ws, indent + marker.length
+// + 1))`, where `marker` is the bare `1` — so it strips two columns from an
+// item whose content starts at three (`1. `), and every later line comes back
+// one space too deep. It then trims the item's block text, which takes the
+// leftover space off the OPENING line only. A code fence written under `1. `
+// therefore parsed with its fence at column 0 and every body line indented one
+// more, and the next save wrote that back a column deeper: a space per save,
+// forever, in a code sample where a space is content. Prose under an item had
+// the same one-column error and is dropped by `dropContinuationIndent` below —
+// which is a patch for what the error does to text, and cannot reach code.
+//
+// So the error is fixed where it is made, not where each node type shows it:
+// the lines the tokenizer will count as continuation are given back the one
+// column it does not strip, before it sees them. A line indented AT LEAST as
+// far as the item's content has one leading character removed, so the
+// tokenizer's own subtraction lands on exactly the content column; a line
+// indented less (a lazy continuation) is not touched, and neither is a marker
+// line, whose indent is how the tokenizer nests one item under another. The
+// line COUNT never changes, which is what lets the token's `raw` — the span
+// marked advances its cursor by — be taken from the original source.
+//
+// Pinned versions make this safe to carry: when a Tiptap bump fixes the
+// off-by-one, the `code in a list` fixtures in lib/markdown-conformance.test.ts
+// fail (a body line indented deeper than its fence loses a space) and this
+// wrapper is what to delete. The unpatched tokenizer stays reachable as
+// `OrderedList.config.markdownTokenizer`, which is how this calls it.
+const ORDERED_MARKER_LINE = new RegExp(`^(\\s*)(${ORDERED_LIST_MARKER_PATTERN})([.)])\\s+(.*)$`);
+
+export function restoreOrderedContinuationColumn(markdown: string): string {
+  let content = Infinity;
+  return markdown
+    .split("\n")
+    .map((line) => {
+      const marker = ORDERED_MARKER_LINE.exec(line);
+      if (marker) {
+        // `. ` is the separator and the one space after it — the width the
+        // tokenizer's `+ 1` was reaching for.
+        content = marker[1].length + marker[2].length + 2;
+        return line;
+      }
+      if (!line.trim()) return line;
+      const indent = line.length - line.trimStart().length;
+      return indent >= content ? line.slice(1) : line;
+    })
+    .join("\n");
+}
+
+const stockOrderedList = OrderedList.config.markdownTokenizer!;
+
+const FixedColumnOrderedList = OrderedList.extend({
+  markdownTokenizer: {
+    ...stockOrderedList,
+    tokenize: (src: string, tokens: MarkdownToken[], lexer: MarkdownLexerConfiguration) => {
+      const token = stockOrderedList.tokenize(restoreOrderedContinuationColumn(src), tokens, lexer) as
+        | (MarkdownToken & { raw: string })
+        | undefined;
+      if (!token) return token;
+      // Same number of lines in, same number consumed: the raw is the source's.
+      return { ...token, raw: src.split("\n").slice(0, token.raw.split("\n").length).join("\n") };
+    },
+  },
+});
+
 /**
  * Every node the editor and the tests share. The entity nodes are NOT here: the
  * editor uses `.extend()`ed copies carrying React node views
@@ -448,8 +548,15 @@ export const baseExtensions = [
   // forwards `ParagraphOptions` (HTMLAttributes), not `parseMarkdown`, so
   // InlineImageParagraph (this file, right above) has to replace it entirely
   // rather than layer on top of it.
-  StarterKit.configure({ listItem: false, underline: false, paragraph: false }),
+  // codeBlock: false and orderedList: false — replaced the same way, for the
+  // same reason: StarterKit's options forward settings, not the markdown
+  // handlers, and both nodes had to change how they READ stored markdown
+  // (IndentedFenceCodeBlock and FixedColumnOrderedList, above). Both keep
+  // their names, so every command and schema reference still finds them.
+  StarterKit.configure({ listItem: false, underline: false, paragraph: false, codeBlock: false, orderedList: false }),
   InlineImageParagraph,
+  IndentedFenceCodeBlock,
+  FixedColumnOrderedList,
   CardLeadingListItem,
   TableKit,
   // inline: true — @tiptap/markdown's markdown parser tokenizes `![a](/i.png)`

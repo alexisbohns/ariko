@@ -258,6 +258,85 @@ for (const [name, md] of Object.entries(LIST_CONTINUATIONS)) {
   });
 }
 
+// A code fence inside a list item — two upstream faults, one per list kind,
+// and both are DATA LOSS, which is why this is a four-save loop and not a
+// single round trip:
+//
+//  - Bulleted (and task, and a bullet under an ordered item): the item writes
+//    its children three spaces in, a `- ` item's content starts at two, so
+//    marked hands the code block a raw of ` ```ts` — one leading space — and
+//    @tiptap/extension-code-block drops any fence token whose raw does not
+//    START with a backtick. First save: re-indented, harmless. Second save:
+//    the code is gone. The same drop deleted a fence indented 1-3 spaces
+//    anywhere, at the top level too, on the first load.
+//  - Ordered: the ordered-list tokenizer strips one column too few from an
+//    item's continuation lines (marker.length + 1 is `1`'s width plus one, not
+//    `1. `'s), then trims the block text, which takes the leftover column off
+//    the opening fence only. The fence lands at column 0 and every body line
+//    keeps the space, and each save writes it back one deeper.
+//
+// `ordered` and `bullet` bodies carry a blank line and a deeper line, because
+// a fix that only gets the fence right would still shift those.
+const CODE_IN_LISTS: Record<string, string> = {
+  bullet: "- item\n  ```ts\n  const x = 1\n  ```",
+  bulletTilde: "- item\n  ~~~\n  code\n  ~~~",
+  bulletBlankLine: "- item\n  ```\n  a\n\n  b\n  ```",
+  bulletIndentedBody: "- item\n  ```\n  a\n    b\n  ```",
+  bulletSecondItem: "- a\n- b\n  ```\n  c\n  ```\n- d",
+  ordered: "1. item\n   ```ts\n   const x = 1\n   ```",
+  orderedBlankLine: "1. item\n   ```\n   a\n\n   b\n   ```",
+  orderedIndentedBody: "1. item\n   ```\n   a\n     b\n   ```",
+  orderedSecondItem: "1. a\n2. b\n   ```\n   c\n   ```\n3. d",
+  orderedNested: "1. a\n   1. b\n      ```\n      c\n      ```",
+  bulletInOrdered: "1. a\n   - b\n     ```\n     c\n     ```",
+  orderedInBullet: "- a\n  1. b\n     ```\n     c\n     ```",
+  task: "- [ ] item\n  ```\n  c\n  ```",
+  topLevelIndented: "  ```ts\n  const x = 1\n  ```",
+};
+
+for (const [name, md] of Object.entries(CODE_IN_LISTS)) {
+  test(`code in a list: ${name} keeps its code and is the same page for four saves`, () => {
+    assert.doesNotThrow(() => PMNode.fromJSON(schema, manager.parse(prepareEditorMarkdown(md)) as never).check(), md);
+    let current = md;
+    for (let pass = 1; pass <= 4; pass++) {
+      const next = roundTrip(current);
+      assert.match(render(next), /<pre>/, `pass ${pass} lost the code block: ${JSON.stringify(next)}`);
+      assert.equal(render(next), render(md), `pass ${pass}: ${JSON.stringify(next)}`);
+      if (pass > 1) assert.equal(next, current, `pass ${pass} not stable`);
+      current = next;
+    }
+  });
+}
+
+test("KNOWN DIVERGENCE: code after a blank line in an ordered item saves tight, and keeps every byte of the code", () => {
+  // The same trim as the staged-block case below: the blank line between the
+  // item's text and its fence is gone before the node could remember it, so the
+  // item comes back tight and the page drops the <p> around "item". The code is
+  // the part that matters and it is exact, for as many saves as you like.
+  const md = "1. item\n\n   ```ts\n   const x = 1\n     deeper\n   ```";
+  const once = roundTrip(md);
+  assert.equal(once, "1. item\n   ```ts\n   const x = 1\n     deeper\n   ```");
+  assert.match(render(md), /<p>item<\/p>/);
+  assert.doesNotMatch(render(once), /<p>item<\/p>/);
+  assert.equal(render(once).match(/<pre>[\s\S]*<\/pre>/)?.[0], render(md).match(/<pre>[\s\S]*<\/pre>/)?.[0]);
+  assert.equal(roundTrip(once), once);
+});
+
+// The compensation `restoreOrderedContinuationColumn` makes for an upstream
+// off-by-one is exact only while the upstream tokenizer has it. Pinned apart
+// from the fixtures so that a bump which fixes the tokenizer fails HERE, by
+// name, with the instruction in the message.
+test("an ordered item's continuation lines come back at exactly the item's content column", () => {
+  const doc = manager.parse(prepareEditorMarkdown("1. a\n   ```\n   x\n     y\n   ```")) as JSONContent;
+  const code = doc.content?.[0]?.content?.[0]?.content?.[1];
+  assert.equal(
+    code?.content?.[0]?.text,
+    "x\n  y",
+    "a body line deeper than its fence lost or gained columns: if @tiptap/extension-list was upgraded and now strips " +
+      "`1. ` correctly, delete FixedColumnOrderedList and restoreOrderedContinuationColumn in lib/entity-markdown.ts",
+  );
+});
+
 test("KNOWN DIVERGENCE: a staged block after a blank line in an ordered item saves tight", () => {
   // @tiptap's ordered-list tokenizer trims an item's block content before
   // lexing it, so the blank line between the item's text and the callout is
