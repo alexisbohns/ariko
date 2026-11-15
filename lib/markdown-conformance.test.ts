@@ -230,6 +230,34 @@ test("KNOWN DIVERGENCE: prose after a block in a tight list item saves the item 
   }
 });
 
+// A container line in a list item's FIRST paragraph — foreign, malformed, or
+// prose that merely looks like one. The item renderer wrote it at column 0
+// and the reader kept one space of indent per pass, so `1. a\n   :::grid` left
+// the list on one save and, once separated, was a code block by the fourth.
+// Four passes, every one the same page as the source.
+const LIST_CONTINUATIONS: Record<string, string> = {
+  foreignInOrdered: "1. a\n   :::grid\n   x\n   :::",
+  foreignInSecondOrdered: "1. a\n2. b\n   :::grid\n   x\n   :::",
+  quoteWithoutBy: "1. a\n   :::quote\n   Words.\n   :::",
+  figureWithoutImage: "1. a\n   :::figure\n   Just words.\n   :::",
+  bulletProse: "- a\n  b\n  c",
+  notAnOpener: "Meet\n:::at 10:30",
+  emojiShortcode: "Hello\n:::smile:",
+  fenceNotClosed: "```\n``` not a closer\n:::grid\n```",
+};
+
+for (const [name, md] of Object.entries(LIST_CONTINUATIONS)) {
+  test(`list continuation: ${name} is the same page for four saves`, () => {
+    let current = md;
+    for (let pass = 1; pass <= 4; pass++) {
+      const next = roundTrip(current);
+      assert.equal(render(next), render(md), `pass ${pass}: ${JSON.stringify(next)}`);
+      if (pass > 1) assert.equal(next, current, `pass ${pass} not stable`);
+      current = next;
+    }
+  });
+}
+
 test("KNOWN DIVERGENCE: a staged block after a blank line in an ordered item saves tight", () => {
   // @tiptap's ordered-list tokenizer trims an item's block content before
   // lexing it, so the blank line between the item's text and the callout is
@@ -299,7 +327,10 @@ test("KNOWN DIVERGENCE: a labelled callout with no body keeps its words, but its
   // (`callout: needs some text`). The EDITOR can reach the empty state — an
   // author clears a callout's body — but never writes this markdown: an
   // empty text block saves as its label, a plain paragraph, with no fence
-  // (lib/staging-editor.test.ts pins it). So only hand-written stored
+  // (lib/staging-editor.test.ts pins it). That saved label can still lose
+  // its escape on the NEXT save — the stock paragraph serializer does not
+  // re-escape a leading `#`, so `\\# One` becomes a heading — which is
+  // pre-existing and the same for any paragraph. So only hand-written stored
   // markdown reaches this. Pinned so a fix in either parser shows up here as
   // a diff.
   const md = MALFORMED_FIXTURES.emptyCallout.md;

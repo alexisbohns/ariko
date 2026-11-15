@@ -1,10 +1,10 @@
-import { Node, type JSONContent, type MarkdownParseHelpers, type MarkdownToken } from "@tiptap/core";
+import { Node, type JSONContent, type MarkdownParseHelpers, type MarkdownRendererHelpers, type MarkdownToken, type RenderContext } from "@tiptap/core";
 import { StarterKit } from "@tiptap/starter-kit";
 import { Paragraph } from "@tiptap/extension-paragraph";
 import { TableKit } from "@tiptap/extension-table";
 import { Image } from "@tiptap/extension-image";
 import { ListItem, TaskList, TaskItem } from "@tiptap/extension-list";
-import { stagingNodes } from "./staging-editor";
+import { claimsBlock, stagingNodes } from "./staging-editor";
 
 /**
  * The EDITOR's half of the entity grammar (compose spec §2.2).
@@ -87,28 +87,43 @@ export function stripBom(markdown: string): string {
 // one it recognizes — so `1. a\n   :::callout` kept the callout as item prose,
 // saved it under-indented, and the page drew it below the list. A blank line
 // moves it to the item's block content, which that tokenizer trims before
-// lexing, so the item does not turn loose. Fenced code is skipped: a code
-// sample about the grammar is not the grammar.
-const OPENER = /^( {0,3}):{3,}[A-Za-z]/;
+// lexing, so the item does not turn loose. Only for a block the editor will
+// CLAIM (claimsBlock, lib/staging-editor.ts): moved, a foreign or malformed
+// container is block text that the item's renderer writes one space deeper
+// on every save — `1. a\n   :::grid` was a code block by the fourth — while
+// left alone it stays item prose, which is what it was before.
+//
+// An opener is a whole line, as remark reads one: `Meet\n:::at 10:30` and
+// `Hello\n:::smile:` are prose, and separating them split a paragraph.
+// Fenced code is skipped: a code sample about the grammar is not the grammar.
+// It ends only at a bare fence of the same character and at least the
+// opener's length — findContainerEnd's rule — so "``` not a closer" is code.
+const OPENER = /^( {0,3}):{3,}[A-Za-z][\w-]*(\[[^\]\n]*\])?(\{[^}\n]*\})?[ \t]*$/;
 const LIST_ITEM = /^( *)([-*+]|(\d{1,9})[.)])( +|$)/;
 const CODE_FENCE = /^\s*(`{3,}|~{3,})/;
+const CODE_CLOSE = /^\s*(`{3,}|~{3,})[ \t]*$/;
 
 export function separateContainerOpeners(markdown: string): string {
   const out: string[] = [];
   let fence: string | null = null;
   let itemOffset: number | null = null;
   let ordered: number | null = null;
-  for (const line of markdown.split("\n")) {
+  const lines = markdown.split("\n");
+  lines.forEach((line, i) => {
     const code = CODE_FENCE.exec(line);
     if (fence) {
-      if (code && code[1][0] === fence[0] && code[1].length >= fence.length) fence = null;
+      const close = CODE_CLOSE.exec(line);
+      if (close && close[1][0] === fence[0] && close[1].length >= fence.length) fence = null;
     } else if (code) {
       fence = code[1];
     } else {
       const open = OPENER.exec(line);
       const prev = out[out.length - 1];
       const indent = open?.[1].length ?? 0;
-      const lazy = itemOffset === null || indent < itemOffset || (ordered !== null && indent >= ordered);
+      const lazy =
+        itemOffset === null ||
+        indent < itemOffset ||
+        (ordered !== null && indent >= ordered && claimsBlock(lines.slice(i).join("\n")));
       if (open && prev !== undefined && prev.trim() && lazy) out.push("");
     }
     if (!line.trim()) itemOffset = ordered = null;
@@ -120,7 +135,7 @@ export function separateContainerOpeners(markdown: string): string {
       }
     }
     out.push(line);
-  }
+  });
   return out.join("\n");
 }
 
@@ -308,12 +323,11 @@ function wrapStrayInline(content: JSONContent[]): JSONContent[] {
     // and the stock handler stores it as text. Leading whitespace is never
     // content in a paragraph, but stored it was written back plus one more
     // space per save, until the fourth save turned the paragraph into code.
-    const first = node.type === "paragraph" ? node.content?.[0] : undefined;
-    if (first?.type === "text" && first.text) {
-      first.text = first.text.replace(/^[ \t]+/, "");
-      // An empty text node is itself schema-invalid; the paragraph stays.
-      if (!first.text) node.content!.shift();
-    }
+    // The same holds after every soft line break: a continuation line's
+    // indent is never content either, and an ordered item's prose kept it
+    // the same way, one space deeper per save.
+    if (node.type !== "paragraph" || !node.content) continue;
+    node.content = dropContinuationIndent(node.content);
   }
   return out;
 }
@@ -353,6 +367,32 @@ const CardLeadingListItem = ListItem.extend({
 // "![a](/i.png)" line still parses, still serializes byte-identically, and
 // still renders the same HTML through remark (lib/markdown-conformance.test.ts's
 // `image`/`imageTitled` fixtures).
+//
+// It also carries the two halves of a list item's continuation lines, which
+// the stock list renderers get wrong in opposite directions. Writing, an
+// item's FIRST paragraph is put on the marker line with its later lines at
+// column 0 (renderNestedMarkdownContent indents only later children) — lazy
+// continuation, harmless for prose and fatal for a line remark reads as a
+// block: `1. a\n   :::grid` was saved as `1. a\n :::grid`, and the page then
+// drew the container below the list. Reading, the item's content is dedented
+// by the marker's width and not the renderer's three spaces, so a line came
+// back one space in and that space was stored as text — a task item's second
+// paragraph went one space deeper per save and was code by the fourth. So continuation lines
+// are indented when written as an item's first child, and their indent is
+// dropped when read — it is never content (code spans excepted, where
+// CommonMark keeps interior spaces). Both together are a fixed point.
+const ITEM_PARENTS = new Set(["listItem", "taskItem"]);
+
+export function dropContinuationIndent(content: JSONContent[]): JSONContent[] {
+  content.forEach((child, i) => {
+    if (child.type !== "text" || !child.text || child.marks?.some((m) => m.type === "code")) return;
+    child.text = child.text.replace(/\n[ \t]+/g, "\n");
+    if (i === 0 || content[i - 1]?.type === "hardBreak") child.text = child.text.replace(/^[ \t]+/, "");
+  });
+  // An empty text node is itself schema-invalid.
+  return content.filter((child) => child.type !== "text" || child.text);
+}
+
 const InlineImageParagraph = Paragraph.extend({
   parseMarkdown: (token: MarkdownToken, helpers: MarkdownParseHelpers) => {
     // Non-null assertion, not `?.`: Paragraph always defines parseMarkdown
@@ -363,7 +403,16 @@ const InlineImageParagraph = Paragraph.extend({
     if (Array.isArray(result) && result.length === 1 && result[0]?.type === "image") {
       return helpers.createNode("paragraph", undefined, result);
     }
+    if (result && !Array.isArray(result) && "type" in result && result.type === "paragraph" && result.content) {
+      return { ...result, content: dropContinuationIndent(result.content) };
+    }
     return result;
+  },
+  renderMarkdown: (node: JSONContent, helpers: MarkdownRendererHelpers, ctx: RenderContext) => {
+    const md = Paragraph.config.renderMarkdown!(node, helpers, ctx);
+    if (!md || ctx?.index !== 0 || !ITEM_PARENTS.has(ctx.parentType ?? "")) return md;
+    const [first, ...rest] = md.split("\n");
+    return [first, ...rest.map((line) => (line ? helpers.indent(line) : line))].join("\n");
   },
 });
 

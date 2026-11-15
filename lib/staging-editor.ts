@@ -11,7 +11,7 @@ import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
 import remarkDirective from "remark-directive";
-import { DEFAULT_FRAME, DEFAULT_SIZE, type StagedBlock } from "./staging";
+import { DEFAULT_FRAME, DEFAULT_SIZE, isStagedBlock, type StagedBlock } from "./staging";
 import { findContainerEnd } from "./staging-fence";
 import { parseStagedBlock, type MdNode, type ParsedBlock } from "./staging-parse";
 import {
@@ -64,6 +64,15 @@ function claim(src: string, name: StagedBlock): Claimed | undefined {
   if (kids.length !== 1 || kids[0].type !== "containerDirective" || kids[0].name !== name) return;
   const r = parseStagedBlock(kids[0], raw, { strict: false });
   return r.ok && r.value.block === name ? { raw, value: r.value } : undefined;
+}
+
+/** Whether the editor would claim a staged block opening `src` — the same
+ *  decision its tokenizers make, for lib/entity-markdown.ts's
+ *  separateContainerOpeners, which may move an opener only when doing so
+ *  produces a node. */
+export function claimsBlock(src: string): boolean {
+  const name = /^ {0,3}:{3,}([A-Za-z]+)/.exec(src)?.[1];
+  return isStagedBlock(name) && claim(src, name) !== undefined;
 }
 
 // marked calls `start` with the source AFTER the current position's first
