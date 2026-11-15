@@ -57,7 +57,7 @@ const { test, after } = require("node:test") as typeof import("node:test");
 // call target's declared type comes from an annotation, not an `as` cast.
 const assert: typeof import("node:assert/strict") = require("node:assert/strict");
 const { Editor } = require("@tiptap/core") as typeof import("@tiptap/core");
-const { buildEditorExtensions, buildBlocks } = require("../components/editor/editor-extensions.js") as typeof import("../components/editor/editor-extensions.js");
+const { buildEditorExtensions, buildBlocks, stagingAllowedAt } = require("../components/editor/editor-extensions.js") as typeof import("../components/editor/editor-extensions.js");
 const { createElement } = require("react") as typeof import("react");
 const { renderToStaticMarkup } = require("react-dom/server") as typeof import("react-dom/server");
 const ReactMarkdown = require("react-markdown") as typeof import("react-markdown");
@@ -107,6 +107,9 @@ function makeEditor(opts: { content?: string; contentType?: "markdown"; entities
     onMenu: () => {},
     getMenu: () => null,
     onInsertImage: () => {},
+    upload: async () => ({ ok: false, error: "no uploads in a headless editor" }),
+    onUploadBusy: () => {},
+    lang: "en",
   });
   return new Editor({
     extensions,
@@ -286,4 +289,62 @@ test("7. setImage inserts a node that serializes back to markdown (the /image in
   assert.equal(render(reloaded.getMarkdown()), render(markdown));
   reloaded.destroy();
   editor.destroy();
+});
+
+test("8. the / menu offers the five staging blocks, each under an id no other row has", () => {
+  // `quote` is already the plain blockquote's row, and the `/` handler picks a
+  // row with `blocks.find` — a second `quote` would never run. So the
+  // attributed quote is `attributed-quote`, and uniqueness is asserted rather
+  // than assumed.
+  const ids = buildBlocks(() => {}).map((b) => b.id);
+  for (const id of ["figure", "gallery", "compare", "callout", "attributed-quote"]) assert.ok(ids.includes(id), id);
+  assert.equal(new Set(ids).size, ids.length, `duplicate / row ids: ${ids.join(", ")}`);
+});
+
+test("9. /callout inserts an empty callout with a paragraph inside; /figure inserts an empty figure that saves to nothing", () => {
+  const editor = makeEditor();
+  const run = (id: string) => buildBlocks(() => {}).find((b) => b.id === id)!.run(editor, { from: 1, to: 1 });
+  run("callout");
+  assert.equal(editor.getJSON().content?.[0]?.type, "stagedCallout");
+  assert.equal(editor.getJSON().content?.[0]?.content?.[0]?.type, "paragraph");
+  run("figure");
+  assert.ok(JSON.stringify(editor.getJSON()).includes('"stagedFigure"'), "the figure node exists before its popover saves");
+  assert.doesNotMatch(editor.getMarkdown(), /:::figure/);
+  editor.destroy();
+});
+
+test("10. /quote inserts a quote whose body is editable and whose `by` is empty until the popover sets it", () => {
+  const editor = makeEditor();
+  buildBlocks(() => {}).find((b) => b.id === "attributed-quote")!.run(editor, { from: 1, to: 1 });
+  const node = editor.getJSON().content?.[0];
+  assert.equal(node?.type, "stagedQuote");
+  assert.equal(node?.attrs?.by, "");
+  assert.equal(node?.content?.[0]?.type, "paragraph");
+  editor.destroy();
+});
+
+test("11. the staging rows are withheld inside a list item, and offered in plain prose", () => {
+  const editor = makeEditor({ content: "- item\n\nprose", contentType: "markdown" });
+  // Position 3: inside the list item's paragraph (doc > bulletList > listItem > paragraph).
+  editor.commands.setTextSelection(3);
+  assert.equal(stagingAllowedAt(editor), false);
+  editor.commands.setTextSelection(editor.state.doc.content.size - 1);
+  assert.equal(stagingAllowedAt(editor), true);
+  editor.destroy();
+});
+
+test("12. a callout label typed with brackets is escaped into a label that stays one directive, and escaping is idempotent", () => {
+  const { escapeLabel } = require("../components/editor/staging-views.js") as typeof import("../components/editor/staging-views.js");
+  const { calloutOpener } = require("./staging-markdown.js") as typeof import("./staging-markdown.js");
+  for (const typed of ["a ] b", "[x]", "ends in \\", "already \\] escaped", "\\*not emphasis\\*"]) {
+    const label = escapeLabel(typed);
+    assert.equal(escapeLabel(label), label, `idempotent for ${JSON.stringify(typed)}`);
+    const editor = makeEditor({ content: `${calloutOpener(label)}\nbody\n:::`, contentType: "markdown" });
+    const node = editor.getJSON().content?.[0];
+    assert.equal(node?.type, "stagedCallout", `${JSON.stringify(typed)} -> ${calloutOpener(label)}`);
+    assert.equal(node?.attrs?.label, label);
+    editor.destroy();
+  }
+  assert.equal(escapeLabel("a ] b"), "a \\] b");
+  assert.equal(escapeLabel("already \\] escaped"), "already \\] escaped");
 });

@@ -10,11 +10,18 @@ import type { ReactNode } from "react";
  * component has no `useId`, and an id minted from the label would collide the
  * day two asides share one.
  */
+/** Exported for the editor's node view (components/editor/staging-views.tsx),
+ *  which draws the same plate around an editable body: retyped there, the
+ *  two would drift the way the editor's entity card once did. */
+export const CALLOUT_CLASS =
+  "my-6 rounded-2xl bg-muted px-5 py-1 text-[0.95rem] [&>p:first-child]:mt-4 [&>p:last-child]:mb-4";
+export const CALLOUT_LABEL_CLASS = "mb-1 font-heading text-sm font-medium tracking-tight text-foreground";
+
 export function StagedCallout({ labelText, children }: { labelText?: string | null; children?: ReactNode }) {
   return (
     <aside
       aria-label={labelText ?? undefined}
-      className="my-6 rounded-2xl bg-muted px-5 py-1 text-[0.95rem] [&>p:first-child]:mt-4 [&>p:last-child]:mb-4"
+      className={CALLOUT_CLASS}
     >
       {children}
     </aside>
@@ -22,5 +29,5 @@ export function StagedCallout({ labelText, children }: { labelText?: string | nu
 }
 
 export function CalloutLabel({ children }: { children?: ReactNode }) {
-  return <p className="mb-1 font-heading text-sm font-medium tracking-tight text-foreground">{children}</p>;
+  return <p className={CALLOUT_LABEL_CLASS}>{children}</p>;
 }

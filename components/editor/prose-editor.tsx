@@ -8,6 +8,7 @@ import { CloudAlert, CloudCheck, LoaderCircle } from "lucide-react";
 import { normalizeEmptyListMarkers } from "@/lib/entity-markdown";
 import type { EntityOption } from "@/lib/entity-options";
 import { buildEditorExtensions, type MenuState } from "./editor-extensions";
+import type { StagingUpload } from "./staging-views";
 import { SuggestionMenu } from "./suggestion-menu";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -146,6 +147,15 @@ export function ProseEditor({
   // one-at-a-time guard would never fire.
   const imageBusyRef = useRef(false);
 
+  // Uploads in flight from a staging block's popover (staging-views.tsx). A
+  // COUNT, not a flag: a gallery can upload three slots at once, and the
+  // first to settle must not re-enable a commit the other two still gate.
+  // The ref is the count; the state is only whether it is non-zero, for the
+  // render. Both are written from `onUploadBusy`, which — like
+  // `onInsertImage` — is read once at mount, so it must not close over state.
+  const stagingUploadsRef = useRef(0);
+  const [stagingBusy, setStagingBusy] = useState(false);
+
   const show = (next: MenuState | null): void => {
     menuRef.current = next;
     setMenu(next);
@@ -174,6 +184,27 @@ export function ProseEditor({
   // ProseEditor is never kept mounted across an `entities` change — but
   // that is a property of how this component happens to be used, not
   // something this hook enforces.
+  // Read once at mount, like everything in this array. `insertImage`'s
+  // rejection semantics: see its comment. The SVG is checked for size here and
+  // for its content by the server — checkUploadFile's type list is raster
+  // only, by design, so asking it about an SVG would refuse it on the client
+  // before the one door that may take one is ever reached.
+  const upload: StagingUpload = async (file, purpose) => {
+    const svg = purpose === "figure-svg" && file.type === "image/svg+xml";
+    const check = checkUploadFile({ size: file.size, type: svg ? ALLOWED_TYPES[0] : file.type });
+    if (!check.ok) return check;
+    const formData = new FormData();
+    formData.set("file", file);
+    if (purpose) formData.set("purpose", purpose);
+    try {
+      const result = await uploadImageAction(formData);
+      return result.ok ? { ok: true, url: result.media.url } : result;
+    } catch (e) {
+      unstable_rethrow(e);
+      return { ok: false, error: e instanceof Error ? e.message : "upload failed" };
+    }
+  };
+
   const extensions = useMemo(
     () =>
       buildEditorExtensions({
@@ -186,7 +217,17 @@ export function ProseEditor({
           if (imageBusyRef.current) return;
           imageInputRef.current?.click();
         },
+        upload,
+        onUploadBusy: (busy) => {
+          stagingUploadsRef.current += busy ? 1 : -1;
+          setStagingBusy(stagingUploadsRef.current > 0);
+        },
+        // The half being written, from the same source as the spellcheck
+        // `lang` below — the page keys this editor on it, so reading it once
+        // is reading it right.
+        lang: langSwitch?.current ?? "en",
       }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- read once at mount; see above.
     [entities],
   );
 
@@ -492,7 +533,9 @@ export function ProseEditor({
 
       {/* Disabled mid-upload in both shapes: saving now would persist a
           document missing the image that is seconds from being inserted, and
-          the author would have to notice and save again. */}
+          the author would have to notice and save again. A staging popover's
+          upload counts (`stagingBusy`): its image is not in the document until
+          that popover's own Save, which waits for it. */}
       {float ? (
         // Nothing at all until the editor exists. `immediatelyRender: false`
         // leaves `editor` null through SSR and the first client render, so
@@ -515,7 +558,7 @@ export function ProseEditor({
               <Button
                 type="button"
                 onClick={save}
-                disabled={pending || imageBusy || (!dirty && !error)}
+                disabled={pending || imageBusy || stagingBusy || (!dirty && !error)}
                 variant={error ? "destructive" : dirty ? "default" : "ghost"}
                 size="sm"
                 className={error || dirty ? undefined : "text-muted-foreground"}
@@ -545,14 +588,14 @@ export function ProseEditor({
               <EditLangSwitch
                 current={langSwitch.current}
                 hrefs={langSwitch.hrefs}
-                disabled={dirty || pending || imageBusy}
+                disabled={dirty || pending || imageBusy || stagingBusy}
               />
             ) : null}
           </Chrome>
         ) : null
       ) : (
         <div className="flex items-center gap-3">
-          <Button type="button" onClick={save} disabled={pending || imageBusy || !editor}>
+          <Button type="button" onClick={save} disabled={pending || imageBusy || stagingBusy || !editor}>
             {pending ? "Saving…" : "Save content"}
           </Button>
           {unchanged ? (
@@ -568,7 +611,7 @@ export function ProseEditor({
               <EditLangSwitch
                 current={langSwitch.current}
                 hrefs={langSwitch.hrefs}
-                disabled={dirty || pending || imageBusy}
+                disabled={dirty || pending || imageBusy || stagingBusy}
               />
             </div>
           ) : null}

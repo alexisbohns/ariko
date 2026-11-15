@@ -4,7 +4,9 @@ import Suggestion from "@tiptap/suggestion";
 import { PluginKey } from "@tiptap/pm/state";
 import { baseExtensions } from "@/lib/entity-markdown";
 import type { EntityOption } from "@/lib/entity-options";
+import type { Lang } from "@/lib/locale";
 import { entityExtensions } from "./entity-views";
+import { stagingExtensions, type StagingUpload } from "./staging-views";
 import type { MenuItem } from "./suggestion-menu";
 
 /**
@@ -25,7 +27,7 @@ export interface MenuState {
 }
 
 /** A `/` command that is not an entity card. */
-const STATIC_BLOCKS: Array<{ id: string; label: string; run: (e: Editor, r: Range) => void }> = [
+const STATIC_BLOCKS: BlockCommand[] = [
   { id: "h2", label: "Heading", run: (e, r) => e.chain().focus().deleteRange(r).setNode("heading", { level: 2 }).run() },
   { id: "h3", label: "Subheading", run: (e, r) => e.chain().focus().deleteRange(r).setNode("heading", { level: 3 }).run() },
   { id: "ul", label: "Bullet list", run: (e, r) => e.chain().focus().deleteRange(r).toggleBulletList().run() },
@@ -33,12 +35,49 @@ const STATIC_BLOCKS: Array<{ id: string; label: string; run: (e: Editor, r: Rang
   { id: "quote", label: "Quote", run: (e, r) => e.chain().focus().deleteRange(r).toggleBlockquote().run() },
   { id: "code", label: "Code block", run: (e, r) => e.chain().focus().deleteRange(r).toggleCodeBlock().run() },
   { id: "table", label: "Table", run: (e, r) => e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 2, withHeaderRow: true }).run() },
+  // The staging blocks (spec 2026-11-15 §4.2). A media block goes in EMPTY —
+  // its node view opens the popover on mount, and an empty atom serializes to
+  // "" — so a cancelled insert leaves nothing behind. A text block goes in
+  // with one paragraph, the caret's landing place; its schema demands one.
+  // `attributed-quote`, not `quote`: that id is the blockquote's, and the `/`
+  // handler resolves a row with `blocks.find`, so a second `quote` would
+  // never run.
+  { id: "figure", staged: true, label: "Figure", run: (e, r) => e.chain().focus().deleteRange(r).insertContent({ type: "stagedFigure" }).run() },
+  { id: "gallery", staged: true, label: "Gallery", run: (e, r) => e.chain().focus().deleteRange(r).insertContent({ type: "stagedGallery" }).run() },
+  { id: "compare", staged: true, label: "Do / Don't", run: (e, r) => e.chain().focus().deleteRange(r).insertContent({ type: "stagedCompare" }).run() },
+  { id: "callout", staged: true, label: "Callout", run: (e, r) => e.chain().focus().deleteRange(r).insertContent({ type: "stagedCallout", content: [{ type: "paragraph" }] }).run() },
+  {
+    id: "attributed-quote",
+    staged: true,
+    label: "Attributed quote",
+    run: (e, r) => e.chain().focus().deleteRange(r).insertContent({ type: "stagedQuote", attrs: { by: "" }, content: [{ type: "paragraph" }] }).run(),
+  },
 ];
+
+/** A staged text block — the one place the `/` menu stays shut (see `allow`). */
+const STAGED_TEXT_BLOCKS = new Set(["stagedCallout", "stagedQuote"]);
+
+/** Where a staged block may not go. remark reads a container fence indented
+ *  under a list marker as part of the item, and a staged block inside one is
+ *  what the schema refuses to hold (lib/staging-editor.ts) — so offering the
+ *  row there would delete the typed `/figure` and then fail its insert. */
+const NO_STAGING_ANCESTORS = new Set(["listItem", "taskItem"]);
+
+/** Whether the staging rows belong in a `/` menu opened at `editor`'s caret. */
+export function stagingAllowedAt(editor: Editor): boolean {
+  const { $from } = editor.state.selection;
+  for (let d = $from.depth; d >= 0; d--) {
+    if (NO_STAGING_ANCESTORS.has($from.node(d).type.name)) return false;
+  }
+  return true;
+}
 
 /** A `/` command row. */
 export interface BlockCommand {
   id: string;
   label: string;
+  /** A staging block: offered only where `stagingAllowedAt` says. */
+  staged?: true;
   run: (e: Editor, r: Range) => void;
 }
 
@@ -95,6 +134,22 @@ export interface BuildEditorExtensionsOptions {
    * (lib/editor.test.ts) can pass a no-op.
    */
   onInsertImage: () => void;
+  /**
+   * Upload one file for a staging popover's image slot. The HOST implements
+   * it (prose-editor.tsx, through `uploadImageAction`) so the node views
+   * never import a server action, and this list stays buildable headless.
+   * A headless caller passes a stub.
+   */
+  upload: StagingUpload;
+  /**
+   * A staging upload started (`true`) or settled (`false`). The host counts
+   * these, so the commit and the EN/FR switch stay dead while one is in
+   * flight — the `/image` command's rule, for a second door. A headless
+   * caller passes a no-op.
+   */
+  onUploadBusy: (busy: boolean) => void;
+  /** The half being written — the compare's verdict words in the preview. */
+  lang: Lang;
 }
 
 /**
@@ -103,13 +158,21 @@ export interface BuildEditorExtensionsOptions {
  * `content`. Exported so `prose-editor.tsx` and the mount smoke test drive
  * the exact same array.
  */
-export function buildEditorExtensions({ entities, onMenu, getMenu, onInsertImage }: BuildEditorExtensionsOptions) {
+export function buildEditorExtensions({
+  entities,
+  onMenu,
+  getMenu,
+  onInsertImage,
+  upload,
+  onUploadBusy,
+  lang,
+}: BuildEditorExtensionsOptions) {
   const blocks = buildBlocks(onInsertImage);
   // One suggestion plugin per trigger character. `render` drives menu state
   // via `onMenu`; `onKeyDown` returns true to swallow the key from the editor.
   const suggestion = (
     char: string,
-    items: (query: string) => MenuItem[],
+    items: (query: string, editor: Editor) => MenuItem[],
     run: (editor: Editor, range: Range, item: MenuItem) => void,
   ) =>
     Extension.create({
@@ -155,10 +218,24 @@ export function buildEditorExtensions({ entities, onMenu, getMenu, onInsertImage
             allow: ({ state, range }) => {
               const $pos = state.doc.resolve(range.from);
               if ($pos.parent.type.spec.code) return false;
+              // `/` inside a callout or a quote stays shut: it offers the
+              // staging blocks, which the text blocks' schema cannot hold, so a
+              // pick would run deleteRange (eating the typed text) and then
+              // fail its insert — and nesting is what the renderer unwraps
+              // anyway (spec §2.2). Shut whole rather than filtered, since the
+              // headings and lists it also offers are a markdown keystroke away
+              // in there. `@` stays open: a mention in an aside is legal.
+              // Ancestors, not the parent: the caret is in a paragraph INSIDE
+              // the block.
+              if (char === "/") {
+                for (let d = $pos.depth; d >= 0; d--) {
+                  if (STAGED_TEXT_BLOCKS.has($pos.node(d).type.name)) return false;
+                }
+              }
               const codeMark = state.schema.marks.code;
               return !codeMark || !codeMark.isInSet($pos.marks());
             },
-            items: ({ query }) => items(query),
+            items: ({ query, editor }) => items(query, editor),
             command: ({ range, props }) => run(editor, range, props),
             render: () => {
               let range: Range | null = null;
@@ -247,6 +324,10 @@ export function buildEditorExtensions({ entities, onMenu, getMenu, onInsertImage
     // in step with that.
     Markdown.configure({ indentation: { style: "space", size: 3 } }),
     ...entityExtensions(entities),
+    // The five staging nodes, with their preview-and-popover views. Like the
+    // entity nodes they are absent from `baseExtensions`, and spread here
+    // rather than there for the same reason: the views are React.
+    ...stagingExtensions({ upload, onUploadBusy, lang }),
     // `@` — an inline mention. The label is the entity's name at insertion
     // time; it is authored text from then on, which is why a rename does not
     // rewrite existing prose.
@@ -271,8 +352,10 @@ export function buildEditorExtensions({ entities, onMenu, getMenu, onInsertImage
     // needs no second trigger character and no two-step picker.
     suggestion(
       "/",
-      (query) => [
-        ...blocks.filter((b) => matches(b.label, query)).map((b) => ({ id: b.id, label: b.label })),
+      (query, editor) => [
+        ...blocks
+          .filter((b) => matches(b.label, query) && (!b.staged || stagingAllowedAt(editor)))
+          .map((b) => ({ id: b.id, label: b.label })),
         ...entities
           .filter((e) => matches(e.name, query) || matches(e.ref, query))
           .slice(0, 20)
