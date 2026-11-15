@@ -5,7 +5,7 @@ import { unstable_rethrow } from "next/navigation";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import { CloudAlert, CloudCheck, LoaderCircle } from "lucide-react";
-import { normalizeEmptyListMarkers } from "@/lib/entity-markdown";
+import { prepareEditorMarkdown } from "@/lib/entity-markdown";
 import type { EntityOption } from "@/lib/entity-options";
 import { buildEditorExtensions, type MenuState } from "./editor-extensions";
 import type { StagingUpload } from "./staging-views";
@@ -233,11 +233,11 @@ export function ProseEditor({
 
   const editor = useEditor({
     extensions,
-    // normalizeEmptyListMarkers: see lib/entity-markdown.ts — works around a
+    // prepareEditorMarkdown: see lib/entity-markdown.ts — strips a BOM, separates container openers, and works around a
     // marked parsing bug that otherwise loses an empty list item (and
     // anything nested under it, including a card) the instant a stored
     // document with one is opened (defect I2).
-    content: normalizeEmptyListMarkers(initialMarkdown),
+    content: prepareEditorMarkdown(initialMarkdown),
     contentType: "markdown",
     immediatelyRender: false, // Next SSR: the editor mounts on the client only.
     editorProps: {
@@ -497,7 +497,7 @@ export function ProseEditor({
             // Replaces the (empty) document; emits an update, so `dirty` goes
             // true and the commit lights. Nothing is written until Save. The
             // caret goes to the START, where a translator begins.
-            onClick={() => editor.chain().focus().setContent(normalizeEmptyListMarkers(seed), { contentType: "markdown" }).focus("start").run()}
+            onClick={() => editor.chain().focus().setContent(prepareEditorMarkdown(seed), { contentType: "markdown" }).focus("start").run()}
           >
             Start from English
           </Button>
