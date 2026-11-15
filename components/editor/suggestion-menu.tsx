@@ -1,5 +1,7 @@
 "use client";
 
+import { createPortal } from "react-dom";
+
 import { cn } from "@/lib/utils";
 
 export interface MenuItem {
@@ -11,7 +13,9 @@ export interface MenuItem {
 /**
  * Positioned with `position: fixed` from the caret rect that @tiptap/suggestion
  * hands us via `clientRect()` — which is why this needs no floating-ui or
- * popper dependency.
+ * popper dependency. Portalled to the body: a transformed ancestor (the map's
+ * entity sheet) is the containing block for `position: fixed`, which would turn
+ * these viewport coordinates into sheet-relative ones.
  *
  * onMouseDown (not onClick) with preventDefault: a click would blur the editor
  * before the command ran, and the suggestion range would already be gone.
@@ -29,7 +33,7 @@ export function SuggestionMenu({
 }) {
   if (!rect || items.length === 0) return null;
 
-  return (
+  return createPortal(
     <div
       role="listbox"
       style={{ position: "fixed", top: rect.bottom + 6, left: rect.left, zIndex: 50 }}
@@ -56,6 +60,7 @@ export function SuggestionMenu({
           ) : null}
         </button>
       ))}
-    </div>
+    </div>,
+    document.body,
   );
 }
