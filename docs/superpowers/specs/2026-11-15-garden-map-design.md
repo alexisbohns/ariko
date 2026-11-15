@@ -185,7 +185,9 @@ box, so a missing picture moves nothing.
 
 ## Interaction
 
-Read-only. There is no write path, no server action and no side panel.
+Read-only **on the canvas**: no write path, no server action. Editing happens in
+the entity's own page, shown in a side sheet over the map
+([`2026-11-15-map-entity-sheet-design.md`](2026-11-15-map-entity-sheet-design.md)).
 
 - A node is a card sized by its kind: a plant is a pill with a medallion, a pod
   has a cover on top, a bean a thumbnail on the left. The name is a real
@@ -234,5 +236,6 @@ Read-only. There is no write path, no server action and no side panel.
 
 ## Out of scope
 
-Editing from the map, saving positions, published sprouts as nodes, screens,
-bees, a side panel.
+Saving positions, published sprouts as nodes, screens, bees. (Editing from the
+map and a side panel were out of scope here and are now
+[their own slice](2026-11-15-map-entity-sheet-design.md).)

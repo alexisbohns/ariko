@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   EntityAvatar,
   EntityAvatarGlyph,
@@ -45,9 +46,9 @@ export function EntityNameCell({
 }) {
   const stack = (
     <div className="flex flex-col leading-tight">
-      <a href={href} className="underline-offset-4 hover:underline">
+      <Link href={href} prefetch={false} className="underline-offset-4 hover:underline">
         {name}
-      </a>
+      </Link>
       <span className="font-heading text-xs text-muted-foreground">{slug}</span>
     </div>
   );

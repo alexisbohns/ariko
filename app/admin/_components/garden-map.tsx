@@ -12,8 +12,9 @@ import {
   type Node,
   type NodeProps,
 } from "@xyflow/react";
-import { useMemo, useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore, type MouseEvent } from "react";
 import type { PositionedMap, PositionedNode } from "@/lib/garden-map-layout";
+import { MAP_SHEET_ATTR, confirmDiscard, isInPlaceNavigation } from "@/lib/map-sheet";
 import { MapNodeCard } from "./garden-map-node";
 
 /**
@@ -72,6 +73,22 @@ function subscribeDark(onChange: () => void): () => void {
 const readDark = () => document.documentElement.classList.contains("dark");
 const readDarkOnServer = () => false;
 
+/**
+ * A node click while the entity sheet holds an unsaved edit asks first.
+ *
+ * CAPTURE phase, on the canvas's wrapper: `next/link` handles the click on the
+ * anchor itself, so only something earlier in the event's path can stop it. The
+ * sheet leaves the canvas live beside an open editor on purpose, which makes a
+ * stray click the likeliest way to lose a draft.
+ */
+function guardDirtySheet(event: MouseEvent<HTMLDivElement>) {
+  if (!isInPlaceNavigation(event, (event.target as Element).closest("a[href]"))) return;
+  if (!confirmDiscard(document.querySelector(`[${MAP_SHEET_ATTR}]`))) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+}
+
 export function GardenMap({ map }: { map: PositionedMap }) {
   const dark = useSyncExternalStore(subscribeDark, readDark, readDarkOnServer);
 
@@ -110,30 +127,32 @@ export function GardenMap({ map }: { map: PositionedMap }) {
   );
 
   return (
-    <ReactFlow
-      nodes={nodes}
-      edges={edges}
-      nodeTypes={NODE_TYPES}
-      colorMode={dark ? "dark" : "light"}
-      fitView
-      fitViewOptions={{ padding: 0.15, maxZoom: 1 }}
-      minZoom={0.05}
-      nodesDraggable={false}
-      nodesConnectable={false}
-      elementsSelectable={false}
-      nodesFocusable={false}
-      edgesFocusable={false}
-      aria-label="Garden map"
-    >
-      <Background gap={24} />
-      {/* Bottom-left is clear of the left rail (vertically centred) and the
-          top clusters. Below `md` the controls are dropped (the toolbar needs
-          the width, and touch pans and pinches); the `!` is load-bearing —
-          xyflow's stylesheet is unlayered and sets `display`, so a plain
-          `hidden` loses to it. The minimap goes bottom-right and appears from
-          `lg`: at 768px it nearly touches the toolbar. */}
-      <Controls showInteractive={false} position="bottom-left" className="max-md:hidden!" />
-      <MiniMap pannable zoomable position="bottom-right" className="hidden lg:block" />
-    </ReactFlow>
+    <div className="size-full" onClickCapture={guardDirtySheet}>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={NODE_TYPES}
+        colorMode={dark ? "dark" : "light"}
+        fitView
+        fitViewOptions={{ padding: 0.15, maxZoom: 1 }}
+        minZoom={0.05}
+        nodesDraggable={false}
+        nodesConnectable={false}
+        elementsSelectable={false}
+        nodesFocusable={false}
+        edgesFocusable={false}
+        aria-label="Garden map"
+      >
+        <Background gap={24} />
+        {/* Bottom-left is clear of the left rail (vertically centred) and the
+            top clusters. Below `md` the controls are dropped (the toolbar needs
+            the width, and touch pans and pinches); the `!` is load-bearing —
+            xyflow's stylesheet is unlayered and sets `display`, so a plain
+            `hidden` loses to it. The minimap goes bottom-right and appears from
+            `lg`: at 768px it nearly touches the toolbar. */}
+        <Controls showInteractive={false} position="bottom-left" className="max-md:hidden!" />
+        <MiniMap pannable zoomable position="bottom-right" className="hidden lg:block" />
+      </ReactFlow>
+    </div>
   );
 }

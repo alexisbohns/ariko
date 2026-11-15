@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useRouter, usePathname, useSearchParams, useSelectedLayoutSegment } from "next/navigation";
 import { useHeldKeys, useHotkeys } from "@tanstack/react-hotkeys";
 import { ExternalLink, LogOut } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
@@ -280,7 +280,9 @@ export function AdminChrome({ plants }: { plants: PlantMark[] }) {
  *
  * There is a third kind of page now, `"bleed"` (the garden map): it is not a
  * measure at all and offsets nothing — `AdminMain` hands it the whole viewport
- * and the chrome floats over it.
+ * and the chrome floats over it. It is decided by the active layout segment as
+ * well as the path, so the map stays bleed under its entity sheet, whose URL is
+ * an ordinary `/admin/<tier>/<slug>`.
  *
  * The measure itself is `components/page-column.tsx`, shared with the public
  * zone, and the shared-surfaces slice is what put it there. What this page used
@@ -299,7 +301,11 @@ export function AdminChrome({ plants }: { plants: PlantMark[] }) {
  */
 export function AdminMain({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const column = resolveColumn(pathname);
+  const segment = useSelectedLayoutSegment();
+  // While the map's entity sheet is open the URL reads `/admin/bean/…` but the
+  // router is still on the map, and that segment is the truth. Following the
+  // path here would swap the tree's shape and remount the map and any editor.
+  const column = resolveColumn(pathname, segment);
   // A bleed page owns the whole viewport. `z-0` keeps it UNDER the chrome
   // (`Chrome` is `fixed z-40`), so the plates float over the canvas.
   if (column === "bleed") return <main className="fixed inset-0 z-0">{children}</main>;

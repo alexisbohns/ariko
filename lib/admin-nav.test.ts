@@ -185,6 +185,18 @@ test("the map is the only bleed — its filter query does not change that", () =
   assert.equal(resolveColumn("/admin/mapping"), "reading");
 });
 
+test("under the map the column is bleed whatever the URL says", () => {
+  // The map's entity sheet shows /admin/bean/x in the URL while the router is
+  // still on the map. A column that followed the URL would swap the tree's
+  // shape and remount the map, the sheet and any editor in it.
+  assert.equal(resolveColumn("/admin/bean/spike-bean", "map"), "bleed");
+  assert.equal(resolveColumn("/admin/plant/ariko/narrative", "map"), "bleed");
+  assert.equal(resolveColumn("/admin/bean/spike-bean", "bean"), "reading");
+  assert.equal(resolveColumn("/admin/bean/spike-bean", null), "reading");
+  assert.equal(resolveColumn("/admin/bean/spike-bean"), "reading");
+  assert.equal(resolveColumn("/admin/map"), "bleed");
+});
+
 test("the map lights its own rail item, and only on a segment boundary", () => {
   assert.equal(resolveNavItem("/admin/map"), "/admin/map");
   assert.equal(resolveNavItem("/admin/mapping"), null);

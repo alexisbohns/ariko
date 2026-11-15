@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   Table,
   TableBody,
@@ -88,12 +89,13 @@ export function SproutTable({
                   A sprout always has its own slug, so there is no case here
                   where the name is not a link — the about column still names
                   what it hangs from. */}
-              <a
+              <Link
                 href={`/admin/sprout/${encodeURIComponent(e.sprout.slug)}`}
+                prefetch={false}
                 className="underline-offset-4 transition-colors hover:underline"
               >
                 {resolveText(e.sprout.name)}
-              </a>
+              </Link>
             </TableCell>
             <TableCell>
               {/* The glyph, not a word — and the same map the sprout's own head

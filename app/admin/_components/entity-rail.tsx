@@ -474,7 +474,9 @@ export function EntityRail({
           change the element type React sees, remounting the entire page body —
           including a prose editor holding unsaved text. The provider above it
           adds no element, so the same holds with it there. */}
-      <div className={`${PAGE_BASE} ${active || page ? PAGE_ASIDE : ""}`}>{children}</div>
+      <div data-entity-page className={`${PAGE_BASE} ${active || page ? PAGE_ASIDE : ""}`}>
+        {children}
+      </div>
 
       {items.length === 0 ? null : (
         <>
