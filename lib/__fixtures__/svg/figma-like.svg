@@ -1,0 +1,16 @@
+<!-- HAND-WRITTEN STAND-IN, not a real export: it mirrors the structure of a Figma "Export as SVG" (outlined text) as known from its output, and must be replaced by a real export from Figma. -->
+<svg width="160" height="96" viewBox="0 0 160 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_412_88)">
+<rect width="160" height="96" rx="12" fill="#F4F6F1"/>
+<rect x="16" y="16" width="56" height="64" rx="8" fill="#2B7A0B" fill-opacity="0.12"/>
+<path d="M44 32L60 64H28L44 32Z" fill="#2B7A0B"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M92.5 38H96.7L101.4 58H98.3L97.3 53.4H91.9L90.9 58H87.8L92.5 38ZM96.7 50.8L94.6 41.3L92.5 50.8H96.7Z" fill="#111111"/>
+<path d="M104 38H107V55.4H115.6V58H104V38Z" fill="#111111"/>
+<path d="M88 70H144" stroke="#111111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 4"/>
+</g>
+<defs>
+<clipPath id="clip0_412_88">
+<rect width="160" height="96" fill="white"/>
+</clipPath>
+</defs>
+</svg>
