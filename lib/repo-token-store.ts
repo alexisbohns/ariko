@@ -8,8 +8,7 @@
 // authorizeRepo answers every refusal identically ({ ok: false } → 401 with
 // one body), so a caller cannot tell a revoked token from a mistyped one. A
 // bearer that does not look like a repo token is refused WITHOUT a database
-// read: the legacy ARTICLES_TOKEN path in app/api/articles/route.ts falls
-// through to its own check, and must keep working with no database at all.
+// read, so a malformed or foreign credential costs the door nothing.
 
 import { getDb } from "./db";
 import { generateToken, hashToken, looksLikeRepoToken } from "./repo-token";

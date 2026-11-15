@@ -21,7 +21,7 @@ export function generateToken(plant: string): string {
   return `ariko_${plant}_${randomBytes(24).toString("base64url")}`;
 }
 
-// A routing hint only (repo token vs legacy); the legacy ARTICLES_TOKEN must never start with `ariko_`.
+// A cheap gate, not a verdict: a bearer that does not start `ariko_` is refused without a database read.
 export function looksLikeRepoToken(token: string): boolean {
   return token.startsWith("ariko_");
 }

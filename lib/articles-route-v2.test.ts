@@ -70,17 +70,50 @@ test("repo token + legacy shape → 400 naming the v2 shape", { skip: !hasDb }, 
   assert.match((await res.json()).error, /essays, narratives/);
 });
 
-test("legacy token + v2 shape → 400 asking for a repo token", async () => {
+// The retirement pin. ARTICLES_TOKEN used to open this door on its own shape and
+// with none of the plant-scope, image-host or staging checks. Setting it must
+// now open NOTHING — in either shape — and that is provable with no database:
+// a bearer that is not `ariko_…` is refused before any read.
+test("the retired ARTICLES_TOKEN opens nothing, even when it is set", async () => {
   const prior = process.env.ARTICLES_TOKEN;
   process.env.ARTICLES_TOKEN = "tok_art_test";
   try {
-    const res = await POST(req({ essays: [essay] }, "Bearer tok_art_test"));
-    assert.equal(res.status, 400);
-    assert.match((await res.json()).error, /needs a repo token/);
+    const legacy = { container: `pod:${POD}`, narrative: "x" };
+    for (const body of [legacy, { essays: [essay] }]) {
+      const res = await POST(req(body, "Bearer tok_art_test"));
+      assert.equal(res.status, 401);
+      assert.deepEqual(await res.json(), { error: "unauthorized" });
+    }
   } finally {
     if (prior === undefined) delete process.env.ARTICLES_TOKEN;
     else process.env.ARTICLES_TOKEN = prior;
   }
+});
+
+test("a missing or wrong token is 401, and the body is never read", async () => {
+  assert.equal((await POST(req({ essays: [essay] }))).status, 401);
+  assert.equal((await POST(req({ essays: [essay] }, "Bearer wrong"))).status, 401);
+  const unreadable = (auth?: string) =>
+    new Request("http://localhost/api/articles", {
+      method: "POST",
+      headers: auth ? { authorization: auth } : {},
+      body: "not json",
+    });
+  // 401, not 400: authorization comes before the body is parsed.
+  assert.equal((await POST(unreadable("Bearer wrong"))).status, 401);
+  assert.equal((await POST(unreadable())).status, 401);
+});
+
+test("malformed JSON from a good token is 400", { skip: !hasDb }, async () => {
+  const res = await POST(
+    new Request("http://localhost/api/articles", {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}` },
+      body: "not json",
+    }),
+  );
+  assert.equal(res.status, 400);
+  assert.match((await res.json()).error, /JSON/i);
 });
 
 test("revoked or unknown repo token → 401", { skip: !hasDb }, async () => {

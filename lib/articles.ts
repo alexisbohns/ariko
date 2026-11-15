@@ -1,43 +1,10 @@
-// Pure validation for the articles write door (POST /api/articles): given a
-// container ref (a plant, a pod, or a bean) plus an optional narrative and/or
-// batch of articles, checks shape only — no I/O, no Mongo. A bean: container
-// takes a narrative only: a bean holds no beans, so articles under one are
-// refused with the message naming where they go (its pod). All-or-nothing,
-// like validateDigestBatch in synthesis.ts: the first failure names the
-// offender and refuses the whole payload. `state` is refused on the RAW
-// article object whatever its value — this door is structurally incapable of
-// publishing. DB-dependent refusals (a published bean, a published container)
-// belong in the store, not here.
+// Shared text rules for the article door (POST /api/articles): the per-part size
+// ceiling, the slug grammar, and `validateText`, the shape check for a `Text`
+// field. The door's own payload is validated by lib/articles-v2.ts; this file
+// holds only what that validator and the admin's content patch share.
 //
-// Since the journal model an article IS a bean: the store writes `content`
-// onto the bean itself and creates no companion sprout (see
-// lib/articles-store.ts). Nothing in the shape changed for callers.
-
-import { BEAN_PREFIX, PLANT_PREFIX, POD_PREFIX, type Text } from "./data";
-
-export interface ArticleInput {
-  slug: string;
-  name: Text;
-  description?: Text;
-  /**
-   * Still REQUIRED and validated as `YYYY-MM-DD`, and since the journal model
-   * RECORDED NOWHERE by this door. An article is written as a bean's
-   * narrative, and a bean has no date — a dated record in Ariko is a sprout,
-   * which this door no longer creates. The field stays accepted so a sibling
-   * CI that already posts it does not break on the day the companion sprout
-   * went away; slice two may turn it into a milestone entry in the bean's
-   * journal (spec 2026-10-10-journal-model §3 "Doors"). Until then a caller
-   * should know the value is checked and then dropped.
-   */
-  date: string;
-  content: Text;
-}
-
-export interface ArticlesPayload {
-  container: string;
-  narrative?: Text;
-  articles?: ArticleInput[];
-}
+// The legacy `{ container, narrative, articles }` validator that used to live
+// here went with the ARTICLES_TOKEN door (retired 2026-11-15).
 
 // Per part, per language. Was 64 KiB when the largest article was ~12 KB; the
 // first long-form article outgrew it. It is an authoring ceiling, not a
@@ -50,7 +17,6 @@ export const MAX_CONTENT_BYTES = 512 * 1024;
 const MAX_CONTENT_LABEL = `${MAX_CONTENT_BYTES / 1024} KiB`;
 
 export const SLUG = /^[a-z0-9][a-z0-9-]*$/;
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const LANGS = ["en", "fr"] as const;
 
 function tooBig(value: string): boolean {
@@ -99,70 +65,5 @@ export function validateText(
   }
   if (required && !entries.some(([, part]) => (part as string).trim()))
     return { ok: false, error: `${label} is required` };
-  return { ok: true };
-}
-
-export function validateArticlesPayload(body: unknown): { ok: true } | { ok: false; error: string } {
-  if (typeof body !== "object" || body === null || Array.isArray(body))
-    return { ok: false, error: "body must be an object" };
-  const { container, narrative, articles } = body as Record<string, unknown>;
-
-  const containerRest =
-    typeof container === "string" && container.startsWith(PLANT_PREFIX)
-      ? container.slice(PLANT_PREFIX.length)
-      : typeof container === "string" && container.startsWith(POD_PREFIX)
-        ? container.slice(POD_PREFIX.length)
-        : typeof container === "string" && container.startsWith(BEAN_PREFIX)
-          ? container.slice(BEAN_PREFIX.length)
-          : null;
-  if (containerRest === null || !SLUG.test(containerRest))
-    return {
-      ok: false,
-      error: `container must be a plant:, pod: or bean: ref, got ${container || "nothing"}`,
-    };
-
-  if (narrative === undefined && articles === undefined)
-    return { ok: false, error: "payload must carry narrative or articles (or both)" };
-
-  // Refused on presence, not on length: an empty `articles: []` under a bean
-  // is still a caller who thinks a bean has beans under it.
-  if (typeof container === "string" && container.startsWith(BEAN_PREFIX) && articles !== undefined)
-    return { ok: false, error: "a bean: container carries a narrative only — post articles under its pod" };
-
-  if (narrative !== undefined) {
-    const v = validateText(narrative, "narrative", { required: false });
-    if (!v.ok) return v;
-  }
-
-  if (articles === undefined) return { ok: true };
-  if (!Array.isArray(articles)) return { ok: false, error: "articles must be an array" };
-
-  const seen = new Set<string>();
-  for (const raw of articles) {
-    if (typeof raw !== "object" || raw === null || Array.isArray(raw))
-      return { ok: false, error: "every article must be an object" };
-    const a = raw as Record<string, unknown>;
-    const who = typeof a.slug === "string" && a.slug !== "" ? a.slug : "(missing slug)";
-
-    // Checked first, on the raw object, before anything else validates — the
-    // door structurally cannot publish, so any state key at all is refused.
-    if ("state" in a) return { ok: false, error: `${who}: state is not accepted on this door` };
-
-    if (typeof a.slug !== "string" || !SLUG.test(a.slug))
-      return { ok: false, error: `${who}: slug must match ^[a-z0-9][a-z0-9-]*$` };
-    if (seen.has(a.slug)) return { ok: false, error: `duplicate slug: ${a.slug}` };
-    seen.add(a.slug);
-    const name = validateText(a.name, `${who}: name`, { required: true });
-    if (!name.ok) return name;
-    if (a.description !== undefined) {
-      const d = validateText(a.description, `${who}: description`, { required: false });
-      if (!d.ok) return d;
-    }
-    if (typeof a.date !== "string" || !DATE.test(a.date))
-      return { ok: false, error: `${who}: date is required (YYYY-MM-DD)` };
-    const content = validateText(a.content, `${who}: content`, { required: false });
-    if (!content.ok) return content;
-  }
-
   return { ok: true };
 }

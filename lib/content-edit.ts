@@ -36,11 +36,11 @@ export type ContentPatchResult =
  *    a default of "en" is exactly the value under which a future call site
  *    would silently write French text into the English half.
  *  - §2.10 mirroring: existing relations are PASSED IN, so hand-authored kinds
- *    survive. `lib/articles-store.ts` passes `undefined` to `mergeMirrored` and
- *    so REPLACES relations wholesale — on plant, pod and bean narratives alike,
- *    since the journal model made an article the bean's own `content`. That is
- *    right for a door that writes only unreviewed drafts and refuses anything a
- *    human has published (its own comment says so), and wrong for an edit path.
+ *    survive. The retired legacy article door (`lib/articles-store.ts`, gone
+ *    with ARTICLES_TOKEN) passed `undefined` to `mergeMirrored` and so REPLACED
+ *    relations wholesale. That was tolerable only because it wrote unreviewed
+ *    drafts, and it is wrong for an edit path; `lib/articles-v2-store.ts` and
+ *    every other writer now pass the stored list.
  */
 export function buildContentPatch(current: ContentOwner, markdown: string, lang: Lang): ContentPatchResult {
   if (new TextEncoder().encode(markdown).length > MAX_CONTENT_BYTES) {

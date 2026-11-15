@@ -1,6 +1,3 @@
-import { hasValidToken, singleToken } from "../../../lib/auth";
-import { validateArticlesPayload, type ArticlesPayload } from "../../../lib/articles";
-import { writeArticles } from "../../../lib/articles-store";
 import { isV2Shape, validateArticlesV2, type ArticlesV2 } from "../../../lib/articles-v2";
 import { writeArticlesV2 } from "../../../lib/articles-v2-store";
 import { authorizeRepo } from "../../../lib/repo-token-store";
@@ -13,22 +10,22 @@ export const dynamic = "force-dynamic";
 
 // Guarded long-form write door: drafts only, all-or-nothing, never publishes.
 //
-// Two tokens, two shapes (spec 2026-11-14 §2–3). A per-repo token
-// (`ariko_<plant>_…`, lib/repo-token-store.ts) takes the v2 shape — essays and
-// narratives scoped to its plant. The legacy ARTICLES_TOKEN keeps the original
-// container/narrative/articles shape until it is retired. Each refuses the
-// other's shape with a 400 that names the right one, so a sibling halfway
-// through the migration learns what to change from the error alone.
+// One door, one credential: a per-repo token (`ariko_<plant>_…`,
+// lib/repo-token-store.ts) posting the { essays, narratives } shape, scoped to
+// its plant (spec 2026-11-14). There is no second token. The shared
+// ARTICLES_TOKEN and its `{ container, narrative, articles }` shape were
+// retired on 2026-11-15 — they ran none of the plant-scope, image-host or
+// staging checks below, which is the whole reason they went. A bearer that is
+// not a live repo token is refused with the one 401 body, whatever else the
+// environment holds, so a stale ARTICLES_TOKEN left in a deployment opens
+// nothing (lib/articles-route-v2.test.ts pins that with the variable set).
 //
-// Legacy (slice 4 spec §2): validation order is token → JSON → pure payload
-// rules (no DB yet) → the store, which pre-checks every DB refusal before
-// writing anything. The door structurally cannot publish, and never changes
-// visibility.
+// Validation order: token → JSON → pure payload rules (no DB yet) → the store,
+// which pre-checks every DB refusal before writing anything. The door
+// structurally cannot publish, and never changes visibility.
 export async function POST(request: Request): Promise<Response> {
-  const header = request.headers.get("authorization");
-  const repo = await authorizeRepo(header);
-  const legacyOk = !repo.ok && hasValidToken(header, singleToken(process.env.ARTICLES_TOKEN));
-  if (!repo.ok && !legacyOk) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const repo = await authorizeRepo(request.headers.get("authorization"));
+  if (!repo.ok) return Response.json({ error: "unauthorized" }, { status: 401 });
 
   let body: unknown;
   try {
@@ -37,19 +34,13 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: "body must be JSON" }, { status: 400 });
   }
 
-  if (repo.ok) return v2(repo.plant, body);
-  if (isV2Shape(body))
-    return Response.json(
-      { error: "essays/narratives needs a repo token (npm run token:mint in the Ariko repo)" },
-      { status: 400 },
-    );
-  return legacy(body);
+  return v2(repo.plant, body);
 }
 
 async function v2(plant: string, body: unknown): Promise<Response> {
   if (!isV2Shape(body))
     return Response.json(
-      { error: "a repo token posts { essays, narratives } — see the ariko-article skill" },
+      { error: "post { essays, narratives } — see the ariko-article skill" },
       { status: 400 },
     );
   const cloud = cloudinaryCloudName(process.env.CLOUDINARY_URL);
@@ -80,42 +71,4 @@ async function v2(plant: string, body: unknown): Promise<Response> {
   const { written, ...posted } = result;
   const admin = written.map((ref) => `/admin/${ref.replace(":", "/")}`);
   return Response.json({ ...posted, admin });
-}
-
-async function legacy(body: unknown): Promise<Response> {
-  const valid = validateArticlesPayload(body);
-  if (!valid.ok) return Response.json({ error: valid.error }, { status: 400 });
-
-  let result;
-  try {
-    result = await writeArticles(body as ArticlesPayload);
-  } catch (err) {
-    // writeArticles's bean upsert filters on `visibility: { $ne: "public" }`;
-    // if a human publishes that exact bean in the gap between its pre-check
-    // read and this write, the filter stops matching and the upsert attempts
-    // an INSERT that collides on the beans.slug unique index (Mongo 11000).
-    // That is a DIFFERENT situation from the pre-check `refused` array below
-    // (which means "we read the visibility before writing and it was already
-    // public") — this means "it went public DURING this very write" — so the
-    // error text is deliberately distinct, though the status code and door
-    // semantics (nothing clobbered, safe to re-read and retry) match.
-    // Untested: reproducing this deterministically requires a write to land
-    // inside writeArticles's own gap between its read and its upsert, which
-    // this route's tests cannot force without faking the race.
-    if (isDuplicateKeyError(err)) {
-      return Response.json(
-        { error: "refused: a bean was published mid-write; nothing clobbered — re-read and retry" },
-        { status: 409 },
-      );
-    }
-    throw err;
-  }
-  if (!result.ok) {
-    return Response.json(
-      { error: "refused: already reviewed", refused: result.refused },
-      { status: 409 },
-    );
-  }
-  revalidateGarden();
-  return Response.json(result);
 }
