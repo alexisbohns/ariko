@@ -396,7 +396,10 @@ while quietly becoming false.
   rather than by default.
 - **The garden map is a read-only, live-garden reader, and a `bleed` page.**
   `/admin/map` ([`specs/2026-11-15-garden-map-design.md`](docs/superpowers/specs/2026-11-15-garden-map-design.md))
-  draws `Plant → Pod → Bean` with draft sprouts and inbox seeds as leaves. What
+  draws `Plant → Pod → Bean` with draft sprouts as leaves and inbox seeds as one
+  count leaf per parent ("62 seeds", linking to the plant-level inbox) — 62
+  individual seed nodes made the map unreadable — with `stats` weighted by that
+  count. What
   waits is an amber ring *and* the word "Waiting"; what is missing is a chip.
   `lib/garden-map.ts` decides every flag and `lib/garden-map-layout.ts` (dagre,
   on the server) every coordinate, so `app/admin/_components/garden-map.tsx` is

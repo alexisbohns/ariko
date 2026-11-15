@@ -10,7 +10,7 @@ function map(nodes: MapNode[], pairs: Array<[string, string]>): GardenMap {
   return {
     nodes,
     edges: pairs.map(([source, target]) => ({ id: `${source}>${target}`, source, target })),
-    stats: { waiting: 0, gaps: 0 },
+    stats: { total: 0, waiting: 0, gaps: 0 },
   };
 }
 function overlaps(a: { x: number; y: number; width: number; height: number }, b: typeof a): boolean {

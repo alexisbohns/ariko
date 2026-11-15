@@ -57,7 +57,7 @@ export function mapViewOf(raw: unknown): MapView {
 }
 
 export interface MapNode {
-  /** `plant:slug` · `pod:slug` · `bean:slug` · `sprout:slug` · `seed:id` ·
+  /** `plant:slug` · `pod:slug` · `bean:slug` · `sprout:slug` · `seeds:<parent id>` ·
    *  `bucket:unrooted` · `bucket:inbox`. The first three are the garden's own
    *  prefixed refs, which is what lets a sprout's `about` name a node directly. */
   id: string;
@@ -65,6 +65,9 @@ export interface MapNode {
   label: string;
   /** The admin page this node opens. Absent on a bucket. */
   href?: string;
+  /** A seed node stands for this many inbox seeds: one count node per parent,
+   *  not one node per seed. Absent everywhere else (read as 1). */
+  count?: number;
   /** Waits for the maintainer's review. */
   waiting: boolean;
   gaps: MapGap[];
@@ -82,7 +85,7 @@ export interface GardenMap {
   nodes: MapNode[];
   edges: MapEdge[];
   /** Over the whole (scoped) map, whatever the view. */
-  stats: { waiting: number; gaps: number };
+  stats: { total: number; waiting: number; gaps: number };
 }
 
 export interface MapOptions {
@@ -270,6 +273,11 @@ export function buildGardenMap(
     ...pods.map((p) => `pod:${p.slug}`),
     ...beans.map((b) => `bean:${b.slug}`),
   ]);
+  // One count node per parent: 62 inbox seeds on one plant would stack into a
+  // column no one can read. Each seed still resolves exactly as it always did
+  // (garden-wide, then scope); the survivors are then grouped by target, in
+  // order of first appearance.
+  const seedCounts = new Map<string, number>();
   for (const seed of seeds) {
     if (seed.status !== "inbox") continue;
     const s = seed.suggested;
@@ -282,20 +290,52 @@ export function buildGardenMap(
     // wins the same way in every scope; scope then decides whether it is drawn.
     const target = candidates.find((c): c is string => c !== null && gardenRefs.has(c));
     if (scope !== null && (target === undefined || !nodes.has(target))) continue;
-    const id = `seed:${seed.id}`;
+    const key = target ?? INBOX;
+    seedCounts.set(key, (seedCounts.get(key) ?? 0) + 1);
+  }
+
+  // The plant a parent sits under, for the inbox link: a plant is itself, a pod
+  // is its first resolving plant, a bean its first resolving plant else its
+  // first resolving pod's first plant. Nothing resolving is no plant.
+  const plantOfRef = (ref: string): string | undefined => {
+    if (ref.startsWith(PLANT_PREFIX)) return ref.slice(PLANT_PREFIX.length);
+    if (ref.startsWith(POD_PREFIX)) {
+      const pod = pods.find((p) => p.slug === ref.slice(POD_PREFIX.length));
+      return pod ? podPlants(pod)[0] : undefined;
+    }
+    if (ref.startsWith(BEAN_PREFIX)) {
+      const bean = beans.find((b) => b.slug === ref.slice(BEAN_PREFIX.length));
+      if (!bean) return undefined;
+      const direct = beanPlants(bean)[0];
+      if (direct !== undefined) return direct;
+      const pod = pods.find((p) => p.slug === beanPods(bean)[0]);
+      return pod ? podPlants(pod)[0] : undefined;
+    }
+    return undefined;
+  };
+  for (const [key, count] of seedCounts) {
+    const id = `seeds:${key}`;
+    // The inbox narrows on a seed's OWN suggested plant, and a seed counted
+    // here may sit under a bean or pod it named more specifically than its
+    // plant. So this link is the plant-level inbox, not an exact list of
+    // these seeds.
+    const plantSlug = key === INBOX ? undefined : plantOfRef(key);
     nodes.set(id, {
       id,
       kind: "seed",
-      label: labelOf(seed.title, "Untitled seed"),
-      href: `/admin/triage/${enc(seed.id)}`,
+      label: `${count} ${count === 1 ? "seed" : "seeds"}`,
+      href: plantSlug === undefined ? "/admin/inbox" : `/admin/inbox?plant=${enc(plantSlug)}`,
+      count,
       waiting: true,
       gaps: [],
       dim: false,
     });
-    connect(target ?? bucket(INBOX, "Inbox"), id);
+    if (key === INBOX) bucket(INBOX, "Inbox");
+    connect(key, id);
   }
 
   // ---- view + stats ----
+  const weigh = (list: MapNode[]): number => list.reduce((sum, n) => sum + (n.count ?? 1), 0);
   const matches = (n: MapNode): boolean =>
     view === "review" ? n.waiting : view === "gaps" ? n.gaps.length > 0 : true;
   // A bucket carries no flags, so dimming it would only grey the parent of lit children.
@@ -303,9 +343,12 @@ export function buildGardenMap(
   return {
     nodes: list,
     edges,
+    // Weighted: a "62 seeds" node is 62 things waiting. A bucket is
+    // scaffolding, so it is never part of `total`.
     stats: {
-      waiting: list.filter((n) => n.waiting).length,
-      gaps: list.filter((n) => n.gaps.length > 0).length,
+      total: weigh(list.filter((n) => n.kind !== "bucket")),
+      waiting: weigh(list.filter((n) => n.waiting)),
+      gaps: weigh(list.filter((n) => n.gaps.length > 0)),
     },
   };
 }

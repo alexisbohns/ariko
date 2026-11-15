@@ -26,7 +26,7 @@ and what is **missing**.
 | Pod | always | plant → pod |
 | Bean | always | pod → bean, or plant → bean when it skips the pod |
 | Sprout | **drafts only** (`stateOf(sprout) === "draft"`: `state` absent or `draft`). A `private` sprout is a deliberate hold, not a wait | to every ref in `about`; to its `plant:` parent when `about` is empty |
-| Seed | `status === "inbox"` only | to the most specific of `suggested.beanSlug` / `podSlug` / `plantSlug` that resolves |
+| Seed | `status === "inbox"` only, drawn as **one count node per attachment point** ("62 seeds"), never one node each | parent → count node; the parent is the most specific of `suggested.beanSlug` / `podSlug` / `plantSlug` that resolves, else the Inbox node |
 
 - **Published sprouts are not drawn.** They would turn the garden into a
   hairball. They still count toward "bean has no journal".
@@ -34,6 +34,16 @@ and what is **missing**.
   cannot resolve still gets an edge from every existing pod or bean its `about`
   names (so an ambiguous one visibly bridges two trees); it falls to Unrooted
   only when it names nothing that exists.
+- **Seeds are one count node per parent.** 62 inbox seeds on one plant stacked
+  into a ~7,200px column and fit-to-screen zoomed to ~11%, unreadable, so the
+  seeds that resolve to the same target are grouped into one node
+  (`seeds:<target id>`, label `N seed(s)`, `count`). It links to the plant-level
+  inbox (`/admin/inbox?plant=<slug>`, the plant the parent sits under; bare
+  `/admin/inbox` for the Inbox node or an unrooted parent) — the inbox filters on
+  a seed's own suggested plant, so that is not an exact list of these seeds.
+  Draft sprouts stay individual nodes. `stats` is **weighted** by `count`
+  (`waiting`, `gaps` and `total` all count a "62 seeds" node as 62), and `total`
+  leaves buckets out.
 - **Seeds resolve against the whole garden, then scope filters.** A seed's most
   specific suggestion is chosen without regard to scope, so it never attaches to
   different nodes in different scopes; scoped, it is dropped when that target is

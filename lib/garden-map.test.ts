@@ -321,30 +321,97 @@ test("only pod: and bean: about refs become sprout edges", () => {
 
 // ---- seeds -----------------------------------------------------------------
 
-test("an inbox seed attaches to the most specific suggestion that resolves", () => {
+test("inbox seeds attach, as one count node per parent, to the most specific suggestion that resolves", () => {
   const raw = tidy();
   const map = buildGardenMap(raw, [
     seed("1", { suggested: { beanSlug: "editor", podSlug: "core", plantSlug: "ariko" } }),
     seed("2", { suggested: { beanSlug: "gone", podSlug: "core" } }),
     seed("3", { suggested: { plantSlug: "ariko" } }),
   ]);
-  assert.ok(hasEdge(map, "bean:editor", "seed:1"));
-  assert.ok(hasEdge(map, "pod:core", "seed:2"), "a dangling bean falls back to the pod");
-  assert.ok(hasEdge(map, "plant:ariko", "seed:3"));
-  assert.equal(node(map, "seed:1").waiting, true);
-  assert.equal(node(map, "seed:1").href, "/admin/triage/1");
+  assert.ok(hasEdge(map, "bean:editor", "seeds:bean:editor"));
+  assert.ok(hasEdge(map, "pod:core", "seeds:pod:core"), "a dangling bean falls back to the pod");
+  assert.ok(hasEdge(map, "plant:ariko", "seeds:plant:ariko"));
+  for (const id of ["seeds:bean:editor", "seeds:pod:core", "seeds:plant:ariko"]) {
+    assert.equal(node(map, id).kind, "seed", id);
+    assert.equal(node(map, id).waiting, true, id);
+    assert.equal(node(map, id).count, 1, id);
+    assert.equal(node(map, id).label, "1 seed", id);
+    assert.deepEqual(node(map, id).gaps, [], id);
+  }
+  assert.equal(map.nodes.some((n) => n.id.startsWith("seed:")), false, "no individual seed node");
 });
 
-test("a seed with no resolvable suggestion hangs off the Inbox node", () => {
+test("seeds on one parent are ONE node, labelled with their count", () => {
+  const map = buildGardenMap(tidy(), [
+    seed("1", { suggested: { beanSlug: "editor" } }),
+    seed("2", { suggested: { beanSlug: "editor" } }),
+  ]);
+  assert.equal(map.nodes.filter((n) => n.kind === "seed").length, 1);
+  assert.equal(node(map, "seeds:bean:editor").label, "2 seeds");
+  assert.equal(node(map, "seeds:bean:editor").count, 2);
+  assert.equal(map.edges.filter((e) => e.target === "seeds:bean:editor").length, 1);
+});
+
+test("count nodes keep the order their targets first appear in", () => {
+  const map = buildGardenMap(tidy(), [
+    seed("1", { suggested: { plantSlug: "ariko" } }),
+    seed("2", { suggested: { beanSlug: "editor" } }),
+    seed("3", { suggested: { plantSlug: "ariko" } }),
+  ]);
+  assert.deepEqual(
+    map.nodes.filter((n) => n.kind === "seed").map((n) => n.id),
+    ["seeds:plant:ariko", "seeds:bean:editor"],
+  );
+});
+
+test("a seed with no resolvable suggestion is counted under the Inbox node", () => {
   const map = buildGardenMap(tidy(), [seed("x"), seed("y", { suggested: { plantSlug: "nope" } })]);
   assert.equal(node(map, "bucket:inbox").kind, "bucket");
-  assert.ok(hasEdge(map, "bucket:inbox", "seed:x"));
-  assert.ok(hasEdge(map, "bucket:inbox", "seed:y"));
+  assert.ok(hasEdge(map, "bucket:inbox", "seeds:bucket:inbox"));
+  assert.equal(node(map, "seeds:bucket:inbox").count, 2);
+  assert.equal(node(map, "seeds:bucket:inbox").label, "2 seeds");
 });
 
-test("a promoted or discarded seed is not drawn", () => {
-  const map = buildGardenMap(tidy(), [seed("p", { status: "promoted" }), seed("d", { status: "discarded" })]);
-  assert.equal(map.nodes.some((n) => n.kind === "seed"), false);
+test("a promoted or discarded seed is not drawn or counted", () => {
+  const map = buildGardenMap(tidy(), [
+    seed("p", { status: "promoted" }),
+    seed("d", { status: "discarded" }),
+    seed("i", { suggested: { beanSlug: "editor" } }),
+  ]);
+  assert.deepEqual(
+    map.nodes.filter((n) => n.kind === "seed").map((n) => [n.id, n.count]),
+    [["seeds:bean:editor", 1]],
+  );
+  assert.equal(buildGardenMap(tidy(), [seed("p", { status: "promoted" })]).nodes.some((n) => n.kind === "seed"), false);
+});
+
+test("a seed count links to the plant-level inbox of the plant it lands under", () => {
+  const raw: RawGarden = {
+    plants: [plant("ariko"), plant("a b")],
+    pods: [pod("core", ["plant:ariko"]), pod("p/1", ["plant:a b"]), pod("lost", ["plant:gone"])],
+    beans: [
+      bean("editor", ["pod:core"]),
+      bean("direct", ["plant:ariko"]),
+      bean("both", ["pod:p/1", "plant:ariko"]),
+      bean("orphan", []),
+    ],
+  };
+  const hrefOf = (suggested: NonNullable<Seed["suggested"]>, id: string): string | undefined =>
+    node(buildGardenMap(raw, [seed("s", { suggested })]), id).href;
+
+  assert.equal(hrefOf({ plantSlug: "ariko" }, "seeds:plant:ariko"), "/admin/inbox?plant=ariko");
+  assert.equal(hrefOf({ plantSlug: "a b" }, "seeds:plant:a b"), "/admin/inbox?plant=a%20b");
+  assert.equal(hrefOf({ podSlug: "p/1" }, "seeds:pod:p/1"), "/admin/inbox?plant=a%20b");
+  assert.equal(hrefOf({ beanSlug: "editor" }, "seeds:bean:editor"), "/admin/inbox?plant=ariko", "via its pod");
+  assert.equal(hrefOf({ beanSlug: "direct" }, "seeds:bean:direct"), "/admin/inbox?plant=ariko");
+  assert.equal(
+    hrefOf({ beanSlug: "both" }, "seeds:bean:both"),
+    "/admin/inbox?plant=ariko",
+    "a direct plant parent wins over a pod's plant",
+  );
+  assert.equal(hrefOf({ podSlug: "lost" }, "seeds:pod:lost"), "/admin/inbox", "no resolving plant");
+  assert.equal(hrefOf({ beanSlug: "orphan" }, "seeds:bean:orphan"), "/admin/inbox", "no resolving plant");
+  assert.equal(node(buildGardenMap(raw, [seed("x")]), "seeds:bucket:inbox").href, "/admin/inbox");
 });
 
 test("a seed resolves garden-wide, then scope decides whether it is drawn", () => {
@@ -355,12 +422,12 @@ test("a seed resolves garden-wide, then scope decides whether it is drawn", () =
   };
   const seeds = [seed("s", { suggested: { beanSlug: "xb", plantSlug: "a" } })];
   const inA = buildGardenMap(raw, seeds, { scope: "a" });
-  assert.equal(inA.nodes.some((n) => n.id === "seed:s"), false);
+  assert.equal(inA.nodes.some((n) => n.kind === "seed"), false);
   const inB = buildGardenMap(raw, seeds, { scope: "b" });
-  assert.ok(hasEdge(inB, "bean:xb", "seed:s"));
-  assert.equal(hasEdge(inB, "plant:a", "seed:s"), false);
+  assert.ok(hasEdge(inB, "bean:xb", "seeds:bean:xb"));
+  assert.equal(hasEdge(inB, "plant:a", "seeds:plant:a"), false);
   const all = buildGardenMap(raw, seeds);
-  assert.ok(hasEdge(all, "bean:xb", "seed:s"));
+  assert.ok(hasEdge(all, "bean:xb", "seeds:bean:xb"));
 });
 
 // ---- scope -----------------------------------------------------------------
@@ -386,7 +453,7 @@ test("scoped, only that plant's tree, its draft sprouts and its seeds remain", (
   );
   assert.deepEqual(
     map.nodes.map((n) => n.id).sort(),
-    ["bean:direct", "bean:xa", "plant:a", "pod:pa", "seed:mine", "sprout:sa"].sort(),
+    ["bean:direct", "bean:xa", "plant:a", "pod:pa", "seeds:bean:xa", "sprout:sa"].sort(),
   );
   assert.equal(map.nodes.some((n) => n.kind === "bucket"), false, "no Unrooted or Inbox when scoped");
 });
@@ -445,10 +512,27 @@ test("stats count the whole map and ignore the view", () => {
   const a = buildGardenMap(raw, [seed("1")]);
   const b = buildGardenMap(raw, [seed("1")], { view: "gaps" });
   assert.deepEqual(a.stats, b.stats);
-  // plant:a (private), sprout:s and seed:1 wait. plant:a's one gap is
+  // plant:a (private), sprout:s and the one seed wait. plant:a's one gap is
   // no-children: a sprout is not a pod or a bean.
   assert.equal(a.stats.waiting, 3);
   assert.equal(a.stats.gaps, 1);
+  assert.equal(a.stats.total, 3, "plant, sprout, seed — the Inbox bucket is scaffolding");
+});
+
+test("stats weight a seed count node by the seeds it stands for", () => {
+  const seeds = [1, 2, 3].map((i) => seed(String(i), { suggested: { beanSlug: "editor" } }));
+  const map = buildGardenMap(tidy(), seeds);
+  assert.equal(node(map, "seeds:bean:editor").count, 3);
+  assert.equal(map.stats.waiting, 3);
+  assert.equal(map.stats.total, 3 + 3, "plant, pod, bean and three seeds");
+  assert.equal(map.stats.gaps, 0);
+});
+
+test("stats.total never counts a bucket", () => {
+  const raw: RawGarden = { plants: [plant("a")], pods: [pod("lost", ["plant:gone"])] };
+  const map = buildGardenMap(raw, [seed("x")]);
+  assert.ok(map.nodes.some((n) => n.id === "bucket:unrooted") && map.nodes.some((n) => n.id === "bucket:inbox"));
+  assert.equal(map.stats.total, 3, "plant, pod and one seed");
 });
 
 test("mapViewOf accepts the three views and falls back to all", () => {

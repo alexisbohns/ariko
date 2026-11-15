@@ -38,10 +38,10 @@ export default async function AdminMapPage({
   try {
     const [raw, seeds] = await Promise.all([loadRawGarden(), listSeeds({ status: "inbox" })]);
     const built = buildGardenMap(raw, seeds, { scope, view });
-    // Buckets are scaffolding, not garden: counting them would make "All" the
-    // only figure that includes things `stats` (rightly) does not.
+    // All three are `stats`, weighted the same way (a count node is its
+    // seeds), and `total` leaves the bucket scaffolding out.
     counts = {
-      all: built.nodes.filter((n) => n.kind !== "bucket").length,
+      all: built.stats.total,
       review: built.stats.waiting,
       gaps: built.stats.gaps,
     };
