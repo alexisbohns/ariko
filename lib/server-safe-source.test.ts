@@ -114,6 +114,14 @@ const SERVER_SAFE = [
   "components/ui/separator.tsx", // /beanstalk
   "components/ui/kbd.tsx", // components/chrome.tsx, for the rail's shortcut hints
   "lib/staging.ts", // The staging vocabulary — imported by components/staging/*
+  // The staging blocks (spec 2026-11-15 §3.2) — rendered on every public prose page, and drawn by the editor's node views from the same files.
+  "components/staging/staged-image.tsx",
+  "components/staging/figure.tsx",
+  "components/staging/gallery.tsx",
+  "components/staging/compare.tsx",
+  "components/staging/callout.tsx",
+  "components/staging/quote.tsx",
+  "components/staging/markdown-components.tsx",
 ];
 
 for (const path of SERVER_SAFE) {
