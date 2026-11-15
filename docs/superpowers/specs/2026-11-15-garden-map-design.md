@@ -84,6 +84,21 @@ and what is **missing**.
   narrative": it has no journal by construction, so "no children" would flag
   each one.
 
+## Images
+
+A node carries an optional `image`, a ready-to-draw thumbnail URL. Sources, per
+kind: a **plant** its `logo`; a **bean** `fillCoverFor` (`lib/bean-cover.ts`: the
+explicit `cover` wins, else the first image of its newest sprout that has one);
+a **pod** borrows the first bean cover its beans offer (`podCoverFrom`). Buckets,
+sprouts and seed counts never have one. The admin is read-only, so the bean
+derivation reads sprouts of **any** state (a draft's image counts), newest first,
+indexed in one pass over the sprouts; the public zone's published-only rule does
+not apply here. Thumbnails are requested at 2x the card they are drawn into
+(`MAP_THUMB`: plant 144, pod 400x140, bean 88) through the existing Cloudinary
+transform, `cloudinaryThumb` in `lib/image-url.ts`, which leaves a non-Cloudinary
+URL, an SVG or an already-transformed one untouched. **Absent means the card
+draws a monogram / initial tile** — `image` is never an empty string.
+
 ## Page, scope, column
 
 - `/admin/map` under `app/admin/(chrome)/`, so `middleware.ts` gates it with no

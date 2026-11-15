@@ -3,15 +3,19 @@ import {
   PLANT_PREFIX,
   POD_PREFIX,
   aboutRefs,
+  byDateDesc,
   hasNarrative,
   parentsWithPrefix,
   resolveSproutPlant,
   resolveText,
   textPart,
   type RawGarden,
+  type Sprout,
   type Seed,
   type Text,
 } from "./data";
+import { beanCoverFor, fillCoverFor, podCoverFrom } from "./bean-cover";
+import { cloudinaryThumb } from "./image-url";
 import { hubHref } from "./plant-path";
 import { visibilityOf } from "./plant-visibility";
 import { stateOf } from "./sprout-state";
@@ -68,6 +72,10 @@ export interface MapNode {
   /** A seed node stands for this many inbox seeds: one count node per parent,
    *  not one node per seed. Absent everywhere else (read as 1). */
   count?: number;
+  /** A ready-to-draw THUMBNAIL url: a plant's logo, a bean's cover, a pod's
+   *  borrowed one. Absent — never an empty string — when there is none, and
+   *  always absent on a bucket, a sprout and a seed count. */
+  image?: string;
   /** Waits for the maintainer's review. */
   waiting: boolean;
   gaps: MapGap[];
@@ -93,6 +101,19 @@ export interface MapOptions {
   scope?: string | null;
   view?: MapView;
 }
+
+/**
+ * The pixel size each kind's thumbnail is requested at: 2x the card the map
+ * draws it into (plant 72px square, pod 200x70, bean 44px square), so it stays
+ * sharp on a retina display. The transform is `lib/image-url.ts`'s
+ * `cloudinaryThumb`, which already guards host, version segment, SVG and a
+ * URL that is already transformed — this adds the sizes, not a second helper.
+ */
+export const MAP_THUMB = {
+  plant: { w: 144, h: 144 },
+  pod: { w: 400, h: 140 },
+  bean: { w: 88, h: 88 },
+} as const;
 
 const UNROOTED = "bucket:unrooted";
 const INBOX = "bucket:inbox";
@@ -138,6 +159,37 @@ export function buildGardenMap(
     }
   }
 
+  // Every sprout that is ABOUT each bean, ANY state (this is the admin and
+  // read-only, so the public zone's published-only rule does not apply),
+  // newest first. One pass over the sprouts, not a scan per bean.
+  const sproutsByBean = new Map<string, Sprout[]>();
+  for (const sprout of sprouts) {
+    const seen = new Set<string>();
+    for (const ref of aboutRefs(sprout)) {
+      if (!ref.startsWith(BEAN_PREFIX) || seen.has(ref)) continue;
+      seen.add(ref);
+      const slug = ref.slice(BEAN_PREFIX.length);
+      const list = sproutsByBean.get(slug);
+      if (list) list.push(sprout);
+      else sproutsByBean.set(slug, [sprout]);
+    }
+  }
+  for (const list of sproutsByBean.values()) list.sort(byDateDesc);
+
+  // Beans per pod, in garden order, from one pass over the beans.
+  const beansByPod = new Map<string, typeof beans>();
+  for (const bean of beans) {
+    for (const podSlug of beanPods(bean)) {
+      const list = beansByPod.get(podSlug);
+      if (list) list.push(bean);
+      else beansByPod.set(podSlug, [bean]);
+    }
+  }
+
+  // Absent, not empty: the card draws an initial tile for a node with no image.
+  const withImage = (url: string | undefined, size: { w: number; h: number }): { image?: string } =>
+    url ? { image: cloudinaryThumb(url, { width: size.w, height: size.h }) } : {};
+
   const nodes = new Map<string, MapNode>();
   const edges: MapEdge[] = [];
   const edgeIds = new Set<string>();
@@ -169,6 +221,7 @@ export function buildGardenMap(
       href: hubHref(plant.slug),
       waiting: visibilityOf(plant) !== "public",
       gaps: [...narrativeGaps(plant.content), ...(hasChildren ? [] : (["no-children"] as const))],
+      ...withImage(plant.logo?.url, MAP_THUMB.plant),
       dim: false,
     });
   }
@@ -185,6 +238,13 @@ export function buildGardenMap(
       href: `/admin/pod/${enc(pod.slug)}`,
       waiting: visibilityOf(pod) !== "public",
       gaps: [...narrativeGaps(pod.content), ...(hasBeans ? [] : (["no-children"] as const))],
+      // A pod has no cover of its own; it borrows the first one its beans offer.
+      ...withImage(
+        podCoverFrom(
+          (beansByPod.get(pod.slug) ?? []).map((b) => beanCoverFor(b, sproutsByBean.get(b.slug) ?? [])),
+        )?.image.url,
+        MAP_THUMB.pod,
+      ),
       dim: false,
     });
   }
@@ -220,6 +280,7 @@ export function buildGardenMap(
       href: `/admin/bean/${enc(bean.slug)}`,
       waiting: visibilityOf(bean) !== "public",
       gaps,
+      ...withImage(fillCoverFor(bean, sproutsByBean.get(bean.slug) ?? [])?.url, MAP_THUMB.bean),
       dim: false,
     });
   }

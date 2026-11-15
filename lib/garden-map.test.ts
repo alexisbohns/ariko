@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { Bean, Plant, Pod, RawGarden, Seed, Sprout } from "./data";
-import { buildGardenMap, mapViewOf, type GardenMap, type MapNode } from "./garden-map";
+import type { Bean, MediaImage, Plant, Pod, RawGarden, Seed, Sprout } from "./data";
+import { MAP_THUMB, buildGardenMap, mapViewOf, type GardenMap, type MapNode } from "./garden-map";
+import { cloudinaryThumb } from "./image-url";
 
 // ---- fixtures: a factory per species, defaults chosen to be "complete" so a
 // test names only the one thing it makes wrong. -----------------------------
@@ -542,4 +543,140 @@ test("mapViewOf accepts the three views and falls back to all", () => {
   assert.equal(mapViewOf("nonsense"), "all");
   assert.equal(mapViewOf(undefined), "all");
   assert.equal(mapViewOf(["review", "gaps"]), "all");
+});
+
+// ---- images ----------------------------------------------------------------
+
+function img(name: string): MediaImage {
+  return { kind: "image", storageKey: name, url: `https://res.cloudinary.com/demo/image/upload/v1/${name}.png` };
+}
+const thumb = (image: MediaImage, kind: keyof typeof MAP_THUMB): string =>
+  cloudinaryThumb(image.url, { width: MAP_THUMB[kind].w, height: MAP_THUMB[kind].h });
+function imageOf(map: GardenMap, id: string): string | undefined {
+  return node(map, id).image;
+}
+
+test("a plant draws its logo, as a 2x thumbnail", () => {
+  const logo = img("logo");
+  const map = buildGardenMap({ plants: [plant("a", { logo })] }, []);
+  assert.equal(imageOf(map, "plant:a"), thumb(logo, "plant"));
+  assert.match(imageOf(map, "plant:a") ?? "", /w_144,h_144/);
+});
+
+test("an explicit bean cover beats a newer sprout's image", () => {
+  const cover = img("cover");
+  const raw: RawGarden = {
+    plants: [plant("a")],
+    beans: [bean("x", ["plant:a"], { cover })],
+    sprouts: [sprout("new", { date: "2026-11-09", about: ["bean:x"], media: [img("new")] })],
+  };
+  assert.equal(imageOf(buildGardenMap(raw, []), "bean:x"), thumb(cover, "bean"));
+});
+
+test("a bean without a cover takes its newest sprout's first image", () => {
+  const raw: RawGarden = {
+    plants: [plant("a")],
+    beans: [bean("x", ["plant:a"])],
+    sprouts: [
+      sprout("old", { date: "2026-01-01", about: ["bean:x"], media: [img("old")] }),
+      sprout("new", { date: "2026-11-09", about: ["bean:x"], media: [img("new1"), img("new2")] }),
+    ],
+  };
+  assert.equal(imageOf(buildGardenMap(raw, []), "bean:x"), thumb(img("new1"), "bean"));
+});
+
+test("a bean whose newest sprout has no image falls back to an older one's", () => {
+  const raw: RawGarden = {
+    plants: [plant("a")],
+    beans: [bean("x", ["plant:a"])],
+    sprouts: [
+      sprout("old", { date: "2026-01-01", about: ["bean:x"], media: [img("old")] }),
+      sprout("new", { date: "2026-11-09", about: ["bean:x"] }),
+    ],
+  };
+  assert.equal(imageOf(buildGardenMap(raw, []), "bean:x"), thumb(img("old"), "bean"));
+});
+
+test("a draft or private sprout's image still counts — the admin reads any state", () => {
+  const raw: RawGarden = {
+    plants: [plant("a")],
+    beans: [bean("x", ["plant:a"]), bean("y", ["plant:a"])],
+    sprouts: [
+      sprout("d", { state: "draft", about: ["bean:x"], media: [img("draft")] }),
+      sprout("p", { state: "private", about: ["bean:y"], media: [img("held")] }),
+    ],
+  };
+  const map = buildGardenMap(raw, []);
+  assert.equal(imageOf(map, "bean:x"), thumb(img("draft"), "bean"));
+  assert.equal(imageOf(map, "bean:y"), thumb(img("held"), "bean"));
+});
+
+test("a sprout about two beans lends its image to both", () => {
+  const raw: RawGarden = {
+    plants: [plant("a")],
+    beans: [bean("x", ["plant:a"]), bean("y", ["plant:a"])],
+    sprouts: [sprout("s", { about: ["bean:x", "bean:y", "bean:x"], media: [img("shared")] })],
+  };
+  const map = buildGardenMap(raw, []);
+  assert.equal(imageOf(map, "bean:x"), thumb(img("shared"), "bean"));
+  assert.equal(imageOf(map, "bean:y"), thumb(img("shared"), "bean"));
+});
+
+test("a pod borrows its first bean's cover, else the first bean that has one", () => {
+  const second = img("second");
+  const raw: RawGarden = {
+    plants: [plant("a")],
+    pods: [pod("p", ["plant:a"]), pod("q", ["plant:a"])],
+    beans: [
+      bean("none", ["pod:p"]),
+      bean("has", ["pod:p"], { cover: second }),
+      bean("later", ["pod:p"], { cover: img("later") }),
+      bean("lone", ["pod:q"]),
+    ],
+  };
+  const map = buildGardenMap(raw, []);
+  assert.equal(imageOf(map, "pod:p"), thumb(second, "pod"));
+  assert.match(imageOf(map, "pod:p") ?? "", /w_400,h_140/);
+  assert.equal("image" in node(map, "pod:q"), false, "a pod whose beans have nothing draws nothing");
+});
+
+test("a pod's borrowed cover can come from a bean's newest sprout", () => {
+  const raw: RawGarden = {
+    plants: [plant("a")],
+    pods: [pod("p", ["plant:a"])],
+    beans: [bean("x", ["pod:p"])],
+    sprouts: [sprout("s", { about: ["bean:x"], media: [img("derived")] })],
+  };
+  assert.equal(imageOf(buildGardenMap(raw, []), "pod:p"), thumb(img("derived"), "pod"));
+});
+
+test("nothing anywhere leaves image ABSENT, never empty", () => {
+  const map = buildGardenMap(tidy(), []);
+  for (const id of ["plant:ariko", "pod:core", "bean:editor"]) {
+    assert.equal("image" in node(map, id), false, id);
+  }
+});
+
+test("a projected bean still gets its image", () => {
+  const cover = img("pollen");
+  const raw: RawGarden = {
+    plants: [plant("a")],
+    beans: [bean("p", ["plant:a"], { cover, projected: { source: "s", feedId: "f", firstPollenId: "x" } })],
+  };
+  assert.equal(imageOf(buildGardenMap(raw, []), "bean:p"), thumb(cover, "bean"));
+});
+
+test("buckets, sprouts and seed counts never carry an image", () => {
+  const raw: RawGarden = {
+    plants: [plant("a", { logo: img("logo") })],
+    pods: [pod("lost", ["plant:gone"])],
+    beans: [bean("x", ["plant:a"], { cover: img("c") })],
+    sprouts: [sprout("s", { about: ["bean:x"], media: [img("m")] })],
+  };
+  const map = buildGardenMap(raw, [seed("1", { suggested: { beanSlug: "x" } }), seed("2")]);
+  const kinds = new Set(map.nodes.filter((n) => "image" in n).map((n) => n.kind));
+  assert.deepEqual([...kinds].sort(), ["bean", "plant"]);
+  for (const n of map.nodes.filter((n) => ["bucket", "sprout", "seed"].includes(n.kind))) {
+    assert.equal("image" in n, false, n.id);
+  }
 });
