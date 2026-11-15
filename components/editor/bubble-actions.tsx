@@ -1,11 +1,46 @@
 "use client";
 
 import { useId, type ReactNode } from "react";
-import type { Editor } from "@tiptap/core";
+import { isTextSelection, type Editor } from "@tiptap/core";
+import { NodeSelection, type EditorState } from "@tiptap/pm/state";
+import type { EditorView } from "@tiptap/pm/view";
 import { useEditorState } from "@tiptap/react";
 import { Button } from "@/components/ui/button";
 import { figureFromImage } from "@/lib/staging-convert";
 import { makeFigure } from "./staging-views";
+
+/**
+ * When the bubble menu shows: Tiptap's own rule (the editor or the menu has
+ * focus, the selection is not empty, not an empty text block, the editor is
+ * editable) — restated, because passing `shouldShow` replaces it — plus one
+ * of ours. A NODE selection shows the menu only when it is a plain `image`,
+ * the one node the menu has an action for; a staged block, a card or a rule
+ * selected by a click would otherwise wear Bold / Italic / Code / Link,
+ * which do nothing to an atom.
+ *
+ * Module-level, so the prop is the same function on every render.
+ */
+export function bubbleShouldShow({
+  editor,
+  element,
+  view,
+  state,
+  from,
+  to,
+}: {
+  editor: Editor;
+  element: HTMLElement;
+  view: EditorView;
+  state: EditorState;
+  from: number;
+  to: number;
+}): boolean {
+  const { selection } = state;
+  if (selection instanceof NodeSelection && selection.node.type.name !== "image") return false;
+  const isEmptyTextBlock = !state.doc.textBetween(from, to).length && isTextSelection(selection);
+  const hasFocus = view.hasFocus() || element.contains(document.activeElement);
+  return hasFocus && !selection.empty && !isEmptyTextBlock && editor.isEditable;
+}
 
 /**
  * The bubble menu's contents. A text selection gets the text marks

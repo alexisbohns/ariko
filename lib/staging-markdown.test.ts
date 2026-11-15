@@ -101,6 +101,26 @@ test("a caption line that would start or interrupt a block is escaped, and reads
   assert.equal(captionLine(figureWith("2. second")), "2\\. second");
 });
 
+test("a caption the figure would read as an image stays a caption: its images are escaped into links", () => {
+  // The image line and the caption are ONE paragraph to remark, so an image
+  // at the caption's start is a second image and one later is "an image after
+  // the caption" — either way the figure stops being one and unwraps on the
+  // page. Only an image NODE is escaped: a `!` before plain text is prose.
+  for (const [line, written] of [
+    ["![b](https://e.com/b.png)", "\\![b](https://e.com/b.png)"],
+    ["  ![b](https://e.com/b.png) the moon", "\\![b](https://e.com/b.png) the moon"],
+    ["see ![b](https://e.com/b.png) and ![c](https://e.com/c.png)", "see \\![b](https://e.com/b.png) and \\![c](https://e.com/c.png)"],
+  ]) {
+    const md = figureWith(line);
+    assert.equal(captionLine(md), written, line);
+    const v = parsed(md);
+    assert.ok(v.block === "figure", `${line} is still a figure`);
+    assert.ok(v.caption, `${line} still has a caption`);
+    assert.equal(figureWith(v.caption.source), md, `${line} is stable`);
+  }
+  assert.equal(captionLine(figureWith("![not an image")), "![not an image");
+});
+
 test("a caption's markdown is source, written verbatim", () => {
   for (const line of ["*Em* phasis", "_under_ score", "`code` first", "[a link](https://e.com)", "**bold**", "!important", "1999 was a year", "+1 for this"]) {
     assert.equal(captionLine(figureWith(line)), line);

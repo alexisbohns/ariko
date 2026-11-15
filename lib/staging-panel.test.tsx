@@ -50,7 +50,7 @@ const { EditorContent, useEditor } = require("@tiptap/react") as typeof import("
 type Editor = import("@tiptap/core").Editor;
 const { buildEditorExtensions, buildBlocks } =
   require("../components/editor/editor-extensions") as typeof import("../components/editor/editor-extensions");
-const { BubbleActions } = require("../components/editor/bubble-actions") as typeof import("../components/editor/bubble-actions");
+const { BubbleActions, bubbleShouldShow } = require("../components/editor/bubble-actions") as typeof import("../components/editor/bubble-actions");
 const { EntityRail } = require("../app/admin/_components/entity-rail") as typeof import("../app/admin/_components/entity-rail");
 
 after(() => dom.window.close());
@@ -418,6 +418,48 @@ test("the bubble menu offers Make it a figure for a plain image — disabled, wi
     });
     assert.equal(editor.getJSON().content?.[1]?.type, "stagedFigure", "the mousedown converts it");
     assert.equal(heading(), "Figure");
+  } finally {
+    await unmount();
+  }
+});
+
+test("the bubble menu shows over text and over a plain image, never over a staged block or another atom", async () => {
+  const { NodeSelection, TextSelection } = require("@tiptap/pm/state") as typeof import("@tiptap/pm/state");
+  const { editor, unmount } = await mount(true);
+  const element = document.createElement("div");
+  const shows = () => {
+    const { state, view } = editor;
+    return bubbleShouldShow({ editor, element, view, state, from: state.selection.from, to: state.selection.to });
+  };
+  const select = (sel: (doc: typeof editor.state.doc) => import("@tiptap/pm/state").Selection) =>
+    act(async () => {
+      editor.view.dispatch(editor.state.tr.setSelection(sel(editor.state.doc)));
+    });
+  const posOf = (type: string) => {
+    let at = -1;
+    editor.state.doc.descendants((node, pos) => {
+      if (at < 0 && node.type.name === type) at = pos;
+    });
+    return at;
+  };
+  try {
+    await act(async () => {
+      editor.commands.setContent(
+        `Some words.\n\n![a](https://res.cloudinary.com/demo/image/upload/a.png)\n\n${FIGURE("b.png")}\n\n---\n\nEnd.`,
+        { contentType: "markdown" },
+      );
+    });
+    editor.view.dom.focus();
+    await select((doc) => TextSelection.create(doc, 1, 5));
+    assert.equal(shows(), true, "a text selection");
+    await select((doc) => NodeSelection.create(doc, posOf("image")));
+    assert.equal(shows(), true, "a plain image");
+    await select((doc) => NodeSelection.create(doc, posOf("stagedFigure")));
+    assert.equal(shows(), false, "a staged figure");
+    await select((doc) => NodeSelection.create(doc, posOf("horizontalRule")));
+    assert.equal(shows(), false, "a rule");
+    await select((doc) => TextSelection.create(doc, 1));
+    assert.equal(shows(), false, "an empty selection, as Tiptap's own rule says");
   } finally {
     await unmount();
   }

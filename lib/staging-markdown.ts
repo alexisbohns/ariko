@@ -42,22 +42,45 @@ const oneLine = (s: string) =>
 const parser = unified().use(remarkParse).use(remarkGfm).use(remarkDirective);
 
 /** One paragraph and nothing else, both where the line starts its container
- *  (a compare side's text) and where it follows the image line (a caption). */
+ *  (a compare side's text) and where it follows the image line (a caption) —
+ *  and no IMAGE in it. The image line and the caption are one paragraph to
+ *  remark, so an image at the caption's start is read as a second image and
+ *  one later as an image after the caption (lib/staging-parse.ts's
+ *  splitMedia): either way the block stops being one and unwraps on the
+ *  page. Top-level children only, as splitMedia reads them — an image inside
+ *  a link is the link's. */
 function staysProse(line: string): boolean {
   const onlyParagraph = (md: string) => {
     const root = parser.parse(md) as unknown as MdNode;
     const [box, ...rest] = root.children ?? [];
     if (rest.length || box?.type !== "containerDirective") return false;
     const kids = box.children ?? [];
-    return kids.length === 1 && kids[0].type === "paragraph";
+    return kids.length === 1 && kids[0].type === "paragraph" && !(kids[0].children ?? []).some(isImage);
   };
   return onlyParagraph(`:::callout\n${line}\n:::`) && onlyParagraph(`:::callout\nx\n${line}\n:::`);
 }
 
+const isImage = (n: MdNode) => n.type === "image" || n.type === "imageReference";
+
+/** Whether the line, read as a caption, holds an image node at the top. */
+function holdsImage(line: string): boolean {
+  const [box] = (parser.parse(`:::callout\nx\n${line}\n:::`) as unknown as MdNode).children ?? [];
+  return (box?.children ?? []).some((p) => p.type === "paragraph" && (p.children ?? []).some(isImage));
+}
+
 const PUNCT = /[!-/:-@[-`{-~]/;
+
+/** `![` → `\![` wherever it is not already escaped: the image becomes a `!`
+ *  and a link to the same URL, which is prose. Tried only when the line
+ *  holds an image node, so a `!` that was never one is written as typed. */
+const unImage = (line: string) => line.replace(/(^|[^\\])!\[/g, "$1\\![");
 
 function escapeLine(line: string): string {
   if (staysProse(line)) return line;
+  if (holdsImage(line)) {
+    line = unImage(line);
+    if (staysProse(line)) return line;
+  }
   const first = /^\d+[.)]/.test(line)
     ? line.replace(/^(\d+)([.)])/, "$1\\$2")
     : PUNCT.test(line[0] ?? "") ? `\\${line}` : line;

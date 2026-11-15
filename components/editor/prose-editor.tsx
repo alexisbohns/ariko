@@ -9,7 +9,7 @@ import { prepareEditorMarkdown } from "@/lib/entity-markdown";
 import type { EntityOption } from "@/lib/entity-options";
 import { buildEditorExtensions, type MenuState } from "./editor-extensions";
 import type { StagingUpload } from "./staging-views";
-import { BubbleActions } from "./bubble-actions";
+import { BubbleActions, bubbleShouldShow } from "./bubble-actions";
 import { SuggestionMenu } from "./suggestion-menu";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -452,7 +452,7 @@ export function ProseEditor({
   return (
     <div className="flex flex-col gap-3">
       {editor ? (
-        <BubbleMenu editor={editor}>
+        <BubbleMenu editor={editor} shouldShow={bubbleShouldShow}>
           <div className="flex items-center gap-1 rounded-lg border bg-background p-1 shadow-md">
             <BubbleActions editor={editor}>
               <Button type="button" size="sm" variant="ghost" onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBold().run(); }}>Bold</Button>
@@ -643,4 +643,3 @@ export function ProseEditor({
     </div>
   );
 }
-

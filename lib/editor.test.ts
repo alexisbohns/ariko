@@ -472,3 +472,29 @@ test("15. Make it a figure: one transaction to a canonical `:::figure`, and one 
     loaded.destroy();
   }
 });
+
+test("16. a title that reads as an image converts to a caption that stays one across save and reload", () => {
+  const { makeFigure } = require("../components/editor/staging-views.js") as typeof import("../components/editor/staging-views.js");
+  const { NodeSelection } = require("@tiptap/pm/state") as typeof import("@tiptap/pm/state");
+  const src = "https://res.cloudinary.com/demo/image/upload/moon.png";
+  const editor = makeEditor({ content: `![a](${src} "![b](https://e.com/b.png)")`, contentType: "markdown" });
+  try {
+    editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, 1)));
+    assert.equal(makeFigure(editor), true);
+    // Trimmed: a figure that ends the document gets the trailing paragraph.
+    const saved = editor.getMarkdown().trim();
+    assert.equal(saved, `:::figure\n![a](${src})\n\\![b](https://e.com/b.png)\n:::`);
+    const reloaded = makeEditor({ content: saved, contentType: "markdown" });
+    try {
+      const nodes = reloaded.getJSON().content ?? [];
+      assert.deepEqual(nodes.map((n) => n.type), ["stagedFigure"], "still one figure, not literal fences around two images");
+      assert.equal(nodes[0].attrs?.src, src);
+      assert.equal(nodes[0].attrs?.caption, "\\![b](https://e.com/b.png)");
+      assert.equal(reloaded.getMarkdown().trim(), saved, "and stable");
+    } finally {
+      reloaded.destroy();
+    }
+  } finally {
+    editor.destroy();
+  }
+});

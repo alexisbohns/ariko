@@ -562,19 +562,22 @@ export function exitMenus(editor: Editor): void {
  * It is retired by the next document change rather than by being read, so
  * React's development double-mount opens it as production's single mount
  * does, and a later transaction — a redo that brings the same node back —
- * does not reopen it. "The next document" is the one the dispatch LEFT, not
- * `tr.doc`: an appended transaction can follow in the same dispatch (the
- * trailing paragraph after a figure that ends the document), and the view
- * may mount during the dispatch itself, before that document exists — hence
- * `doc: null` until the dispatch returns.
+ * does not reopen it. "The next document" is the one the dispatch LEFT, read
+ * after it returns, not `tr.doc`: an appended transaction can follow in the
+ * same dispatch (the trailing paragraph after a figure that ends the
+ * document). Reading it then is safe because the view cannot have mounted
+ * yet: @tiptap/react (3.30.2) hands a new node view to `EditorContent`'s
+ * portals through `queueMicrotask`, so the mount effect runs after the
+ * dispatch. A document change between the dispatch and that mount means the
+ * panel simply does not open — the figure is there, one click from its form.
  *
  * An inserted figure needs none of this — it is EMPTY, which is its own mark.
  */
-const justConverted = new WeakMap<Editor, { node: PMNode; doc: PMNode | null }>();
+const justConverted = new WeakMap<Editor, { node: PMNode; doc: PMNode }>();
 
 function isJustConverted(editor: Editor, node: PMNode): boolean {
   const pending = justConverted.get(editor);
-  return !!pending && pending.node === node && (pending.doc === null || pending.doc === editor.state.doc);
+  return !!pending && pending.node === node && pending.doc === editor.state.doc;
 }
 
 export function makeFigure(editor: Editor): boolean {
@@ -584,10 +587,8 @@ export function makeFigure(editor: Editor): boolean {
   const figure = state.schema.nodes.stagedFigure.create(verdict.attrs);
   const tr = closeHistory(state.tr.replaceWith(verdict.from, verdict.to, figure));
   tr.setSelection(NodeSelection.create(tr.doc, verdict.from)).scrollIntoView();
-  const pending = { node: figure, doc: null as PMNode | null };
-  justConverted.set(editor, pending);
   editor.view.dispatch(tr);
-  pending.doc = editor.state.doc;
+  justConverted.set(editor, { node: figure, doc: editor.state.doc });
   return true;
 }
 
