@@ -104,12 +104,32 @@ The Spine is truly a masterclass.
 - **Bilingual by halves.** Captions, labels and `role` are translated by writing
   them in the French half. No per-attribute `{ en, fr }`.
 - **Canonical form.** `renderMarkdown` writes attributes in a fixed order
-  (`frame`, `size`, `dark`; `by`, `role`), quotes a value only when it contains
-  a space or a special character, and always uses `:::` for the five blocks
-  and `::::` for `compare`. The door does not require canonical form on input;
+  (`frame`, `size`, `dark`; `by`, `role`), omits a value equal to its default,
+  writes a value bare when it is `[A-Za-z0-9_-]+` and quoted (with `&` and `"`
+  as character references) otherwise, and always uses `:::` for the five blocks
+  and `::::` for `compare`. A caption whose first characters would start a
+  block (`#`, `>`, `-`, `+`, `*`, `1.`, `:`) is backslash-escaped. A gallery
+  left with one image serializes as a figure rather than losing the image. The door does not require canonical form on input;
   the editor writes it on save.
 
-### 2.3 The vocabulary file
+### 2.3 How the fences close (remark's behaviour, which the editor mirrors)
+
+Verified against `remark-directive` before planning:
+
+- A container **interrupts a paragraph** — no blank line is needed before
+  `:::figure`.
+- A closing fence of length *L* closes **every open container whose opening
+  fence is no longer than *L***, innermost first. So `::::compare` survives the
+  `:::` that closes `:::do`, and a `::::` line inside `:::do` closes both. Two
+  containers opened with the same length cannot be closed separately — a
+  `:::gallery` inside a `:::callout` closes the callout at its own `:::` —
+  which is one more reason nesting is refused at the door.
+- An **unclosed** container runs to the end of the document and is still a
+  valid block. The editor claims it the same way and writes the closing fence
+  on save; the door refuses it (§6.1), because an agent that forgot a fence
+  almost certainly did not mean "the rest of the article".
+
+### 2.4 The vocabulary file
 
 `lib/staging.ts` — pure, client-safe, the one place the blocks are named, as
 `lib/plant-status.ts` is for its enum: block names, attribute names, member
@@ -153,8 +173,10 @@ maps `entity-card`.
   columns (phone screens are equal-ratio). Per-image caption under each; the
   gallery's caption is the outer `<figcaption>`.
 - **Compare** — a `<figure>` of two `<figure>`s. Above each, a mark from
-  `components/public-icons.tsx` (✓ in `--primary`, ✕ in `--destructive`) and
-  the word **Do** / **Don't** as real text. Side by side from `sm`, stacked
+  `components/public-icons.tsx` (✓ in `--primary`, ✕ in `--destructive`, both
+  copied from lucide under the file's existing drift test) and the word as
+  real text, **in the page's language**: `Do` / `Don't`, `À faire` /
+  `À éviter`, from `COMPARE_LABELS` in `lib/staging.ts`. Side by side from `sm`, stacked
   below, do first. Images untouched.
 - **Callout** — `<aside>` on the muted plate (`--muted`, `--radius`), its label
   in the mono face as its accessible name (`aria-labelledby`); unlabeled, it is
@@ -315,6 +337,11 @@ and reports by name, as a 400:
 - `gallery: a staged block cannot sit inside callout`
 - `gallery: needs at least two images`
 - `figure: unclosed — no matching :::`
+- `:::warning is not a staging block (figure, gallery, compare, callout, quote)`
+  — an unknown container name is refused, because an agent that wrote one
+  expected it to mean something
+- `::figure must be a container — write :::figure … :::` — the leaf form of a
+  staging name, the commonest slip
 
 ### 6.2 SVG placement
 
