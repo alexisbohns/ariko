@@ -8,7 +8,7 @@ import type { Lang } from "./locale";
  * this file; nothing re-lists a member. A member spelled twice is how the
  * renderer and the door come to disagree about whether `size=xl` exists.
  *
- * Pure and client-safe: the editor's popovers import it.
+ * Pure and client-safe: the editor's staging forms import it.
  */
 
 export const STAGED_BLOCKS = ["figure", "gallery", "compare", "callout", "quote"] as const;

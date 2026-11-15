@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
   type ComponentType,
@@ -13,6 +14,7 @@ import { X } from "lucide-react";
 import { Chrome, ChromeItem, chromeItemClass } from "@/components/chrome";
 import { Button } from "@/components/ui/button";
 import { sweepRejection } from "@/lib/sweep-rejection";
+import { RailPanelContext, type PagePanel, type RailPanelApi } from "./rail-panel";
 
 /**
  * An entity page's own rail — a cluster on the right edge, and one panel the
@@ -59,6 +61,18 @@ import { sweepRejection } from "@/lib/sweep-rejection";
  * Escape, because below the push threshold the panel is full-width with no
  * scrim, no outside-press dismissal, and it paints over the trigger cluster
  * (same `z-40`, later in the DOM) — the ✕ would otherwise be the only exit.
+ *
+ * PAGE PANELS (spec 2026-11-15 §11). Something inside the page can open a
+ * panel here too, through `useRailPanel()` (`rail-panel.tsx`) — the editor's
+ * staging blocks do, for their forms. It is the same surface (`PanelShell`,
+ * below, draws both kinds), the same push, the same Escape and the same focus
+ * return, and only one panel of either kind is open at a time. Two things
+ * differ, each for a reason: a page panel UNMOUNTS on close, because its
+ * draft is meant to be discarded (the stay-mounted argument above is about an
+ * upload persisted on Save in a panel the page re-renders every time, which a
+ * staging form is not); and its contents arrive at run time from a client
+ * component rather than from the server. The shell still composes no payload
+ * and names no field — the caller hands it a title and a node.
  */
 
 /**
@@ -174,6 +188,115 @@ export interface RailItem {
   heading?: string;
 }
 
+/**
+ * The panel itself, for both kinds — a rail item's and a page's. One element,
+ * one class string, one heading-and-✕ row: a page panel is the rail's surface,
+ * not a second one drawn to look like it (spec 2026-11-15 §11).
+ *
+ * `open` is false only for a rail panel, which stays mounted (this file's
+ * docblock); a page panel is mounted only while it is open, so it arrives with
+ * `open` and `enter` both true. `enter` slides it in from the edge with
+ * `@starting-style` — the closed rail panels already sit off-screen and slide
+ * by toggling the class, which a freshly mounted element cannot do. It is not
+ * given to rail panels: one opened by `openOnError` is in the server HTML
+ * already open, on purpose, and must not slide in on load.
+ */
+function PanelShell({
+  id,
+  label,
+  heading,
+  open,
+  enter = false,
+  onClose,
+  children,
+}: {
+  id: string;
+  /** Names the panel when there is no heading, and its ✕ always. */
+  label: string;
+  heading?: string;
+  open: boolean;
+  enter?: boolean;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const headingId = `${id}-heading`;
+  return (
+    <aside
+      id={id}
+      // The heading when there is one, so what a screen reader announces is
+      // the words the author can see — they disagree wherever a panel's
+      // heading is not its icon's label. The label is the fallback, never a
+      // second name.
+      aria-labelledby={heading ? headingId : undefined}
+      aria-label={heading ? undefined : label}
+      // `inert` rather than unmounting, for a rail panel — see this file's
+      // docblock. It also takes the panel out of the accessibility tree and
+      // out of the tab order, so a closed panel's fields are unreachable
+      // rather than merely off-screen.
+      inert={!open}
+      // A closed panel sits at `translate-x-full`, a full panel-width past the
+      // right edge, and produces no horizontal scrollbar ONLY because
+      // `app/globals.css` clips `body`'s overflow-x — a rule written for the
+      // full-bleed screen strip, with a second thing now depending on it.
+      //
+      // `backdrop-filter` is on the same list as `transform`, so this panel IS
+      // a containing block for any fixed descendant — the trap PAGE_ASIDE
+      // removed from the wrapper, still live in here. Nothing in a panel is
+      // fixed today.
+      className={
+        `fixed inset-y-0 right-0 z-40 flex ${PANEL_WIDTH} flex-col gap-4 ` +
+        "overflow-y-auto overscroll-contain " +
+        "border-l bg-card/95 p-6 shadow-xl backdrop-blur-xl " +
+        "transition-transform duration-200 ease-out " +
+        (open ? "translate-x-0" : "translate-x-full") +
+        (enter ? " starting:translate-x-full" : "")
+      }
+    >
+      <div className={"flex items-start gap-4 " + (heading ? "justify-between" : "justify-end")}>
+        {heading ? (
+          <h2
+            id={headingId}
+            className="font-heading text-xs uppercase tracking-[0.15em] text-muted-foreground"
+          >
+            {heading}
+          </h2>
+        ) : null}
+        <Button type="button" size="icon" variant="ghost" aria-label={`Close ${label}`} onClick={onClose}>
+          <X className="size-4" />
+        </Button>
+      </div>
+      {children}
+    </aside>
+  );
+}
+
+/**
+ * A page panel's contents, given focus when they arrive.
+ *
+ * A rail panel's trigger sits beside it at the edge, one Tab away. A page
+ * panel's opener is somewhere in the middle of an article, and the panel is
+ * after the whole page in the DOM — left where it was, focus would be a
+ * document's worth of Tabs from the form it just opened. The popover this
+ * replaces moved focus in too. The first control, not the panel: the ✕ is the
+ * first thing in it, and focusing that would make Enter a dismissal.
+ */
+function FocusOnMount({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current
+      ?.querySelector<HTMLElement>(
+        "input:not([disabled]), select:not([disabled]), textarea:not([disabled]), " +
+          "button:not([disabled]), [tabindex]:not([tabindex='-1'])",
+      )
+      ?.focus();
+  }, []);
+  return (
+    <div ref={ref} className="contents">
+      {children}
+    </div>
+  );
+}
+
 export function EntityRail({
   label,
   items,
@@ -182,6 +305,10 @@ export function EntityRail({
 }: {
   /** The cluster's accessible name, e.g. "Sprout panels". */
   label: string;
+  /**
+   * May be empty: the plant-narrative and pod pages render a rail with no
+   * items so their editor has somewhere to open a staging block's panel.
+   */
   items: RailItem[];
   /**
    * The panel a rejected save came from, from the page's `?form=`. The panel
@@ -201,11 +328,17 @@ export function EntityRail({
     openOnError && items.some((i) => i.id === openOnError) ? openOnError : null,
   );
 
+  // The page panel, if one is open (`rail-panel.tsx`). Mirrored in a ref
+  // because `close` must restore focus BEFORE the re-render that unmounts it
+  // (the same ordering `close` below argues for rail panels), and must know
+  // which panel is open to honour `close(id)` — neither can wait for state.
+  const [page, setPage] = useState<PagePanel | null>(null);
+  const pageRef = useRef<PagePanel | null>(null);
+
   // Ids for the panels, so a trigger can point at the one it controls. The
-  // panels are always mounted, so `aria-controls` always resolves.
+  // rail's panels are always mounted, so `aria-controls` always resolves.
   const uid = useId();
   const panelId = (id: string) => `${uid}-${id}`;
-  const headingId = (id: string) => `${uid}-${id}-heading`;
 
   // The triggers, by id. Closing has to put focus back on one of them, and
   // `openOnError` opens a panel with no click to remember — so a map keyed by
@@ -228,8 +361,51 @@ export function EntityRail({
     sweepRejection();
   }, []);
 
+  // Takes the page panel down. Focus goes back first, for `close`'s reason —
+  // here the panel is about to UNMOUNT rather than go inert, and the effect
+  // is the same: focus inside a removed subtree falls to `document.body`. An
+  // opener that is gone (its block deleted) has nothing to return to, and the
+  // panel closes anyway. `restore` is false when a rail trigger replaces the
+  // page panel: that trigger was just pressed and already holds focus.
+  const dismissPage = useCallback((restore: boolean): void => {
+    const current = pageRef.current;
+    if (!current) return;
+    pageRef.current = null;
+    if (restore && current.returnFocus?.isConnected) current.returnFocus.focus();
+    setPage(null);
+    current.onClose?.();
+  }, []);
+
+  // One panel at a time: opening a page panel closes the rail's, and the
+  // reverse is the rail trigger's onClick below. A rail panel closed this way
+  // gets no focus restoration — focus is going into the page panel instead.
+  const openPage = useCallback((next: PagePanel): void => {
+    const previous = pageRef.current;
+    pageRef.current = next;
+    setOpen(null);
+    setPage(next);
+    if (previous && previous.id !== next.id) previous.onClose?.();
+  }, []);
+
+  const closePage = useCallback(
+    (id?: string): void => {
+      if (id !== undefined && pageRef.current?.id !== id) return;
+      dismissPage(true);
+    },
+    [dismissPage],
+  );
+
+  const pageId = page ? page.id : null;
+  const api = useMemo<RailPanelApi>(
+    () => ({ openId: pageId, open: openPage, close: closePage }),
+    [pageId, openPage, closePage],
+  );
+
   useEffect(() => {
-    if (openOnError && items.some((i) => i.id === openOnError)) setOpen(openOnError);
+    if (openOnError && items.some((i) => i.id === openOnError)) {
+      dismissPage(false);
+      setOpen(openOnError);
+    }
     // items is rebuilt every render by the page; depending on it would reopen
     // the panel on every re-render, including the one that closes it.
     //
@@ -249,26 +425,30 @@ export function EntityRail({
   // author may have clicked back into the page behind it, which stays live
   // precisely because this is not a modal.
   useEffect(() => {
-    if (!activeId) return;
+    if (!activeId && !pageId) return;
     const onKeyDown = (event: KeyboardEvent) => {
       // Base UI portals its popups to `document.body`, so an Escape a nested
       // Popover, Select or Dialog has already handled still bubbles to here.
       // Without this guard one keypress would dismiss both it and the panel
-      // around it. No panel does that today; four entity pages share this shell.
+      // around it. The editor's `@` / `/` menu is the same case from the other
+      // side: ProseMirror prevents the default of an Escape it handled.
       if (event.defaultPrevented) return;
-      if (event.key === "Escape") close(activeId);
+      if (event.key !== "Escape") return;
+      if (activeId) close(activeId);
+      else dismissPage(true);
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [activeId, close]);
+  }, [activeId, pageId, close, dismissPage]);
 
   return (
-    <>
+    <RailPanelContext.Provider value={api}>
       {/* The page, moved. Always this element, whether or not there are items:
           swapping between a bare fragment and a wrapper at this position would
           change the element type React sees, remounting the entire page body —
-          including a prose editor holding unsaved text. */}
-      <div className={`${PAGE_BASE} ${active ? PAGE_ASIDE : ""}`}>{children}</div>
+          including a prose editor holding unsaved text. The provider above it
+          adds no element, so the same holds with it there. */}
+      <div className={`${PAGE_BASE} ${active || page ? PAGE_ASIDE : ""}`}>{children}</div>
 
       {items.length === 0 ? null : (
         <>
@@ -291,7 +471,11 @@ export function EntityRail({
                     aria-label={item.label}
                     aria-expanded={current}
                     aria-controls={panelId(item.id)}
-                    onClick={() => (current ? close(item.id) : setOpen(item.id))}
+                    onClick={() => {
+                      if (current) return close(item.id);
+                      dismissPage(false);
+                      setOpen(item.id);
+                    }}
                     className={chromeItemClass(current)}
                   >
                     <Icon className="size-4" />
@@ -301,71 +485,38 @@ export function EntityRail({
             })}
           </Chrome>
 
-          {items.map((item) => {
-            const current = activeId === item.id;
-            return (
-              <aside
-                key={item.id}
-                id={panelId(item.id)}
-                // The heading when there is one, so what a screen reader
-                // announces is the words the author can see — they disagree
-                // wherever a panel's heading is not its icon's label. The
-                // trigger's label is the fallback, never a second name.
-                aria-labelledby={item.heading ? headingId(item.id) : undefined}
-                aria-label={item.heading ? undefined : item.label}
-                // `inert` rather than unmounting — see this file's docblock. It
-                // also takes the panel out of the accessibility tree and out of
-                // the tab order, so a closed panel's fields are unreachable
-                // rather than merely off-screen.
-                inert={!current}
-                // A closed panel sits at `translate-x-full`, a full panel-width
-                // past the right edge, and produces no horizontal scrollbar
-                // ONLY because `app/globals.css` clips `body`'s overflow-x — a
-                // rule written for the full-bleed screen strip, with a second
-                // thing now depending on it.
-                //
-                // `backdrop-filter` is on the same list as `transform`, so this
-                // panel IS a containing block for any fixed descendant — the
-                // trap PAGE_ASIDE removed from the wrapper, still live in here.
-                // Nothing in a panel is fixed today.
-                className={
-                  `fixed inset-y-0 right-0 z-40 flex ${PANEL_WIDTH} flex-col gap-4 ` +
-                  "overflow-y-auto overscroll-contain " +
-                  "border-l bg-card/95 p-6 shadow-xl backdrop-blur-xl " +
-                  "transition-transform duration-200 ease-out " +
-                  (current ? "translate-x-0" : "translate-x-full")
-                }
-              >
-                <div
-                  className={
-                    "flex items-start gap-4 " +
-                    (item.heading ? "justify-between" : "justify-end")
-                  }
-                >
-                  {item.heading ? (
-                    <h2
-                      id={headingId(item.id)}
-                      className="font-heading text-xs uppercase tracking-[0.15em] text-muted-foreground"
-                    >
-                      {item.heading}
-                    </h2>
-                  ) : null}
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    aria-label={`Close ${item.label}`}
-                    onClick={() => close(item.id)}
-                  >
-                    <X className="size-4" />
-                  </Button>
-                </div>
-                {item.panel}
-              </aside>
-            );
-          })}
+          {items.map((item) => (
+            <PanelShell
+              key={item.id}
+              id={panelId(item.id)}
+              label={item.label}
+              heading={item.heading}
+              open={activeId === item.id}
+              onClose={() => close(item.id)}
+            >
+              {item.panel}
+            </PanelShell>
+          ))}
         </>
       )}
-    </>
+
+      {/* NOT kept mounted, unlike the rail's: a page panel's draft is thrown
+          away on close by design, and unmounting is what throws it away
+          (spec §11). Keyed by the opener, so a second block's panel opened
+          over the first is a fresh form rather than the first one's state. */}
+      {page ? (
+        <PanelShell
+          key={page.id}
+          id={`${uid}-page`}
+          label={page.title}
+          heading={page.title}
+          open
+          enter
+          onClose={() => dismissPage(true)}
+        >
+          <FocusOnMount>{page.content}</FocusOnMount>
+        </PanelShell>
+      ) : null}
+    </RailPanelContext.Provider>
   );
 }

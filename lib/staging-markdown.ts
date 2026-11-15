@@ -131,7 +131,7 @@ const side = (name: "do" | "dont", s: SideFields) =>
 
 /** Empty only when there is nothing at all to keep. A compare with an image
  *  and no text is invalid (the parser refuses it and the renderer unwraps
- *  it), but it is still written: the popover's Save is disabled until both
+ *  it), but it is still written: the form's Save is disabled until both
  *  sides have text, and an editor that silently dropped a half-made block
  *  would delete the image the author had just uploaded. */
 export function serializeCompare(c: CompareFields): string {
@@ -147,7 +147,7 @@ export const calloutOpener = (label: string | null) =>
   label && oneLine(label) ? `:::callout[${oneLine(label)}]` : ":::callout";
 
 /** An empty `by` writes a bare `:::quote`, which the parser refuses — not
- *  guarded here, for the reason serializeCompare gives: the popover's Save is
+ *  guarded here, for the reason serializeCompare gives: the form's Save is
  *  disabled until `by` is filled. */
 export const quoteOpener = (by: string, role: string | null) =>
   `:::quote${attrs([["by", oneLine(by)], ["role", role && oneLine(role) ? oneLine(role) : null]])}`;
