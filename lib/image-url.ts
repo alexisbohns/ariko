@@ -15,6 +15,11 @@ function withTransform(url: string, transform: string): string {
     return url; // not a URL at all — never throw on a malformed stored value
   }
 
+  // An SVG is a vector: Cloudinary "resizes" one by rasterizing it, which turns
+  // a crisp figure into a blurry PNG at whatever width was asked for (spec
+  // 2026-11-15 §3.4). Delivered as stored, always.
+  if (parsed.pathname.toLowerCase().endsWith(".svg")) return url;
+
   // Exact host match, not a suffix check: lib/storage.ts's toMediaImage stores
   // Cloudinary's own secure_url verbatim, and this app never configures a
   // custom (CNAMEd) delivery domain, so "res.cloudinary.com" is the only host

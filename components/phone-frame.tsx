@@ -10,7 +10,7 @@ import { cloudinaryFit, cloudinaryThumb } from "@/lib/image-url";
  * that reaches `node:fs`.
  *
  * Extracted when the screen gallery needed the cover's phone. What lives here
- * is the phone and nothing else — the bezel, the screen's radius, and the
+ * is the phone and nothing else — the outline, its radius, and the
  * derivative. What does NOT live here is where a phone sits, how it moves, or
  * what is written above it: `bean-cover.tsx` keeps its own positioning and its
  * hover choreography, `screen-strip.tsx` keeps its window, and neither has to
@@ -18,11 +18,15 @@ import { cloudinaryFit, cloudinaryThumb } from "@/lib/image-url";
  *
  * Three details are load-bearing rather than styling:
  *
- *  - **`bg-neutral-900`, not a theme token.** A phone is dark in both themes,
- *    so `bg-foreground` (near-white in dark mode) or `bg-card` (vanishes into
- *    the page) would both be silently wrong fixes for something that was never
- *    broken. It is the one non-token colour in either caller.
- *  - **The bezel is drawn HERE, never baked into the stored file.** Baking it
+ *  - **A hairline on theme tokens, not a dark body.** The phone used to be a
+ *    `bg-neutral-900` bezel with a shadow, dark in both themes. Spec
+ *    2026-11-15 decision 5 made it a quiet outline everywhere — cover, strip
+ *    and lightbox alike, not only the new figures — and an outline has to show
+ *    in BOTH themes, which a dark body never had to: `border-border` is the
+ *    token that does, where a literal `border-neutral-200` would vanish into a
+ *    dark page and the reverse. There is no fill and no shadow, so on a page
+ *    the screen's own pixels are the phone.
+ *  - **The outline is drawn HERE, never baked into the stored file.** Baking it
  *    would make cloudinaryThumb crop a composite instead of a screen, and turn
  *    "re-shoot that screen" into "re-composite that screen".
  *  - **`alt` is REQUIRED, and it is the CALLER's answer, never this file's.**
@@ -45,23 +49,23 @@ import { cloudinaryFit, cloudinaryThumb } from "@/lib/image-url";
  * it always travel together:
  *
  *  - **Given** — the caller frames the phone in a box of its own and wants it
- *    cropped INTO that box (`c_fill`). The phone is then BOTTOMLESS: `pb-0`
- *    gives it a bezel on three sides so it runs off the bottom of whatever
- *    frames it, reading as a window onto something taller rather than as a
+ *    cropped INTO that box (`c_fill`). The phone is then BOTTOMLESS: the
+ *    outline is open at the bottom (`border-b-0`, `rounded-b-none`) so it runs
+ *    off the bottom of whatever frames it, reading as a window onto something taller rather than as a
  *    cropped picture. `bean-cover.tsx`'s case.
  *  - **Omitted** — the caller wants the SCREEN AS SHOT, whatever its ratio
  *    (`c_limit`, which also never enlarges). Cropping is then the one thing
- *    that must not happen, so there is no box to run off: the bezel closes on
+ *    that must not happen, so there is no box to run off: the outline closes on
  *    all four sides and the phone is as tall as the image is. `screen-strip.tsx`'s
  *    case — a rank of phones whose screens are different devices' captures, and
  *    a shared 3:4 window turned each of them into somebody's middle third.
  *
  * `block` on the wrapper is load-bearing, not tidiness: it is a `<span>` (so it
  * can sit inside an anchor's phrasing content), and an INLINE box shrink-wraps
- * to the line rather than to the image it padded — the bezel collapses to a
- * dark tick beside the screen. It was invisible while every caller pinned the
+ * to the line rather than to the image it wraps — the outline collapses to a
+ * hairline beside the screen. It was invisible while every caller pinned the
  * phone with `absolute`, which blockifies it; the first caller that stopped
- * (the strip, once it kept the shot's own ratio) lost the bezel entirely.
+ * (the strip, once it kept the shot's own ratio) lost the outline entirely.
  *
  * `width` (and `height` when it is given) are the DERIVATIVE's, not the box's —
  * every caller asks Cloudinary for roughly twice the pixels it paints, so the
@@ -71,7 +75,7 @@ import { cloudinaryFit, cloudinaryThumb } from "@/lib/image-url";
  * the uncropped shape only. There, `c_limit` keeps the source's ratio exactly,
  * so the stored `width`/`height` are the drawn ratio and the browser can
  * reserve the phone's box before a byte arrives. Without them an unloaded
- * image is zero pixels tall and the bezel draws as a dark bar — which is what
+ * image is zero pixels tall and the outline draws as a flat line — which is what
  * the lightbox showed for as long as its screen took to load, and what the
  * strip's lazy phones did as they scrolled in. In the cropped shape the drawn
  * ratio is the CALLER's box, not the image's, so the stored dimensions would
@@ -90,7 +94,7 @@ export function PhoneFrame({
    *  docblock. */
   alt: string;
   width: number;
-  /** Omit to keep the shot's own ratio, uncropped and bezelled all round. See
+  /** Omit to keep the shot's own ratio, uncropped and outlined all round. See
    *  the docblock: this prop is the switch between the phone's two shapes. */
   height?: number;
   /** Where the phone sits and how it moves — the caller's business entirely. */
@@ -103,8 +107,8 @@ export function PhoneFrame({
       : {};
   return (
     <span
-      className={`block rounded-2xl bg-neutral-900 shadow-lg ${
-        bottomless ? "p-1 pb-0" : "p-1"
+      className={`block overflow-hidden border border-border ${
+        bottomless ? "rounded-t-[1.75rem] rounded-b-none border-b-0" : "rounded-[1.75rem]"
       } ${className ?? ""}`}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -118,7 +122,7 @@ export function PhoneFrame({
         {...intrinsic}
         loading="lazy"
         decoding="async"
-        className={`block w-full ${bottomless ? "rounded-t-xl" : "rounded-xl"}`}
+        className="block w-full"
       />
     </span>
   );

@@ -120,7 +120,7 @@ function MountedScreenLightbox({ rows, plantName }: { rows: ExhibitionRow[]; pla
   }, [rows]);
 
   // Warm the neighbours, so an arrow press lands on an image already in the
-  // cache rather than on an empty bezel.
+  // cache rather than on an empty outline.
   useEffect(() => {
     if (!open) return;
     for (const near of [index - 1, index + 1]) {

@@ -93,13 +93,13 @@ test("the phones ask Cloudinary for a derivative that is NOT cropped", () => {
   assert.doesNotMatch(markup, /c_fill/);
 });
 
-test("the bezel is a BLOCK — an inline one collapses to a tick", () => {
+test("the outline is a BLOCK — an inline one collapses to a hairline", () => {
   // PhoneFrame's wrapper is a <span> so it can live inside an anchor. Inline,
-  // it shrink-wraps to the line rather than to the image it pads, and the phone
-  // loses its bezel entirely — which is exactly what happened the moment this
+  // it shrink-wraps to the line rather than to the image it wraps, and the phone
+  // loses its outline entirely — which is exactly what happened the moment this
   // strip stopped pinning the phone with `absolute`.
   const markup = html([row("one")]);
-  assert.match(markup, /class="block rounded-2xl bg-neutral-900/);
+  assert.match(markup, /class="block overflow-hidden border border-border/);
 });
 
 test("the track breaks out of the reading column, gutter re-applied inside", () => {

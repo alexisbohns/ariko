@@ -76,7 +76,7 @@ test("the keyword resolves per language", () => {
   assert.equal(text(html(cover, "en")), "Accuracy");
 });
 
-test("a wordless phone renders the bezel and no empty word box", () => {
+test("a wordless phone renders the phone and no empty word box", () => {
   const markup = html({ kind: "phone", image: img("shot", { width: 390, height: 844 }) });
   assert.doesNotMatch(markup, /aria-hidden/);
   assert.match(markup, /w_336,h_726/);
@@ -86,7 +86,7 @@ test("a keyword that resolves to whitespace is the WORDLESS phone", () => {
   // The resolver is lang-agnostic by design (lib/bean-cover.ts's BeanCover doc
   // says so): it hands over whatever Text the bean stores, so "has a word" is a
   // question only this component can answer, and only after resolving. A French
-  // keyword with a blank English half must render the bezel alone rather than
+  // keyword with a blank English half must render the phone alone rather than
   // an empty 34px box holding up the top of the frame.
   const markup = html(
     {

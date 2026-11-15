@@ -48,6 +48,7 @@ const SERVER_SAFE = [
   "components/bean-card.tsx",
   "components/bean-cover.tsx",
   "components/phone-frame.tsx",
+  "components/desktop-frame.tsx",
   "components/screen-strip.tsx",
   "components/journal.tsx", // the journal line: /beanstalk, and the plant, pod and bean pages
   // The first PAGE on this list. Every other public page is kept honest by the

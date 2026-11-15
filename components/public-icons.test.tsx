@@ -6,12 +6,14 @@ import type { ComponentType, SVGProps } from "react";
 import {
   Bean,
   CalendarDays,
+  Check,
   ChessKnight,
   ChessPawn,
   Crown,
   Package,
   Sprout,
   Waypoints,
+  X,
   Zap,
   ZapOff,
 } from "lucide-react";
@@ -20,6 +22,7 @@ import { PLANT_ROLE_KINDS } from "@/lib/plant-role";
 import {
   BeanIcon,
   CalendarIcon,
+  CheckIcon,
   ChessKnightIcon,
   ChessPawnIcon,
   CrownIcon,
@@ -27,6 +30,7 @@ import {
   PodIcon,
   SproutIcon,
   WaypointsIcon,
+  XIcon,
   ZapIcon,
   ZapOffIcon,
 } from "./public-icons";
@@ -46,7 +50,7 @@ import {
  * first person to notice is a visitor comparing two pages.
  *
  * So this test renders both and compares the GEOMETRY. On a lucide bump that
- * moves any of the ten, it fails loudly — which is the point: the fix is for
+ * moves any of the twelve, it fails loudly — which is the point: the fix is for
  * someone to re-copy the data deliberately, not for the divergence to ship.
  *
  * Two deliberate limits on what is compared:
@@ -117,6 +121,8 @@ const pairs: ReadonlyArray<
   ["chess-knight", ChessKnight, ChessKnightIcon],
   ["chess-pawn", ChessPawn, ChessPawnIcon],
   ["calendar-days", CalendarDays, CalendarIcon],
+  ["check", Check, CheckIcon],
+  ["x", X, XIcon],
 ];
 
 for (const [name, Upstream, Ours] of pairs) {
