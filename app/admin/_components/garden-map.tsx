@@ -108,7 +108,7 @@ export function GardenMap({ map }: { map: PositionedMap }) {
       colorMode={dark ? "dark" : "light"}
       fitView
       fitViewOptions={{ padding: 0.15, maxZoom: 1 }}
-      minZoom={0.1}
+      minZoom={0.05}
       nodesDraggable={false}
       nodesConnectable={false}
       elementsSelectable={false}
@@ -118,10 +118,13 @@ export function GardenMap({ map }: { map: PositionedMap }) {
     >
       <Background gap={24} />
       {/* Bottom-left is clear of the left rail (vertically centred) and the
-          top clusters; the minimap goes bottom-right and is dropped below `md`,
-          where it would sit under the toolbar. */}
-      <Controls showInteractive={false} position="bottom-left" />
-      <MiniMap pannable zoomable position="bottom-right" className="hidden md:block" />
+          top clusters. Below `md` the controls are dropped (the toolbar needs
+          the width, and touch pans and pinches); the `!` is load-bearing —
+          xyflow's stylesheet is unlayered and sets `display`, so a plain
+          `hidden` loses to it. The minimap goes bottom-right and appears from
+          `lg`: at 768px it nearly touches the toolbar. */}
+      <Controls showInteractive={false} position="bottom-left" className="max-md:hidden!" />
+      <MiniMap pannable zoomable position="bottom-right" className="hidden lg:block" />
     </ReactFlow>
   );
 }

@@ -108,3 +108,20 @@ test("the page remounts the canvas when the scope changes", () => {
   // and a remount would throw away the author's pan and zoom.
   assert.match(code(read(PAGE)), /<GardenMap\s+key=\{scope\b[^}]*\}/);
 });
+
+test("the toolbar and controls survive a narrow viewport", () => {
+  const toolbar = code(read("app/admin/_components/map-toolbar.tsx"));
+  // A bottom-centre fixed element with `left: 50%` otherwise shrinks to half
+  // the viewport and wraps; and the plate is transparent at md+, so over a busy
+  // canvas the only view switcher would be bare text.
+  assert.match(toolbar, /w-max max-w-\[calc\(100vw-2rem\)\]/);
+  assert.match(toolbar, /md:bg-card\/80/);
+  assert.match(toolbar, /whitespace-nowrap/);
+  const island = code(read(ISLAND));
+  // xyflow's stylesheet is unlayered and sets `display` on the controls, so a
+  // plain `hidden` loses to it: only the important form wins.
+  assert.match(island, /max-md:hidden!/);
+  assert.match(island, /className="hidden lg:block"/);
+  // A forest with more than ~55 nodes in one rank cannot fit at 0.1.
+  assert.match(island, /minZoom=\{0\.05\}/);
+});
