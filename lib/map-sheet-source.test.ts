@@ -150,3 +150,9 @@ test("the links the sheet shows are next/link, so a click swaps the sheet instea
     assert.match(code(file), /from "next\/link"/, `${file} must use next/link`);
   }
 });
+
+test("below lg the sheet starts under the chrome's top clusters, so the ✕ is not covered", () => {
+  const text = code(SHEET);
+  assert.match(text, /top-20 [^"]*lg:top-0|top-20 lg:top-0/);
+  assert.match(text, /lg:pt-24/);
+});

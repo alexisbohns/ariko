@@ -42,7 +42,9 @@ const KEEP_ESCAPE =
  *
  * Z 30, under the chrome's 40, so the public-site and log-out buttons stay
  * reachable; the ✕ is on the left for the same reason, and the top padding
- * clears the cluster as `AdminMain`'s does.
+ * clears the cluster as `AdminMain`'s does. Below `lg` the sheet starts under
+ * the chrome's top clusters rather than behind them, so the ✕ stays tappable
+ * on a phone; from `lg` up it is full height.
  *
  * Closing is a real `href` and never `router.back()`: after a save the history
  * holds redirect hops. The map's own query is kept here, in state set during
@@ -88,7 +90,7 @@ export function MapSheet({ children }: { children: ReactNode }) {
       onKeyDown={onKeyDown}
       onClickCapture={onClickCapture}
       className={cn(
-        "fixed inset-y-0 right-0 z-30 w-full max-w-[44rem] transform-gpu overflow-hidden border-l bg-card shadow-xl",
+        "fixed bottom-0 right-0 top-20 z-30 lg:top-0 w-full max-w-[44rem] transform-gpu overflow-hidden border-l bg-card shadow-xl",
         "duration-200 animate-in slide-in-from-right",
         // The rail's page offset is viewport-gated (it needs 1216px of
         // viewport) and means nothing inside a 44rem box; the rail's panel
@@ -103,7 +105,7 @@ export function MapSheet({ children }: { children: ReactNode }) {
       >
         <X />
       </Link>
-      <div className="h-full overflow-y-auto px-6 pb-16 pt-24">{children}</div>
+      <div className="h-full overflow-y-auto px-6 pb-16 pt-16 lg:pt-24">{children}</div>
     </aside>
   );
 }
