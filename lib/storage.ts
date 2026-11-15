@@ -68,18 +68,24 @@ export function uploadOptions(folder: string, filename?: string): Record<string,
 }
 
 /**
- * The SVG door's options (spec 2026-11-15 §5.2): its OWN allowed_formats, so
- * Cloudinary judges these bytes as SVG while the raster door above keeps
- * refusing SVG for every cover, screen and media item. Only a figure's image
- * comes through here, and only after lib/svg-check.ts passed it — which is why
- * this is a second function rather than `svg` added to ALLOWED_FORMATS: that
- * one list guards every other caller.
+ * The SVG door's options (spec 2026-11-15 §5.2). A second function rather than
+ * `svg` added to ALLOWED_FORMATS: that one list guards every cover, screen and
+ * media item, and must keep refusing SVG.
+ *
+ * There is deliberately NO `allowed_formats` here. Cloudinary refuses every SVG
+ * upload with `allowed_formats: ["svg"]` ("An unknown file format not
+ * allowed", verified against this account on 2026-11-15, while the same bytes
+ * upload without it) — so the obvious mirror of the raster rule breaks the door
+ * entirely. The guarantee it would have given is already stronger upstream: the
+ * only bytes this door ever sends are lib/svg-check.ts's re-serialized output,
+ * which parsed as one `<svg>` root and passed the allowlist. Nothing a client
+ * chose reaches Cloudinary here, unlike the raster door, where `checkUploadFile`
+ * can only read a declared MIME type and Cloudinary must judge the bytes.
  */
 export function svgUploadOptions(folder: string, filename?: string): Record<string, unknown> {
   return {
     folder,
     resource_type: "image",
-    allowed_formats: ["svg"],
     ...(filename ? { context: { original_filename: filename } } : {}),
   };
 }

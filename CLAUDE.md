@@ -534,10 +534,11 @@ while quietly becoming false.
   untransformed `<img>`, and only in a figure: `lib/svg-check.ts` REFUSES
   outside an allowlist rather than strips (a stripped drawing is not the one
   approved), what is stored is svgo's re-serialization, re-checked, never
-  the posted bytes, and it uploads through `uploadSvg`'s own
-  `allowed_formats: ["svg"]` — the admin's door is `uploadImageAction`'s
-  `purpose=figure-svg` — so every cover, screen and media item still cannot be
-  one. `PhoneFrame` is a quiet `border-border` outline everywhere — cover,
+  the posted bytes, and it uploads through `uploadSvg` — deliberately with NO
+  `allowed_formats`, because Cloudinary refuses every SVG under
+  `allowed_formats: ["svg"]`; the raster list stays SVG-free, so every cover,
+  screen and media item still cannot be one (the admin's door is
+  `uploadImageAction`'s `purpose=figure-svg`). `PhoneFrame` is a quiet `border-border` outline everywhere — cover,
   strip, lightbox and figure — not a dark bezel. Pinned by
   `lib/staging-parse.test.ts`, `lib/staging-markdown.test.ts`,
   `lib/staging-render.test.ts`, `lib/staging-fence.test.ts`,

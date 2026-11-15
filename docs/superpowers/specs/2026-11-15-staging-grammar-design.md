@@ -310,8 +310,11 @@ the skill says to export with "embed fonts" off.
 
 ### 5.2 Upload doors
 
-- **`uploadSvg` in `lib/storage.ts`**, with its own options whose
-  `allowed_formats` is `["svg"]`. The raster `uploadOptions` and its
+- **`uploadSvg` in `lib/storage.ts`**, with its own options and **no
+  `allowed_formats`**: Cloudinary refuses every SVG under
+  `allowed_formats: ["svg"]` (found during verification, 2026-11-15). The bytes
+  it sends are always `checkSvg`'s re-serialized output, so nothing a client
+  chose reaches Cloudinary. The raster `uploadOptions` and its
   `allowed_formats` are unchanged, so a cover, a screen or a media item still
   cannot be an SVG.
 - **Article door**: `POST /api/articles/assets` accepts `image/svg+xml`, runs

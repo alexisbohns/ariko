@@ -72,7 +72,10 @@ test("upload options make Cloudinary enforce raster formats from the bytes, deri
   }
 });
 
-test("SVG uploads have their own allowed_formats; the raster door is unchanged", () => {
-  assert.deepEqual(svgUploadOptions("beanstalk").allowed_formats, ["svg"]);
+test("SVG uploads carry no allowed_formats (Cloudinary refuses SVG under one); the raster door is unchanged", () => {
+  // Cloudinary refuses every SVG under allowed_formats: ["svg"]; the guard is
+  // checkSvg's re-serialized output (see svgUploadOptions' docblock).
+  assert.equal("allowed_formats" in svgUploadOptions("beanstalk"), false);
+  assert.equal(svgUploadOptions("beanstalk").resource_type, "image");
   assert.equal((uploadOptions("beanstalk").allowed_formats as string[]).includes("svg"), false);
 });
