@@ -136,19 +136,47 @@ page.tsx (force-dynamic)
 
 ### Layout
 
-A file tree, not a left-to-right graph. Plants stand side by side across the
-top; each plant's pods stand in a row under it; a pod's beans stack in an
-indented column under it with a trunk line down the left; a bean's draft
-sprouts and its seed count sit indented right under that bean. What hangs
-directly off a plant (its own beans and sprouts) is a first column with no head
-card, to the left of its pods. The Unrooted and Inbox buckets are roots too and
-come last, after every plant. Every node is placed once, under its **primary
-parent** (the source of the first edge into it); its other edges are kept and
-drawn but move nothing, so a bean shared by two pods stands under the first.
-A plant-to-pod edge leaves the plant's bottom and enters the pod's top; every
-other edge leaves a trunk handle near the left of the parent's bottom and
-enters the child's left, so a smoothstep draws the elbow. Nothing is ever
+A bloom, not a graph and not a file tree. Plants stand side by side across the
+top (y = 0), each card a **pill**: a large round medallion (the logo) with the
+name beside it at 24px and the chips under the name. Every plant owns a
+**block**, and every block's columns start on one row, so rows align across
+plants. The Unrooted and Inbox buckets are roots too and come last.
+
+Sizes are fixed per kind (`KIND_SIZE`): plant 300x88, pod 220x124, bean 220x60,
+sprout and seed count 180x44, bucket 150x44. Under a root there are columns
+`COLUMN_WIDTH` (220) wide, `COLUMN_GAP` (28) apart, and **every card is centred
+in its column — nothing is indented**:
+
+- a **pod column** is the pod card on top and its beans stacked straight down
+  beneath it, each bean's draft sprouts and seed count right under that bean
+  (depth-first, `ITEM_GAP` 28 between cards);
+- a **loose cell** is any other child of the root — a bean planted directly on a
+  plant, a plant-level draft sprout, a seed count — stacked the same way with
+  its own descendants under it. Loose cells form a **grid**, row-major in input
+  order, two across when the root also has pods and four across when it has
+  none (a plant with nine direct beans fans out as four, four, one). A grid row
+  is as tall as its tallest cell and rows are two item gaps apart. With pods
+  present the grid is the leftmost thing in the block and the pod columns follow
+  to its right.
+
+The root card is centred over its block (block width = the wider of the card and
+its content). Every node is placed once, under its **primary parent** (the
+source of the first edge into it); its other edges are kept and drawn but move
+nothing, so a bean shared by two pods stands under the first. Nothing is ever
 dropped: a node no root reaches goes into a final block.
+
+**Edges** are plain soft Bezier curves from the bottom-centre of the source to
+the top-centre of the target. There are no elbows, no trunk and no handle ids:
+each card has one hidden target on top and one hidden source below. Edges draw
+under the opaque cards, so the stem from a pod to its fifth bean passes behind
+beans one to four and shows only in the gaps; that is the look and is not
+special-cased.
+
+**Images** come from the builder (`MapNode.image`, a ready Cloudinary thumbnail:
+a plant's logo, a bean's cover, a pod's borrowed cover). A pod card has a wide
+cover across its top, a bean a square thumbnail on the left, a plant the
+medallion. A node with no image draws its initial on a quiet tile in the same
+box, so a missing picture moves nothing.
 - New dependency: `@xyflow/react` (verify the exact current version and React 19
   compatibility at install). The layout is our own arithmetic, so there is no
   graph-layout dependency.
@@ -159,9 +187,17 @@ dropped: a node no root reaches goes into a final block.
 
 Read-only. There is no write path, no server action and no side panel.
 
-- A node is a small card: kind icon, name as a real `next/link` to its admin
-  page (a client navigation, per the admin rule), the amber ring if waiting,
-  chips for gaps. The card already carries everything a panel would list.
+- A node is a card sized by its kind: a plant is a pill with a medallion, a pod
+  has a cover on top, a bean a thumbnail on the left. The name is a real
+  `next/link` to its admin page (a client navigation, per the admin rule), and
+  the link is **stretched** (`after:absolute after:inset-0` on a `relative`
+  card), so the WHOLE card is the click target while the name stays the one tab
+  stop and the accessible text. It carries `pointer-events-auto` (React Flow
+  gives a non-interactive node wrapper an inline `pointer-events: none`),
+  `prefetch={false}` and `draggable={false}`. The amber ring and the word
+  "Waiting" say what waits; chips say what is missing. The images are plain
+  decorative `<img alt="" loading="lazy">`, not `next/image`: the thumbnail is
+  already cut to size.
 - Nodes are not draggable and positions are not saved, so there is no layout
   state to lose or to leak.
 - Toolbar: **All · Needs review · Has gaps**, each with a count. It is
@@ -187,8 +223,9 @@ Read-only. There is no write path, no server action and no side panel.
   projected-bean exemption, "no narrative" suppressing "no FR", a bean whose only
   sprout is published (has a journal, draws no sprout node), scope filtering, and
   `view` dimming.
-- `lib/garden-map-layout.test.ts` — every node positioned, no two overlap, a
-  disconnected forest lays out.
+- `lib/garden-map-layout.test.ts` — every node positioned, columns centred, the
+  direct-bean grid and its place beside pods, no two overlap, a disconnected
+  forest lays out, edges untouched.
 - `lib/garden-map-source.test.ts` — the island imports types only from lib, and
   no file of the map imports an action or `lib/store.ts`.
 - `lib/admin-nav.test.ts` / `lib/section-icons.test.ts` /

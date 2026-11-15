@@ -398,9 +398,14 @@ while quietly becoming false.
   `/admin/map` ([`specs/2026-11-15-garden-map-design.md`](docs/superpowers/specs/2026-11-15-garden-map-design.md))
   draws `Plant → Pod → Bean` with draft sprouts as leaves and inbox seeds as one
   count leaf per parent ("62 seeds", linking to the plant-level inbox) — 62
-  individual seed nodes made the map unreadable — laid out as a file tree (plants
-  in a row, each plant's pods in a row under it, a pod's beans in an indented
-  column, a bean's draft sprouts and seed count indented under it), with `stats` weighted by that
+  individual seed nodes made the map unreadable — laid out as a bloom: plants as
+  pills (a round logo medallion and a 24px name) in a row, each plant's pods and
+  beans hanging below on soft Bezier edges, every bean stack centred in its
+  column under its pod (nothing indented), and a plant's own beans fanning out as
+  a grid of tiles; pods show their cover, beans a square thumbnail
+  (`MapNode.image`, a ready Cloudinary thumbnail from the builder, drawn as a
+  plain lazy `<img>`; no image draws an initial) — each card a stretched link
+  whose name stays the one tab stop, with `stats` weighted by that
   count. What
   waits is an amber ring *and* the word "Waiting"; what is missing is a chip.
   `lib/garden-map.ts` decides every flag and `lib/garden-map-layout.ts` (a deterministic

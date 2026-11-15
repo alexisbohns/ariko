@@ -94,15 +94,49 @@ test("layout is pure and runs on the server: no react, xyflow or next in the lay
   }
 });
 
-test("every card declares the four handles the layout's edges name", () => {
-  // An edge naming a handle the node does not render is dropped by React Flow
-  // with a console warning and nothing else: the line just is not there.
+test("every card declares one target handle on top and one source handle on the bottom", () => {
+  // Every edge runs from the bottom-centre of its source to the top-centre of
+  // its target, so a card needs exactly those two handles and no edge names
+  // one. An edge naming a handle the node does not render is dropped by React
+  // Flow with a console warning and nothing else: the line just is not there.
   const src = code(read(ISLAND));
-  for (const id of ["top", "left", "bottom", "trunk"]) {
-    assert.match(src, new RegExp(`id="${id}"`), id);
+  const handles = src.match(/<Handle\b[^>]*>/g) ?? [];
+  assert.equal(handles.length, 2);
+  const target = handles.filter((tag) => /type="target"/.test(tag));
+  const source = handles.filter((tag) => /type="source"/.test(tag));
+  assert.equal(target.length, 1);
+  assert.equal(source.length, 1);
+  assert.match(target[0], /position=\{Position\.Top\}/);
+  assert.match(source[0], /position=\{Position\.Bottom\}/);
+  for (const tag of handles) {
+    assert.match(tag, /isConnectable=\{false\}/);
+    assert.match(tag, /className=\{HANDLE\}/);
   }
-  assert.match(src, /sourceHandle: edge\.sourceHandle/);
-  assert.match(src, /targetHandle: edge\.targetHandle/);
+  assert.match(src, /const HANDLE = "pointer-events-none opacity-0"/);
+  // The old file-tree shape is gone, in the island and in the layout alike.
+  for (const file of [ISLAND, "lib/garden-map-layout.ts"]) {
+    assert.doesNotMatch(code(read(file)), /sourceHandle|targetHandle|trunk|smoothstep/, file);
+  }
+  assert.match(src, /type: "default"/);
+});
+
+test("a card draws plain lazy <img> thumbnails, never next/image", () => {
+  // The builder hands over a thumbnail Cloudinary has already cut to size
+  // (`cloudinaryThumb`), so `next/image` would only add a proxy hop to redo it.
+  const src = code(read(CARD));
+  assert.match(src, /<img\b/);
+  assert.match(src, /loading="lazy"/);
+  assert.match(src, /alt=""/);
+  assert.doesNotMatch(src, /next\/image/);
+});
+
+test("the card's name is a stretched link that opts back in to pointer events", () => {
+  // The card is `relative` and the link's `::after` covers it, so the whole
+  // card is the click target and an image needs no link of its own.
+  const src = code(read(CARD));
+  assert.match(src, /after:inset-0/);
+  assert.match(src, /after:absolute/);
+  assert.match(src, /\brelative\b/);
 });
 
 test("a nav item, a scope key list and an icon exist for the map", async () => {
