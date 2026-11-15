@@ -1,7 +1,7 @@
 # Editing from the garden map — design
 
 **Date:** 2026-11-15
-**Status:** approved in conversation (approach A), awaiting plan
+**Status:** implemented — see "Spike results" at the end
 **Builds on:** [`2026-11-15-garden-map-design.md`](2026-11-15-garden-map-design.md),
 whose "Out of scope: editing from the map, a side panel" this reverses.
 
@@ -114,13 +114,17 @@ the sheet and drop the draft. The slice therefore adds one small thing:
   and the switcher while the map behind is unscoped. That is the URL rule
   working, and it will read as odd. If it does, the fix is in `admin-chrome.tsx`
   (treat a sheet as not changing scope), not here.
-- **The map may not refresh behind an open sheet.** The map's `children` slot is
-  retained across the interception, so a save may not re-render it. The floor is
-  that closing navigates to `/admin/map`, which re-renders it from the live
-  garden; a live refresh while open is tried and kept only if it works.
+- **The map refreshes behind an open sheet.** The spike showed a save re-renders
+  it live (a published bean's "Waiting" ring clears with the sheet still open),
+  so nothing here needs to wait for Close.
 - **Script off.** The map is a canvas island and draws nothing without script, so
   it never had a script-off reading to preserve. Every node href is still the
   real page.
+- **The admin's column follows the router, not the URL.** The sheet's URL is
+  `/admin/bean/x`, a reading column; `AdminMain` therefore passes the active
+  layout segment to `resolveColumn`, and `map` outranks the path. Without it the
+  tree under `<main>` changes shape when a sheet opens and the map, the sheet and
+  any editor in it remount.
 
 ## Spike first
 
@@ -152,8 +156,11 @@ and each has a stated fallback:
 - `lib/garden-map-source.test.ts` still holds: the island imports types only and
   no map file imports an action or `lib/store.ts`. `MapSheet` is not a map
   component and imports neither.
-- A render test for the dirty marker (`data-editor-dirty` present while dirty,
-  absent after a save) and a unit test for the guard's predicate.
+- A unit test for the pure helpers (`lib/map-sheet.test.ts`), and a source test
+  that the editor's surface binds `data-editor-dirty` to its `dirty` state. A
+  render test cannot do the second: `dirty` is set by an editor update, which
+  `renderToStaticMarkup` never runs, so the behaviour is covered by the browser
+  pass below.
 - A browser pass is part of done, not optional: click a plant, a pod, a bean and a
   sprout; edit and save a field; write in the editor and use `@` and `/`; open a
   rail panel; swap by clicking another node and by an in-sheet link; close; reload
