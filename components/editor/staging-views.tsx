@@ -16,7 +16,9 @@ import {
 import { unstable_rethrow } from "next/navigation";
 import Markdown from "react-markdown";
 import type { Editor, NodeViewRenderer } from "@tiptap/core";
-import type { Transaction } from "@tiptap/pm/state";
+import { NodeSelection, type Transaction } from "@tiptap/pm/state";
+import { closeHistory } from "@tiptap/pm/history";
+import type { Node as PMNode } from "@tiptap/pm/model";
 import {
   NodeViewContent,
   NodeViewWrapper,
@@ -51,6 +53,7 @@ import {
   type Size,
 } from "@/lib/staging";
 import type { Lang } from "@/lib/locale";
+import { figureFromImage } from "@/lib/staging-convert";
 import { remarkPlugins, rehypePlugins } from "@/lib/markdown";
 import { ALLOWED_TYPES } from "@/lib/upload-input";
 import { stagingComponents } from "@/components/staging/markdown-components";
@@ -539,6 +542,56 @@ export function exitMenus(editor: Editor): void {
   editor.view.dispatch(tr);
 }
 
+/**
+ * "Make it a figure" (spec §12): the paragraph holding a lone image becomes a
+ * `stagedFigure` in ONE transaction — one undo gives back the plain image,
+ * byte for byte — and the new figure's panel opens, as an inserted one's does.
+ * Whether it may is `figureFromImage`'s call (lib/staging-convert.ts), which
+ * the bubble menu asked first; asked again here, so a stale menu can never
+ * convert what the state no longer allows. `closeHistory` keeps the step from
+ * merging into the typing before it, so that undo restores the image and
+ * nothing else.
+ *
+ * WHICH figure opens is the node itself, not a position or a flag: the figure
+ * built here is remembered against its editor, and a figure view opens on
+ * mount only when it is drawing that very node. Identity rather than
+ * position, because positions are shared by whatever lands there next. Every
+ * other figure mounting at the same moment (a page load, a paste) is a
+ * different node and opens nothing.
+ *
+ * It is retired by the next document change rather than by being read, so
+ * React's development double-mount opens it as production's single mount
+ * does, and a later transaction — a redo that brings the same node back —
+ * does not reopen it. "The next document" is the one the dispatch LEFT, read
+ * after it returns, not `tr.doc`: an appended transaction can follow in the
+ * same dispatch (the trailing paragraph after a figure that ends the
+ * document). Reading it then is safe because the view cannot have mounted
+ * yet: @tiptap/react (3.30.2) hands a new node view to `EditorContent`'s
+ * portals through `queueMicrotask`, so the mount effect runs after the
+ * dispatch. A document change between the dispatch and that mount means the
+ * panel simply does not open — the figure is there, one click from its form.
+ *
+ * An inserted figure needs none of this — it is EMPTY, which is its own mark.
+ */
+const justConverted = new WeakMap<Editor, { node: PMNode; doc: PMNode }>();
+
+function isJustConverted(editor: Editor, node: PMNode): boolean {
+  const pending = justConverted.get(editor);
+  return !!pending && pending.node === node && pending.doc === editor.state.doc;
+}
+
+export function makeFigure(editor: Editor): boolean {
+  const verdict = figureFromImage(editor.state);
+  if (!verdict?.ok) return false;
+  const { state } = editor;
+  const figure = state.schema.nodes.stagedFigure.create(verdict.attrs);
+  const tr = closeHistory(state.tr.replaceWith(verdict.from, verdict.to, figure));
+  tr.setSelection(NodeSelection.create(tr.doc, verdict.from)).scrollIntoView();
+  editor.view.dispatch(tr);
+  justConverted.set(editor, { node: figure, doc: editor.state.doc });
+  return true;
+}
+
 interface StagedPanel {
   /** False outside an `EntityRail`: the trigger then draws, inert, and edits nothing. */
   available: boolean;
@@ -605,7 +658,7 @@ function useStagedPanel(
   // Mount and unmount only. `show` reads `panel` at mount, which is the
   // rail the node view mounted under; `close` is stable for its lifetime.
   useEffect(() => {
-    if (openOnMount) show(true);
+    if (openOnMount || isJustConverted(editor, live.current.node)) show(true);
     return () => close?.(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

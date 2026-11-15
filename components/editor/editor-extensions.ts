@@ -3,6 +3,7 @@ import { Markdown } from "@tiptap/markdown";
 import Suggestion from "@tiptap/suggestion";
 import { PluginKey } from "@tiptap/pm/state";
 import { baseExtensions } from "@/lib/entity-markdown";
+import { STAGED_TEXT_BLOCKS, stagingAllowedIn } from "@/lib/staging-convert";
 import type { EntityOption } from "@/lib/entity-options";
 import type { Lang } from "@/lib/locale";
 import { entityExtensions } from "./entity-views";
@@ -54,29 +55,11 @@ const STATIC_BLOCKS: BlockCommand[] = [
   },
 ];
 
-/** A staged text block — the one place the `/` menu stays shut (see `allow`). */
-const STAGED_TEXT_BLOCKS = new Set(["stagedCallout", "stagedQuote"]);
-
-/** Where a staged block may not go.
- *
- *  A list item: remark reads a container fence indented under a list marker
- *  as part of the item, and a staged block inside one is what the schema
- *  refuses to hold (lib/staging-editor.ts) — so offering the row there would
- *  delete the typed `/figure` and then fail its insert.
- *
- *  A table cell: a GFM cell is one line, so the block's fences cannot be
- *  written into it at all. The insert SUCCEEDS there and the loss comes on
- *  save — a figure serialized into a cell comes back as literal text in it,
- *  and a callout vanishes. */
-const NO_STAGING_ANCESTORS = new Set(["listItem", "taskItem", "tableCell", "tableHeader"]);
-
-/** Whether the staging rows belong in a `/` menu opened at `editor`'s caret. */
+/** Whether the staging rows belong in a `/` menu opened at `editor`'s caret —
+ *  `stagingAllowedIn` (lib/staging-convert.ts), the one list of places a
+ *  staged block may not stand, which "Make it a figure" asks too. */
 export function stagingAllowedAt(editor: Editor): boolean {
-  const { $from } = editor.state.selection;
-  for (let d = $from.depth; d >= 0; d--) {
-    if (NO_STAGING_ANCESTORS.has($from.node(d).type.name)) return false;
-  }
-  return true;
+  return stagingAllowedIn(editor.state.selection.$from);
 }
 
 /** A `/` command row. */

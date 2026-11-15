@@ -418,3 +418,83 @@ test("12. a callout label typed with brackets is escaped into a label that stays
   assert.equal(escapeLabel("a ] b"), "a \\] b");
   assert.equal(escapeLabel("already \\] escaped"), "already \\] escaped");
 });
+
+test("15. Make it a figure: one transaction to a canonical `:::figure`, and one undo gives back the plain image byte for byte", () => {
+  const { makeFigure } = require("../components/editor/staging-views.js") as typeof import("../components/editor/staging-views.js");
+  const { NodeSelection } = require("@tiptap/pm/state") as typeof import("@tiptap/pm/state");
+  const src = "https://res.cloudinary.com/demo/image/upload/moon.png";
+  const editor = makeEditor({ content: "Before.\n\nAfter.", contentType: "markdown" });
+  try {
+    // The image arrives as its own line just now — the /image path, inside
+    // the history's grouping delay and touching the range the conversion
+    // replaces. Without `closeHistory` the two steps would merge, and the
+    // undo would take the image away with the figure.
+    editor.commands.insertContentAt(9, {
+      type: "paragraph",
+      content: [{ type: "image", attrs: { src, alt: "The moon", title: "Close-up" } }],
+    });
+    const original = editor.getMarkdown();
+    let at = -1;
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === "image") at = pos;
+    });
+    editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, at)));
+
+    assert.equal(makeFigure(editor), true);
+    const figure = `:::figure\n![The moon](${src})\nClose-up\n:::`;
+    assert.equal(editor.getMarkdown(), `Before.\n\n${figure}\n\nAfter.`);
+    assert.equal(render(editor.getMarkdown()), render(`Before.\n\n${figure}\n\nAfter.`));
+    assert.match(render(figure), /<staged-figure /, "the site draws it as a figure");
+    assert.equal(editor.state.selection instanceof NodeSelection && editor.state.selection.node.type.name, "stagedFigure");
+
+    editor.commands.undo();
+    assert.equal(editor.getMarkdown(), original, "one undo, and the plain image is back exactly");
+
+    // A text selection converts nothing.
+    editor.commands.setTextSelection({ from: 1, to: 5 });
+    assert.equal(makeFigure(editor), false);
+    assert.equal(editor.getMarkdown(), original);
+  } finally {
+    editor.destroy();
+  }
+
+  // And from a stored article: the undo gives back the SOURCE, not merely an
+  // equivalent render.
+  const stored = `Before.\n\n![](${src})\n\nAfter.`;
+  const loaded = makeEditor({ content: stored, contentType: "markdown" });
+  try {
+    loaded.view.dispatch(loaded.state.tr.setSelection(NodeSelection.create(loaded.state.doc, 10)));
+    assert.equal(makeFigure(loaded), true);
+    assert.equal(loaded.getMarkdown(), `Before.\n\n:::figure\n![](${src})\n:::\n\nAfter.`);
+    loaded.commands.undo();
+    assert.equal(loaded.getMarkdown(), stored);
+  } finally {
+    loaded.destroy();
+  }
+});
+
+test("16. a title that reads as an image converts to a caption that stays one across save and reload", () => {
+  const { makeFigure } = require("../components/editor/staging-views.js") as typeof import("../components/editor/staging-views.js");
+  const { NodeSelection } = require("@tiptap/pm/state") as typeof import("@tiptap/pm/state");
+  const src = "https://res.cloudinary.com/demo/image/upload/moon.png";
+  const editor = makeEditor({ content: `![a](${src} "![b](https://e.com/b.png)")`, contentType: "markdown" });
+  try {
+    editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, 1)));
+    assert.equal(makeFigure(editor), true);
+    // Trimmed: a figure that ends the document gets the trailing paragraph.
+    const saved = editor.getMarkdown().trim();
+    assert.equal(saved, `:::figure\n![a](${src})\n\\![b](https://e.com/b.png)\n:::`);
+    const reloaded = makeEditor({ content: saved, contentType: "markdown" });
+    try {
+      const nodes = reloaded.getJSON().content ?? [];
+      assert.deepEqual(nodes.map((n) => n.type), ["stagedFigure"], "still one figure, not literal fences around two images");
+      assert.equal(nodes[0].attrs?.src, src);
+      assert.equal(nodes[0].attrs?.caption, "\\![b](https://e.com/b.png)");
+      assert.equal(reloaded.getMarkdown().trim(), saved, "and stable");
+    } finally {
+      reloaded.destroy();
+    }
+  } finally {
+    editor.destroy();
+  }
+});

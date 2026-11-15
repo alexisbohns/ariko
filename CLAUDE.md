@@ -547,7 +547,11 @@ while quietly becoming false.
   position range and closes rather than write to a different node. The `/` rows are withheld in a
   list item, a table cell (a GFM cell is one line: a figure saved there came
   back as literal text and a callout vanished), and the whole `/` menu stays
-  shut in a callout or quote, whose schema refuses a staged child. Every staged image is an `<a href>` to its
+  shut in a callout or quote, whose schema refuses a staged child. A plain
+  image alone on its line becomes a figure from the bubble menu in ONE
+  transaction (one undo restores it byte for byte); `figureFromImage`
+  (`lib/staging-convert.ts`) decides that, and owns the one list of places a
+  staged block may not stand, which `stagingAllowedAt` asks too. Every staged image is an `<a href>` to its
   original, so each is reachable full size script-off. An SVG is only ever an
   untransformed `<img>`, and only in a figure: `lib/svg-check.ts` REFUSES
   outside an allowlist rather than strips (a stripped drawing is not the one

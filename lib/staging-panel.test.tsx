@@ -50,11 +50,12 @@ const { EditorContent, useEditor } = require("@tiptap/react") as typeof import("
 type Editor = import("@tiptap/core").Editor;
 const { buildEditorExtensions, buildBlocks } =
   require("../components/editor/editor-extensions") as typeof import("../components/editor/editor-extensions");
+const { BubbleActions, bubbleShouldShow } = require("../components/editor/bubble-actions") as typeof import("../components/editor/bubble-actions");
 const { EntityRail } = require("../app/admin/_components/entity-rail") as typeof import("../app/admin/_components/entity-rail");
 
 after(() => dom.window.close());
 
-function Host({ onEditor }: { onEditor: (e: Editor) => void }) {
+function Host({ onEditor, bubble }: { onEditor: (e: Editor) => void; bubble?: boolean }) {
   const extensions = React.useMemo(
     () =>
       buildEditorExtensions({
@@ -72,17 +73,28 @@ function Host({ onEditor }: { onEditor: (e: Editor) => void }) {
   React.useEffect(() => {
     if (editor) onEditor(editor);
   }, [editor, onEditor]);
-  return <EditorContent editor={editor} />;
+  return (
+    <>
+      {bubble && editor ? (
+        <div data-testid="bubble">
+          <BubbleActions editor={editor}>
+            <button type="button">Bold</button>
+          </BubbleActions>
+        </div>
+      ) : null}
+      <EditorContent editor={editor} />
+    </>
+  );
 }
 
 type RailItems = import("../app/admin/_components/entity-rail").RailItem[];
 
-async function mount(withRail: boolean, items: RailItems = []) {
+async function mount(withRail: boolean, items: RailItems = [], bubble = false) {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
   let editor: Editor | null = null;
-  const host = <Host onEditor={(e) => (editor = e)} />;
+  const host = <Host onEditor={(e) => (editor = e)} bubble={bubble} />;
   await act(async () => {
     root.render(withRail ? <EntityRail label="Test panels" items={items}>{host}</EntityRail> : host);
   });
@@ -317,6 +329,137 @@ test("an expanded staging trigger names the panel it controls", async () => {
     const id = trigger.getAttribute("aria-controls");
     assert.ok(id, "aria-controls is set while expanded");
     assert.equal(document.getElementById(id), panel(), "and resolves to the open panel");
+  } finally {
+    await unmount();
+  }
+});
+
+test("Make it a figure opens the NEW figure's panel, and only that one: a load, an undo or a redo opens nothing", async () => {
+  const { makeFigure } = require("../components/editor/staging-views") as typeof import("../components/editor/staging-views");
+  const { NodeSelection } = require("@tiptap/pm/state") as typeof import("@tiptap/pm/state");
+  const { editor, unmount } = await mount(true);
+  try {
+    // A page load with figures already in it: no panel.
+    await act(async () => {
+      editor.commands.setContent(`${FIGURE("a.png")}\n\n![moon](https://res.cloudinary.com/demo/image/upload/moon.png)\n\n${FIGURE("b.png")}`, {
+        contentType: "markdown",
+      });
+    });
+    assert.equal(panel(), null, "figures that mount on load open nothing");
+
+    let at = -1;
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === "image") at = pos;
+    });
+    await act(async () => {
+      editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, at)));
+    });
+    await act(async () => {
+      assert.equal(makeFigure(editor), true);
+    });
+    assert.equal(heading(), "Figure", "the converted figure's panel opened");
+    assert.equal(
+      fieldByLabel(panel()!, "…or image URL").value,
+      "https://res.cloudinary.com/demo/image/upload/moon.png",
+      "and it is the new figure's form, not a neighbour's",
+    );
+
+    await escape();
+    await act(async () => {
+      editor.commands.undo();
+    });
+    assert.equal(panel(), null, "an undo opens nothing");
+    await act(async () => {
+      editor.commands.redo();
+    });
+    assert.equal(panel(), null, "nor does a redo that brings the same figure back");
+  } finally {
+    await unmount();
+  }
+});
+
+test("the bubble menu offers Make it a figure for a plain image — disabled, with its reason, when the image cannot be one", async () => {
+  const { NodeSelection } = require("@tiptap/pm/state") as typeof import("@tiptap/pm/state");
+  const { editor, unmount } = await mount(true, [], true);
+  const bubble = () => document.querySelector<HTMLElement>('[data-testid="bubble"]')!;
+  const makeIt = () => [...bubble().querySelectorAll("button")].find((b) => b.textContent === "Make it a figure");
+  const selectImage = (n: number) =>
+    act(async () => {
+      const at: number[] = [];
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name === "image") at.push(pos);
+      });
+      editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, at[n])));
+    });
+  try {
+    await act(async () => {
+      editor.commands.setContent("Words ![a](https://res.cloudinary.com/demo/image/upload/a.png)\n\n![b](https://res.cloudinary.com/demo/image/upload/b.png)", {
+        contentType: "markdown",
+      });
+      editor.commands.setTextSelection({ from: 1, to: 6 });
+    });
+    assert.ok(bubble().textContent?.includes("Bold"), "a text selection keeps the text buttons");
+    assert.equal(makeIt(), undefined);
+
+    await selectImage(0);
+    const refused = makeIt();
+    assert.ok(refused, "an image sharing its line still shows the action");
+    assert.equal(refused.disabled, true);
+    assert.equal(bubble().textContent?.includes("Bold"), false, "and no text marks");
+    const reason = document.getElementById(refused.getAttribute("aria-describedby") ?? "");
+    assert.equal(reason?.textContent, "Only an image on its own line can become a figure");
+
+    await selectImage(1);
+    const enabled = makeIt()!;
+    assert.equal(enabled.disabled, false);
+    assert.equal(enabled.getAttribute("aria-describedby"), null);
+    await act(async () => {
+      enabled.dispatchEvent(new window.MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    });
+    assert.equal(editor.getJSON().content?.[1]?.type, "stagedFigure", "the mousedown converts it");
+    assert.equal(heading(), "Figure");
+  } finally {
+    await unmount();
+  }
+});
+
+test("the bubble menu shows over text and over a plain image, never over a staged block or another atom", async () => {
+  const { NodeSelection, TextSelection } = require("@tiptap/pm/state") as typeof import("@tiptap/pm/state");
+  const { editor, unmount } = await mount(true);
+  const element = document.createElement("div");
+  const shows = () => {
+    const { state, view } = editor;
+    return bubbleShouldShow({ editor, element, view, state, from: state.selection.from, to: state.selection.to });
+  };
+  const select = (sel: (doc: typeof editor.state.doc) => import("@tiptap/pm/state").Selection) =>
+    act(async () => {
+      editor.view.dispatch(editor.state.tr.setSelection(sel(editor.state.doc)));
+    });
+  const posOf = (type: string) => {
+    let at = -1;
+    editor.state.doc.descendants((node, pos) => {
+      if (at < 0 && node.type.name === type) at = pos;
+    });
+    return at;
+  };
+  try {
+    await act(async () => {
+      editor.commands.setContent(
+        `Some words.\n\n![a](https://res.cloudinary.com/demo/image/upload/a.png)\n\n${FIGURE("b.png")}\n\n---\n\nEnd.`,
+        { contentType: "markdown" },
+      );
+    });
+    editor.view.dom.focus();
+    await select((doc) => TextSelection.create(doc, 1, 5));
+    assert.equal(shows(), true, "a text selection");
+    await select((doc) => NodeSelection.create(doc, posOf("image")));
+    assert.equal(shows(), true, "a plain image");
+    await select((doc) => NodeSelection.create(doc, posOf("stagedFigure")));
+    assert.equal(shows(), false, "a staged figure");
+    await select((doc) => NodeSelection.create(doc, posOf("horizontalRule")));
+    assert.equal(shows(), false, "a rule");
+    await select((doc) => TextSelection.create(doc, 1));
+    assert.equal(shows(), false, "an empty selection, as Tiptap's own rule says");
   } finally {
     await unmount();
   }
