@@ -25,7 +25,7 @@ and what is **missing**.
 | Plant | always | — (root) |
 | Pod | always | plant → pod |
 | Bean | always | pod → bean, or plant → bean when it skips the pod |
-| Sprout | **not published only** (`state` absent or `draft`) | to every ref in `about`; to its `plant:` parent when `about` is empty |
+| Sprout | **drafts only** (`stateOf(sprout) === "draft"`: `state` absent or `draft`). A `private` sprout is a deliberate hold, not a wait | to every ref in `about`; to its `plant:` parent when `about` is empty |
 | Seed | `status === "inbox"` only | to the most specific of `suggested.beanSlug` / `podSlug` / `plantSlug` that resolves |
 
 - **Published sprouts are not drawn.** They would turn the garden into a
@@ -36,6 +36,11 @@ and what is **missing**.
   itself a missing part.
 - **Inbox node.** Seeds with no resolvable suggestion hang off one synthetic
   **Inbox** node.
+- Scoped (`?plant=`), the map keeps only what rolls up to that plant: its pods,
+  their beans, its direct beans, the draft sprouts whose derived plant it is, and
+  the seeds whose suggestion lands on one of those. The Unrooted and Inbox nodes
+  are not drawn scoped.
+- A pod or bean with two parents is drawn once, with an edge from each.
 - A sprout is drawn once, with an edge per `about` ref. Its plant is **never
   re-derived** here: the map calls `resolveSproutPlant`, the one derivation.
 
@@ -45,20 +50,21 @@ and what is **missing**.
 
 - a plant, pod or bean whose visibility is not `"public"` (absent means public,
   per the repo-wide rule — use `visibilityOf`, never a raw compare);
-- a sprout that is not published;
+- a draft sprout (a `private` one is a decision already made);
 - a seed in the inbox.
 
 **Missing** — drawn as chips on the node:
 
-- **No narrative** — plant, pod, bean with `!hasNarrative(content)`. A
-  machine-projected bean (`projected` set) is **exempt**: it is source-owned and
-  read-only, so flagging it is noise.
+- **No narrative** — plant, pod, bean with `!hasNarrative(content)`.
 - **No FR half** — only where the narrative exists in English and the French
   half is empty. A missing narrative is reported once, as "no narrative", never
   also as "no FR".
 - **No children** — a plant with no pods and no beans; a pod with no beans; a
   bean with no sprouts of **any** state (this is why published sprouts must be
   read even though they are not drawn).
+- A machine-projected bean is exempt from **every** gap, not only "no
+  narrative": it has no journal by construction, so "no children" would flag
+  each one.
 
 ## Page, scope, column
 
