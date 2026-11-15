@@ -275,7 +275,7 @@ test("a plant-level draft sprout hangs off its plant", () => {
   assert.ok(hasEdge(buildGardenMap(raw, []), "plant:a", "sprout:s"));
 });
 
-test("an ambiguous or dangling draft sprout falls to Unrooted", () => {
+test("an ambiguous draft sprout keeps its links; a dangling one falls to Unrooted", () => {
   const raw: RawGarden = {
     plants: [plant("a"), plant("b")],
     pods: [pod("pa", ["plant:a"]), pod("pb", ["plant:b"])],
@@ -285,8 +285,38 @@ test("an ambiguous or dangling draft sprout falls to Unrooted", () => {
     ],
   };
   const map = buildGardenMap(raw, []);
-  assert.ok(hasEdge(map, "bucket:unrooted", "sprout:two"));
+  assert.ok(hasEdge(map, "pod:pa", "sprout:two"));
+  assert.ok(hasEdge(map, "pod:pb", "sprout:two"));
+  assert.equal(hasEdge(map, "bucket:unrooted", "sprout:two"), false);
   assert.ok(hasEdge(map, "bucket:unrooted", "sprout:dangling"));
+});
+
+test("a sprout about an orphan bean links to that bean, not directly to Unrooted", () => {
+  const raw: RawGarden = {
+    plants: [plant("a")],
+    beans: [bean("orphan", [])],
+    sprouts: [sprout("s", { about: ["bean:orphan"] })],
+  };
+  const map = buildGardenMap(raw, []);
+  assert.ok(hasEdge(map, "bucket:unrooted", "bean:orphan"));
+  assert.ok(hasEdge(map, "bean:orphan", "sprout:s"));
+  assert.equal(hasEdge(map, "bucket:unrooted", "sprout:s"), false);
+});
+
+test("only pod: and bean: about refs become sprout edges", () => {
+  const raw: RawGarden = {
+    plants: [plant("a")],
+    pods: [pod("p", ["plant:a"]), pod("lost", ["plant:gone"])],
+    beans: [bean("x", ["pod:p"])],
+    sprouts: [
+      sprout("s1", { about: ["bean:x"] }),
+      sprout("s", { about: ["bean:x", "plant:a", "sprout:s1", "bucket:unrooted"] }),
+    ],
+  };
+  const map = buildGardenMap(raw, []);
+  assert.ok(map.nodes.some((n) => n.id === "bucket:unrooted"));
+  const incoming = map.edges.filter((e) => e.target === "sprout:s").map((e) => e.source);
+  assert.deepEqual(incoming, ["bean:x"]);
 });
 
 // ---- seeds -----------------------------------------------------------------
@@ -315,6 +345,22 @@ test("a seed with no resolvable suggestion hangs off the Inbox node", () => {
 test("a promoted or discarded seed is not drawn", () => {
   const map = buildGardenMap(tidy(), [seed("p", { status: "promoted" }), seed("d", { status: "discarded" })]);
   assert.equal(map.nodes.some((n) => n.kind === "seed"), false);
+});
+
+test("a seed resolves garden-wide, then scope decides whether it is drawn", () => {
+  const raw: RawGarden = {
+    plants: [plant("a"), plant("b")],
+    pods: [pod("pa", ["plant:a"]), pod("pb", ["plant:b"])],
+    beans: [bean("xa", ["pod:pa"]), bean("xb", ["pod:pb"])],
+  };
+  const seeds = [seed("s", { suggested: { beanSlug: "xb", plantSlug: "a" } })];
+  const inA = buildGardenMap(raw, seeds, { scope: "a" });
+  assert.equal(inA.nodes.some((n) => n.id === "seed:s"), false);
+  const inB = buildGardenMap(raw, seeds, { scope: "b" });
+  assert.ok(hasEdge(inB, "bean:xb", "seed:s"));
+  assert.equal(hasEdge(inB, "plant:a", "seed:s"), false);
+  const all = buildGardenMap(raw, seeds);
+  assert.ok(hasEdge(all, "bean:xb", "seed:s"));
 });
 
 // ---- scope -----------------------------------------------------------------
@@ -381,6 +427,14 @@ test("view dims what does not match and hides nothing", () => {
     gaps.nodes.filter((n) => !n.dim).map((n) => n.id).sort(),
     ["plant:a", "pod:hollow"].sort(),
   );
+});
+
+test("a bucket is never dimmed, whatever the view", () => {
+  const raw: RawGarden = { plants: [plant("a")], pods: [pod("lost", ["plant:gone"])] };
+  for (const view of ["review", "gaps"] as const) {
+    const map = buildGardenMap(raw, [], { view });
+    assert.equal(node(map, "bucket:unrooted").dim, false, view);
+  }
 });
 
 test("stats count the whole map and ignore the view", () => {

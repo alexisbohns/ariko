@@ -246,17 +246,30 @@ export function buildGardenMap(
       dim: false,
     });
 
-    const about = aboutRefs(sprout);
-    let targets: string[] = [];
-    if (plant !== null) {
-      targets = about.length === 0 ? [`plant:${plant.slug}`] : about.filter((ref) => nodes.has(ref));
-      if (targets.length === 0 && nodes.has(`plant:${plant.slug}`)) targets = [`plant:${plant.slug}`];
+    // What the entry is ABOUT: only pod: and bean: refs name a node a sprout
+    // hangs off (a malformed `about` holding `sprout:`, `plant:` or a bucket id
+    // must never become an edge), and only the ones that exist here.
+    const aboutTargets = aboutRefs(sprout).filter(
+      (ref) => (ref.startsWith(POD_PREFIX) || ref.startsWith(BEAN_PREFIX)) && nodes.has(ref),
+    );
+    // A resolved sprout hangs off what it is about, else its plant. An
+    // UNRESOLVED one (ambiguous or dangling) still links to every existing node
+    // it is about, so the map keeps what it concerns, and falls to Unrooted
+    // only when there is none. Scoped, an unresolved sprout was skipped above.
+    let targets: string[] = aboutTargets;
+    if (plant !== null && targets.length === 0 && nodes.has(`plant:${plant.slug}`)) {
+      targets = [`plant:${plant.slug}`];
     }
     if (targets.length === 0) targets = [bucket(UNROOTED, "Unrooted")];
     for (const target of targets) connect(target, id);
   }
 
   // ---- inbox seeds ----
+  const gardenRefs = new Set<string>([
+    ...plants.map((p) => `plant:${p.slug}`),
+    ...pods.map((p) => `pod:${p.slug}`),
+    ...beans.map((b) => `bean:${b.slug}`),
+  ]);
   for (const seed of seeds) {
     if (seed.status !== "inbox") continue;
     const s = seed.suggested;
@@ -265,8 +278,10 @@ export function buildGardenMap(
       s?.podSlug ? `pod:${s.podSlug}` : null,
       s?.plantSlug ? `plant:${s.plantSlug}` : null,
     ];
-    const target = candidates.find((c): c is string => c !== null && nodes.has(c));
-    if (!target && scope !== null) continue; // an unplaced seed is not this plant's
+    // Resolved against the whole garden first, so the most specific suggestion
+    // wins the same way in every scope; scope then decides whether it is drawn.
+    const target = candidates.find((c): c is string => c !== null && gardenRefs.has(c));
+    if (scope !== null && (target === undefined || !nodes.has(target))) continue;
     const id = `seed:${seed.id}`;
     nodes.set(id, {
       id,
@@ -283,7 +298,8 @@ export function buildGardenMap(
   // ---- view + stats ----
   const matches = (n: MapNode): boolean =>
     view === "review" ? n.waiting : view === "gaps" ? n.gaps.length > 0 : true;
-  const list = [...nodes.values()].map((n) => ({ ...n, dim: !matches(n) }));
+  // A bucket carries no flags, so dimming it would only grey the parent of lit children.
+  const list = [...nodes.values()].map((n) => ({ ...n, dim: n.kind !== "bucket" && !matches(n) }));
   return {
     nodes: list,
     edges,
