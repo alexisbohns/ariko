@@ -67,6 +67,23 @@ export function uploadOptions(folder: string, filename?: string): Record<string,
   };
 }
 
+/**
+ * The SVG door's options (spec 2026-11-15 §5.2): its OWN allowed_formats, so
+ * Cloudinary judges these bytes as SVG while the raster door above keeps
+ * refusing SVG for every cover, screen and media item. Only a figure's image
+ * comes through here, and only after lib/svg-check.ts passed it — which is why
+ * this is a second function rather than `svg` added to ALLOWED_FORMATS: that
+ * one list guards every other caller.
+ */
+export function svgUploadOptions(folder: string, filename?: string): Record<string, unknown> {
+  return {
+    folder,
+    resource_type: "image",
+    allowed_formats: ["svg"],
+    ...(filename ? { context: { original_filename: filename } } : {}),
+  };
+}
+
 export const cloudinaryStorage: Storage = {
   async uploadImage(bytes: Buffer, filename?: string): Promise<MediaImage> {
     const dataUri = `data:application/octet-stream;base64,${bytes.toString("base64")}`;
@@ -78,4 +95,16 @@ export const cloudinaryStorage: Storage = {
 // Convenience for route handlers; swappable in tests by importing cloudinaryStorage directly.
 export function uploadImage(bytes: Buffer, filename?: string): Promise<MediaImage> {
   return cloudinaryStorage.uploadImage(bytes, filename);
+}
+
+/**
+ * Takes the OUTPUT of `checkSvg` (its `svg`, as a Buffer), never the uploaded
+ * bytes: the re-serialized text is what was re-checked. Both callers — the
+ * article door and `uploadImageAction`'s `figure-svg` purpose — run the check
+ * first; this function trusts that and has no way to verify it.
+ */
+export async function uploadSvg(svg: Buffer, filename?: string): Promise<MediaImage> {
+  const dataUri = `data:image/svg+xml;base64,${svg.toString("base64")}`;
+  const result = await cloudinary.uploader.upload(dataUri, svgUploadOptions(UPLOAD_FOLDER, filename));
+  return toMediaImage(result as CloudinaryResult);
 }

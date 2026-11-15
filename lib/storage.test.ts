@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toMediaImage, uploadOptions, type Storage } from "./storage";
+import { svgUploadOptions, toMediaImage, uploadOptions, type Storage } from "./storage";
 import { ALLOWED_TYPES } from "./upload-input";
 
 test("toMediaImage maps a Cloudinary result to a MediaImage descriptor", () => {
@@ -70,4 +70,9 @@ test("upload options make Cloudinary enforce raster formats from the bytes, deri
     const ext = t.replace("image/", "");
     assert.ok(formats.includes(ext) || (ext === "jpeg" && formats.includes("jpg")), t);
   }
+});
+
+test("SVG uploads have their own allowed_formats; the raster door is unchanged", () => {
+  assert.deepEqual(svgUploadOptions("beanstalk").allowed_formats, ["svg"]);
+  assert.equal((uploadOptions("beanstalk").allowed_formats as string[]).includes("svg"), false);
 });
