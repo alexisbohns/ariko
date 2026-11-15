@@ -159,3 +159,19 @@ test("a compare with an image but no text is still written — the popover's Sav
   assert.notEqual(md, "");
   assert.match(md, /:::do\n!\[a\]\(https:\/\/e\.com\/a\.png\)\n:::/);
 });
+
+test("a colon before any non-space is escaped in alt, so no text directive eats it", () => {
+  for (const alt of ["ratio 16:9", "x:1y", "caf:é", "time 10:30"]) {
+    const md = serializeFigure({ frame: "none", size: "l", src: "https://e.com/a.png", alt, darkSrc: "", darkAlt: "", caption: "" });
+    const once = parsed(md);
+    assert.ok(once.block === "figure");
+    assert.equal(once.image.alt, alt, md);
+    assert.equal(serializeFigure(figureFields(once)), md, `${alt} is stable`);
+  }
+});
+
+test("a parsed callout label is written back as it came", () => {
+  const v = parsed(STAGING_FIXTURES.labelWithTime);
+  assert.ok(v.block === "callout");
+  assert.equal(calloutOpener(v.label!.source), STAGING_FIXTURES.labelWithTime.split("\n")[0]);
+});

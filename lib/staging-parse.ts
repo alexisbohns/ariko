@@ -74,6 +74,23 @@ export function plainText(node: MdNode): string {
   return (node.children ?? []).map(plainText).join("");
 }
 
+/** plainText, except that a directive remark-directive found in prose is
+ *  read as its own source. `10:30` parses as text `10` plus a textDirective
+ *  named `30`, which plainText reads as its (empty) children — so a label's
+ *  accessible name lost every word after a colon. remarkRestoreForeignDirectives
+ *  puts the same slice back in the rendered tree; this is the same rule for
+ *  the one string derived before it runs. */
+function sourcedText(node: MdNode, source: string): string {
+  if (node.type === "textDirective" || node.type === "leafDirective") {
+    const from = node.position?.start.offset;
+    const to = node.position?.end.offset;
+    if (typeof from === "number" && typeof to === "number" && source) return source.slice(from, to);
+  }
+  if (typeof node.value === "string") return node.value;
+  if (node.type === "image") return node.alt ?? "";
+  return (node.children ?? []).map((n) => sourcedText(n, source)).join("");
+}
+
 const isLabel = (n: MdNode) => n.type === "paragraph" && n.data?.directiveLabel === true;
 const isBlank = (n: MdNode) => (n.type === "text" && !(n.value ?? "").trim()) || n.type === "break";
 
@@ -155,7 +172,11 @@ export function parseStagedBlock(node: MdNode, source: string, opts: { strict: b
   const labelNode = all.find(isLabel) ?? null;
   const kids = all.filter((n) => !isLabel(n));
 
-  if (labelNode && name !== "callout" && opts.strict) return fail(`${name} takes no [label]`);
+  // Shape, not vocabulary, so refused in BOTH modes: only a callout has a
+  // place to draw a label, and a lenient parse that accepted a labelled
+  // figure rendered it with the author's words gone. Refused, the block
+  // unwraps and the label is the paragraph it always was.
+  if (labelNode && name !== "callout") return fail(`${name} takes no [label]`);
 
   switch (name) {
     case "figure": {
@@ -192,7 +213,7 @@ export function parseStagedBlock(node: MdNode, source: string, opts: { strict: b
         return fail("compare: needs one :::do and one :::dont, in that order");
       const side = (n: MdNode, who: "do" | "dont"): Side | string => {
         if (opts.strict && Object.keys(n.attributes ?? {}).length > 0) return `compare: ${who} takes no attributes`;
-        if (opts.strict && (n.children ?? []).some(isLabel)) return `compare: ${who} takes no [label]`;
+        if ((n.children ?? []).some(isLabel)) return `compare: ${who} takes no [label]`;
         const media = splitMedia((n.children ?? []).filter((k) => !isLabel(k)), source, `compare: ${who}`);
         if (typeof media === "string") return media;
         if (media.images.length > 1) return `compare: each side holds at most one image`;
@@ -210,7 +231,7 @@ export function parseStagedBlock(node: MdNode, source: string, opts: { strict: b
       const label = labelNode && (labelNode.children ?? []).length > 0
         ? { nodes: labelNode.children ?? [], source: sourceOf(labelNode.children ?? [], source) }
         : null;
-      return { ok: true, value: { block: "callout", label, labelText: label ? plainText(labelNode!).trim() : null, body: kids } };
+      return { ok: true, value: { block: "callout", label, labelText: label ? sourcedText(labelNode!, source).trim() : null, body: kids } };
     }
     case "quote": {
       const by = (attrs.by ?? "").trim();

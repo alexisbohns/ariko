@@ -86,7 +86,7 @@ test("malformed blocks are refused in both modes, with the door's words", () => 
 });
 
 test("lenient mode defaults unknown values; strict mode refuses them by name", () => {
-  for (const name of ["sizeXl", "frameTablet", "unknownAttr", "classShorthand", "labelOnFigure"] as const) {
+  for (const name of ["sizeXl", "frameTablet", "unknownAttr", "classShorthand"] as const) {
     const { md, problem } = DOOR_ONLY_FIXTURES[name];
     assert.equal(parse(md).ok, true, `${name} lenient`);
     const r = parse(md, true);
@@ -129,12 +129,31 @@ test("a stray image between compare's sides is refused, not dropped", () => {
   }
 });
 
-test("a [label] on a compare side: strict refuses it by name, lenient ignores it", () => {
-  const md = `::::compare\n:::do[Yes]\nYes.\n:::\n:::dont\nNo.\n:::\n::::`;
-  const r = parse(md, true);
-  assert.equal(r.ok, false);
-  if (!r.ok) assert.match(r.problem, /compare: do takes no \[label\]/);
-  const l = parse(md);
-  assert.ok(l.ok && l.value.block === "compare");
-  assert.equal(l.value.do.text.source, "Yes.");
+// A misplaced label is SHAPE, not vocabulary: there is nowhere in a figure,
+// gallery, quote or side to draw it, so a lenient parse that accepted the
+// block dropped the author's words from the page. Refused, the block unwraps
+// and the label renders as the paragraph it is.
+test("a [label] anywhere but a callout is refused in both modes, by name", () => {
+  const cases: Array<[string, RegExp]> = [
+    [DOOR_ONLY_FIXTURES.labelOnFigure.md, DOOR_ONLY_FIXTURES.labelOnFigure.problem],
+    [`:::gallery[Label]\n![a](https://e.com/a.png)\n![b](https://e.com/b.png)\n:::`, /gallery takes no \[label\]/],
+    [`:::quote[Label]{by=Alexis}\nq\n:::`, /quote takes no \[label\]/],
+    [`::::compare\n:::do[Yes]\nYes.\n:::\n:::dont\nNo.\n:::\n::::`, /compare: do takes no \[label\]/],
+    [`::::compare\n:::do\nYes.\n:::\n:::dont[No]\nNo.\n:::\n::::`, /compare: dont takes no \[label\]/],
+  ];
+  for (const [md, problem] of cases) {
+    for (const strict of [false, true]) {
+      const r = parse(md, strict);
+      assert.equal(r.ok, false, `${md} strict=${strict}`);
+      if (!r.ok) assert.match(r.problem, problem, md);
+    }
+  }
+});
+
+test("a callout's label text keeps what remark-directive split at a colon", () => {
+  for (const [label, text] of [["Rule 1:2", "Rule 1:2"], ["at 10:30 a:b", "at 10:30 a:b"], ["At 10:30, a rule", "At 10:30, a rule"]]) {
+    const r = parse(`:::callout[${label}]\nBody.\n:::`);
+    assert.ok(r.ok && r.value.block === "callout", label);
+    assert.equal(r.value.labelText, text);
+  }
 });

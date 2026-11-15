@@ -67,6 +67,9 @@ The fine vibrations of the phone, timed with :entity[the music]{ref=bean:sparkai
 
 ::entity{ref=bean:sparkaik-haptics}
 :::`,
+  labelWithTime: `:::callout[At 10:30, a rule]
+Body.
+:::`,
   unlabeledCallout: `:::callout
 Deliberately left out, at least for now: multiple accounts, budgets, forecasts, accounts to log into, anything to sync.
 :::`,

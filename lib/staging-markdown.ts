@@ -69,9 +69,12 @@ function escapeLine(line: string): string {
 /** Inline-significant characters only. Every ASCII punctuation mark would be
  *  plain-text-safe too, but it would make the fixtures' own alts (`phone: the
  *  lake`, `conductor's`) non-canonical — a save would rewrite them. `:` is
- *  escaped only where it could open a text directive. */
+ *  escaped before any non-space: remark-directive opens a text directive at
+ *  `:` + a digit or a non-ASCII letter too, and its text vanishes from the
+ *  alt (`16:9` read back as `16`). The cost is a `https\://` in an alt that
+ *  quotes a URL, rewritten once on the first save. */
 const escapeAlt = (s: string) =>
-  oneLine(s).replace(/[\\[\]*_`<>&~!|]|:(?=[A-Za-z])/g, (c) => `\\${c}`);
+  oneLine(s).replace(/[\\[\]*_`<>&~!|]|:(?=\S)/g, (c) => `\\${c}`);
 const escapeTitle = (s: string) => oneLine(s).replace(/["\\]/g, (c) => `\\${c}`);
 const escapeUrl = (s: string) =>
   s.trim().replace(/\\/g, "%5C").replace(/ /g, "%20").replace(/\(/g, "%28").replace(/\)/g, "%29");

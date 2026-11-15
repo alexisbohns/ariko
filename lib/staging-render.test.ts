@@ -85,3 +85,13 @@ test("inert fixtures are untouched", () => {
   assert.match(render(INERT_FIXTURES.fenceInCode), /<code class="language-md">:::figure/);
   assert.match(render(INERT_FIXTURES.timeOfDay), /10:30/);
 });
+
+test("a callout label split at a colon by remark-directive keeps its words in data-label", () => {
+  assert.match(render(STAGING_FIXTURES.labelWithTime), /<staged-callout data-label="At 10:30, a rule"><staged-label>At 10:30, a rule<\/staged-label>/);
+});
+
+test("a misplaced label unwraps its block and keeps its words", () => {
+  const html = render(":::figure[Label words]\n![a](https://e.com/a.png)\n:::");
+  assert.doesNotMatch(html, /<staged-figure/);
+  assert.match(html, /Label words/);
+});
