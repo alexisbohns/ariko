@@ -43,7 +43,8 @@ test("the client side imports TYPES from lib/, never values", () => {
     for (const line of imports) {
       const typeOnly = /^import\s+type\s/.test(line);
       // `cn` from lib/utils is a value and is fine: it reaches no node: module.
-      assert.ok(typeOnly || /@\/lib\/utils["']/.test(line), `${file}: ${line}`);
+      // `map-sheet` imports nothing, so it reaches no `node:` module either.
+      assert.ok(typeOnly || /@\/lib\/(utils|map-sheet)["']/.test(line), `${file}: ${line}`);
     }
   }
 });

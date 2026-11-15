@@ -470,7 +470,14 @@ export function ProseEditor({
         </BubbleMenu>
       ) : null}
 
-      <div className={cn("relative", !bare && "rounded-lg border p-3")}>
+      <div
+        className={cn("relative", !bare && "rounded-lg border p-3")}
+        // Read by `lib/map-sheet.ts` (`EDITOR_DIRTY_ATTR`): the map's entity
+        // sheet asks before a close or a node click discards this editor. It
+        // follows `dirty`, which stays true after a FAILED save — exactly the
+        // state in which the draft exists nowhere else.
+        data-editor-dirty={dirty || undefined}
+      >
         {/* OUT OF FLOW, because in flow it moved the writing surface three
             times: once after hydration, when `editor` arrives and the button
             appears above an empty page; once on the first keystroke, when the
