@@ -30,6 +30,14 @@ and what is **missing**.
 
 - **Published sprouts are not drawn.** They would turn the garden into a
   hairball. They still count toward "bean has no journal".
+- **An unresolved sprout keeps its links.** A draft sprout `resolveSproutPlant`
+  cannot resolve still gets an edge from every existing pod or bean its `about`
+  names (so an ambiguous one visibly bridges two trees); it falls to Unrooted
+  only when it names nothing that exists.
+- **Seeds resolve against the whole garden, then scope filters.** A seed's most
+  specific suggestion is chosen without regard to scope, so it never attaches to
+  different nodes in different scopes; scoped, it is dropped when that target is
+  out of scope. A bucket is never dimmed by a view.
 - **Unrooted cluster.** Pods with no resolvable plant, beans with no pod nor
   plant, and sprouts `resolveSproutPlant` cannot resolve (ambiguous or
   anchorless) hang off one synthetic **Unrooted** node. The detached state is
