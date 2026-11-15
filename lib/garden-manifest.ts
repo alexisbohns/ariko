@@ -46,9 +46,9 @@ function checkSlug(raw: unknown, where: string): string | null {
  * not would be worse than a refusal: the author believes the thing is live,
  * and nothing anywhere looks wrong.
  *
- * `relations` is DERIVED, never authored — `lib/articles-store.ts` mirrors it
- * from the body's entity refs (`mergeMirrored(undefined, extractRefs(...))`),
- * and planting will do the same; a manifest value here would just be
+ * `relations` is DERIVED, never authored — `lib/articles-v2-store.ts` mirrors it
+ * from the body's entity refs (`mergeMirrored(stored, extractRefs(...))`),
+ * and planting does the same; a manifest value here would just be
  * overwritten or drift from what the body actually references.
  *
  * `parents` is containment, and re-homing an entity across pods/plants is a

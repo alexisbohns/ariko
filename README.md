@@ -96,7 +96,7 @@ As of the Ingestion Spine slice, content can be captured into Mongo via API inst
 
 * Set `INBOX_TOKENS` in `.env.local` — comma-separated `kind:token` pairs, e.g. `*:tok_master,github:tok_gh`. A `kind` of `*` accepts the token for any source kind; otherwise the token is only valid for that specific `source.kind`.
 * Set `CLOUDINARY_URL` in `.env.local` (from the Cloudinary dashboard, e.g. `cloudinary://<key>:<secret>@<cloud_name>`) — required for `/api/upload` to store images.
-* Set `ARTICLES_TOKEN` in `.env.local` — a single bearer token for `POST /api/articles`; unset means the door is closed (fails closed, `401` on every request).
+* `POST /api/articles` takes no env token: each sibling repo holds its own, minted with `npm run token:mint -- --plant <slug>` (see *Writing for Ariko from another repo*). The shared `ARTICLES_TOKEN` was retired on 2026-11-15 and an env var of that name now opens nothing.
 * `npm run validators` — applies the DB-side `$jsonSchema` validators and seed indexes. Run once after pulling this change, and again after any validator edit.
 * `npm run backfill:plant-roles` — one-shot, idempotent: gives every pre-`role` plant `{ kind: "owner" }`.
   Run it **before** `npm run validators` (which tightens `role` to required), then correct the
@@ -123,62 +123,9 @@ Bearer-authenticated Cloudinary image upload: `Authorization: Bearer <token>`, b
 
 The admin UI builds on these endpoints. Connectors post to `/api/inbox` with a bearer token; the browser capture bar (below) reaches the same ingestion path through a session-authenticated server action.
 
-### `POST /api/articles`
-
-Bearer-authenticated long-form write door: `Authorization: Bearer <token>`. Content of this kind
-should not live in a repo, and until this door existed `Plant.content` / `Pod.content` had no
-authoring path at all except editing `data/garden.yml` and running `npm run migrate`.
-
-Body: `{ container, narrative?, articles?: [{ slug, name, description?, date, content }] }`, e.g.:
-
-```json
-{
-  "container": "plant:paulopus",
-  "narrative": "## Context\n…",
-  "articles": [
-    { "slug": "karma-accountability", "name": "Karma & Accountability", "date": "2026-07-24", "content": "…" }
-  ]
-}
-```
-
-* `container` is a `plant:`, `pod:` or `bean:` ref. `narrative` and `articles` are each optional
-  on their own, but the payload must carry at least one — and a `bean:` container takes a
-  `narrative` only: a bean holds no beans, so `articles` under one are refused (post them under
-  its pod). A projected bean (one derived from a pollen feed) is refused too.
-* `narrative` and each article's `content` are capped at **512 KiB** per language part.
-* Each article is written as a **bean**: its `content` is the bean's narrative, and no companion
-  sprout is created (since the journal model, `docs/superpowers/specs/2026-10-10-journal-model-design.md`
-  §3). Re-posting an article whose bean is still private rewrites that bean in place — a correction
-  to an unreviewed draft is simply a re-post.
-* `date` is still required and validated (`YYYY-MM-DD`) but **recorded nowhere**: a bean has no
-  date, and a dated record is a sprout, which this door no longer writes. It stays accepted so an
-  existing caller does not break; slice two may turn it into a journal entry.
-
-**The door structurally cannot publish.** Any `state` key on an article is refused whatever its
-value, beans are created private, and no visibility is ever changed — publication stays a human
-act in the admin.
-
-Three refusals, all pre-checked before anything is written and any one aborting the whole
-batch: an article whose bean is already **public** (a human has published it — this door never
-does, so a public bean is reviewed work) or projected, a container that is already public **and**
-carries non-blank prose, and a `bean:` container that is projected — machine-owned, rebuilt from
-its pollen feed, so prose written onto it would survive no rebuild.
-
-* `401` when the bearer token is missing, wrong, or `ARTICLES_TOKEN` is unset.
-* `400` on malformed JSON or a payload that fails validation (the validator's message is returned).
-* `409` on refusal — either the pre-check kind above, or a sprout reviewed in the gap between the
-  pre-check and the write itself.
-* `200` with `{ ok: true, written, narrative }` on success.
-
-**Operating sequence.** Keep the container private while its narrative and articles are posted
-and reviewed: posting a narrative to an already-public container would put live prose on the site
-whose entity cards all resolve to nothing while the articles are still drafts. Review and publish
-the sprouts from the admin; `publishCascade` — untouched — then flips the beans and the container
-public together, so the narrative, the cards and the articles all go live in the same act.
-
 ### Writing for Ariko from another repo (per-repo tokens)
 
-`POST /api/articles` also takes a **per-repo token** (`ariko_<plant>_…`), so a sibling repo's agent —
+`POST /api/articles` is the long-form write door, and it takes only a **per-repo token** (`ariko_<plant>_…`), so a sibling repo's agent —
 local or in a Claude Code cloud session — posts essays and pod/bean narratives, with images, as
 **drafts**, with nothing committed to the sibling. A repo is a plant: the token is scoped to one
 plant — every pod of it, and the beans under them — and minted here:
@@ -195,6 +142,8 @@ cloud environment's variables, and allow `www.ariko.app` on the environment's ne
 in the repo. The skill is installed once per account: `npm run skill:zip` and upload the zip at
 claude.ai → Settings → Capabilities → Skills (cloud sessions load account skills, not a repo's
 `enabledPlugins`), and `/plugin install ariko-article@ariko` at user scope for local sessions.
+The shared `ARTICLES_TOKEN` and its `{ container, narrative, articles }` shape are retired (2026-11-15):
+`401` is the answer to any other bearer.
 
 * `GET /api/articles/ping` returns `{ plant, pods, beans }` — the token's scope.
 * `POST /api/articles/assets` takes one raster image (`multipart/form-data`, field `file`, 4 MB) —

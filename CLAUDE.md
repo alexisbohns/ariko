@@ -664,7 +664,7 @@ Six rules the tests pin, each of which passes `tsc`, `npm test` **and**
   Since the journal model (`specs/2026-10-10-journal-model-design.md`) a bean
   carries one body — what the feature is now and how it got there — rewritten
   in place, never versioned or appended. `editContainerContentAction` takes a
-  `bean:` ref, `/api/articles` takes a `bean:` container for `narrative` only,
+  `bean:` ref, `/api/articles` takes a bean narrative by slug,
   and the manifest's `content:` on a bean is a second write exactly as a pod's.
   The public bean page renders that `content` and nothing else — the sprout
   fallback went with the fold — and the related-beans rail admits a candidate
@@ -672,9 +672,8 @@ Six rules the tests pin, each of which passes `tsc`, `npm test` **and**
   its newest journal entry, `sproutsForBean(slug)[0]`.
 - **An update preserves hand-authored relations.** `contentPatch` takes the
   stored `relations` as a REQUIRED parameter, never a defaulted one.
-  `lib/content-edit.ts`'s §2.10 note already says that `articles-store.ts`'s
-  `undefined` is "right for a door that writes only unreviewed drafts … and
-  wrong for an edit path" — `--update` is an edit path, and passing `undefined` there
+  `lib/content-edit.ts`'s §2.10 note records that the retired legacy article
+  door's `undefined` was "wrong for an edit path" — `--update` is an edit path, and passing `undefined` there
   deletes every non-mirrored kind with nothing failing anywhere. The parameter is
   required so no future call site can omit it back into the bug.
 - **An image is written only where there is none.** A bean's `cover:` and a
@@ -745,8 +744,8 @@ uploaded server-side), `POST
 /api/articles` (`{ essays, narratives }`). `authorizeRepo` and the token
 store are `lib/repo-token-store.ts`; the pure half (hashing, setup card, `.env`
 block, target guards) is `lib/repo-token.ts`. A bearer that does not start
-`ariko_` is refused without a database read, so the legacy token path works
-with no database at all; every refusal is the same 401 body. Rules the tests
+`ariko_` is refused without a database read, which is what lets the retired
+shared-token test run with no database at all; every refusal is the same 401 body. Rules the tests
 pin, each of which passes `tsc`, `npm test` **and** `npm run build` while
 quietly becoming false:
 
@@ -821,8 +820,15 @@ quietly becoming false:
   Cloudinary quota; the answer is `npm run token:revoke -- --plant <slug>`, which
   the skill's troubleshooting and the README both say.
 
-The legacy `ARTICLES_TOKEN` shape (`container` / `narrative` / `articles`)
-still works until it is retired; each token refuses the other's shape by name.
+**There is no other credential.** The shared `ARTICLES_TOKEN` and its
+`container` / `narrative` / `articles` shape were retired on 2026-11-15: they
+ran none of the checks above, so a leaked shared token could write past a
+plant's scope, host any image and skip the staging grammar. A bearer that is not
+a live repo token is a `401` with the one body, **whatever the environment
+holds** — `lib/articles-route-v2.test.ts` sets `ARTICLES_TOKEN` and asserts it
+opens nothing in either shape, which is the only thing that notices the branch
+creeping back (`tsc`, `npm test` and `npm run build` all pass with it restored).
+A repo token posting the old shape still gets a `400` naming the new one.
 Sibling agents get the flow as the `ariko-article` skill
 (`plugins/ariko-article/`), installed **once per account, never per repo**: a
 cloud session ignores a repo's `enabledPlugins` and never sees user-level
