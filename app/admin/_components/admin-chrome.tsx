@@ -276,7 +276,11 @@ export function AdminChrome({ plants }: { plants: PlantMark[] }) {
  * page is outside `app/admin/(chrome)/` now and this layout does not wrap it,
  * so that branch — and `resolveColumn`'s `"bare"` with it — was unreachable
  * code claiming a route this component never sees. The login page draws its own
- * `<main>`; the two surviving measures are the two the chrome actually offsets.
+ * `<main>`; the two column measures are the two the chrome actually offsets.
+ *
+ * There is a third kind of page now, `"bleed"` (the garden map): it is not a
+ * measure at all and offsets nothing — `AdminMain` hands it the whole viewport
+ * and the chrome floats over it.
  *
  * The measure itself is `components/page-column.tsx`, shared with the public
  * zone, and the shared-surfaces slice is what put it there. What this page used

@@ -86,7 +86,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
  *  Beanstalk never admits one (see the docblock above). `ScopedId` and
  *  `navHref`'s runtime exemption both derive from this one array, which is
  *  what keeps them from being two hand-maintained copies that could drift in
- *  OPPOSITE directions on a seventh section — `navHref` deciding by
+ *  OPPOSITE directions on the next section — `navHref` deciding by
  *  exclusion, a per-section key map (lib/admin-scope.ts) deciding by
  *  inclusion. `lib/admin-scope.ts` imports `ScopedId` to key that map by id
  *  rather than by route string, so a new `NavId` fails `tsc` there until it

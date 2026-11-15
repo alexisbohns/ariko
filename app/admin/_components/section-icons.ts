@@ -20,8 +20,8 @@ import type { NavId } from "@/lib/admin-nav";
  * second half, because the tempting shorthand — "lucide-react is itself 'use
  * client'" — is false and costs a 500 the moment someone leans on it from a
  * server component. rail-icons.ts is that story.) lib/section-icons.test.ts
- * holds this map to NavId, so the sixth section cannot repeat the fifth's
- * mistake.
+ * holds this map to NavId, so the next section cannot repeat an earlier
+ * one's mistake.
  */
 export const SECTION_ICONS: Record<NavId, ComponentType<{ className?: string }>> = {
   overview: Flower2,

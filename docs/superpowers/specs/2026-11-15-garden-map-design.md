@@ -84,7 +84,7 @@ and what is **missing**.
 - Scope follows `lib/admin-scope.ts`. Unscoped: the whole garden, a forest, one
   tree per plant. `?plant=slug`: that plant's tree only. Unlike Beanstalk, a plant
   tree is naturally filterable, so the rail keeps **Map** when scoped (rail:
-  7 items unscoped, 8 scoped, inside the Alt+1–9 hotkeys).
+  7 items unscoped and 7 scoped — Overview comes in, Beanstalk drops out — inside the Alt+1–9 hotkeys).
 - `resolveColumn` gains a third member, `"bleed"`, for `/admin/map`: the canvas
   fills the viewport and the floating chrome plates sit over it. `AdminMain` in
   `admin-chrome.tsx` handles it. Minimap and controls sit bottom-right, away from

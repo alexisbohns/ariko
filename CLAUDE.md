@@ -51,7 +51,8 @@ Geist Mono, wired through `--font-inclusive-sans` / `--font-geist-mono` in
     zones, which is what makes the author's column the visitor's column.
     `resolveColumn()` in `lib/admin-nav.ts` picks it: a section index is
     `WIDE_COLUMN`, the welcome page is too — it holds two tables — and
-    everything else reads. There is no `bare` any more: login left the chrome
+    everything else reads — except the garden map, which is `bleed`: no column at
+    all (see the garden-map bullet). There is no `bare` any more: login left the chrome
     group, so `resolveColumn`'s only caller can no longer be asked about it,
     and a special case for a path that cannot arrive is dead code reading as a
     live rule. Chrome clearance goes **outside** the measure, never inside it.
