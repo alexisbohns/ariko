@@ -3,9 +3,9 @@
 import { X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { buttonVariants } from "@/components/ui/button";
-import { MAP_PATH, confirmDiscard, mapCloseHref, sheetOpenFor } from "@/lib/map-sheet";
+import { MAP_PATH, confirmDiscard, isInPlaceNavigation, mapCloseHref, sheetOpenFor } from "@/lib/map-sheet";
 import { cn } from "@/lib/utils";
 
 /**
@@ -67,12 +67,26 @@ export function MapSheet({ children }: { children: ReactNode }) {
     if (confirmDiscard(sheet.current)) router.push(closeHref);
   }
 
+  // Capture phase, on the whole frame: every in-place navigation out of the
+  // sheet's current content — the ✕, an entity link in a table, the EN/FR
+  // switch, a link in the prose — passes through here before `next/link` sees
+  // it, so one guard covers them all and no link needs to know about drafts.
+  function onClickCapture(event: MouseEvent<HTMLElement>) {
+    const anchor = (event.target as Element).closest("a[href]");
+    if (!isInPlaceNavigation(event, anchor)) return;
+    if (!confirmDiscard(sheet.current)) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }
+
   return (
     <aside
       ref={sheet}
       data-map-sheet
       aria-label="Entity editor"
       onKeyDown={onKeyDown}
+      onClickCapture={onClickCapture}
       className={cn(
         "fixed inset-y-0 right-0 z-30 w-full max-w-[44rem] transform-gpu overflow-hidden border-l bg-card shadow-xl",
         "duration-200 animate-in slide-in-from-right",
@@ -85,9 +99,6 @@ export function MapSheet({ children }: { children: ReactNode }) {
       <Link
         href={closeHref}
         aria-label="Close"
-        onClick={(event) => {
-          if (!confirmDiscard(sheet.current)) event.preventDefault();
-        }}
         className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "absolute left-4 top-4 z-10")}
       >
         <X />

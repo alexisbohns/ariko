@@ -6,6 +6,7 @@ import {
   MAP_PATH,
   confirmDiscard,
   hasUnsavedEdit,
+  isInPlaceNavigation,
   mapCloseHref,
   sheetOpenFor,
 } from "./map-sheet";
@@ -44,4 +45,23 @@ test("a clean sheet never asks; a dirty one asks once and obeys the answer", () 
   assert.equal(confirmDiscard(dirty, yes), true);
   assert.equal(confirmDiscard(dirty, no), false);
   assert.deepEqual(asked, [DISCARD_PROMPT, DISCARD_PROMPT]);
+});
+
+test("only a plain primary click on a real same-tab destination is an in-place navigation", () => {
+  const plain = { button: 0, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false };
+  const link = (attrs: Record<string, string | null>) => ({ getAttribute: (name: string) => attrs[name] ?? null });
+
+  assert.equal(isInPlaceNavigation(plain, link({ href: "/admin/bean/x" })), true);
+  assert.equal(isInPlaceNavigation(plain, link({ href: "/admin/bean/x", target: "_self" })), true);
+  // Nothing is navigated, so there is nothing to ask about.
+  assert.equal(isInPlaceNavigation(plain, null), false);
+  assert.equal(isInPlaceNavigation(plain, link({})), false);
+  assert.equal(isInPlaceNavigation(plain, link({ href: "#top" })), false);
+  assert.equal(isInPlaceNavigation(plain, link({ href: "/admin/bean/x", target: "_blank" })), false);
+  // A modified or non-primary click opens elsewhere and leaves this tab's draft alone.
+  assert.equal(isInPlaceNavigation({ ...plain, metaKey: true }, link({ href: "/a" })), false);
+  assert.equal(isInPlaceNavigation({ ...plain, ctrlKey: true }, link({ href: "/a" })), false);
+  assert.equal(isInPlaceNavigation({ ...plain, shiftKey: true }, link({ href: "/a" })), false);
+  assert.equal(isInPlaceNavigation({ ...plain, altKey: true }, link({ href: "/a" })), false);
+  assert.equal(isInPlaceNavigation({ ...plain, button: 1 }, link({ href: "/a" })), false);
 });

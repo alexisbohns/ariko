@@ -14,7 +14,7 @@ import {
 } from "@xyflow/react";
 import { useMemo, useSyncExternalStore, type MouseEvent } from "react";
 import type { PositionedMap, PositionedNode } from "@/lib/garden-map-layout";
-import { MAP_SHEET_ATTR, confirmDiscard } from "@/lib/map-sheet";
+import { MAP_SHEET_ATTR, confirmDiscard, isInPlaceNavigation } from "@/lib/map-sheet";
 import { MapNodeCard } from "./garden-map-node";
 
 /**
@@ -82,7 +82,7 @@ const readDarkOnServer = () => false;
  * stray click the likeliest way to lose a draft.
  */
 function guardDirtySheet(event: MouseEvent<HTMLDivElement>) {
-  if (!(event.target as Element).closest("a[href]")) return;
+  if (!isInPlaceNavigation(event, (event.target as Element).closest("a[href]"))) return;
   if (!confirmDiscard(document.querySelector(`[${MAP_SHEET_ATTR}]`))) {
     event.preventDefault();
     event.stopPropagation();

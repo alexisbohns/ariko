@@ -129,3 +129,11 @@ test("the admin's column follows the active segment, so the map stays bleed unde
   assert.match(text, /useSelectedLayoutSegment\(\)/);
   assert.match(text, /resolveColumn\(pathname, segment\)/);
 });
+
+test("the sheet guards every in-place navigation, once — the ✕ has no guard of its own", () => {
+  const text = code(SHEET);
+  assert.match(text, /onClickCapture=\{onClickCapture\}/);
+  assert.match(text, /isInPlaceNavigation\(/);
+  // A guard on the ✕ as well would ask twice.
+  assert.equal(/<Link\b[^>]*onClick=/.test(text), false, "the ✕ must not carry its own onClick");
+});

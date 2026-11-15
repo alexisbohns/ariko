@@ -37,6 +37,37 @@ export function sheetOpenFor(pathname: string): boolean {
   return pathname.replace(/\/$/, "") !== MAP_PATH;
 }
 
+/** The fields of a `MouseEvent` this reads, so a test passes a plain object. */
+export interface ClickLike {
+  button: number;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  shiftKey: boolean;
+  altKey: boolean;
+}
+
+/** The slice of an `<a>` this reads. */
+export interface AnchorLike {
+  getAttribute(name: string): string | null;
+}
+
+/**
+ * Whether a click navigates THIS tab away from what is on screen: a plain
+ * primary click on a real destination that opens in the same tab. A modified or
+ * middle click opens elsewhere and leaves this tab's draft alone; a `#`
+ * fragment or a `_blank` target does not replace the sheet's content either.
+ * The sheet and the map's node click both ask before any such click when an
+ * editor holds an unsaved edit.
+ */
+export function isInPlaceNavigation(click: ClickLike, anchor: AnchorLike | null): boolean {
+  if (!anchor) return false;
+  if (click.button !== 0 || click.metaKey || click.ctrlKey || click.shiftKey || click.altKey) return false;
+  const href = anchor.getAttribute("href");
+  if (!href || href.startsWith("#")) return false;
+  const target = anchor.getAttribute("target");
+  return !target || target === "_self";
+}
+
 /** The slice of `ParentNode` this needs, so a test passes a plain object. */
 export interface Queryable {
   querySelector(selector: string): unknown;
