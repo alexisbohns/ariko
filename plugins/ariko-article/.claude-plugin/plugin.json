@@ -1,6 +1,6 @@
 {
   "name": "ariko-article",
   "description": "Write an essay or a feature narrative about this repo and post it to Ariko as a draft, with images, once the maintainer approves.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": { "name": "Alexis Bohns" }
 }

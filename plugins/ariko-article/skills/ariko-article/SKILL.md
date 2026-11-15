@@ -75,9 +75,138 @@ in the repo, never committed**: the repo does not store content or assets.
 - Alt text on every image says what the image shows, not "screenshot".
 
 Images: screenshots you can take, files the maintainer points at, exports from
-the repo. PNG, JPEG, GIF, WebP or AVIF, 4 MB max each. **No SVG** — export
-diagrams to PNG at 2×. (Renaming an SVG to `.png` does not work: Ariko's image
-host judges the bytes, and the upload fails.)
+the repo. PNG, JPEG, GIF, WebP or AVIF, 4 MB max each. (Renaming an SVG to
+`.png` does not work: Ariko's image host judges the bytes, and the upload
+fails.)
+
+SVG is accepted **only as a figure's image** (`:::figure`, below) — a diagram
+or an illustration, crisp at any size. Anywhere else, a plain `![]()`, a
+gallery or a compare side included, the post is refused with
+`<url>: SVG is accepted only inside :::figure`. A dark-mode twin is a second
+SVG in the same figure, with `dark`. The upload checks the file against an
+allowlist and **refuses** — never cleans up — anything that could run or
+fetch, naming what it found (`svg refused: <foreignObject> is not allowed`):
+
+- no `<script>`, `<foreignObject>`, `<image>`, `<a>`, `<filter>` or animation
+  elements; no `on…` attributes;
+- no `href` / `xlink:href` except `#id`, no `url()` except `url(#id)`, no
+  `@import`, no backslash in CSS, no DOCTYPE;
+- the root is one `<svg>` in the SVG namespace, with a `viewBox`; 1 MB max.
+
+Fonts: a drawing tool that embeds its fonts writes them as `url(data:…)`
+inside the file, and that is refused
+(`svg refused: url() must point inside the file (url(#id))`). Export with the
+text as outlines, or without embedded fonts. (Excalidraw's own `<metadata>`
+is fine.)
+
+## 1b. Staging
+
+Five blocks stage what plain markdown cannot. Reach for one only when the
+writing needs it; a plain `![alt](url)` and a plain `>` stay right for most
+images and quotes.
+
+| You have | Use |
+|---|---|
+| one screen or one drawing that deserves a frame or a size | `figure` |
+| screens meant to be looked at together | `gallery` |
+| a rule shown by its opposite | `compare` |
+| a definition or an aside the reader may skip | `callout` |
+| someone's own words, attributed | `quote` |
+
+```md
+:::figure{frame=phone}
+![Two scenes framed for a phone: the lake with its two moons, and the abbey with its embers](https://res.cloudinary.com/…/lake.png)
+Scenes zoom in on the subject when the phone is upright.
+:::
+
+:::figure{size=wide dark}
+![The conductor's clock driving picture, sound and haptics](https://res.cloudinary.com/…/clock.svg)
+![The conductor's clock, drawn for a dark page](https://res.cloudinary.com/…/clock-dark.svg)
+The audio clock is the reference; *everything else* locks onto it.
+:::
+
+:::gallery
+![The moon drawn with the classic ramp](https://res.cloudinary.com/…/moon.png "Classic")
+![The same moon in three ramps](https://res.cloudinary.com/…/ramps.png "Three ramps")
+![The same moon in four tints](https://res.cloudinary.com/…/tints.png "Four tints")
+One moon, drawn four ways.
+:::
+
+::::compare
+:::do
+![An almost still cromlech](https://res.cloudinary.com/…/still.png)
+Show an almost still picture and drop the events.
+:::
+:::dont
+![The cromlech with shooting stars](https://res.cloudinary.com/…/stars.png)
+Keep every event running and ignore the system setting.
+:::
+::::
+
+:::callout[In two words: dithering]
+When you only have a few shades of grey to work with, you mix them in a fine
+pattern so the eye rebuilds the in-between tones.
+:::
+
+:::quote{by=Alexis role="reviewing the feed explorations"}
+The Spine is truly a masterclass.
+:::
+```
+
+Rules — the post is refused (`400`) with the problem named, so fix what it
+says:
+
+- `frame` is `phone`, `desktop` or `none` (the default). `size` is `s`, `m`,
+  `l` or `wide`; a phone defaults to `m`, everything else to `l`. A figure
+  takes `frame`, `size` and `dark`; a gallery takes `frame`; a quote takes
+  `by` and `role`; a callout and a compare take nothing. Anything else in the
+  braces is refused (`figure: size=xl is not one of s, m, l, wide`,
+  `figure: unknown attribute colour`, and `{.warn}` is
+  `callout: unknown attribute class`).
+- A figure holds **one** image (two with `dark`: light, then dark), then an
+  optional one-line caption under it. Its caption is that line, never the
+  image's `"title"` (`figure: an image title is not a caption — write the
+  caption on its own line`). Nothing else goes inside: no headings, no
+  second paragraph, no image after the caption.
+- A gallery holds **two** or more images (`gallery: needs at least two
+  images`); each image's `"title"` is its own caption, and one line after the
+  images captions the whole row.
+- A compare is exactly one `:::do` then one `:::dont`. Each side holds at
+  most one image and **must** have a line of text (`compare: do needs a line
+  of text`). The "Do" / "Don't" words are added for you, in the page's
+  language.
+- A callout needs some text under its `[label]`; the label is optional. Only
+  a callout takes a `[label]` (`figure takes no [label]`).
+- A quote needs `by` (`quote: by is required`). Quote any value with a space:
+  `role="lead designer"`. Inside a callout or a quote, ordinary markdown —
+  paragraphs, lists, `:entity` mentions and `::entity` cards — is fine.
+- An opener is `:::name[label]{attrs}` with **no space** before `[` or `{`,
+  and nothing else on its line. An admonition-style title goes in the
+  `[label]`: `:::callout[In two words]`, never `:::callout In two words`. A
+  line that starts with colons and is not a well-formed opener is refused
+  (`":::callout In two words" is not a block opener — write
+  :::name[label]{attrs}, with no space before [ or {`) — so are an unclosed
+  `[` or `{`, and a `\"` inside a quoted value, which has no escape. A `:::`
+  that closes no block is refused too (`a stray ::: closes nothing`).
+- `compare` takes **four** colons (`::::compare … ::::`) around its `:::do`
+  and `:::dont`; every other block takes three. Close every block
+  (`callout: unclosed — no matching :::`).
+- Blocks do not nest (`gallery: a staged block cannot sit inside callout`).
+  `:::do` / `:::dont` live only in a compare (`do: only inside ::::compare`).
+  `::figure` with two colons is not a block
+  (`::figure must be a container — write :::figure … :::`), and no other
+  name is one (`:::warning is not a staging block (figure, gallery, compare,
+  callout, quote)`). A fence inside a code block is code, and is left alone.
+- Put each block at the top level of the article, on lines of its own —
+  not inside a list item or a table cell.
+- A caption, and a compare side's text, is one line. A line break inside
+  one is accepted, but it is folded into a space the next time the
+  maintainer saves the article in the editor — so write it as one line.
+- Captions, labels and roles are translated by writing them in the French
+  half — each half is its own markdown, staged the same way.
+
+A refusal reads `<slug>: content.<lang>: <problem>; <problem>` — every
+problem in that half at once.
 
 ## 2. Show the draft and wait
 
@@ -97,8 +226,9 @@ curl -sS -w '\nHTTP %{http_code}\n' -H "Authorization: Bearer $ARIKO_TOKEN" \
 
 Always declare the type: curl sends `.webp` and `.avif` as
 `application/octet-stream`, which Ariko refuses with a 400. `type=` must match
-the file's real format — `image/png`, `image/jpeg`, `image/gif`, `image/webp`
-or `image/avif`. (No `-f` here: it would hide the error body, which says what
+the file's real format — `image/png`, `image/jpeg`, `image/gif`, `image/webp`,
+`image/avif`, or `image/svg+xml` for a figure's drawing (an SVG declared as
+anything else is treated as a raster, and refused). (No `-f` here: it would hide the error body, which says what
 was wrong. `-w` prints the status after the body.)
 
 Replace each local path in the markdown with its returned `url`. Ariko accepts
@@ -107,6 +237,9 @@ refuses any other image URL, hotlinks included.
 
 - `400` → the file was refused (too big, not a raster type); the message says
   which. Fix the file, do not retry unchanged.
+- `400 svg refused: <what>` → the drawing holds something the check refuses
+  (see "SVG" under Draft). Fix the drawing and re-export it; do not retry
+  unchanged.
 - `502 upload failed` → the image host rejected it, most often because the
   bytes are not a raster image (an SVG renamed `.png`). Try a real PNG.
 
@@ -165,7 +298,8 @@ curl -sS -w '\nHTTP %{http_code}\n' -X POST -H "Authorization: Bearer $ARIKO_TOK
 Responses:
 
 - `200` → `{ ok, essays, narratives, admin: ["/admin/bean/…", "/admin/sprout/…", …] }`.
-- `400` → the payload's shape or an image URL; the message names the field.
+- `400` → the payload's shape, an image URL, an SVG outside a figure, or a
+  staging block (see 1b); the message names the field and the problem.
 - `409` → `{ "error": "refused", "refused": [...], "written": [...] }`.
   `refused` lists what was turned away and why — already published
   (`already reviewed`), outside the plant, or a new bean lacking a name or a pod. The

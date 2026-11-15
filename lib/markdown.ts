@@ -1,9 +1,12 @@
 import remarkGfm from "remark-gfm";
 import remarkDirective from "remark-directive";
 import { visit } from "unist-util-visit";
+import { visitParents } from "unist-util-visit-parents";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import rehypeSlug from "rehype-slug";
 import type { PluggableList } from "unified";
+import { FRAMES, SIZES, isStagedBlock } from "./staging";
+import { parseStagedBlock, type MdNode, type ParsedBlock, type Phrase, type StagedImage } from "./staging-parse";
 
 // The one place the markdown pipeline is configured (spec §3). Exported as
 // arrays rather than a configured component so slice 3 can append the entity
@@ -64,6 +67,120 @@ function remarkEntity() {
   };
 }
 
+// The source the node offsets index. micromark's preprocessor strips a
+// leading BOM before assigning offsets, so positions index the BOM-less string
+// while file.value still carries it — every slice would otherwise shift by one
+// (verified: render("﻿meet at 10:30 tomorrow") corrupted to "meet at
+// 100:3 tomorrow" without this). Both passes that slice the source read it
+// here, so neither can forget the BOM the other remembers.
+function sourceOf(file: { value?: unknown }): string {
+  const raw = typeof file?.value === "string" ? file.value : "";
+  return raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
+}
+
+// Spec 2026-11-15 §3.1. Claims the five staging containers that are VALID by
+// lib/staging-parse.ts and rewrites them into custom elements the renderer
+// maps to components/staging/*. An invalid one is left alone, so
+// remarkRestoreForeignDirectives (below) unwraps it to its children exactly
+// as it unwraps any foreign container — the reader keeps every image and
+// every sentence of a block with the wrong shape.
+//
+// Lenient, not strict: an unknown attribute or value (`size=xl`) renders with
+// the default rather than unwrapping, because a reader is better served by a
+// figure at the wrong size than by a bare image. Refusing it is the door's job
+// (lib/staging-check.ts), and the schema below is the second net: it admits
+// only members of the vocabulary, so a value that slipped past this pass is
+// stripped rather than painted.
+//
+// A staged block inside a CLAIMED staged block is not claimed: nesting is
+// refused by the door and cannot be made in the editor, and when stored
+// markdown has it anyway, the inner one unwraps. Unclaimed ancestors do not
+// count — a broken figure that unwraps must not take a valid callout inside it
+// down with it. visitParents walks parents before children, which is what
+// makes "claimed" already known by the time a descendant is visited.
+//
+// Media blocks are restructured, not just renamed: their images become
+// `staged-image` leaves and their caption a `staged-caption`, because a
+// figure's component needs the image's data and the caption's RENDERED
+// children separately, and server components have no context to pass one
+// to the other.
+//
+// Runs AFTER remarkEntity, so an entity card or mention inside a callout is
+// already minted when the callout's body is carried over, and BEFORE
+// remarkRestoreForeignDirectives, which skips anything with an hName — the
+// claimed blocks and their do/dont sides — while still descending into them,
+// which is how a foreign directive inside a callout is still restored.
+function remarkStaging() {
+  return (tree: unknown, file: { value?: unknown }) => {
+    const source = sourceOf(file);
+    const claimed = new WeakSet<object>();
+    visitParents(tree as never, (node: MdNode, ancestors: MdNode[]) => {
+      if (node.type !== "containerDirective" || !isStagedBlock(node.name)) return;
+      if (ancestors.some((a) => claimed.has(a))) return;
+      const result = parseStagedBlock(node, source, { strict: false });
+      if (!result.ok) return;
+      claimed.add(node);
+      mint(node, result.value);
+    });
+  };
+}
+
+// A leaf: the component reads the image from its props and has no children
+// to render. `title` and `data-dark` only when present, so the schema's
+// value list for data-dark is the one value ever written.
+const stagedImage = (i: StagedImage, dark = false): MdNode => ({
+  type: "stagedImage",
+  data: {
+    hName: "staged-image",
+    hProperties: {
+      src: i.src,
+      alt: i.alt,
+      ...(i.title ? { title: i.title } : {}),
+      ...(dark ? { "data-dark": "true" } : {}),
+    },
+  },
+});
+
+// A caption, a side's text, a label: inline markdown under a custom element.
+// A paragraph node renamed, so mdast-util-to-hast renders its children as
+// phrasing — emphasis and mentions survive — without a <p> around them.
+const phrase = (hName: string, p: Phrase): MdNode => ({ type: "paragraph", data: { hName }, children: p.nodes });
+
+function mint(node: MdNode, v: ParsedBlock): void {
+  switch (v.block) {
+    case "figure":
+      node.data = { hName: "staged-figure", hProperties: { "data-frame": v.frame, "data-size": v.size } };
+      node.children = [
+        stagedImage(v.image),
+        ...(v.dark ? [stagedImage(v.dark, true)] : []),
+        ...(v.caption ? [phrase("staged-caption", v.caption)] : []),
+      ];
+      return;
+    case "gallery":
+      node.data = { hName: "staged-gallery", hProperties: { "data-frame": v.frame } };
+      node.children = [...v.images.map((i) => stagedImage(i)), ...(v.caption ? [phrase("staged-caption", v.caption)] : [])];
+      return;
+    case "compare": {
+      const side = (s: typeof v.do, hName: string): MdNode => {
+        s.node.data = { hName };
+        s.node.children = [...(s.image ? [stagedImage(s.image)] : []), phrase("staged-text", s.text)];
+        return s.node;
+      };
+      node.data = { hName: "staged-compare" };
+      node.children = [side(v.do, "staged-do"), side(v.dont, "staged-dont")];
+      return;
+    }
+    case "callout":
+      node.data = { hName: "staged-callout", hProperties: v.labelText ? { "data-label": v.labelText } : {} };
+      node.children = [...(v.label ? [phrase("staged-label", v.label)] : []), ...v.body];
+      return;
+    case "quote":
+      node.data = { hName: "staged-quote", hProperties: { "data-by": v.by, ...(v.role ? { "data-role": v.role } : {}) } };
+      node.children = v.body;
+      return;
+  }
+}
+
 // remark-directive claims EVERY `:name` directive syntax in prose, not just
 // ours — a time of day, a ratio, a namespaced word, someone else's
 // `:::callout`. By the time this runs, remarkEntity (above) has already
@@ -90,13 +207,7 @@ function remarkEntity() {
 // (lib/entity-refs.ts) already mints for it.
 function remarkRestoreForeignDirectives() {
   return (tree: unknown, file: { value?: unknown }) => {
-    const raw = typeof file?.value === "string" ? file.value : "";
-    // micromark's preprocessor strips a leading BOM before assigning offsets,
-    // so positions index the BOM-less string while file.value still carries
-    // it — every slice would otherwise shift by one (verified:
-    // render("﻿meet at 10:30 tomorrow") corrupted to "meet at 100:3
-    // tomorrow" without this).
-    const source = raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
+    const source = sourceOf(file);
 
     const unwrap = (node: DirectiveNode, index: number, parent: { children: unknown[] }): number => {
       parent.children.splice(index, 1, ...(node.children ?? []));
@@ -163,9 +274,22 @@ function remarkRestoreForeignDirectives() {
 // …widened (slice 3) to admit the two elements remarkEntity mints, and only the
 // ref attribute on them. A minted element absent from this schema is stripped
 // silently, which is the single most confusing failure in this pipeline.
+//
+// …and widened again (staging, spec 2026-11-15 §3.1) for the eleven elements
+// remarkStaging mints. Forget one here and its block renders as nothing at
+// all — the figure's frame is there, its caption is gone, and no test of the
+// pass alone notices. The attributes with a closed vocabulary are listed as
+// value lists drawn from lib/staging.ts, so the schema is a second, independent
+// enforcement of the vocabulary: a frame the pass should never emit is
+// stripped here rather than reaching a component that has no style for it.
+const STAGED_TAGS = [
+  "staged-figure", "staged-gallery", "staged-compare", "staged-do", "staged-dont",
+  "staged-callout", "staged-quote", "staged-image", "staged-caption", "staged-text", "staged-label",
+];
+
 export const sanitizeSchema = {
   ...defaultSchema,
-  tagNames: [...(defaultSchema.tagNames ?? []), "entity-card", "entity-link"],
+  tagNames: [...(defaultSchema.tagNames ?? []), "entity-card", "entity-link", ...STAGED_TAGS],
   // The GitHub schema clobber-prefixes "id" (and name/aria-*) to
   // "user-content-id" to stop DOM clobbering from attacker-controlled raw
   // HTML. There is no raw-HTML path here (rehype-raw is deliberately absent,
@@ -181,16 +305,27 @@ export const sanitizeSchema = {
     // NOT the camelCased "dataRef" that hast derives when parsing HTML.
     "entity-card": ["data-ref"],
     "entity-link": ["data-ref"],
+    // Literal hProperties keys again. `src` on staged-image is checked against
+    // defaultSchema.protocols.src (http, https) by attribute NAME, not by tag,
+    // which is what strips a `javascript:` image source here exactly as it
+    // does on <img>.
+    "staged-figure": [["data-frame", ...FRAMES], ["data-size", ...SIZES]],
+    "staged-gallery": [["data-frame", ...FRAMES]],
+    "staged-image": ["src", "alt", "title", ["data-dark", "true"]],
+    "staged-callout": ["data-label"],
+    "staged-quote": ["data-by", "data-role"],
   },
 };
 
-// Order matters: entity claiming must run before foreign-directive
+// Order matters: entity and staging claiming must run before foreign-directive
 // restoration, so a valid `::entity{…}` / `:entity[…]{…}` is minted as a card
-// or mention BEFORE remarkRestoreForeignDirectives decides what is foreign.
+// or mention, and a valid staged block as its element, BEFORE
+// remarkRestoreForeignDirectives decides what is foreign.
 export const remarkPlugins: PluggableList = [
   remarkGfm,
   remarkDirective,
   remarkEntity,
+  remarkStaging,
   remarkRestoreForeignDirectives,
 ];
 

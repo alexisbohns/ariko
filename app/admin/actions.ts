@@ -115,7 +115,8 @@ import {
   screensHref,
   screensQuery,
 } from "@/lib/screens";
-import { uploadImage } from "@/lib/storage";
+import { uploadImage, uploadSvg } from "@/lib/storage";
+import { checkSvg, MAX_SVG_BYTES } from "@/lib/svg-check";
 import { checkUploadFile, uploadedFilename } from "@/lib/upload-input";
 import {
   requireSession,
@@ -1267,6 +1268,11 @@ export type UploadResult = { ok: true; media: MediaImage } | { ok: false; error:
  *
  * /api/upload is deliberately NOT reused: its guarantee is "bearer or nothing",
  * and a browser cannot hold that token.
+ *
+ * `purpose=figure-svg` is posted only by the figure popover's image slot (the
+ * prose editor); any other caller, whatever it declares, still gets the raster
+ * rule above. Both fields must agree: the purpose without an SVG falls through
+ * to the raster check, and an SVG without the purpose is refused by it.
  */
 export async function uploadImageAction(formData: FormData): Promise<UploadResult> {
   await requireSession();
@@ -1274,10 +1280,25 @@ export async function uploadImageAction(formData: FormData): Promise<UploadResul
   const file = formData.get("file");
   if (!(file instanceof Blob)) return { ok: false, error: "no file was sent" };
 
+  const filename = uploadedFilename(file);
+  if (formData.get("purpose") === "figure-svg" && file.type === "image/svg+xml") {
+    if (file.size > MAX_SVG_BYTES) {
+      return { ok: false, error: `svg refused: too large (max ${MAX_SVG_BYTES / 1024 / 1024}MB)` };
+    }
+    // Store the checked re-serialization, never the uploaded bytes.
+    const svg = checkSvg(Buffer.from(await file.arrayBuffer()));
+    if (!svg.ok) return { ok: false, error: svg.error };
+    try {
+      return { ok: true, media: await uploadSvg(Buffer.from(svg.svg), filename) };
+    } catch (err) {
+      console.error("[upload] uploadImageAction svg failed", err);
+      return { ok: false, error: err instanceof Error ? err.message : "upload failed" };
+    }
+  }
+
   const check = checkUploadFile({ size: file.size, type: file.type });
   if (!check.ok) return { ok: false, error: check.error };
 
-  const filename = uploadedFilename(file);
   try {
     const media = await uploadImage(Buffer.from(await file.arrayBuffer()), filename);
     return { ok: true, media };

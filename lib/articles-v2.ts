@@ -15,6 +15,7 @@ import { isTimelineDate } from "./sprout-date";
 import type { Text } from "./data";
 import { SLUG, validateText } from "./articles";
 import { imageProblems, type ImageHost } from "./article-images";
+import { stagingProblems } from "./staging-check";
 
 export interface EssayInput {
   slug: string;
@@ -56,9 +57,11 @@ function parts(text: Text): [string, string][] {
   return typeof text === "string" ? [["", text]] : Object.entries(text).map(([k, v]) => [k, v ?? ""]);
 }
 
-function checkImages(who: string, content: Text, host: ImageHost | undefined): Check {
+// One message per half, staging first: a block refused by name explains an
+// image problem inside it better than the image problem alone would.
+function checkContent(who: string, content: Text, host: ImageHost | undefined): Check {
   for (const [lang, md] of parts(content)) {
-    const problems = imageProblems(md, host);
+    const problems = [...stagingProblems(md), ...imageProblems(md, host)];
     if (problems.length > 0)
       return { ok: false, error: `${who}: content${lang ? `.${lang}` : ""}: ${problems.join("; ")}` };
   }
@@ -128,8 +131,8 @@ export function validateArticlesV2(body: unknown, opts: { host: ImageHost | unde
       if (seenAbout.has(a)) return { ok: false, error: `${who}: about repeats ${a}` };
       seenAbout.add(a);
     }
-    const images = checkImages(who, raw.content as Text, opts.host);
-    if (!images.ok) return images;
+    const checked = checkContent(who, raw.content as Text, opts.host);
+    if (!checked.ok) return checked;
   }
 
   const seenNarratives = new Set<string>();
@@ -146,8 +149,8 @@ export function validateArticlesV2(body: unknown, opts: { host: ImageHost | unde
       const name = validateText(raw.name, `${who}: name`, { required: true });
       if (!name.ok) return name;
     }
-    const images = checkImages(who, raw.content as Text, opts.host);
-    if (!images.ok) return images;
+    const checked = checkContent(who, raw.content as Text, opts.host);
+    if (!checked.ok) return checked;
   }
   return { ok: true };
 }

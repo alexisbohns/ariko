@@ -46,6 +46,11 @@ function flatten(markdown: string): string {
       // Fenced code — the fence and everything in it.
       .replace(/```[\s\S]*?```/g, " ")
       .replace(/~~~[\s\S]*?~~~/g, " ")
+      // Staging fences (spec 2026-11-15 §3.5): `:::figure{…}`, `::::compare`,
+      // a callout's `:::callout[label]`, and the bare closers — structure,
+      // not prose. The label goes with its line: it names the aside, and a
+      // preview that opens on "In two words: dithering" reads as a heading.
+      .replace(/^ {0,3}:{3,}[A-Za-z]*(?:\[[^\]\n]*\])?(?:\{[^}\n]*\})?[ \t]*$/gm, " ")
       // Both entity forms in one rule, so the block card (no label → nothing)
       // and the inline mention (label → its text) cannot drift apart.
       .replace(/::?entity(?:\[([^\]\n]*)\])?\{[^}\n]*\}/g, (_match, label?: string) => label ?? " ")

@@ -90,6 +90,11 @@ public site its navigation or its media list — which is how a stock
 for twenty slices. `components/public-icons.tsx` is the way around lucide in
 the chrome; `components/chrome.tsx` does its hover labels in CSS for the same
 reason, with the accessible name on the control's `aria-label`.
+`components/staging/*` — the five staged blocks and their image, rendered on
+every prose page — joined the list with the staging grammar, and the admin
+editor's node views draw their previews from those same files, so one slip
+there costs the public zone a boundary and leaves the preview and the page
+drawn alike, wrongly. They add no island.
 
 Today the public zone has THREE islands. `components/toc-rail.tsx` (1.2 kB) is
 the mild one — `lib/toc-mount.test.ts` pins that it renders nothing until it
@@ -500,7 +505,55 @@ while quietly becoming false.
   stored provider cannot be set by whoever posted the form.
   `uploadOptions` (`lib/storage.ts`) sets `allowed_formats`, so the raster rule
   is enforced from the uploaded bytes for the admin and the article door alike —
-  `checkUploadFile` only sees a MIME type the client chose.
+  `checkUploadFile` only sees a MIME type the client chose. The one upload that
+  sets none is `uploadSvg`, deliberately — a figure's SVG is judged by
+  `lib/svg-check.ts` instead; see the staging bullet below.
+- **A staged block's shape is decided once, and three consumers ask.** The
+  staging grammar ([`specs/2026-11-15-staging-grammar-design.md`](docs/superpowers/specs/2026-11-15-staging-grammar-design.md))
+  is five container directives — `:::figure`, `:::gallery`, `::::compare`
+  around `:::do` / `:::dont`, `:::callout[label]`, `:::quote{by}` — named in
+  `lib/staging.ts` and judged by `parseStagedBlock` (`lib/staging-parse.ts`)
+  for the renderer's `remarkStaging`, the door's `stagingProblems` and the
+  editor's tokenizers alike; a second derivation is how the editor comes to
+  claim a block the site unwraps. The door also reads every PARAGRAPH line,
+  because a malformed opener (`:::callout In two words`, a space before `{`)
+  or a stray `:::` is no directive at all — remark reads it as prose and the
+  page shows the colons — so it is refused by name rather than missed. The modes differ ONLY on vocabulary: render
+  is lenient (`size=xl` draws the default, a malformed block unwraps to its
+  children with every word and image kept), the door strict, and a wrong
+  shape is refused by both. marked knows no containers, so the editor finds a
+  block's extent by remark's closing rules (`lib/staging-fence.ts`: a closer
+  of length L closes every opener ≤ L, and a closer inside fenced code still
+  closes) — over-reading swallows the rest of the article into one block —
+  and every stored body reaches marked through `prepareEditorMarkdown`
+  (`lib/entity-markdown.ts`), the one entry point the editor and the
+  conformance suite share. Figure, gallery and compare are atoms rebuilt from
+  their fields in canonical form (`lib/staging-markdown.ts`); one left empty
+  serializes to nothing, and no view ever deletes its node, because every
+  reason a popover closes — a focus-out, the click that picked the `/` row, a
+  file dialog's blur — was a way to lose one. The `/` rows are withheld in a
+  list item, a table cell (a GFM cell is one line: a figure saved there came
+  back as literal text and a callout vanished), and the whole `/` menu stays
+  shut in a callout or quote, whose schema refuses a staged child. Every staged image is an `<a href>` to its
+  original, so each is reachable full size script-off. An SVG is only ever an
+  untransformed `<img>`, and only in a figure: `lib/svg-check.ts` REFUSES
+  outside an allowlist rather than strips (a stripped drawing is not the one
+  approved), what is stored is svgo's re-serialization, re-checked, never
+  the posted bytes, and it uploads through `uploadSvg` — deliberately with NO
+  `allowed_formats`, because Cloudinary refuses every SVG under
+  `allowed_formats: ["svg"]`; the raster list stays SVG-free, so every cover,
+  screen and media item still cannot be one (the admin's door is
+  `uploadImageAction`'s `purpose=figure-svg`). `PhoneFrame` is a quiet `border-border` outline everywhere — cover,
+  strip, lightbox and figure — not a dark bezel. Pinned by
+  `lib/staging-parse.test.ts`, `lib/staging-markdown.test.ts`,
+  `lib/staging-render.test.ts`, `lib/staging-fence.test.ts`,
+  `lib/staging-editor.test.ts`, `lib/markdown-conformance.test.ts` (the editor
+  and the site mean the same thing, over `lib/staging-fixtures.ts`),
+  `lib/editor.test.ts` (the withheld rows, and no delete in
+  `staging-views.tsx`), `lib/svg-check.test.ts`,
+  `components/staging/staging.test.tsx`, `components/phone-frame.test.tsx` and
+  `lib/server-safe-source.test.ts` and `lib/staging-source.test.ts` (no file
+  in `components/staging/` inlines markup or fetches).
 - **A new admin data route goes under `/admin`, not `/api`.** `middleware.ts`
   matches `/admin/:path*`, so `app/admin/(chrome)/palette/route.ts` inherits
   the session gate with zero new auth code — a route group's name never reaches the
@@ -670,7 +723,8 @@ A token minted and then lost to a failed write cannot be recovered — Ariko
 stores hashes — so a failed write prints the cards instead of dropping them.
 
 Three doors, all token-gated: `GET /api/articles/ping` (scope), `POST
-/api/articles/assets` (one raster image, uploaded server-side), `POST
+/api/articles/assets` (one raster image — or, for a `:::figure`, one SVG —
+uploaded server-side), `POST
 /api/articles` (`{ essays, narratives }`). `authorizeRepo` and the token
 store are `lib/repo-token-store.ts`; the pure half (hashing, setup card, `.env`
 block, target guards) is `lib/repo-token.ts`. A bearer that does not start
@@ -731,6 +785,21 @@ quietly becoming false:
   lists is private or draft, the route invalidates the cache for it, and
   re-posting the whole payload is safe. "Nothing was written" is true only when
   `written` is empty — the skill says so.
+- **A staging typo is an error, and an SVG lives only in a figure.**
+  `stagingProblems` (`lib/staging-check.ts`) runs beside `imageProblems` on
+  every posted half and refuses by name what the renderer quietly forgives —
+  an unknown attribute or value, a wrong shape, an unclosed block (remark runs
+  it to the end of the document), nesting, `:::do` outside a compare, the leaf
+  `::figure`, and an unknown container (`:::warning` — an agent that wrote one
+  expected it to mean something) — or the maintainer reviews a draft that is
+  not what its author staged. `markdownImages` (`lib/article-images.ts`)
+  refuses an `.svg` whose nearest container is not a `:::figure`, by the
+  renderer's own parse, and `POST /api/articles/assets` takes `image/svg+xml`
+  only through `checkSvg` (`400 svg refused: <what>`).
+  `lib/staging-check.test.ts`, `lib/article-images.test.ts`,
+  `lib/articles-v2.test.ts` and `lib/articles-assets.test.ts` pin it; the skill
+  teaches the grammar, so an edit to it means re-running `npm run skill:zip`
+  and re-uploading.
 - **The asset door has no rate limit.** A leaked token can fill Ariko's
   Cloudinary quota; the answer is `npm run token:revoke -- --plant <slug>`, which
   the skill's troubleshooting and the README both say.

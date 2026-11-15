@@ -1,9 +1,10 @@
-import { Node, type JSONContent, type MarkdownParseHelpers, type MarkdownToken } from "@tiptap/core";
+import { Node, type JSONContent, type MarkdownParseHelpers, type MarkdownRendererHelpers, type MarkdownToken, type RenderContext } from "@tiptap/core";
 import { StarterKit } from "@tiptap/starter-kit";
 import { Paragraph } from "@tiptap/extension-paragraph";
 import { TableKit } from "@tiptap/extension-table";
 import { Image } from "@tiptap/extension-image";
 import { ListItem, TaskList, TaskItem } from "@tiptap/extension-list";
+import { claimsBlock, stagingNodes } from "./staging-editor";
 
 /**
  * The EDITOR's half of the entity grammar (compose spec §2.2).
@@ -56,6 +57,93 @@ import { ListItem, TaskList, TaskItem } from "@tiptap/extension-list";
 // `roundTrip` helper so the tests exercise the same input the editor does.
 export function normalizeEmptyListMarkers(markdown: string): string {
   return markdown.replace(/^( {0,3}(?:[-*+]|\d{1,9}[.)]))[ \t]$/gm, "$1");
+}
+
+// A byte-order mark is invisible and remark ignores it, but marked reads it
+// as the first character of the first paragraph — so a document opening with
+// `\uFEFF:::callout` was never claimed (the opener no longer starts the
+// line), and the mark itself was saved back as content.
+export function stripBom(markdown: string): string {
+  return markdown.replace(/^\uFEFF/, "");
+}
+
+// marked's list tokenizer keeps reading an item through any line that does
+// not start a block IT knows — so `- item\n:::callout\nx\n:::` hands the
+// whole container to the item as lazy continuation, while remark, for which
+// a container interrupts a paragraph, ends the list and draws the callout
+// below it. The editor then saved the callout indented under the item, and
+// the page moved it into the list. A blank line before such an opener ends
+// the list for marked exactly where remark ends it, and changes nothing for
+// remark: the opener already interrupted whatever came before it.
+//
+// Only an opener that no list item in the same run of non-blank lines would
+// hold — one indented less than the outermost item's content. An opener
+// indented into a BULLET item belongs there in both parsers, and a blank line
+// before it would loosen the list.
+//
+// An ORDERED item is the exception, and the reverse case: @tiptap's own
+// ordered-list tokenizer reads every line up to a blank one as the item's
+// paragraph unless it recognizes the line as a block, and a container is not
+// one it recognizes — so `1. a\n   :::callout` kept the callout as item prose,
+// saved it under-indented, and the page drew it below the list. A blank line
+// moves it to the item's block content, which that tokenizer trims before
+// lexing, so the item does not turn loose. Only for a block the editor will
+// CLAIM (claimsBlock, lib/staging-editor.ts): moved, a foreign or malformed
+// container is block text that the item's renderer writes one space deeper
+// on every save — `1. a\n   :::grid` was a code block by the fourth — while
+// left alone it stays item prose, which is what it was before.
+//
+// An opener is a whole line, as remark reads one: `Meet\n:::at 10:30` and
+// `Hello\n:::smile:` are prose, and separating them split a paragraph.
+// Fenced code is skipped: a code sample about the grammar is not the grammar.
+// It ends only at a bare fence of the same character and at least the
+// opener's length — findContainerEnd's rule — so "``` not a closer" is code.
+const OPENER = /^( {0,3}):{3,}[A-Za-z][\w-]*(\[[^\]\n]*\])?(\{[^}\n]*\})?[ \t]*$/;
+const LIST_ITEM = /^( *)([-*+]|(\d{1,9})[.)])( +|$)/;
+const CODE_FENCE = /^\s*(`{3,}|~{3,})/;
+const CODE_CLOSE = /^\s*(`{3,}|~{3,})[ \t]*$/;
+
+export function separateContainerOpeners(markdown: string): string {
+  const out: string[] = [];
+  let fence: string | null = null;
+  let itemOffset: number | null = null;
+  let ordered: number | null = null;
+  const lines = markdown.split("\n");
+  lines.forEach((line, i) => {
+    const code = CODE_FENCE.exec(line);
+    if (fence) {
+      const close = CODE_CLOSE.exec(line);
+      if (close && close[1][0] === fence[0] && close[1].length >= fence.length) fence = null;
+    } else if (code) {
+      fence = code[1];
+    } else {
+      const open = OPENER.exec(line);
+      const prev = out[out.length - 1];
+      const indent = open?.[1].length ?? 0;
+      const lazy =
+        itemOffset === null ||
+        indent < itemOffset ||
+        (ordered !== null && indent >= ordered && claimsBlock(lines.slice(i).join("\n")));
+      if (open && prev !== undefined && prev.trim() && lazy) out.push("");
+    }
+    if (!line.trim()) itemOffset = ordered = null;
+    else {
+      const item = LIST_ITEM.exec(line);
+      if (item) {
+        itemOffset ??= item[0].length;
+        ordered = item[3] ? item[0].length : null;
+      }
+    }
+    out.push(line);
+  });
+  return out.join("\n");
+}
+
+/** Everything stored markdown goes through before marked sees it — the
+ *  editor's one entry point (components/editor/prose-editor.tsx) and the
+ *  conformance suite's `roundTrip` call this, so the two cannot drift. */
+export function prepareEditorMarkdown(markdown: string): string {
+  return separateContainerOpeners(normalizeEmptyListMarkers(stripBom(markdown)));
 }
 
 // Shares two rules with lib/entity-refs.ts's BLOCK/INLINE: the {0,3} leading-space
@@ -204,7 +292,56 @@ export const EntityMention = Node.create({
 // isn't configurable through it. bulletList/orderedList still find this node
 // by NAME (`listItem`), the same way they'd find StarterKit's own, so nothing
 // else about list behavior changes.
-const CardLeadingListItem = ListItem.extend({ content: "block+" });
+//
+// Its parseMarkdown is wrapped for a second, upstream gap of the same class.
+// In a tight item, marked lexes prose as `text` tokens, and the stock handler
+// wraps only the FIRST one in a paragraph: text after a block —
+// `- item\n  ```\n  c\n  ```\n  after`, or the same with a card or a staged
+// callout — came back as bare text nodes directly in the list item,
+// schema-invalid and fatal on the next keystroke. Consecutive inline nodes
+// are gathered into one paragraph instead. The item then saves loose (the
+// renderer always writes a blank line before a later paragraph), which
+// lib/markdown-conformance.test.ts pins as a KNOWN DIVERGENCE: a layout
+// change, where the stock result was a frozen editor.
+const INLINE_TYPES = new Set(["text", "hardBreak", "image", "entityMention"]);
+
+function wrapStrayInline(content: JSONContent[]): JSONContent[] {
+  const out: JSONContent[] = [];
+  for (const node of content) {
+    if (!INLINE_TYPES.has(node.type ?? "")) {
+      out.push(node);
+      continue;
+    }
+    const last = out[out.length - 1];
+    if (last?.type === "paragraph" && (last as { stray?: boolean }).stray) last.content!.push(node);
+    else out.push({ type: "paragraph", content: [node], stray: true } as JSONContent);
+  }
+  for (const node of out) {
+    delete (node as { stray?: boolean }).stray;
+    // marked keeps a later paragraph's indent beyond the item's content
+    // column — the renderer's three spaces under a two-wide `- ` leave one —
+    // and the stock handler stores it as text. Leading whitespace is never
+    // content in a paragraph, but stored it was written back plus one more
+    // space per save, until the fourth save turned the paragraph into code.
+    // The same holds after every soft line break: a continuation line's
+    // indent is never content either, and an ordered item's prose kept it
+    // the same way, one space deeper per save.
+    if (node.type !== "paragraph" || !node.content) continue;
+    node.content = dropContinuationIndent(node.content);
+  }
+  return out;
+}
+
+const CardLeadingListItem = ListItem.extend({
+  content: "block+",
+  parseMarkdown: (token: MarkdownToken, helpers: MarkdownParseHelpers) => {
+    const result = ListItem.config.parseMarkdown!(token, helpers);
+    if (result && !Array.isArray(result) && "type" in result && result.type === "listItem" && result.content) {
+      return { ...result, content: wrapStrayInline(result.content) };
+    }
+    return result;
+  },
+});
 
 // @tiptap/extension-paragraph's OWN parseMarkdown special-cases a paragraph
 // token holding ONLY an image token: instead of nesting the image as inline
@@ -230,6 +367,32 @@ const CardLeadingListItem = ListItem.extend({ content: "block+" });
 // "![a](/i.png)" line still parses, still serializes byte-identically, and
 // still renders the same HTML through remark (lib/markdown-conformance.test.ts's
 // `image`/`imageTitled` fixtures).
+//
+// It also carries the two halves of a list item's continuation lines, which
+// the stock list renderers get wrong in opposite directions. Writing, an
+// item's FIRST paragraph is put on the marker line with its later lines at
+// column 0 (renderNestedMarkdownContent indents only later children) — lazy
+// continuation, harmless for prose and fatal for a line remark reads as a
+// block: `1. a\n   :::grid` was saved as `1. a\n :::grid`, and the page then
+// drew the container below the list. Reading, the item's content is dedented
+// by the marker's width and not the renderer's three spaces, so a line came
+// back one space in and that space was stored as text — a task item's second
+// paragraph went one space deeper per save and was code by the fourth. So continuation lines
+// are indented when written as an item's first child, and their indent is
+// dropped when read — it is never content (code spans excepted, where
+// CommonMark keeps interior spaces). Both together are a fixed point.
+const ITEM_PARENTS = new Set(["listItem", "taskItem"]);
+
+export function dropContinuationIndent(content: JSONContent[]): JSONContent[] {
+  content.forEach((child, i) => {
+    if (child.type !== "text" || !child.text || child.marks?.some((m) => m.type === "code")) return;
+    child.text = child.text.replace(/\n[ \t]+/g, "\n");
+    if (i === 0 || content[i - 1]?.type === "hardBreak") child.text = child.text.replace(/^[ \t]+/, "");
+  });
+  // An empty text node is itself schema-invalid.
+  return content.filter((child) => child.type !== "text" || child.text);
+}
+
 const InlineImageParagraph = Paragraph.extend({
   parseMarkdown: (token: MarkdownToken, helpers: MarkdownParseHelpers) => {
     // Non-null assertion, not `?.`: Paragraph always defines parseMarkdown
@@ -240,7 +403,16 @@ const InlineImageParagraph = Paragraph.extend({
     if (Array.isArray(result) && result.length === 1 && result[0]?.type === "image") {
       return helpers.createNode("paragraph", undefined, result);
     }
+    if (result && !Array.isArray(result) && "type" in result && result.type === "paragraph" && result.content) {
+      return { ...result, content: dropContinuationIndent(result.content) };
+    }
     return result;
+  },
+  renderMarkdown: (node: JSONContent, helpers: MarkdownRendererHelpers, ctx: RenderContext) => {
+    const md = Paragraph.config.renderMarkdown!(node, helpers, ctx);
+    if (!md || ctx?.index !== 0 || !ITEM_PARENTS.has(ctx.parentType ?? "")) return md;
+    const [first, ...rest] = md.split("\n");
+    return [first, ...rest.map((line) => (line ? helpers.indent(line) : line))].join("\n");
   },
 });
 
@@ -248,6 +420,9 @@ const InlineImageParagraph = Paragraph.extend({
  * Every node the editor and the tests share. The entity nodes are NOT here: the
  * editor uses `.extend()`ed copies carrying React node views
  * (components/editor/entity-views.tsx), while the tests use the bare ones.
+ * The five staging nodes (lib/staging-editor.ts) are left out for the same
+ * reason: the editor layers React node views on them, and headlessExtensions
+ * below carries the bare ones into every test.
  * Everything else must be identical in both, or a node the editor cannot
  * represent gets silently dropped on save — which is exactly how images and
  * task lists were lost before this split existed.
@@ -322,4 +497,4 @@ export const baseExtensions = [
  * the editor layers on top. One definition, so a node added later cannot be
  * tested by one file and missed by the other.
  */
-export const headlessExtensions = [...baseExtensions, EntityCard, EntityMention];
+export const headlessExtensions = [...baseExtensions, EntityCard, EntityMention, ...stagingNodes];

@@ -5,6 +5,7 @@ import { DEFAULT_LANG, type Lang } from "@/lib/locale";
 import type { EntityResolver } from "@/lib/entity-resolve";
 import { EntityCard, EntityLink } from "@/components/entity";
 import { remarkPlugins, rehypePlugins } from "@/lib/markdown";
+import { stagingComponents } from "@/components/staging/markdown-components";
 import {
   Table,
   TableBody,
@@ -62,10 +63,13 @@ export function Prose({
   if (!source) return null;
 
   // Built per render so it can close over the resolver: server components have
-  // no context, so the dataset travels as a prop (spec §4). The two custom tag
-  // names are not in react-markdown's element map, hence the cast.
+  // no context, so the dataset travels as a prop (spec §4). The staged and
+  // entity tag names are not in react-markdown's element map, hence the cast.
+  // The staging map is the same one the editor's node views draw from (spec
+  // 2026-11-15 §3.2), so the preview and the page cannot disagree.
   const components = {
     ...baseComponents,
+    ...stagingComponents(lang),
     "entity-card": (props: { "data-ref"?: string }) => (
       <EntityCard
         refValue={props["data-ref"]}

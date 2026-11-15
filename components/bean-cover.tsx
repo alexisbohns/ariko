@@ -56,19 +56,20 @@ const GLIDE =
  * ITSELF at rest. `pt-[4.018cqw]` (the keyword span's inset) is 9/224 and
  * `text-[15.179cqw]` (its leading-none type size) is 34/224 — together a
  * ~43px block at a 224px card, leaving the same clean headroom above the
- * phone's bezel it always did, at any card width. `translateY(-20.536cqw)`
+ * phone's outline it always did, at any card width. `translateY(-20.536cqw)`
  * in the hover transform is 46/224. At a 224px card every one of these
  * resolves back to the exact old pixel value; at any other width it scales
- * with the card instead of silently drifting off the phone. Its bezel is
+ * with the card instead of silently drifting off the phone. Its outline is
  * drawn HERE rather than baked into the stored file: baking it would make
  * cloudinaryThumb crop a composite instead of a screen, and turn "re-shoot
  * that screen" into "re-composite that screen".
  *
- * `components/phone-frame.tsx`'s own `p-1` bezel stays in pixels rather than
- * following suit: that file is shared with `components/screen-strip.tsx`,
- * which is NOT inside a container, so a cq unit there would resolve against
- * the viewport and silently break the strip. A 4px bezel at any card size is
- * acceptable and arguably correct.
+ * `components/phone-frame.tsx`'s own 1px hairline and `1.75rem` radius stay in
+ * rem and pixels rather than following suit: that file is shared with
+ * `components/screen-strip.tsx`, which is NOT inside a container, so a cq unit
+ * there would resolve against the viewport and silently break the strip. A
+ * hairline at any card size is correct, and the radius is the one place the
+ * outline's corners can read slightly rounder on a small card.
  *
  * The phone itself is `components/phone-frame.tsx` since the gallery slice
  * needed the same one. What stayed here is what is the COVER's: where the phone

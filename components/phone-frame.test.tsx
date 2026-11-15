@@ -38,3 +38,19 @@ test("an image stored without dimensions sizes itself when it arrives", () => {
   const tag = img(renderToStaticMarkup(<PhoneFrame image={image(false)} alt="" width={400} />));
   assert.doesNotMatch(tag, /\s(width|height)="/);
 });
+
+const wrapper = (markup: string) => markup.match(/^<span[^>]*>/)?.[0] ?? "";
+
+test("the phone is a quiet outline in both themes, never a dark bezel", () => {
+  const tag = wrapper(renderToStaticMarkup(<PhoneFrame image={image(true)} alt="" width={400} />));
+  assert.doesNotMatch(tag, /bg-neutral-900/);
+  assert.match(tag, /border-border/);
+});
+
+test("bottomless, the outline is open at the bottom", () => {
+  const tag = wrapper(
+    renderToStaticMarkup(<PhoneFrame image={image(true)} alt="" width={400} height={300} />),
+  );
+  assert.match(tag, /border-b-0/);
+  assert.match(tag, /rounded-b-none/);
+});

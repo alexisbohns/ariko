@@ -197,11 +197,14 @@ claude.ai → Settings → Capabilities → Skills (cloud sessions load account 
 `enabledPlugins`), and `/plugin install ariko-article@ariko` at user scope for local sessions.
 
 * `GET /api/articles/ping` returns `{ plant, pods, beans }` — the token's scope.
-* `POST /api/articles/assets` takes one raster image (`multipart/form-data`, field `file`, 4 MB) and
-  returns `{ url, width, height }`. It has **no rate limit**; revoke a leaked token at once.
+* `POST /api/articles/assets` takes one raster image (`multipart/form-data`, field `file`, 4 MB) —
+  or one SVG (1 MB, checked against an allowlist), which an article may use only as a `:::figure`'s
+  image — and returns `{ url, width, height }`. It has **no rate limit**; revoke a leaked token at once.
 * `POST /api/articles` takes `{ essays?, narratives? }` and returns `{ ok, essays, narratives, admin }`.
   Only **private** pods and beans are writable; halves (`en` / `fr`) are merged, never replaced;
   every image must be a URL from the assets door. A `409` is `{ error: "refused", refused, written }`.
+  An article can stage its images, asides and quotes with five `:::` blocks; the grammar and its
+  refusals are in the `ariko-article` skill and `docs/superpowers/specs/2026-11-15-staging-grammar-design.md`.
 
 The rules and the reasons are in `CLAUDE.md` ("Writing for Ariko from another repo") and
 `docs/superpowers/specs/2026-11-14-article-door-v2-design.md`.

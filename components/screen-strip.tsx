@@ -31,7 +31,7 @@ import { SCREEN_ANCHOR_ATTR } from "@/lib/screen-lightbox";
  *
  * NOTHING IS CROPPED. Every phone shows the shot as it was taken, at its own
  * ratio — `PhoneFrame` without a `height`, which asks Cloudinary for `c_limit`
- * and closes the bezel on all four sides. The 3:4 window this strip used to
+ * and closes the outline on all four sides. The 3:4 window this strip used to
  * pin its phones into was one ratio imposed on captures from several devices,
  * so a taller screen lost its bottom third permanently; a rank of whole phones
  * of differing heights is the honest picture of an exhibition whose screens

@@ -48,6 +48,7 @@ const SERVER_SAFE = [
   "components/bean-card.tsx",
   "components/bean-cover.tsx",
   "components/phone-frame.tsx",
+  "components/desktop-frame.tsx",
   "components/screen-strip.tsx",
   "components/journal.tsx", // the journal line: /beanstalk, and the plant, pod and bean pages
   // The first PAGE on this list. Every other public page is kept honest by the
@@ -112,6 +113,16 @@ const SERVER_SAFE = [
   "components/ui/card.tsx", // components/entity-card.tsx
   "components/ui/separator.tsx", // /beanstalk
   "components/ui/kbd.tsx", // components/chrome.tsx, for the rail's shortcut hints
+  "lib/staging.ts", // The staging vocabulary — imported by components/staging/*
+  "lib/staging-fence.ts", // Where a container ends — the editor's marked tokenizers; no imports, so it can never become a boundary
+  // The staging blocks (spec 2026-11-15 §3.2) — rendered on every public prose page, and drawn by the editor's node views from the same files.
+  "components/staging/staged-image.tsx",
+  "components/staging/figure.tsx",
+  "components/staging/gallery.tsx",
+  "components/staging/compare.tsx",
+  "components/staging/callout.tsx",
+  "components/staging/quote.tsx",
+  "components/staging/markdown-components.tsx",
 ];
 
 for (const path of SERVER_SAFE) {

@@ -51,7 +51,7 @@ test("Start from English goes through setContent as markdown, and only when a se
   // pins the argument order or spacing of the call they both live inside.
   assert.match(
     text,
-    /setContent\(normalizeEmptyListMarkers\(seed\)/,
+    /setContent\(prepareEditorMarkdown\(seed\)/,
     "Start from English must normalize the seed the same way initialMarkdown is normalized",
   );
   assert.match(text, /contentType:\s*"markdown"/, "the seed must be loaded as markdown");

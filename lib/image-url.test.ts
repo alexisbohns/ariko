@@ -73,3 +73,9 @@ test("cloudinaryFit is idempotent — no stacked transform", () => {
 test("cloudinaryFit leaves a malformed value alone rather than throwing", () => {
   assert.equal(cloudinaryFit("not a url", { width: 480 }), "not a url");
 });
+
+test("an SVG is never transformed — a transform would rasterize it", () => {
+  const svg = "https://res.cloudinary.com/c/image/upload/v1/beanstalk/clock.svg";
+  assert.equal(cloudinaryFit(svg, { width: 800 }), svg);
+  assert.equal(cloudinaryThumb(svg, { width: 80, height: 80 }), svg);
+});
