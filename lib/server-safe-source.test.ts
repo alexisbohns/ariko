@@ -112,6 +112,7 @@ const SERVER_SAFE = [
   "components/ui/card.tsx", // components/entity-card.tsx
   "components/ui/separator.tsx", // /beanstalk
   "components/ui/kbd.tsx", // components/chrome.tsx, for the rail's shortcut hints
+  "lib/staging.ts", // The staging vocabulary — imported by components/staging/*
 ];
 
 for (const path of SERVER_SAFE) {
