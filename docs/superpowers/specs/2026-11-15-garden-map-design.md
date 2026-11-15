@@ -1,0 +1,143 @@
+# The garden map — design
+
+**Date:** 2026-11-15
+**Status:** approved in conversation, awaiting plan
+
+## Problem
+
+The admin navigates the garden through tables: plants, pods, beans, sprouts,
+inbox. Each answers "what is in this list" and none answers "what does the whole
+garden look like, where is it thin, and what is waiting for me". Planting
+(`garden:plant`) and the article door both write **private** things by design, so
+review debt accumulates out of sight, and a plant with no pods or a bean with no
+narrative is only discoverable by opening it.
+
+## What it is
+
+A read-only React Flow map of the garden at `/admin/map`. It draws the
+botanical containment tree and marks two things on it: what **waits for review**
+and what is **missing**.
+
+## Nodes and edges
+
+| Node | Drawn when | Edges |
+|---|---|---|
+| Plant | always | — (root) |
+| Pod | always | plant → pod |
+| Bean | always | pod → bean, or plant → bean when it skips the pod |
+| Sprout | **not published only** (`state` absent or `draft`) | to every ref in `about`; to its `plant:` parent when `about` is empty |
+| Seed | `status === "inbox"` only | to the most specific of `suggested.beanSlug` / `podSlug` / `plantSlug` that resolves |
+
+- **Published sprouts are not drawn.** They would turn the garden into a
+  hairball. They still count toward "bean has no journal".
+- **Unrooted cluster.** Pods with no resolvable plant, beans with no pod nor
+  plant, and sprouts `resolveSproutPlant` cannot resolve (ambiguous or
+  anchorless) hang off one synthetic **Unrooted** node. The detached state is
+  itself a missing part.
+- **Inbox node.** Seeds with no resolvable suggestion hang off one synthetic
+  **Inbox** node.
+- A sprout is drawn once, with an edge per `about` ref. Its plant is **never
+  re-derived** here: the map calls `resolveSproutPlant`, the one derivation.
+
+## Flags
+
+**Waiting for review** — drawn as an amber ring:
+
+- a plant, pod or bean whose visibility is not `"public"` (absent means public,
+  per the repo-wide rule — use `visibilityOf`, never a raw compare);
+- a sprout that is not published;
+- a seed in the inbox.
+
+**Missing** — drawn as chips on the node:
+
+- **No narrative** — plant, pod, bean with `!hasNarrative(content)`. A
+  machine-projected bean (`projected` set) is **exempt**: it is source-owned and
+  read-only, so flagging it is noise.
+- **No FR half** — only where the narrative exists in English and the French
+  half is empty. A missing narrative is reported once, as "no narrative", never
+  also as "no FR".
+- **No children** — a plant with no pods and no beans; a pod with no beans; a
+  bean with no sprouts of **any** state (this is why published sprouts must be
+  read even though they are not drawn).
+
+## Page, scope, column
+
+- `/admin/map` under `app/admin/(chrome)/`, so `middleware.ts` gates it with no
+  new auth code. `export const dynamic = "force-dynamic"`.
+- New `NavId` `map`: a `NAV_ITEMS` entry, a `SECTION_KEYS` entry (`["plant"]`),
+  and an icon in `app/admin/_components/section-icons.ts`. `lib/section-icons.test.ts`
+  and `lib/admin-nav.test.ts` already force the three to agree.
+- Scope follows `lib/admin-scope.ts`. Unscoped: the whole garden, a forest, one
+  tree per plant. `?plant=slug`: that plant's tree only. Unlike Beanstalk, a plant
+  tree is naturally filterable, so the rail keeps **Map** when scoped (rail:
+  7 items unscoped, 8 scoped, inside the Alt+1–9 hotkeys).
+- `resolveColumn` gains a third member, `"bleed"`, for `/admin/map`: the canvas
+  fills the viewport and the floating chrome plates sit over it. `AdminMain` in
+  `admin-chrome.tsx` handles it. Minimap and controls sit bottom-right, away from
+  the left rail and the two top clusters.
+
+## Data flow
+
+```
+page.tsx (force-dynamic)
+  loadRawGarden() + listSeeds()                    // live readers, never the cache
+    → lib/garden-map.ts         pure: nodes, edges, flags, stats, view dimming
+    → lib/garden-map-layout.ts  pure: dagre, LR, fixed size per node kind
+    → <GardenMap/>              thin @xyflow/react island, draws positioned nodes
+```
+
+- Both lib modules are pure and JSX-free so `npm test` reaches the rules.
+- **The island imports types only** from them (`import type`). `lib/data.ts`
+  opens with `node:fs`; a runtime import fails the build. This is the trap
+  `lib/palette.ts` / `lib/palette-items.ts` already document, and a source test
+  pins it.
+- Layout runs on the server; the client ships no layout code.
+- New dependencies: `@xyflow/react`, `@dagre/dagre` (verify exact current
+  versions and React 19 compatibility at install).
+- Live reads: the admin and every server action read the live garden. A map
+  reading the cached one would show a pre-write garden.
+
+## Interaction
+
+Read-only. There is no write path, no server action and no side panel.
+
+- A node is a small card: kind icon, name as a real `next/link` to its admin
+  page (a client navigation, per the admin rule), the amber ring if waiting,
+  chips for gaps. The card already carries everything a panel would list.
+- Nodes are not draggable and positions are not saved, so there is no layout
+  state to lose or to leak.
+- Toolbar: **All · Needs review · Has gaps**, each with a count. It is
+  `?view=review|gaps` in the URL, read server-side (the filters rule: a filtered
+  view is shareable and filtering is server-side). Non-matching nodes are
+  **dimmed, not hidden**, so the tree's shape stays readable. The builder sets
+  the dim flag; the island has no filter logic.
+
+## Edge cases
+
+- Load failure: the destructive `Alert`, like the other admin pages.
+- Empty garden / empty scope: one line of text, no canvas.
+- Dark mode: node colours are design tokens; React Flow's `colorMode` follows
+  the `dark` class (the theme is localStorage + a class, so the server cannot
+  name it — sync client-side, not from props).
+- Slugs that a seed suggests but the garden no longer has resolve to nothing and
+  fall to the Inbox node, never to a dangling edge.
+
+## Testing
+
+- `lib/garden-map.test.ts` — every flag, the orphan cluster, an ambiguous
+  sprout, an `about` spanning two refs, seed attachment and its fall-back, the
+  projected-bean exemption, "no narrative" suppressing "no FR", a bean whose only
+  sprout is published (has a journal, draws no sprout node), scope filtering, and
+  `view` dimming.
+- `lib/garden-map-layout.test.ts` — every node positioned, no two overlap, a
+  disconnected forest lays out.
+- `lib/garden-map-source.test.ts` — the island imports types only from lib, and
+  no file of the map imports an action or `lib/store.ts`.
+- `lib/admin-nav.test.ts` / `lib/section-icons.test.ts` /
+  `lib/admin-scope.test.ts` updated for the seventh section and for `bleed`.
+- A short CLAUDE.md note: the map is a live-garden reader, and `bleed` is why.
+
+## Out of scope
+
+Editing from the map, saving positions, published sprouts as nodes, screens,
+bees, a side panel.
