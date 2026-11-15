@@ -58,6 +58,8 @@ import { RailPanelContext, type PagePanel, type RailPanelApi } from "./rail-pane
  * rather than polish. Focus, because the Close button lives inside the subtree
  * that `inert` is about to swallow, so without restoring it the browser blurs
  * to `document.body` and the next Tab restarts at the top of the document.
+ * (Only when focus IS in the panel, or already on `body` — an author who
+ * clicked back into the prose keeps the caret; see `focusIsOurs`.)
  * Escape, because below the push threshold the panel is full-width with no
  * scrim, no outside-press dismissal, and it paints over the trigger cluster
  * (same `z-40`, later in the DOM) — the ✕ would otherwise be the only exit.
@@ -201,6 +203,22 @@ export interface RailItem {
  * given to rail panels: one opened by `openOnError` is in the server HTML
  * already open, on purpose, and must not slide in on load.
  */
+/**
+ * Whether closing the panel `panelDomId` should move focus back to its
+ * trigger: only when focus is IN the panel, or has already fallen to
+ * `document.body`. Those are the two cases the restoration exists for — the
+ * panel is about to go `inert` or unmount and take focus with it. The third
+ * case is an author who clicked back into the prose and pressed Escape there
+ * (this is not a modal; the page stays live), and moving focus then would
+ * steal the caret out of the article they are writing. Both kinds of panel
+ * close through this.
+ */
+function focusIsOurs(panelDomId: string): boolean {
+  const active = document.activeElement;
+  if (!active || active === document.body) return true;
+  return document.getElementById(panelDomId)?.contains(active) ?? false;
+}
+
 function PanelShell({
   id,
   label,
@@ -352,14 +370,18 @@ export function EntityRail({
   const active = items.find((i) => i.id === open) ?? null;
   const activeId = active ? active.id : null;
 
-  const close = useCallback((id: string): void => {
-    setOpen(null);
-    // Before the re-render, while the panel is still interactive: moving focus
-    // out first means `inert` has nothing to blur, so focus lands on the
-    // trigger rather than on `document.body`.
-    triggers.current.get(id)?.focus();
-    sweepRejection();
-  }, []);
+  const close = useCallback(
+    (id: string): void => {
+      setOpen(null);
+      // Before the re-render, while the panel is still interactive: moving
+      // focus out first means `inert` has nothing to blur, so focus lands on
+      // the trigger rather than on `document.body`. Only if focus is the
+      // panel's to lose (`focusIsOurs`).
+      if (focusIsOurs(`${uid}-${id}`)) triggers.current.get(id)?.focus();
+      sweepRejection();
+    },
+    [uid],
+  );
 
   // Takes the page panel down. Focus goes back first, for `close`'s reason —
   // here the panel is about to UNMOUNT rather than go inert, and the effect
@@ -367,14 +389,18 @@ export function EntityRail({
   // opener that is gone (its block deleted) has nothing to return to, and the
   // panel closes anyway. `restore` is false when a rail trigger replaces the
   // page panel: that trigger was just pressed and already holds focus.
-  const dismissPage = useCallback((restore: boolean): void => {
-    const current = pageRef.current;
-    if (!current) return;
-    pageRef.current = null;
-    if (restore && current.returnFocus?.isConnected) current.returnFocus.focus();
-    setPage(null);
-    current.onClose?.();
-  }, []);
+  const pagePanelId = `${uid}-page`;
+  const dismissPage = useCallback(
+    (restore: boolean): void => {
+      const current = pageRef.current;
+      if (!current) return;
+      pageRef.current = null;
+      if (restore && current.returnFocus?.isConnected && focusIsOurs(pagePanelId)) current.returnFocus.focus();
+      setPage(null);
+      current.onClose?.();
+    },
+    [pagePanelId],
+  );
 
   // One panel at a time: opening a page panel closes the rail's, and the
   // reverse is the rail trigger's onClick below. A rail panel closed this way
@@ -397,8 +423,8 @@ export function EntityRail({
 
   const pageId = page ? page.id : null;
   const api = useMemo<RailPanelApi>(
-    () => ({ openId: pageId, open: openPage, close: closePage }),
-    [pageId, openPage, closePage],
+    () => ({ openId: pageId, panelId: pagePanelId, open: openPage, close: closePage }),
+    [pageId, pagePanelId, openPage, closePage],
   );
 
   useEffect(() => {
@@ -507,7 +533,7 @@ export function EntityRail({
       {page ? (
         <PanelShell
           key={page.id}
-          id={`${uid}-page`}
+          id={pagePanelId}
           label={page.title}
           heading={page.title}
           open

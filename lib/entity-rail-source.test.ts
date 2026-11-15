@@ -91,7 +91,7 @@ test(`${file} names no form field`, () => {
   }
 });
 
-test(`${RAIL_PANEL}'s page panel carries a title, a node and a focus target — nothing a payload is built from`, () => {
+test(`${RAIL_PANEL}'s page panel carries a title, a node and a focus target, and its API an id and two verbs — nothing a payload is built from`, () => {
   // The page panel is the door a CLIENT component opens, at run time, so the
   // "server-rendered and handed down" half of this file's rule cannot hold for
   // its content. What can hold is the shape: the rail receives an opaque
@@ -104,6 +104,12 @@ test(`${RAIL_PANEL}'s page panel carries a title, a node and a focus target — 
   const keys = [...body.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/^\s*(\w+)\??:/gm)].map((m) => m[1]);
   assert.deepEqual(keys, ["id", "title", "content", "returnFocus", "onClose"]);
   assert.match(text, /content: ReactNode;/);
+  // And the API the rail hands back: state, the panel's DOM id for an
+  // opener's aria-controls, and the two verbs. Nothing an opener could post.
+  const api = /export interface RailPanelApi \{([\s\S]*?)\n\}/.exec(text)?.[1];
+  assert.ok(api, "RailPanelApi is declared");
+  const apiKeys = [...api.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/^\s*(\w+)\??:/gm)].map((m) => m[1]);
+  assert.deepEqual(apiKeys, ["openId", "panelId", "open", "close"]);
   // It imports React and nothing else: the editor's node views import it, and
   // lib/editor.test.ts builds them headless.
   const imports = [...text.matchAll(/from\s+["']([^"']+)["']/g)].map((m) => m[1]);

@@ -75,14 +75,16 @@ function Host({ onEditor }: { onEditor: (e: Editor) => void }) {
   return <EditorContent editor={editor} />;
 }
 
-async function mount(withRail: boolean) {
+type RailItems = import("../app/admin/_components/entity-rail").RailItem[];
+
+async function mount(withRail: boolean, items: RailItems = []) {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
   let editor: Editor | null = null;
   const host = <Host onEditor={(e) => (editor = e)} />;
   await act(async () => {
-    root.render(withRail ? <EntityRail label="Test panels" items={[]}>{host}</EntityRail> : host);
+    root.render(withRail ? <EntityRail label="Test panels" items={items}>{host}</EntityRail> : host);
   });
   assert.ok(editor, "the editor mounted");
   return {
@@ -111,6 +113,14 @@ function fieldByLabel(root: HTMLElement, text: string): HTMLInputElement {
   assert.ok(label, `a "${text}" field`);
   return root.querySelector<HTMLInputElement>(`#${CSS.escape(label.htmlFor)}`)!;
 }
+
+const escape = () =>
+  act(async () => {
+    document.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  });
+
+const FIGURE = (src: string, caption = "") =>
+  `:::figure{frame=none}\n![a](https://res.cloudinary.com/demo/image/upload/${src})${caption ? `\n${caption}` : ""}\n:::`;
 
 const figureAttrs = (editor: Editor) =>
   editor.getJSON().content?.find((n) => n.type === "stagedFigure")?.attrs as Record<string, unknown> | undefined;
@@ -203,6 +213,111 @@ test("without a rail, a staged block draws its preview and offers no control", a
   } finally {
     // Unmounted even on a failed assertion: a live editor and root keep
     // the process alive, and the file then fails on a timeout instead.
+    await unmount();
+  }
+});
+
+test("a node view handed to a DIFFERENT node closes its panel rather than editing the newcomer", async () => {
+  // ProseMirror reuses a node view for any node of the same type it can
+  // match, so one transaction that changes A's attrs AND inserts X before A
+  // (a redo of a grouped history step, say) can leave A's view drawing X. The
+  // form reads through that view's live position, so it would show X and
+  // Save would write A's draft into X.
+  const { editor, container, unmount } = await mount(true);
+  try {
+    await act(async () => {
+      editor.commands.setContent(FIGURE("a.png"), { contentType: "markdown" });
+    });
+    const trigger = container.querySelector<HTMLElement>('[role="button"][aria-label^="Edit figure"]')!;
+    await act(async () => trigger.click());
+    assert.equal(heading(), "Figure");
+    await act(async () => {
+      editor.commands.command(({ tr, state }) => {
+        const type = state.schema.nodes.stagedFigure;
+        tr.setNodeAttribute(0, "caption", "A, changed");
+        tr.insert(0, type.create({ ...state.doc.nodeAt(0)!.attrs, src: "https://res.cloudinary.com/demo/image/upload/x.png", caption: "X" }));
+        return true;
+      });
+    });
+    const open = panel();
+    if (open) {
+      // Still open only if it is still A's: never X's data under A's title.
+      assert.notEqual(fieldByLabel(open, "…or image URL").value, "https://res.cloudinary.com/demo/image/upload/x.png");
+      assert.equal(fieldByLabel(open, "Caption").value, "A, changed");
+    }
+    assert.equal(open, null, "the reviewer's case: A's view is handed to X, and the panel closes");
+  } finally {
+    await unmount();
+  }
+});
+
+test("closing a page panel returns focus to its trigger only if focus was in the panel, never out of the prose", async () => {
+  const { editor, container, unmount } = await mount(true);
+  try {
+    await act(async () => {
+      editor.commands.setContent(FIGURE("a.png"), { contentType: "markdown" });
+    });
+    const trigger = container.querySelector<HTMLElement>('[role="button"][aria-label^="Edit figure"]')!;
+
+    // ✕ from inside the panel: back to the trigger.
+    await act(async () => trigger.click());
+    assert.ok(panel()!.contains(document.activeElement), "focus went into the panel");
+    const x = panel()!.querySelector<HTMLButtonElement>('button[aria-label="Close Figure"]')!;
+    x.focus();
+    await act(async () => x.click());
+    assert.equal(panel(), null);
+    assert.equal(document.activeElement, trigger);
+
+    // The author clicked back into the prose, then pressed Escape: the caret stays.
+    await act(async () => trigger.click());
+    editor.view.dom.focus();
+    assert.equal(document.activeElement, editor.view.dom);
+    await escape();
+    assert.equal(panel(), null);
+    assert.equal(document.activeElement, editor.view.dom, "closing did not steal the caret");
+  } finally {
+    await unmount();
+  }
+});
+
+test("a rail panel returns focus the same way: to its trigger from inside, nowhere from the prose", async () => {
+  const Icon = () => null;
+  const items: RailItems = [
+    { id: "about", label: "About", icon: Icon, panel: <input aria-label="inside the rail panel" /> },
+  ];
+  const { editor, unmount } = await mount(true, items);
+  try {
+    const trigger = document.querySelector<HTMLButtonElement>('button[aria-label="About"]')!;
+    const railPanel = () => document.querySelector<HTMLElement>('aside[aria-label="About"]')!;
+    await act(async () => trigger.click());
+    railPanel().querySelector("input")!.focus();
+    await escape();
+    assert.ok(railPanel().hasAttribute("inert"), "closed");
+    assert.equal(document.activeElement, trigger, "inert would have dropped it to body; it goes to the trigger");
+
+    await act(async () => trigger.click());
+    editor.view.dom.focus();
+    await escape();
+    assert.ok(railPanel().hasAttribute("inert"));
+    assert.equal(document.activeElement, editor.view.dom, "closing did not steal the caret");
+  } finally {
+    await unmount();
+  }
+});
+
+test("an expanded staging trigger names the panel it controls", async () => {
+  const { editor, container, unmount } = await mount(true);
+  try {
+    await act(async () => {
+      editor.commands.setContent(FIGURE("a.png"), { contentType: "markdown" });
+    });
+    const trigger = container.querySelector<HTMLElement>('[role="button"][aria-label^="Edit figure"]')!;
+    assert.equal(trigger.getAttribute("aria-controls"), null, "nothing to point at while closed: the panel is not mounted");
+    await act(async () => trigger.click());
+    const id = trigger.getAttribute("aria-controls");
+    assert.ok(id, "aria-controls is set while expanded");
+    assert.equal(document.getElementById(id), panel(), "and resolves to the open panel");
+  } finally {
     await unmount();
   }
 });

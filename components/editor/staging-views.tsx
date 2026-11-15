@@ -16,6 +16,7 @@ import {
 import { unstable_rethrow } from "next/navigation";
 import Markdown from "react-markdown";
 import type { Editor, NodeViewRenderer } from "@tiptap/core";
+import type { Transaction } from "@tiptap/pm/state";
 import {
   NodeViewContent,
   NodeViewWrapper,
@@ -168,17 +169,60 @@ interface NodeSource {
   opts: StagingViewOptions;
 }
 
-function liveAttrs(src: NodeSource): Record<string, unknown> | null {
-  if (src.editor.isDestroyed) return null;
-  let pos: number | undefined;
+/**
+ * Which block a panel was opened for, held as a RANGE mapped through every
+ * transaction since — not as a node view, and not as a node.
+ *
+ * The node view is not enough. ProseMirror reuses a node view for any node of
+ * the same type it can match, so one transaction that changes A's attrs AND
+ * inserts X before A (a redo of a grouped history step, say) can leave A's
+ * view drawing X, its `getPos` now X's. A form reading through that view
+ * would show X under A's panel, and Save would write A's draft into X. The
+ * range is what tells them apart: X's arrival maps A's start past X, and the
+ * view's position no longer agrees with it.
+ *
+ * The start maps with `assoc` 1, so an insertion AT it pushes it forward (the
+ * new node is before the block); the end with -1, so one at the end stays
+ * after it. A replacement of the block itself — `updateAttributes` on a leaf
+ * is `setNodeMarkup`, which replaces it — keeps both: ProseMirror maps a
+ * range's own endpoints outward. A deletion collapses the range, and its
+ * width stops matching the node's size. Registered when the panel opens,
+ * before the form subscribes, so it has mapped each transaction by the time
+ * the form reads.
+ */
+interface Tracked {
+  start: number;
+  end: number;
+  stop: () => void;
+}
+
+function track(editor: Editor, pos: number): Tracked {
+  const size = editor.state.doc.nodeAt(pos)?.nodeSize ?? 0;
+  const onTransaction = ({ transaction }: { transaction: Transaction }) => {
+    if (!transaction.docChanged) return;
+    tracked.start = transaction.mapping.map(tracked.start, 1);
+    tracked.end = transaction.mapping.map(tracked.end, -1);
+  };
+  const tracked: Tracked = { start: pos, end: pos + size, stop: () => editor.off("transaction", onTransaction) };
+  editor.on("transaction", onTransaction);
+  return tracked;
+}
+
+const positionOf = (src: NodeSource): number | undefined => {
   try {
-    pos = src.getPos();
+    return src.getPos();
   } catch {
-    return null; // a destroyed node view has no position to report
+    return undefined; // a destroyed node view has no position to report
   }
-  if (typeof pos !== "number") return null;
+};
+
+function liveAttrs(src: NodeSource, tracked: Tracked): Record<string, unknown> | null {
+  if (src.editor.isDestroyed) return null;
+  const pos = positionOf(src);
+  if (pos !== tracked.start) return null; // the view now draws another node
   const node = src.editor.state.doc.nodeAt(pos);
-  return node && node.type.name === src.typeName ? node.attrs : null;
+  if (!node || node.type.name !== src.typeName) return null;
+  return node.nodeSize === tracked.end - tracked.start ? node.attrs : null;
 }
 
 /**
@@ -188,7 +232,7 @@ function liveAttrs(src: NodeSource): Record<string, unknown> | null {
  * node's attributes actually change, which is what `useSyncExternalStore`
  * needs from it.
  */
-function useLiveAttrs(src: NodeSource): Record<string, unknown> | null {
+function useLiveAttrs(src: NodeSource, tracked: Tracked): Record<string, unknown> | null {
   const subscribe = useCallback(
     (onChange: () => void) => {
       src.editor.on("transaction", onChange);
@@ -198,7 +242,7 @@ function useLiveAttrs(src: NodeSource): Record<string, unknown> | null {
     },
     [src],
   );
-  const read = () => liveAttrs(src);
+  const read = () => liveAttrs(src, tracked);
   return useSyncExternalStore(subscribe, read, read);
 }
 
@@ -222,13 +266,18 @@ type FormProps = { src: NodeSource; attrs: Record<string, unknown> };
  * view's unmount closes it too; this is the half that does not wait for
  * React to get round to that).
  */
-function LiveForm({ src, Form }: { src: NodeSource; Form: ComponentType<FormProps> }) {
-  const attrs = useLiveAttrs(src);
+function LiveForm({ src, tracked, Form }: { src: NodeSource; tracked: Tracked; Form: ComponentType<FormProps> }) {
+  const attrs = useLiveAttrs(src, tracked);
+  // Save re-checks at the moment it writes, not only at the last render.
+  const bound = useMemo<NodeSource>(
+    () => ({ ...src, update: (a) => void (liveAttrs(src, tracked) && src.update(a)) }),
+    [src, tracked],
+  );
   const gone = attrs === null;
   useEffect(() => {
     if (gone) src.close();
   }, [gone, src]);
-  return attrs ? <Form key={attrsKey(attrs)} src={src} attrs={attrs} /> : null;
+  return attrs ? <Form key={attrsKey(attrs)} src={bound} attrs={attrs} /> : null;
 }
 
 /**
@@ -541,8 +590,17 @@ function useStagedPanel(
     // Not on insert: the `/` menu that inserted this block closes itself, and
     // this runs inside that pick's dispatch (Tiptap renders a new node view
     // synchronously), where a second dispatch would be a nested one.
+    const pos = positionOf(src);
+    if (typeof pos !== "number") return;
     if (!onInsert) exitMenus(editor);
-    panel.open({ id, title, content: <LiveForm src={src} Form={Form} />, returnFocus: trigger.current });
+    const tracked = track(editor, pos);
+    panel.open({
+      id,
+      title,
+      content: <LiveForm src={src} tracked={tracked} Form={Form} />,
+      returnFocus: trigger.current,
+      onClose: tracked.stop,
+    });
   };
   // Mount and unmount only. `show` reads `panel` at mount, which is the
   // rail the node view mounted under; `close` is stable for its lifetime.
@@ -562,6 +620,8 @@ function useStagedPanel(
       role: "button",
       tabIndex: 0,
       "aria-expanded": expanded,
+      // Only while expanded: a page panel exists only while it is open.
+      "aria-controls": expanded ? panel.panelId : undefined,
       [TRIGGER_ATTR]: "",
       onClick: toggle,
       onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => {

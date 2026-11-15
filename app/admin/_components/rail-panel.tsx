@@ -29,7 +29,10 @@ export interface PagePanel {
   title: string;
   /** Composed by the caller; the rail renders it and learns nothing from it. */
   content: ReactNode;
-  /** Where focus goes when the panel is dismissed (Escape, ✕ or `close`). */
+  /**
+   * Where focus goes when the panel is dismissed (Escape, ✕ or `close`) — if
+   * focus was in the panel or on `document.body`; never out of the page.
+   */
   returnFocus: HTMLElement | null;
   /** Called once when this panel stops being the open one, for whatever reason. */
   onClose?: () => void;
@@ -38,6 +41,8 @@ export interface PagePanel {
 export interface RailPanelApi {
   /** The id of the page panel that is open, or null. Rail panels do not appear here. */
   openId: string | null;
+  /** The page panel's DOM id, for an opener's `aria-controls` while it is open. */
+  panelId: string;
   /** Opens a page panel, closing whatever panel — rail or page — was open. */
   open: (panel: PagePanel) => void;
   /**
