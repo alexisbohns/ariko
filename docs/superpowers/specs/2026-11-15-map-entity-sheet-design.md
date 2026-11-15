@@ -171,3 +171,32 @@ and each has a stated fallback:
 
 Highlighting the open node, panning the canvas to it, a sheet for seed-count or
 bucket nodes, and keyboard navigation between nodes.
+
+## Spike results
+
+Run 2026-11-15 against a scratch database, `next dev`, in the app's built-in
+browser at 1400×900.
+
+| # | Assumption | Result |
+|---|---|---|
+| 1 | Interception from a map click, and again after a save redirect | **Pass.** A click opens the sheet with the map still mounted. A save's redirect (a bean's visibility) re-matches the interceptor and leaves the *same* sheet and canvas elements in place: no remount. Swapping pod → sprout → plant changes only the content. Close returns to `/admin/map`, and `?plant=` / `?view=` come back with it. A table click and a hard load of `/admin/bean/x` give the plain page. **Dev only:** `next dev` builds its interception table at startup, so the server must be restarted after the first interceptor is added or nothing intercepts. |
+| 2 | The transform contains the rail, its panel and the floating commit | **Pass.** The lineage chrome, the editor's commit and the rail's icon cluster all measure inside the sheet. The commit and rail stay put while the content scrolls 163px (the two-box structure works). A rail panel opens inside the sheet (448px of its 704px) and floats over the prose; the page offset is 0. Base UI's popover anchors correctly. |
+| 3 | The `@` / `/` menu lands on the caret | **Fail, then fixed.** Measured 674px off (the sheet's left edge), vertical 6px as designed. Portalling the menu to `document.body` (f346864) puts it back on the caret's line, 6px below it, anchored at the `@`. Picking with Enter inserts the mention; Escape in the editor leaves the sheet open. |
+| 4 | The map re-renders behind an open sheet | **Yes, live.** Publishing the bean cleared its "Waiting" ring on the map while the sheet stayed open. The spec's floor (current after close) was not needed. |
+
+Also found:
+
+- **A defect the spec did not predict, now fixed.** `AdminMain` chose its
+  column from the URL, and `/admin/bean/x` is a reading column, so opening a
+  sheet switched `<main>` to a differently-shaped tree. That remounted the map,
+  the sheet and any editor in it, and the reading column squeezed the canvas to
+  height 0. `AdminMain` now passes `useSelectedLayoutSegment()` to
+  `resolveColumn`, and the active segment (still `map`) outranks the URL
+  (f542194). A remount here would have dropped an unsaved draft.
+- **The lineage chrome** draws inside the sheet, clear of the title, so
+  `inSheet` is not needed.
+- **The rail reshapes** when a plant opens (Overview in, Beanstalk out, the
+  switcher names the plant), the accepted limit above.
+- **A hidden browser pane freezes CSS animations** (`currentTime` stays 0), so
+  the sheet looked parked off-screen mid slide-in during automated checks. A
+  test-harness artifact, not a bug.
