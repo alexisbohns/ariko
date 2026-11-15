@@ -122,6 +122,20 @@ export const DOOR_ONLY_FIXTURES: Record<string, { md: string; problem: RegExp }>
   unknownContainer: { md: `:::warning\nCareful.\n:::`, problem: /:::warning is not a staging block/ },
   leafForm: { md: `::figure{frame=phone}`, problem: /::figure must be a container/ },
   unclosed: { md: `:::callout\nNever closed.`, problem: /callout: unclosed/ },
+  // remark reads each of these as a PARAGRAPH, so no directive node exists to
+  // refuse and the fence renders as literal text. The first is the likeliest
+  // slip of all: Docusaurus and VitePress spell an admonition title this way.
+  admonitionTitle: { md: `:::callout In two words\nx\n:::`, problem: /":::callout In two words" is not a block opener/ },
+  unknownWithTitle: { md: `:::note Heads up\nx\n:::`, problem: /":::note Heads up" is not a block opener/ },
+  spaceBeforeBrace: { md: `:::quote {by=Alexis}\nq\n:::`, problem: /":::quote \{by=Alexis\}" is not a block opener — write :::name\[label\]\{attrs\}, with no space before \[ or \{/ },
+  spaceBeforeFigureBrace: { md: `:::figure {frame=phone}\n![a](${MOON})\n:::`, problem: /is not a block opener/ },
+  bareAttrs: { md: `:::figure frame=phone\n![a](${MOON})\n:::`, problem: /":::figure frame=phone" is not a block opener/ },
+  missingBrace: { md: `:::figure{frame=phone\n![a](${MOON})\n:::`, problem: /":::figure\{frame=phone" is not a block opener/ },
+  unclosedLabel: { md: `:::callout[In two words\nx\n:::`, problem: /":::callout\[In two words" is not a block opener/ },
+  escapedQuote: { md: `:::quote{by="A \\"B\\""}\nq\n:::`, problem: /is not a block opener/ },
+  strayCloser: { md: `:::callout\nx\n:::\n:::`, problem: /a stray ::: closes nothing/ },
+  strayAfterCompare: { md: `${STAGING_FIXTURES.textOnlyCompare}\n::::`, problem: /a stray ::: closes nothing/ },
+  closerAfterProse: { md: `Text\n:::`, problem: /a stray ::: closes nothing/ },
 };
 
 /** Not staging at all: must survive every consumer untouched. */

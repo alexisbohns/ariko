@@ -1,3 +1,5 @@
+import { isSvgUrl } from "./staging";
+
 /**
  * Insert a transformation segment into a Cloudinary delivery URL, or return the
  * URL untouched.
@@ -17,8 +19,10 @@ function withTransform(url: string, transform: string): string {
 
   // An SVG is a vector: Cloudinary "resizes" one by rasterizing it, which turns
   // a crisp figure into a blurry PNG at whatever width was asked for (spec
-  // 2026-11-15 §3.4). Delivered as stored, always.
-  if (parsed.pathname.toLowerCase().endsWith(".svg")) return url;
+  // 2026-11-15 §3.4). Delivered as stored, always — and decided by the same
+  // isSvgUrl the door and the renderer use, so the three cannot disagree about
+  // which URL is a vector.
+  if (isSvgUrl(url)) return url;
 
   // Exact host match, not a suffix check: lib/storage.ts's toMediaImage stores
   // Cloudinary's own secure_url verbatim, and this app never configures a
@@ -87,8 +91,10 @@ function withTransform(url: string, transform: string): string {
  * and rewriting one blindly would produce a broken link rather than a smaller
  * image — the safe failure mode here is "no optimization", never "no image".
  *
- * Zero imports: `URL` is a Web/Node global, not a dependency, and nothing else
- * in this file reaches into the rest of the repo — string in, string out.
+ * One import, and a pure one: `isSvgUrl` from lib/staging.ts, which is
+ * client-safe and server-safe (it is on lib/server-safe-source.test.ts's list
+ * and imports only a type), so this file stays string in, string out for the
+ * client islands and the public pages that call it. `URL` is a global.
  */
 export function cloudinaryThumb(url: string, opts: { width: number; height: number }): string {
   return withTransform(url, `w_${opts.width},h_${opts.height},c_fill,q_auto,f_auto`);
