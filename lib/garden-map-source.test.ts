@@ -100,3 +100,11 @@ test("the card's link opts back in to pointer events", () => {
   // wrapper at all, which is why this is a source test.
   assert.match(code(read(CARD)), /pointer-events-auto/);
 });
+
+test("the page remounts the canvas when the scope changes", () => {
+  // `fitView` runs once, on mount. A `?plant=` change swaps the whole tree, so
+  // without a key the new tree would be drawn inside the old viewport —
+  // possibly off screen. `?view=` must NOT be in the key: it only dims nodes,
+  // and a remount would throw away the author's pan and zoom.
+  assert.match(code(read(PAGE)), /<GardenMap\s+key=\{scope\b[^}]*\}/);
+});

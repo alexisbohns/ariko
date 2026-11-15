@@ -72,7 +72,10 @@ export default async function AdminMapPage({
 
   return (
     <div className="relative size-full">
-      <GardenMap map={map} />
+      {/* Keyed by scope: `fitView` runs once, on mount, so a plant change must
+          remount to re-fit. `?view=` is deliberately not in the key — it only
+          dims nodes, and the author keeps their pan and zoom. */}
+      <GardenMap key={scope ?? "all"} map={map} />
       <MapToolbar active={active} view={view} counts={counts} />
     </div>
   );
