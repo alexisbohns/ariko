@@ -4,17 +4,17 @@ import { cloudinaryCloudName, imageProblems, markdownImages } from "./article-im
 
 test("markdownImages lists inline image URLs, in order", () => {
   const md = "Intro\n\n![a](https://x.test/1.png)\n\nText ![b](https://x.test/2.png \"t\")";
-  assert.deepEqual(markdownImages(md), { urls: ["https://x.test/1.png", "https://x.test/2.png"], references: 0 });
+  assert.deepEqual(markdownImages(md), { urls: ["https://x.test/1.png", "https://x.test/2.png"], references: 0, svgOutsideFigure: [] });
 });
 
 test("markdownImages counts reference-style images instead of resolving them", () => {
   const md = "![a][one]\n\n[one]: https://x.test/1.png";
-  assert.deepEqual(markdownImages(md), { urls: [], references: 1 });
+  assert.deepEqual(markdownImages(md), { urls: [], references: 1, svgOutsideFigure: [] });
 });
 
 test("markdownImages ignores links and code", () => {
   const md = "[not an image](https://x.test/a.png)\n\n`![x](https://x.test/b.png)`\n\n```\n![x](https://x.test/c.png)\n```";
-  assert.deepEqual(markdownImages(md), { urls: [], references: 0 });
+  assert.deepEqual(markdownImages(md), { urls: [], references: 0, svgOutsideFigure: [] });
 });
 
 const HOST = { cloud: "ariko", folder: "beanstalk" };
@@ -69,4 +69,32 @@ test("cloudinaryCloudName reads the host of CLOUDINARY_URL", () => {
   assert.equal(cloudinaryCloudName("cloudinary://123:abc@ariko"), "ariko");
   assert.equal(cloudinaryCloudName(undefined), undefined);
   assert.equal(cloudinaryCloudName("not a url"), undefined);
+});
+
+const SVG_HOST = { cloud: "t5gexxs5", folder: "beanstalk" };
+const svgUrl = "https://res.cloudinary.com/t5gexxs5/image/upload/v1/beanstalk/clock.svg";
+
+test("an SVG is accepted inside a figure", () => {
+  assert.deepEqual(imageProblems(`:::figure\n![clock](${svgUrl})\n:::`, SVG_HOST), []);
+  assert.deepEqual(imageProblems(`:::figure{dark}\n![a](${svgUrl})\n![b](${svgUrl})\n:::`, SVG_HOST), []);
+});
+
+test("an SVG anywhere else is refused by name", () => {
+  for (const md of [
+    `![clock](${svgUrl})`,
+    `:::gallery\n![a](${svgUrl})\n![b](${svgUrl})\n:::`,
+    `::::compare\n:::do\n![a](${svgUrl})\nYes.\n:::\n:::dont\nNo.\n:::\n::::`,
+    `:::callout\n![a](${svgUrl})\n:::`,
+  ]) {
+    assert.ok(imageProblems(md, SVG_HOST).some((p) => /clock\.svg: SVG is accepted only inside :::figure/.test(p)), md);
+  }
+});
+
+test("markdownImages names each SVG outside a figure, and only SVGs", () => {
+  const png = "https://x.test/a.png?f=.svg";
+  assert.deepEqual(markdownImages(`![a](${png})\n\n![b](${svgUrl})\n\n:::figure\n![c](${svgUrl})\n:::`), {
+    urls: [png, svgUrl, svgUrl],
+    references: 0,
+    svgOutsideFigure: [svgUrl],
+  });
 });

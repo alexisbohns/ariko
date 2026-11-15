@@ -93,3 +93,18 @@ test("an essay's problems with several images come back in one message", () => {
   const r = v({ essays: [essay({ content: "![a](https://a.test/1.png) ![b](https://b.test/2.png)" })] }) as { error: string };
   assert.match(r.error, /1\.png is not hosted by Ariko.*; .*2\.png is not hosted/);
 });
+
+test("staging: a typo in a block is refused by name, with the essay and the half", () => {
+  const md = `Body\n\n:::figure{size=xl}\n![shot](${IMG})\n:::`;
+  const r = v({ essays: [essay({ content: { en: "ok", fr: md } })] }) as { error: string };
+  assert.equal(r.error, "feed-redesign: content.fr: figure: size=xl is not one of s, m, l, wide");
+  const n = v({ narratives: [narrative({ content: ":::warning\nCareful.\n:::\n\n:::quote\nWords.\n:::" })] }) as { error: string };
+  assert.match(n.error, /^feed: content: :::warning is not a staging block .*; quote: by is required$/);
+});
+
+test("staging: an SVG outside a figure is refused even when Ariko hosts it", () => {
+  const svg = "https://res.cloudinary.com/ariko/image/upload/v1/beanstalk/clock.svg";
+  assert.deepEqual(v({ essays: [essay({ content: `:::figure\n![clock](${svg})\n:::` })] }), { ok: true });
+  const r = v({ essays: [essay({ content: `![clock](${svg})` })] }) as { error: string };
+  assert.equal(r.error, `feed-redesign: content: ${svg}: SVG is accepted only inside :::figure`);
+});
