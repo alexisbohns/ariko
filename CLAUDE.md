@@ -393,6 +393,28 @@ while quietly becoming false.
   first byte. The projection is spelled as the four fields rather than as an
   exclusion, so adding a field to the switcher means widening it deliberately
   rather than by default.
+- **The garden map is a read-only, live-garden reader, and a `bleed` page.**
+  `/admin/map` ([`specs/2026-11-15-garden-map-design.md`](docs/superpowers/specs/2026-11-15-garden-map-design.md))
+  draws `Plant → Pod → Bean` with draft sprouts and inbox seeds as leaves. What
+  waits is an amber ring *and* the word "Waiting"; what is missing is a chip.
+  `lib/garden-map.ts` decides every flag and `lib/garden-map-layout.ts` (dagre,
+  on the server) every coordinate, so `app/admin/_components/garden-map.tsx` is
+  a thin island that imports **types only** from them — `lib/garden-map.ts`
+  reaches `lib/data.ts` and so `node:fs`, which fails the build from a client
+  file. It reads `loadRawGarden` and `listSeeds`, never the cache, because a map
+  of "what waits" that lagged a write shows a garden you already changed. It has
+  no write path: each node is a `next/link` to the page where the decision
+  lives. It is the one route `resolveColumn` calls `"bleed"` — a canvas in a
+  1024px column defeats itself — so `AdminMain` gives it `fixed inset-0 z-0`
+  under the chrome's `z-40` plates. A published sprout is **not** drawn (a
+  hairball) but still counts toward "bean has no journal", and a machine-
+  projected bean is exempt from every gap. A draft sprout whose plant does not
+  resolve (ambiguous or dangling) still links to every pod and bean its `about`
+  names that exists, and falls to the Unrooted node only when it names nothing
+  that does. Seeds resolve against the whole garden first and the scope filters
+  them afterwards, so the most specific suggestion wins the same way in every
+  scope. `lib/garden-map.test.ts` pins the rules,
+  `lib/garden-map-source.test.ts` the boundary.
 - **`lib/palette.ts` is server-only; `lib/palette-items.ts` is the client
   half.** `lib/palette.ts` imports `lib/data.ts`, which opens with `node:fs`.
   Importing the wrong one from the palette component does not merely bloat the
