@@ -418,3 +418,57 @@ test("12. a callout label typed with brackets is escaped into a label that stays
   assert.equal(escapeLabel("a ] b"), "a \\] b");
   assert.equal(escapeLabel("already \\] escaped"), "already \\] escaped");
 });
+
+test("15. Make it a figure: one transaction to a canonical `:::figure`, and one undo gives back the plain image byte for byte", () => {
+  const { makeFigure } = require("../components/editor/staging-views.js") as typeof import("../components/editor/staging-views.js");
+  const { NodeSelection } = require("@tiptap/pm/state") as typeof import("@tiptap/pm/state");
+  const src = "https://res.cloudinary.com/demo/image/upload/moon.png";
+  const editor = makeEditor({ content: "Before.\n\nAfter.", contentType: "markdown" });
+  try {
+    // The image arrives as its own line just now — the /image path, inside
+    // the history's grouping delay and touching the range the conversion
+    // replaces. Without `closeHistory` the two steps would merge, and the
+    // undo would take the image away with the figure.
+    editor.commands.insertContentAt(9, {
+      type: "paragraph",
+      content: [{ type: "image", attrs: { src, alt: "The moon", title: "Close-up" } }],
+    });
+    const original = editor.getMarkdown();
+    let at = -1;
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === "image") at = pos;
+    });
+    editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, at)));
+
+    assert.equal(makeFigure(editor), true);
+    const figure = `:::figure\n![The moon](${src})\nClose-up\n:::`;
+    assert.equal(editor.getMarkdown(), `Before.\n\n${figure}\n\nAfter.`);
+    assert.equal(render(editor.getMarkdown()), render(`Before.\n\n${figure}\n\nAfter.`));
+    assert.match(render(figure), /<staged-figure /, "the site draws it as a figure");
+    assert.equal(editor.state.selection instanceof NodeSelection && editor.state.selection.node.type.name, "stagedFigure");
+
+    editor.commands.undo();
+    assert.equal(editor.getMarkdown(), original, "one undo, and the plain image is back exactly");
+
+    // A text selection converts nothing.
+    editor.commands.setTextSelection({ from: 1, to: 5 });
+    assert.equal(makeFigure(editor), false);
+    assert.equal(editor.getMarkdown(), original);
+  } finally {
+    editor.destroy();
+  }
+
+  // And from a stored article: the undo gives back the SOURCE, not merely an
+  // equivalent render.
+  const stored = `Before.\n\n![](${src})\n\nAfter.`;
+  const loaded = makeEditor({ content: stored, contentType: "markdown" });
+  try {
+    loaded.view.dispatch(loaded.state.tr.setSelection(NodeSelection.create(loaded.state.doc, 10)));
+    assert.equal(makeFigure(loaded), true);
+    assert.equal(loaded.getMarkdown(), `Before.\n\n:::figure\n![](${src})\n:::\n\nAfter.`);
+    loaded.commands.undo();
+    assert.equal(loaded.getMarkdown(), stored);
+  } finally {
+    loaded.destroy();
+  }
+});

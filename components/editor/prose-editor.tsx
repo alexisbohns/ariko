@@ -9,6 +9,7 @@ import { prepareEditorMarkdown } from "@/lib/entity-markdown";
 import type { EntityOption } from "@/lib/entity-options";
 import { buildEditorExtensions, type MenuState } from "./editor-extensions";
 import type { StagingUpload } from "./staging-views";
+import { BubbleActions } from "./bubble-actions";
 import { SuggestionMenu } from "./suggestion-menu";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -453,19 +454,21 @@ export function ProseEditor({
       {editor ? (
         <BubbleMenu editor={editor}>
           <div className="flex items-center gap-1 rounded-lg border bg-background p-1 shadow-md">
-            <Button type="button" size="sm" variant="ghost" onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBold().run(); }}>Bold</Button>
-            <Button type="button" size="sm" variant="ghost" onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleItalic().run(); }}>Italic</Button>
-            <Button type="button" size="sm" variant="ghost" onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleCode().run(); }}>Code</Button>
-            <Button
-              type="button" size="sm" variant="ghost"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                const href = window.prompt("Link URL");
-                if (href) editor.chain().focus().setLink({ href }).run();
-              }}
-            >
-              Link
-            </Button>
+            <BubbleActions editor={editor}>
+              <Button type="button" size="sm" variant="ghost" onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBold().run(); }}>Bold</Button>
+              <Button type="button" size="sm" variant="ghost" onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleItalic().run(); }}>Italic</Button>
+              <Button type="button" size="sm" variant="ghost" onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleCode().run(); }}>Code</Button>
+              <Button
+                type="button" size="sm" variant="ghost"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  const href = window.prompt("Link URL");
+                  if (href) editor.chain().focus().setLink({ href }).run();
+                }}
+              >
+                Link
+              </Button>
+            </BubbleActions>
           </div>
         </BubbleMenu>
       ) : null}
@@ -640,3 +643,4 @@ export function ProseEditor({
     </div>
   );
 }
+
