@@ -38,7 +38,13 @@ export default async function AdminMapPage({
   try {
     const [raw, seeds] = await Promise.all([loadRawGarden(), listSeeds({ status: "inbox" })]);
     const built = buildGardenMap(raw, seeds, { scope, view });
-    counts = { all: built.nodes.length, review: built.stats.waiting, gaps: built.stats.gaps };
+    // Buckets are scaffolding, not garden: counting them would make "All" the
+    // only figure that includes things `stats` (rightly) does not.
+    counts = {
+      all: built.nodes.filter((n) => n.kind !== "bucket").length,
+      review: built.stats.waiting,
+      gaps: built.stats.gaps,
+    };
     map = layoutGardenMap(built);
   } catch {
     map = null;
