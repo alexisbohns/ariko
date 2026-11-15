@@ -505,7 +505,9 @@ while quietly becoming false.
   stored provider cannot be set by whoever posted the form.
   `uploadOptions` (`lib/storage.ts`) sets `allowed_formats`, so the raster rule
   is enforced from the uploaded bytes for the admin and the article door alike —
-  `checkUploadFile` only sees a MIME type the client chose.
+  `checkUploadFile` only sees a MIME type the client chose. The one upload that
+  sets none is `uploadSvg`, deliberately — a figure's SVG is judged by
+  `lib/svg-check.ts` instead; see the staging bullet below.
 - **A staged block's shape is decided once, and three consumers ask.** The
   staging grammar ([`specs/2026-11-15-staging-grammar-design.md`](docs/superpowers/specs/2026-11-15-staging-grammar-design.md))
   is five container directives — `:::figure`, `:::gallery`, `::::compare`
@@ -513,7 +515,10 @@ while quietly becoming false.
   `lib/staging.ts` and judged by `parseStagedBlock` (`lib/staging-parse.ts`)
   for the renderer's `remarkStaging`, the door's `stagingProblems` and the
   editor's tokenizers alike; a second derivation is how the editor comes to
-  claim a block the site unwraps. The modes differ ONLY on vocabulary: render
+  claim a block the site unwraps. The door also reads every PARAGRAPH line,
+  because a malformed opener (`:::callout In two words`, a space before `{`)
+  or a stray `:::` is no directive at all — remark reads it as prose and the
+  page shows the colons — so it is refused by name rather than missed. The modes differ ONLY on vocabulary: render
   is lenient (`size=xl` draws the default, a malformed block unwraps to its
   children with every word and image kept), the door strict, and a wrong
   shape is refused by both. marked knows no containers, so the editor finds a
@@ -547,7 +552,8 @@ while quietly becoming false.
   `lib/editor.test.ts` (the withheld rows, and no delete in
   `staging-views.tsx`), `lib/svg-check.test.ts`,
   `components/staging/staging.test.tsx`, `components/phone-frame.test.tsx` and
-  `lib/server-safe-source.test.ts`.
+  `lib/server-safe-source.test.ts` and `lib/staging-source.test.ts` (no file
+  in `components/staging/` inlines markup or fetches).
 - **A new admin data route goes under `/admin`, not `/api`.** `middleware.ts`
   matches `/admin/:path*`, so `app/admin/(chrome)/palette/route.ts` inherits
   the session gate with zero new auth code — a route group's name never reaches the
@@ -717,7 +723,8 @@ A token minted and then lost to a failed write cannot be recovered — Ariko
 stores hashes — so a failed write prints the cards instead of dropping them.
 
 Three doors, all token-gated: `GET /api/articles/ping` (scope), `POST
-/api/articles/assets` (one raster image, uploaded server-side), `POST
+/api/articles/assets` (one raster image — or, for a `:::figure`, one SVG —
+uploaded server-side), `POST
 /api/articles` (`{ essays, narratives }`). `authorizeRepo` and the token
 store are `lib/repo-token-store.ts`; the pure half (hashing, setup card, `.env`
 block, target guards) is `lib/repo-token.ts`. A bearer that does not start

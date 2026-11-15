@@ -137,7 +137,8 @@ Verified against `remark-directive` before planning:
 
 `lib/staging.ts` — pure, client-safe, the one place the blocks are named, as
 `lib/plant-status.ts` is for its enum: block names, attribute names, member
-lists, defaults (including size-by-frame), and `normalizeStagingAttrs()`. Every
+lists, defaults (including size-by-frame), and `resolveFrame()` /
+`resolveSize()`, which turn a stored value into a member or the default. Every
 other part of this slice reads it: the remark pass, the marked tokenizers, the
 sanitize schema's value lists, the popovers' radios and the door's validator.
 Nothing re-lists a member.
@@ -183,8 +184,10 @@ maps `entity-card`.
   `À éviter`, from `COMPARE_LABELS` in `lib/staging.ts`. Side by side from `sm`, stacked
   below, do first. Images untouched.
 - **Callout** — `<aside>` on the muted plate (`--muted`, `--radius`), its label
-  in the mono face as its accessible name (`aria-labelledby`); unlabeled, it is
-  an `<aside>` with no name.
+  in the mono face and its plain text as the accessible name (`aria-label`, not
+  `aria-labelledby`: a server component has no `useId`, and an id minted from
+  the label would collide the day two asides share one); unlabeled, it is an
+  `<aside>` with no name.
 - **Quote** — `<figure><blockquote>…</blockquote><figcaption>— by, role</figcaption></figure>`,
   set a step larger than body with a hanging opening mark.
 
@@ -264,14 +267,20 @@ server-safe.
   popover` if not present): frame and size as native radios from
   `lib/staging.ts`, one image slot per image (upload or paste, via the existing
   `uploadImageAction`), alt text and captions, add / remove / reorder for
-  gallery images, and **Save**, which calls `updateAttributes`. Escape or a
-  click outside discards. Nothing is stored before the article's own commit.
+  gallery images, and **Save**, which calls `updateAttributes` — the only
+  write. Closing the popover for any other reason (Escape, a click outside,
+  focus leaving) discards the draft and leaves the node as stored. No view ever
+  deletes its node: a first version deleted an empty block on close, and every
+  close reason — a stray focus-out, the click that picked the `/` row, a file
+  dialog's blur — became a way to lose one. Nothing is stored before the
+  article's own commit.
 - **Text blocks**: the callout's label and the quote's `by` / `role` open the
   same kind of popover from their label and attribution lines; the body is
   typed into directly.
 - **Insertion**: the `/` menu gains Figure, Gallery, Compare, Callout and Quote.
   A media block opens its popover on insertion; cancelled with no image, it
-  serializes to nothing (§4.1).
+  stays on screen as a dashed placeholder that serializes to nothing (§4.1) —
+  gone from the saved article, and deletable like any atom.
 
 ### 4.3 Inherited rules
 
@@ -291,7 +300,10 @@ never strips: a stripped drawing is not the drawing that was approved.
 
 - **Elements**: `svg g path rect circle ellipse line polyline polygon text tspan
   defs symbol use marker clipPath mask linearGradient radialGradient stop
-  pattern title desc style`.
+  pattern title desc style metadata`. `metadata` was added during
+  implementation: every Excalidraw export carries one, it never renders and
+  never fetches, and its children are still checked against this same list
+  (so an `<rdf:RDF>` inside one is refused by name).
 - **Attributes**: geometry, presentation attributes, `transform`, `viewBox`,
   `preserveAspectRatio`, `id`, `class`, `xmlns*`.
 - **Refused**: `script`, `foreignObject`, `image`, `animate*` / `set`, any
@@ -323,14 +335,15 @@ the skill says to export with "embed fonts" off.
   figure popover's slot passes it. `checkUploadFile` keeps refusing SVG for
   every other caller (`lib/upload-input.test.ts`'s "rejects svg specifically"
   stays true for the default purpose).
-- **To verify before implementation depends on it**: whether the Cloudinary
-  account's security settings allow SVG delivery. If not, it is a setting.
+- **SVG delivery — verified** (2026-11-15): the account delivers uploaded
+  SVGs; uploaded figures rendered in the browser check. (The open question
+  was whether its security settings block SVG delivery; they do not.)
 
 ### 5.3 Rendering
 
-Always `<img>`, never inlined, never transformed. A source test pins that no
-file in `components/staging/` uses `dangerouslySetInnerHTML` or fetches an
-image's bytes.
+Always `<img>`, never inlined, never transformed. A source test
+(`lib/staging-source.test.ts`, comment-stripped source) pins that no file in
+`components/staging/` uses `dangerouslySetInnerHTML` or calls `fetch(`.
 
 ## 6. The article door
 
@@ -351,6 +364,13 @@ and reports by name, as a 400:
   expected it to mean something
 - `::figure must be a container — write :::figure … :::` — the leaf form of a
   staging name, the commonest slip
+- `":::callout In two words" is not a block opener — write :::name[label]{attrs}, with no space before [ or {`
+  and `a stray ::: closes nothing` — a fence line remark could not parse is a
+  PARAGRAPH, not a directive, so the check reads every paragraph's lines too:
+  three colons and a name, or two and a staged name, at a line's start is a
+  failed opener (an admonition-style title, a space before `[` or `{`, an
+  unclosed bracket, a `\"` in a value); a bare `:::` that closes nothing is a
+  stray. A failed opener's own closer is paired with it, not reported twice.
 
 ### 6.2 SVG placement
 
@@ -392,17 +412,19 @@ After merge, `npm run skill:zip` must be re-uploaded to the claude.ai account
 - **Conformance** (`lib/markdown-conformance.test.ts`) over every fixture:
   parse → serialize is stable after one pass, and remark's render of the saved
   markdown equals its render of the original.
-- **Render** (`lib/markdown.test.ts`): each block's HTML, the sanitize schema
+- **Render** (`lib/staging-render.test.ts`): each block's HTML, the sanitize schema
   stripping a non-member value, malformed blocks unwrapping with their text
   intact.
-- **Door**: `stagingProblems` messages; SVG placement; route tests for the
-  asset door's SVG branch.
+- **Door**: `stagingProblems` messages, including the fence lines remark reads
+  as prose (`:::callout In two words`, a space before `{`, a stray `:::`); SVG
+  placement; route tests for the asset door's SVG branch.
 - **SVG check**: hostile files (`<script>`, `onload`, `<foreignObject>`,
   external `xlink:href`, `url(https://…)`, `@import`, `<image>` with a data
   URI, a DOCTYPE entity, no `viewBox`, >1 MB) are refused by name; clean Figma
   and Excalidraw (embed fonts off) exports pass.
 - **Source tests**: `components/staging/*` and `components/desktop-frame.tsx`
-  on the server-safe list; no `dangerouslySetInnerHTML`; `PhoneFrame` carries
+  on the server-safe list; no `dangerouslySetInnerHTML` and no `fetch(` in
+  `components/staging/` (`lib/staging-source.test.ts`); `PhoneFrame` carries
   no `bg-neutral-900`.
 - **Acceptance, after merge** (code first, content after deploy — the
   workflow rule): re-stage the kosymoz essay through the door from

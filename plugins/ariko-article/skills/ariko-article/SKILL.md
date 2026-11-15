@@ -180,6 +180,14 @@ says:
 - A quote needs `by` (`quote: by is required`). Quote any value with a space:
   `role="lead designer"`. Inside a callout or a quote, ordinary markdown —
   paragraphs, lists, `:entity` mentions and `::entity` cards — is fine.
+- An opener is `:::name[label]{attrs}` with **no space** before `[` or `{`,
+  and nothing else on its line. An admonition-style title goes in the
+  `[label]`: `:::callout[In two words]`, never `:::callout In two words`. A
+  line that starts with colons and is not a well-formed opener is refused
+  (`":::callout In two words" is not a block opener — write
+  :::name[label]{attrs}, with no space before [ or {`) — so are an unclosed
+  `[` or `{`, and a `\"` inside a quoted value, which has no escape. A `:::`
+  that closes no block is refused too (`a stray ::: closes nothing`).
 - `compare` takes **four** colons (`::::compare … ::::`) around its `:::do`
   and `:::dont`; every other block takes three. Close every block
   (`callout: unclosed — no matching :::`).
@@ -191,6 +199,9 @@ says:
   callout, quote)`). A fence inside a code block is code, and is left alone.
 - Put each block at the top level of the article, on lines of its own —
   not inside a list item or a table cell.
+- A caption, and a compare side's text, is one line. A line break inside
+  one is accepted, but it is folded into a space the next time the
+  maintainer saves the article in the editor — so write it as one line.
 - Captions, labels and roles are translated by writing them in the French
   half — each half is its own markdown, staged the same way.
 
