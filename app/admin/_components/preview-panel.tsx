@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 /**
@@ -40,12 +41,13 @@ export function PreviewSection({
           {suffix ? <span className="text-muted-foreground"> {suffix}</span> : null}
         </h2>
         {link ? (
-          <a
+          <Link
             href={link.href}
+            prefetch={false}
             className="text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
           >
             {link.label}
-          </a>
+          </Link>
         ) : null}
       </div>
       {empty ? <p className="text-sm text-muted-foreground">{empty}</p> : children}

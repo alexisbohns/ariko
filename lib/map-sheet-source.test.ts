@@ -137,3 +137,16 @@ test("the sheet guards every in-place navigation, once — the ✕ has no guard 
   // A guard on the ✕ as well would ask twice.
   assert.equal(/<Link\b[^>]*onClick=/.test(text), false, "the ✕ must not carry its own onClick");
 });
+
+test("the links the sheet shows are next/link, so a click swaps the sheet instead of leaving the map", () => {
+  // A plain <a> hard-navigates: it leaves the map, and drops an open draft.
+  for (const file of [
+    "app/admin/_components/table-cells.tsx",
+    "app/admin/_components/sprout-table.tsx",
+    "app/admin/_components/preview-panel.tsx",
+    "components/editor/edit-lang-switch.tsx",
+    "app/admin/(chrome)/plant/[slug]/narrative/page.tsx",
+  ]) {
+    assert.match(code(file), /from "next\/link"/, `${file} must use next/link`);
+  }
+});

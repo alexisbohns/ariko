@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { resolveText } from "@/lib/data";
 import { editLang, editLangHrefs, editorHalves } from "@/lib/edit-lang";
@@ -65,12 +66,13 @@ export default async function AdminPlantNarrativePage({
   return (
     <EntityRail label="Narrative panels" items={[]}>
       <article className="flex flex-col gap-8">
-        <a
+        <Link
           href={hubHref(plant.slug)}
+          prefetch={false}
           className="self-start text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
         >
           ← {name}
-        </a>
+        </Link>
 
         <div className="flex flex-col gap-1">
           <p className="font-heading text-xs uppercase tracking-[0.15em] text-muted-foreground">
