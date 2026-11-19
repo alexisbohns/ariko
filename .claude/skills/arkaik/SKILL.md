@@ -1,0 +1,445 @@
+---
+name: arkaik
+version: 3.2.0
+description: >
+  Maintain the Arkaik product graph map for Ariko — add, update, or
+  remove nodes and edges in the ProjectBundle JSON that describes its screens,
+  flows, data models, and API endpoints, and record every change as a journal
+  event. Use this skill whenever you create, rename, move, or delete a
+  view/screen, route, data model, or API endpoint in the codebase. Also use it
+  when changing a feature's status (idea → development → live), adding a new user
+  journey, or restructuring navigation. If your code change touches product
+  architecture, this skill applies — even if no one explicitly asked you to
+  update the map.
+---
+
+# Arkaik Map Maintenance
+
+You are maintaining an **Arkaik ProjectBundle** — a JSON file that describes the
+product architecture of Ariko as a graph of nodes (screens, flows,
+data models, API endpoints) and edges (relationships between them) — plus a
+**journal**, an append-only log of typed events recording how that graph changed
+over time.
+
+The map lives at `docs/arkaik/bundle.json` in the repository. If it doesn't exist at
+that path yet, check the project root and `docs/` for any `*arkaik*.json` file.
+If you find one elsewhere, use it where it is — don't move files without the
+user's approval.
+
+The journal is a sidecar file next to the snapshot at `docs/arkaik/journal.jsonl` —
+append-only, one JSON event per line (JSONL), **never inside the snapshot**. If
+the journal doesn't exist yet, the map is a plain snapshot with no history; start
+one the first time you make a change (see [Dual-write](#dual-write-snapshot--journal)).
+
+> **Template parameters.** This skill is *rendered*, not copied — `arkaik init`
+> (and `arkaik init --update`, which reads the `version` stamp in the frontmatter
+> above to upgrade cleanly instead of blind-overwriting local edits) substitutes
+> these per project. If you are reading a raw, unrendered copy, treat the defaults
+> in parentheses as the values:
+>
+> | Parameter | Meaning | Default |
+> |---|---|---|
+> | `Ariko` | The product this map describes | the current product |
+> | `ariko` | Kebab-case `project.id` for this map (distinct from the display name above) | a kebab-case slug of the product name |
+> | `docs/arkaik/bundle.json` | Path to the snapshot | `docs/arkaik/bundle.json` |
+> | `docs/arkaik/journal.jsonl` | Path to the journal sidecar | `docs/arkaik/journal.jsonl` |
+
+> **Check this first: is the map a file, or an account project?**
+>
+> If `docs/arkaik/arkaik.json` exists in this repository, the map is **hosted** —
+> it lives in an arkaik account, not in a file here. Everything below about
+> *what* to record still applies; everything about *how* to write it does not.
+>
+> | | File map | Hosted map (`docs/arkaik/arkaik.json` present) |
+> |---|---|---|
+> | Where it lives | `docs/arkaik/bundle.json` in this repo | the account, reached over HTTP |
+> | How you edit it | patch the JSON, append to the journal | the `arkaik-mcp` tools (`create_node`, `update_node`, …) |
+> | Dual-write | you do it, by hand | the server does it — every mutation derives its own journal events |
+>
+> **Do not create or edit `docs/arkaik/bundle.json` for a hosted map.** Nothing reads it,
+> the account never sees the change, and the next person to look finds two maps
+> disagreeing. If the MCP tools are unavailable, say so and stop rather than
+> falling back to the file — a silent fallback is the failure nobody notices.
+>
+> The tool catalog is identical in both modes, so the rest of this skill reads
+> the same either way. Setup: [hosted-projects.md](https://github.com/alexisbohns/arkaik/blob/main/docs/hosted-projects.md).
+
+## When to Update the Map
+
+Update the map as a side-effect of your main work whenever you:
+
+- **Add** a new screen, page, route, component, model, or endpoint
+- **Remove** or deprecate a feature, screen, or endpoint
+- **Rename** a view, model, or route
+- **Change status** of a feature (e.g., moving from `idea` to `development`)
+- **Restructure** navigation or user flows
+- **Add or change** API contracts
+
+Do NOT regenerate the entire map. Make **surgical patches** — touch only the
+nodes and edges affected by your change. This keeps diffs reviewable and avoids
+accidental regressions.
+
+## Dual-write: snapshot + journal
+
+The snapshot is authoritative for **current state**; the journal is authoritative
+for **history**. Every change is a **dual-write**: in the *same* change you
+
+1. patch the snapshot (`docs/arkaik/bundle.json`) surgically, **and**
+2. append the matching event(s) to the journal (`docs/arkaik/journal.jsonl`).
+
+Appending is a one-line addition to the JSONL sidecar — structurally incapable of
+corrupting existing history or the snapshot, and safe under concurrent edits
+(git's `merge=union` reorders lines; consumers order by `ts`, tiebreaking by `id`).
+
+**Never re-project the snapshot from the journal, or vice versa.** If the two ever
+disagree, that divergence is a signal to surface, not to launder — the validator
+below is what catches it.
+
+### Which events to append
+
+Each graph operation has a matching event. Append one line per operation:
+
+| Graph operation | Journal event |
+|---|---|
+| Add a node | `node.created` (`node_id`, `species`, `title`) |
+| Add an edge | `edge.added` (`edge_id`, `source_id`, `target_id`, `edge_type`) |
+| Change a node's `status` | `node.status_changed` (`node_id`, `from`, `to`; add `platform` when a per-platform node status — an acceptance, or a not-yet-covered view — moved) |
+| Change any other node field (rename, description, playlist…) | `node.updated` (`node_id`, `fields[]`; `from`/`to` for short scalars like `title`) |
+| Remove a node | `node.deleted` (`node_id`) — **implies** cascade removal of its edges; do NOT also emit `edge.removed` for those |
+| Remove an edge on its own (node stays) | `edge.removed` (`edge_id`) |
+| Attach / detach an external reference | `ref.added` / `ref.removed` |
+| Record a screenshot for one platform | `screenshot.recorded` (`node_id`, `platform`, `source`, `form`, `url?`, `commit?`, `order?`) — through the `record_screenshot` tool/op, never by patching `metadata.platformScreenshots` (a slot patched through `update_node` is the legacy path and the validator warns `screenshot-untracked`) |
+| Clear a screenshot | `screenshot.removed` (`node_id`, `platform`) — through `remove_screenshot` |
+
+Other event types you may append when the change warrants it: `release.tagged`
+(a version shipped), `idea.proposed` (an idea, before or linked to a node),
+`request.filed` (an external ask), `ref.status_changed` (a mirrored external
+status moved). See the [event vocabulary](#event-vocabulary) for full payloads.
+
+### Event envelope
+
+Every event is one JSON object on its own line with these envelope fields, plus
+the type-specific payload flat on the object:
+
+```json
+{ "id": "<ULID>", "ts": "<ISO 8601>", "actor": "claude-code", "type": "node.status_changed", "node_id": "V-home", "from": "development", "to": "live" }
+```
+
+- `id` — a ULID (sortable, collision-free). If you cannot generate a real ULID,
+  any strictly increasing, unique, 26-char Crockford-base32 string works; order
+  is recovered from `ts` first, `id` only as a tiebreak.
+- `ts` — an ISO 8601 timestamp (the moment of the change).
+- `actor` — who wrote it; use `"claude-code"` for your own writes.
+- Events carry **no** `project_id`; scope is the file they live in.
+
+## How to Update
+
+### 1. Read the current map
+
+Always read the snapshot first. Parse it and identify the relevant nodes/edges
+before making changes. If a journal sidecar exists, you don't need to read all of
+it — you only ever **append**.
+
+### 2. Decide what to change
+
+Map your code change to graph operations (and the events they pair with):
+
+| Code change | Graph operation | Journal event(s) |
+|---|---|---|
+| New screen/page | Add a `V-` view node + `displays` edges to its data models + `calls` edges to its APIs | `node.created` + `edge.added` per edge |
+| New route/endpoint | Add an `API-` node + `queries` edges to the data models it reads/writes | `node.created` + `edge.added` per edge |
+| New model/table | Add a `DM-` node | `node.created` |
+| New user journey | Add a `F-` flow node with a playlist + `composes` edges to all views/sub-flows in the playlist | `node.created` + `edge.added` per edge |
+| Screen added to a flow | Add entry to the flow's playlist + a `composes` edge | `node.updated` (playlist) + `edge.added` |
+| Feature removed | Remove the node + all edges referencing it + remove from any playlists | `node.deleted` (edges cascade — do not emit `edge.removed`) |
+| Status change | Update the node's `status` field | `node.status_changed` |
+| Rename (label only) | Update the node's `title`; keep the `id` stable so edges stay intact | `node.updated` (`fields: ["title"]`, with `from`/`to`) |
+| Rename (id must change) | Update the `id`, then repoint every edge's `source_id`/`target_id` **and** the edge `id` (`e-{source}-{target}`), plus any playlist `view_id`/`flow_id` and `root_node_id` | `node.updated` + `edge.removed`/`edge.added` for each repointed edge |
+| Ship/add user-visible behavior on a platform | Find or create the covering `AC-` acceptance + `covers` edge to the view/flow; set `metadata.platformStatuses.<platform>` on the acceptance | `node.created` + `edge.added` (new acceptance) + `node.status_changed` (`platform`) |
+| A screenshot of a view or acceptance on a platform | `record_screenshot` (`node_id`, `platform`, `source: manual`, `form`, `value`) — writes the slot, its meta and the event in one op | `screenshot.recorded` |
+
+### 3. Apply the change
+
+Edit the snapshot JSON using the Edit tool for surgical changes, or Write for
+larger restructuring. Follow these rules strictly:
+
+**Node rules:**
+- IDs are prefixed by species: `F-` (flow), `V-` (view), `DM-` (data-model), `API-` (api-endpoint)
+- IDs use lowercase kebab-case after the prefix (e.g., `V-user-profile`)
+- **IDs must be globally unique.** Derive each ID deterministically from the title,
+  then check it against every existing node ID before adding — a duplicate ID
+  breaks the entire graph render (elkjs/React Flow key nodes by ID).
+- **Data-model IDs come in two flavors that must not collide:** conceptual models
+  use a singular `DM-<concept>` (title "Bounce" → `DM-bounce`); physical tables/views
+  use the exact identifier `DM-<table_name>` (title `bounces` → `DM-bounces`,
+  `karma_events` → `DM-karma-events`). See the schema reference for the full table.
+- **Every node must have a non-empty `title`.** Concepts/views/flows/APIs use 2–5
+  capitalized words; physical tables/views use the exact DB identifier verbatim.
+- Every `node.project_id` must match `project.id`
+- `platforms` must contain at least one of: `"web"`, `"ios"`, `"android"`
+- If the project declares products (`project.metadata.products`), flows and views
+  also carry `metadata.product` and their `platforms` stay inside that product's
+  menu — see [Products](#products--which-app-does-this-node-belong-to)
+- Flow nodes must have `metadata.playlist` with at least one entry
+
+**Edge rules:**
+- Edge IDs follow the pattern `e-{source_id}-{target_id}`
+- Every `source_id` and `target_id` must reference existing node IDs
+- Edge type semantics:
+  - `composes`: flow -> view, flow -> flow (sub-flow), view -> flow (triggers)
+  - `calls`: view -> api-endpoint, flow -> api-endpoint, api-endpoint -> api-endpoint (endpoint fan-out to internal/external APIs), api-endpoint -> view (the server initiates: webhook, SSE, push)
+  - `displays`: view -> data-model
+  - `queries`: api-endpoint -> data-model
+  - `covers`: acceptance -> view, acceptance -> flow
+- Every view/flow referenced in a playlist MUST also have a `composes` edge
+
+**Playlist rules:**
+- Entry types: `view` (with `view_id`), `flow` (with `flow_id`), `condition` (with `label`, `if_true`, `if_false`), `junction` (with `label`, `cases`)
+- All `view_id` / `flow_id` values must reference existing nodes
+- No cycles — a flow cannot contain itself directly or indirectly
+
+### 4. Append the matching journal event
+
+In the **same change**, append one line per graph operation to `docs/arkaik/journal.jsonl`
+(see [Dual-write](#dual-write-snapshot--journal)). Create the file if it doesn't
+exist yet. This is not optional bookkeeping — the validator in the next step
+cross-checks the two by value and **rejects a snapshot that its journal
+contradicts** (e.g. a status the last `node.status_changed` never reached, or a
+node with no `node.created`).
+
+### 5. Validate — hard gate, not optional
+
+After **every** change (surgical patch or full generation), run the validator:
+
+```bash
+node <skill-path>/scripts/validate-bundle.js <path-to-bundle.json>
+```
+
+The validator auto-discovers the `journal.jsonl` sidecar next to the bundle and
+folds it into the check, so pointing it at the snapshot gates **both** the patch
+and the appended event in one run.
+
+**A non-zero exit code is a hard stop.** Do not commit, hand off, or declare the
+task done until it exits 0 — and that includes fixing the journal, not just the
+snapshot. The map that ships is the one the app imports, so run the validator
+against *that* file (e.g. the seed the app loads), not just a local working copy.
+Where possible, wire this script into the consuming repo's CI or a pre-commit hook
+so a broken bundle cannot land regardless of who edits it.
+
+The validator enforces the full [Validation Checklist](references/schema.md#validation-checklist).
+Common issues it catches:
+- Duplicate node IDs (e.g. a concept and its backing table both kebab-cased to the same `DM-` id)
+- A node with a missing or empty `title`
+- Forgetting to add a `composes` edge when adding a view to a playlist
+- Stale edge IDs/references after renaming or removing a node
+- Missing `project_id` on new nodes
+- An invalid `view_card_variant` (the app's import throws on it)
+
+**Snapshot ↔ journal cross-checks** (the dual-write gate). The validator compares
+the two **by value, never by timestamp** (per-node timestamps don't exist and
+clocks lie) and errors on any mismatch, naming both sides:
+- The last project-level `node.status_changed.to` for a node must equal its
+  current `status`. (Platform-scoped transitions — those carrying `platform` —
+  move a per-platform node status — an acceptance, or a not-yet-covered view —
+  not `node.status`, and are excluded.)
+- Every node in the snapshot must have a `node.created` event.
+- No event may reference a node or edge that never existed. The `node.deleted`
+  edge cascade is applied, so you never emit the cascaded `edge.removed` events.
+- Each JSONL line must be one valid event object; a malformed line is reported by
+  its line number and fails the run.
+
+### 6. Update timestamps
+
+Set `project.updated_at` to the current ISO 8601 timestamp.
+
+## Acceptances — the parity layer
+
+An **acceptance** is a testable promise: a short `title` (the What), exactly one
+Given/When/Then scenario in `metadata.gherkin` (the How), 1–3 value elements in
+`metadata.values` (the Why), and a status per applicable platform. Acceptances
+are where per-platform truth lives; views and flows are computed aggregates.
+
+**Discipline — when you ship user-visible behavior on a platform:**
+
+1. Find the acceptance covering that behavior (`covers` edge into the view or
+   flow). If none exists, create one (`species: "acceptance"`, id prefix `AC-`).
+2. Set `metadata.platformStatuses.<platform>` on the **acceptance** — never on
+   the view. View `platformStatuses` is legacy fallback for views no acceptance
+   covers yet; do not write it on covered views.
+3. Append the matching `node.status_changed` event with the `platform` field.
+
+Creating a new acceptance + covers edge is itself a dual-write: append
+`node.created` and `edge.added` alongside the `node.status_changed`.
+
+**Rules:**
+
+- One Given/When/Then per acceptance — a second scenario is a second acceptance.
+- `Given` encodes render variants ("Given the pebble has a picture attached…").
+- `platforms` lists only the platforms where the behavior is *expected* — a
+  mobile-only behavior is `["ios", "android"]`, not backlog-on-web.
+- `covers` edges: acceptance → view or acceptance → flow. Zero edges = an
+  anchorless acceptance in **intake** (legal): an idea filed before its flows and
+  views exist, carrying `metadata.product` until it has anchors to derive
+  membership from. Several = the behavior spans surfaces.
+- Statuses reuse the standard lifecycle; "shipped" = `live`.
+
+**Example** — iOS ships the draw-in animation:
+
+```json
+{
+  "id": "AC-pebble-draw-in-animation",
+  "project_id": "ariko",
+  "species": "acceptance",
+  "title": "Pebble draw-in animation",
+  "status": "backlog",
+  "platforms": ["web", "ios", "android"],
+  "metadata": {
+    "gherkin": "When I'm on the Pebble Detail, Then I see the Pebble appearing in a drawing animation.",
+    "values": ["fun-entertainment", "design-aesthetics"],
+    "platformStatuses": { "ios": "live" }
+  }
+}
+```
+
+plus `{"type": "node.status_changed", "node_id": "AC-pebble-draw-in-animation", "from": "backlog", "to": "live", "platform": "ios"}` in the journal.
+
+<!-- values:start -->
+### Value mapping
+
+Assign 1–3 `metadata.values` from the 30-element Bain pyramid when creating an
+acceptance. **If unsure, omit them** — enrichment passes exist; a wrong value is
+worse than a missing one. Consult `references/values.md` (one-line definitions
+per element) only when actually mapping — do not load it otherwise.
+<!-- values:end -->
+
+## Products — which app does this node belong to?
+
+A project may describe a **family** of apps sharing one graph: an end-user app, a
+web-only back office, a public API. Each is a **product**, declared once in
+`project.metadata.products` with an `id`, a `title`, and the `platforms` it may
+ship on. Most projects declare none, and a project with no `products` key behaves
+exactly as it always has — do not invent products for one.
+
+But when a project *does* declare them, **you are the only author of membership**:
+no form, panel, or dialog in the app writes any of the fields below. If you don't
+write them, nobody does.
+
+**Where membership is stored — and where it must never be:**
+
+| Species | What you write |
+|---|---|
+| `flow`, `view` | `metadata.product` — exactly one declared product id |
+| `acceptance` | Usually **nothing**. Membership comes from the views and flows its `covers` edges reach. Write `metadata.product` only when the acceptance covers nothing (below) |
+| `data-model`, `api-endpoint` | **Never.** Membership is derived from whoever consumes them, walking `calls` / `displays` / `queries` inward from the flows and views. Writing `metadata.product` here is a validator warning (`product-membership-wrong-species`) |
+
+That last row is the one to get right. The system layer is shared substrate: a
+data model both the end-user app and the admin touch belongs to both, and a
+stored key could only ever claim one of them.
+
+**Keep `platforms` inside the product's menu.** `node.platforms` stays
+authoritative and unchanged in meaning, but it *should* be a subset of its
+product's `platforms`. A view in a web-only admin product is `["web"]`, not
+`["web", "ios", "android"]`. Readers intersect the two lists, so an out-of-menu
+platform is dropped from every display anyway and only earns you a
+`product-platform-not-in-menu` warning.
+
+**An anchorless acceptance should name its product.** An acceptance with zero
+`covers` edges is legal — a product-level promise — but it has no anchor to
+derive membership from, so it sits under "All products" only until you say which
+app it is about (`acceptance-product-unassigned`):
+
+```json
+{
+  "id": "AC-audit-log-retention",
+  "project_id": "ariko",
+  "species": "acceptance",
+  "title": "Audit log retention",
+  "status": "backlog",
+  "platforms": ["web"],
+  "metadata": {
+    "gherkin": "Given an admin action older than 90 days, When I open the audit log, Then it is no longer listed.",
+    "values": ["reduces-risk"],
+    "product": "admin"
+  }
+}
+```
+
+This is the one rule no example project can teach you by imitation: in the
+Pebbles seed all three acceptances anchor on a view or flow via `covers`, so
+every one of them derives its product and stores nothing. The anchorless case has
+no worked example anywhere — write the key yourself.
+
+**Stored maps take a product too.** A `MapDefinition` in `project.metadata.maps`
+has an optional `product`, which makes "the admin systems map" data rather than a
+feature request. As with everything above, there is no UI control for it: a map's
+`product` is set by writing it.
+
+When in doubt, leave membership off. An unassigned flow or view is a visible
+triage state the validator names (`unassigned-membership`); a *wrongly* assigned
+one is invisible, and quietly wrong in every rollup that reads it.
+
+## Full Schema Reference
+
+For the complete TypeScript types, allowed values for `status`, `species`,
+`edge_type`, `platform`, the journal event payloads, and detailed playlist
+structures, read:
+
+```
+<skill-path>/references/schema.md
+```
+
+Consult this reference whenever you're unsure about a field's type or allowed
+values. It is generated from `@arkaik/schema` and is the source of truth.
+
+## Event Vocabulary
+
+The v1 event types and their payloads (envelope fields `id`, `ts`, `type`,
+optional `actor` are implied on every one). The vocabulary grows without version
+bumps: an unknown `type` is preserved on rewrite and ignored on read, so append a
+known type whenever one fits.
+
+| Type | Payload | Meaning |
+|---|---|---|
+| `node.created` | `node_id`, `species`, `title` | Node added to the graph |
+| `node.updated` | `node_id`, `fields[]`, optional `from`/`to` for scalars | Non-status fields changed |
+| `node.status_changed` | `node_id`, `from`, `to`, `platform?` | Lifecycle transition; `platform` present when a per-platform node status — an acceptance, or a not-yet-covered view — moved |
+| `node.deleted` | `node_id` | Node removed. **Implies** cascade removal of every edge referencing it — do not emit the cascaded `edge.removed` events |
+| `edge.added` | `edge_id`, `source_id`, `target_id`, `edge_type` | Relationship created |
+| `edge.removed` | `edge_id` | Relationship removed (non-cascade) |
+| `release.tagged` | `version`, `notes?`, `platform?` | A version shipped. `platform` absent = project-wide; present = that platform's rhythm |
+| `idea.proposed` | `title`, `description?`, `node_id?` | An idea, before (or linked to) any node |
+| `request.filed` | `title`, `description?`, `source?`, `node_id?` | An external ask (user feedback, stakeholder request) |
+| `ref.added` | `node_id`, `ref_id`, `ref_type`, `url` | External reference attached |
+| `ref.removed` | `node_id`, `ref_id` | External reference detached |
+| `ref.status_changed` | `node_id`, `ref_id`, `from?`, `to`, `synced_at` | Mirrored external status moved (issue closed, PR merged) |
+
+## Bootstrap: Generating a Map from Scratch
+
+**Check for the bootstrap skill first.** If the `arkaik-bootstrap` skill is
+installed beside this one — or can be installed with `arkaik init --bootstrap` —
+the bootstrap method supersedes this section for from-scratch and
+retro-population runs. The steps below remain the fallback when the bootstrap
+tooling is unavailable.
+
+If the project doesn't have a map yet and the user asks you to create one:
+
+1. Scan the codebase for routes/pages, models, and API endpoints
+2. Read any product specs or PRDs in the repo
+3. Generate the full ProjectBundle following the schema reference. Keep a running
+   registry of assigned IDs and assert each new ID is unique **as you emit it** —
+   don't rely on the final validator to catch a collision after the fact. Watch
+   especially for concept-vs-table `DM-` pairs (see Node rules) and give every
+   node a non-empty title.
+4. Seed the journal to match: emit a `node.created` for every node and an
+   `edge.added` for every edge (and a `node.status_changed` for any node that
+   isn't at its starting status), so the snapshot↔journal cross-check passes from
+   the very first validation.
+5. Validate with the bundled script and fix everything until it exits 0 (a large
+   from-scratch bundle is exactly where duplicate IDs, missing titles, and
+   snapshot↔journal gaps slip in)
+6. Save the snapshot to `docs/arkaik/bundle.json` and the journal to `docs/arkaik/journal.jsonl`
+   (or ask the user where they want them)
+
+Full generation — via this section or the bootstrap method — is the **only**
+sanctioned non-surgical case. For every subsequent change, use a surgical patch
+paired with an appended event.

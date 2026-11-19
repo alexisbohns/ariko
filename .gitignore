@@ -31,3 +31,7 @@ data/retired/2026-10-10-*.json
 # private entities included, and this repo is public. The one file already
 # tracked here (2026-09-04-legacy-pbbls-beans.json) predates the rule.
 /data/retired/
+.arkaik/
+docs/arkaik/.backups/
+docs/arkaik/bundle.json
+docs/arkaik/journal.jsonl
